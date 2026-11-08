@@ -1,16 +1,14 @@
 // Editor: state, history, the 2D–3D link, screen layout, mouse and keyboard.
 import {t} from '../i18n/i18n.js';
 import {createView} from '../core/scene.js';
-import {validate,buildPlan2d,openingCoords,wallsAt,offsetVar,edgeThickness,WALL} from '../core/geometry.js';
+import {validate,wallsAt,offsetVar,edgeThickness,WALL} from '../core/geometry.js';
 import {migrate,emptyPlan,roomById,wallDefaults,closeOuterOpen} from '../core/plan.js';
 import {furnitureConflicts} from '../core/layout.js';
-import {isRun,runGeo,syncRuns} from '../core/runs.js';
+import {syncRuns} from '../core/runs.js';
 import {syncFurnStrips} from '../core/fixtures.js';
 import {byId} from '../core/catalog.js';
-import {layoutSensors} from '../core/sensors.js';
 import {sensorsMode} from './modes/sensors.js';
 import {devicesMode} from './modes/devices.js';
-import {sideWall,wallBase} from '../core/surfaces.js';
 import {createView2d} from './view2d.js';
 import {createDragGesture} from './drag-gesture.js';
 import {createHistory} from './history.js';
@@ -29,6 +27,7 @@ import {createCoach} from './coach.js';
 import {createViewDemo} from './view-demo.js';
 import {createLook} from './look.js';
 import {liveScene} from '../core/devices.js';
+import {planWalls,planFurniture,planSpots} from '../core/plan-scene.js';
 import {createPath} from './wizard-path.js';
 import {stepReadyToFinish,areaOnPlan,lampWaits} from './wizard-state.js';
 import {LANGS,getLang} from '../i18n/i18n.js';
@@ -171,8 +170,7 @@ export function createApp({haLights,ha,photos}){
     return [...list].sort((a,b)=>at(a)-at(b)||(a&&b?ed.areaName(a).localeCompare(ed.areaName(b)):0));};
   // Readings on the walls (D-033): what to write — from the sensors of the room's area, where — the free space of a visible wall.
   ed.sensorCtx=()=>({sensors:ha.sensors?.()||[],areas:ha.areas(),state:e=>ha.state?.(e)??null});
-  ed.sensorSpots=()=>{const P=ed.plan;if(!P.sensors.length)return [];
-    return layoutSensors(P,ed.sensorCtx(),{moving:ed.drag?.S?.id,cam:ed.view.homeCam?.(),openings:P.openings.map(o=>openingCoords(P.rooms,o)).filter(Boolean),baseOf:(r,i)=>{const w=sideWall(r,i);return wallBase(w.k,w.tint);}});};
+  ed.sensorSpots=()=>planSpots(ed.plan,ed.sensorCtx(),{moving:ed.drag?.S?.id,cam:ed.view.homeCam?.()});
   ha.onState?.(()=>ed.update());
   ed.update=()=>{syncRuns(ed.plan);syncFurnStrips(ed.plan);ed.syncSave?.(); // a strip on furniture moves with it, also while dragging
     ed.spots=ed.sensorSpots();
@@ -188,7 +186,7 @@ export function createApp({haLights,ha,photos}){
       {const vk=JSON.stringify(plan.view||null);if(vk!==keys.view){keys.view=vk;ed.view.setHome?.(plan.view);requestAnimationFrame(()=>ed.update());}}
       // devices from HA (D-048): curtains — how far open, air conditioners — the airflow, open windows and doors glow
       const live=liveScene(plan,ha);
-      ed.view.setFurniture(plan.furniture.map(f=>isRun(f)?{...f,geo:runGeo(plan,f)}:live.open.has(f.id)?{...f,open:live.open.get(f.id)}:f));ed.view.setSensors(ed.spots);
+      ed.view.setFurniture(planFurniture(plan,live));ed.view.setSensors(ed.spots);
       ed.view.setClimate?.(live.climate);ed.view.setContacts?.(live.contacts);
       const placed=plan.lights.filter(l=>l.placed),lk=JSON.stringify([placed,plan.rooms]);
       if(lk!==keys.lights){keys.lights=lk;ed.view.setLights(placed,plan.rooms);}
@@ -197,8 +195,7 @@ export function createApp({haLights,ha,photos}){
       else if(!ed.errors.length){
         const wk=JSON.stringify([plan.rooms,plan.openings,plan.wall]);
         if(wk!==keys.walls){keys.walls=wk;const t0=performance.now();
-          try{const ops=plan.openings.map(o=>openingCoords(plan.rooms,o));ed.hidden=ops.filter(o=>!o).length;
-            const g=buildPlan2d(plan.rooms,ops.filter(Boolean),{outer:wallDefaults(plan).outer});ed.view.set(g,plan.rooms,ops.filter(Boolean),ed.sel.room);keys.mask='';
+          try{const {g,ops,hidden}=planWalls(plan);ed.hidden=hidden;ed.view.set(g,plan.rooms,ops,ed.sel.room);keys.mask='';
             ed.walls2d=wallsAt(g);ed.draw();
             last={ms:performance.now()-t0,fail:null};if(ed.debug)console.log('3D',last.ms.toFixed(0),'ms');}
           catch(err){last={fail:String(err.message||err).slice(0,80)};}}

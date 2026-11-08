@@ -26,7 +26,8 @@ const LOCALE={en:'en',de:'de',fr:'fr',nl:'nl',es:'es',zh:'zh-CN',it:'it',pl:'pl'
 let lang='en';
 export const getLang=()=>lang;
 export const locale=()=>LOCALE[lang];
-export function setLang(l){lang=LOCALE[l]?l:'en';if(typeof document!=='undefined')document.documentElement.lang=LOCALE[lang];}
+// page: also the page's lang (the editor's own document); the dashboard card lives in HA's page and leaves it alone
+export function setLang(l,{page=true}={}){lang=LOCALE[l]?l:'en';if(page&&typeof document!=='undefined')document.documentElement.lang=LOCALE[lang];}
 // system language (later the HA language): exact match first, then by the first part (de-AT → de, pt-PT → pt, zh-TW → zh)
 export function pickLang(list){for(const x of list||[]){const s=String(x).toLowerCase(),b=s.split(/[-_]/)[0];if(LOCALE[b])return b;}return 'en';}
 

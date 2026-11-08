@@ -32,11 +32,17 @@ function shellGen(){const src=fs.readFileSync('src/shell.html','utf8'),m=src.mat
 shellGen();fs.mkdirSync('../custom_components/home_twin/frontend',{recursive:true});
 const panelOpts={...opts,entryPoints:['src/ha-panel.js'],outfile:PANEL,write:true};
 const panelDone=()=>console.log('panel.js',(fs.statSync(PANEL).size/1024).toFixed(0),'KB');
+// The dashboard card (D-059): card.js — a small file HA loads on every page (no imports); card-app.js — the 3D and the home panel,
+// loaded only where a card is shown
+const FRONT='../custom_components/home_twin/frontend/';
+const cardOpts=['card','card-app'].map(n=>({...opts,entryPoints:[`src/${n}.js`],outfile:FRONT+n+'.js',write:true,
+  plugins:[{name:'done',setup(b){b.onEnd(r=>{if(!r.errors.length)console.log(n+'.js',(fs.statSync(FRONT+n+'.js').size/1024).toFixed(0),'KB');});}}]}));
 if(process.argv.includes('--serve')){
   const ctx=await esbuild.context({...opts,plugins:[{name:'html',setup(b){b.onEnd(r=>{if(!r.errors.length)write(r);});}}]});
   await ctx.watch();const {port}=await ctx.serve({servedir:'dist',port:8766});console.log(`http://localhost:${port}/`);
   // styles and the shell are not in esbuild's module graph — watch them ourselves
   const pctx=await esbuild.context({...panelOpts,plugins:[{name:'done',setup(b){b.onEnd(r=>{if(!r.errors.length)panelDone();});}}]});await pctx.watch();
+  for(const o of cardOpts)await (await esbuild.context(o)).watch();
   // watch the folder, not the files: editors save by replacing the file, and a watch on the old file then goes silent on macOS
   let t=0;fs.watch('src',(_e,f)=>{if(!['styles.css','shell.html'].includes(String(f)))return;clearTimeout(t);t=setTimeout(()=>{shellGen();ctx.rebuild().catch(()=>{});},80);});
-}else{write(await esbuild.build(opts));await esbuild.build(panelOpts);panelDone();}
+}else{write(await esbuild.build(opts));await esbuild.build(panelOpts);panelDone();for(const o of cardOpts)await esbuild.build(o);}

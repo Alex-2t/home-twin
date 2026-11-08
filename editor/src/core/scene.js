@@ -76,7 +76,7 @@ export function createView(host){
       camera.position.copy(controls.target).add(off.setFromSpherical(sph));}
     camera.lookAt(controls.target);
   },{passive:false,capture:true});
-  controls.enableDamping=!reducedMotion();motion?.addEventListener('change',()=>{controls.enableDamping=!reducedMotion();});controls.dampingFactor=.12;controls.maxPolarAngle=Math.PI*.46;controls.minZoom=.4;controls.maxZoom=6;
+  const onMotion=()=>{controls.enableDamping=!reducedMotion();};onMotion();motion?.addEventListener('change',onMotion);controls.dampingFactor=.12;controls.maxPolarAngle=Math.PI*.46;controls.minZoom=.4;controls.maxZoom=6;
   // Daylight is soft, like inside an apartment, not sun through a removed roof: diffuse from above (sky and floor bounce), sun
   // high and weaker, shadow with a blurred edge. That way there are no big slanted shadows on walls, while shadows under furniture and corner shading remain.
   const hemi=new THREE.HemisphereLight(0xf6f6ff,0xb39f88,DAY.h);scene.add(hemi);
@@ -528,12 +528,19 @@ export function createView(host){
   // Panels cover L pixels on the left, R on the right and B at the bottom (the bottom one is Preview's on a narrow screen): the model fits into
   // the middle of the free part.
   const setInsets=(l,r=0,b=0)=>{if(Math.abs(l-insetL)<1&&Math.abs(r-insetR)<1&&Math.abs(b-insetB)<1)return;insetL=l;insetR=r;insetB=b;resize();};
-  new ResizeObserver(resize).observe(host);
-  (function loop(){stepTween();controls.update();tickDevices();stepGlow();camera.getWorldDirection(dir);dir.y=0;dir.normalize();placeSun(dir);
+  const sizes=new ResizeObserver(resize);sizes.observe(host);
+  // pause() — the view is out of sight (the dashboard card scrolled away or another page): no frames until resume().
+  // dispose() — gone for good (the card was removed): the GPU context and everything listening are let go
+  let paused=false,raf=0,gone=false;
+  const pause=()=>{paused=true;cancelAnimationFrame(raf);raf=0;},resume=()=>{if(!paused||gone)return;paused=false;if(!raf)raf=requestAnimationFrame(loop);};
+  const dispose=()=>{if(gone)return;gone=true;pause();sizes.disconnect();motion?.removeEventListener('change',onMotion);controls.dispose();
+    renderer.dispose();renderer.forceContextLoss();renderer.domElement.remove();};
+  function loop(){if(paused){raf=0;return;}stepTween();controls.update();tickDevices();stepGlow();camera.getWorldDirection(dir);dir.y=0;dir.normalize();placeSun(dir);
     for(const s of sides){s.grp.visible=s.out.dot(dir)>-.25;AOU.htAoVis.value.setComponent(SIDE_AO[s.id],s.grp.visible?1:0);}
     for(const o of labels.values())o.mesh.visible=!o.side||sides.find(s=>s.id===o.side)?.grp.visible!==false;
     // Tall furniture with its back to the camera hides like a facade: otherwise a wardrobe by an exterior wall blocks the room.
     const faces=t=>-(Math.sin(t)*dir.x+Math.cos(t)*dir.z)>-.5;
-    for(const o of furn.children){if(o.userData.tall)o.visible=faces(o.rotation.y);for(const q of o.userData.parts||[])q.visible=faces(q.userData.ry);}renderer.render(scene,camera);requestAnimationFrame(loop);})();
-  return {renderer,scene,setInsets,setTheme,setSensors,homeCam:()=>[+Math.sin(home.theta).toFixed(4),+(-Math.cos(home.theta)).toFixed(4)],home:goHome,getView,setHome,onMoved:f=>{onMoved=f;},moved:()=>userMoved,spin,setClimate,setContacts,flyTo,setOutline,setGlow,reframe:()=>{framed=false;setMoved(false);tween=null;},focus,set,setFurniture,setLights,applyMask,setLightOn,setLightLevel,shine,setSolo,setNight,lightCount:()=>devs.reduce((s,d)=>s+d.lights.length,0),aoMs:()=>aoMs,ao:AOU,lights:{hemi,sun},select,camera,controls};
+    for(const o of furn.children){if(o.userData.tall)o.visible=faces(o.rotation.y);for(const q of o.userData.parts||[])q.visible=faces(q.userData.ry);}renderer.render(scene,camera);raf=requestAnimationFrame(loop);}
+  loop();
+  return {renderer,scene,pause,resume,dispose,setInsets,setTheme,setSensors,homeCam:()=>[+Math.sin(home.theta).toFixed(4),+(-Math.cos(home.theta)).toFixed(4)],home:goHome,getView,setHome,onMoved:f=>{onMoved=f;},moved:()=>userMoved,spin,setClimate,setContacts,flyTo,setOutline,setGlow,reframe:()=>{framed=false;setMoved(false);tween=null;},focus,set,setFurniture,setLights,applyMask,setLightOn,setLightLevel,shine,setSolo,setNight,lightCount:()=>devs.reduce((s,d)=>s+d.lights.length,0),aoMs:()=>aoMs,ao:AOU,lights:{hemi,sun},select,camera,controls};
 }

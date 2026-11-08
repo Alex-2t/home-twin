@@ -9,6 +9,10 @@ with every write — that is how the editor sees that the plan was changed in an
 
 The plan photo (D-058) is a file, .storage/home_twin.photo, sent and read over HTTP at /api/home_twin/photo. Its id, type and
 placement on the plan are kept with the plan (home_twin/photo/get, home_twin/photo/place, home_twin/photo/delete).
+
+The dashboard card (D-059): frontend/card.js is a small file HA loads on every page (add_extra_js_url), so “Home Twin” is in the card
+picker without setup; the 3D itself (frontend/card-app.js) loads only where a card is shown. The card follows the plan with
+home_twin/plan/subscribe: the plan now and after every write.
 """
 
 from __future__ import annotations
@@ -29,6 +33,7 @@ from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant, callback
 from homeassistant.exceptions import Unauthorized
 from homeassistant.helpers import config_validation as cv
+from homeassistant.helpers.dispatcher import async_dispatcher_connect, async_dispatcher_send
 from homeassistant.helpers.storage import Store
 from homeassistant.helpers.typing import ConfigType
 
@@ -47,6 +52,7 @@ from .const import (
 )
 
 FRONTEND = Path(__file__).parent / "frontend"
+SIGNAL_PLAN = f"{DOMAIN}_plan"  # the plan was written
 CONFIG_SCHEMA = cv.config_entry_only_config_schema(DOMAIN)
 
 
@@ -54,7 +60,7 @@ async def async_setup(hass: HomeAssistant, config: ConfigType) -> bool:
     """Once per HA start: serve frontend/, the photo address and the websocket commands (they can't be unregistered — they live until restart)."""
     await hass.http.async_register_static_paths([StaticPathConfig(STATIC_URL, str(FRONTEND), False)])
     hass.http.register_view(PhotoView(hass))
-    for command in (ws_plan_get, ws_plan_save, ws_photo_get, ws_photo_place, ws_photo_delete):
+    for command in (ws_plan_get, ws_plan_save, ws_plan_subscribe, ws_photo_get, ws_photo_place, ws_photo_delete):
         websocket_api.async_register_command(hass, command)
     return True
 
@@ -66,7 +72,9 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     # data is what goes to disk: plan, rev and, once a photo has been sent, photo (null — it was removed)
     hass.data[DOMAIN] = {"store": store, "data": {**data, "plan": data.get("plan"), "rev": int(data.get("rev", 0))}}
     # ?v= — so the browser loads the new build after an update instead of the old one from cache
-    stamp = int((FRONTEND / "panel.js").stat().st_mtime) if (FRONTEND / "panel.js").exists() else 0
+    stamp = await hass.async_add_executor_job(_stamp)
+    hass.data[DOMAIN]["card_url"] = card_url = f"{STATIC_URL}/card.js?v={stamp}"
+    frontend.add_extra_js_url(hass, card_url)
     await panel_custom.async_register_panel(
         hass,
         webcomponent_name=PANEL_ELEMENT,
@@ -88,8 +96,14 @@ async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     """The integration is removed or reloaded: remove the panel, write the plan if a save is pending. The plan and photo stay (reinstall — they are still there)."""
     frontend.async_remove_panel(hass, PANEL_URL)
     if (d := hass.data.pop(DOMAIN, None)) is not None:
+        frontend.remove_extra_js_url(hass, d["card_url"])
         await d["store"].async_save(d["data"])
     return True
+
+
+def _stamp() -> int:
+    """The newest build file's time: the panel and the card change together."""
+    return max((int(f.stat().st_mtime) for f in FRONTEND.glob("*.js")), default=0)
 
 
 def _save(d: dict[str, Any]) -> None:
@@ -131,6 +145,24 @@ def ws_plan_save(hass: HomeAssistant, connection: websocket_api.ActiveConnection
     data["plan"], data["rev"] = msg["plan"], data["rev"] + 1
     _save(d)
     connection.send_result(msg["id"], {"rev": data["rev"]})
+    async_dispatcher_send(hass, SIGNAL_PLAN)
+
+
+@websocket_api.websocket_command({vol.Required("type"): "home_twin/plan/subscribe"})
+@callback
+def ws_plan_subscribe(hass: HomeAssistant, connection: websocket_api.ActiveConnection, msg: dict[str, Any]) -> None:
+    """The plan and its revision now and after every write (events {plan, rev}) — for the dashboard card. Any signed-in user."""
+    if _loaded(hass, connection, msg) is None:
+        return
+
+    @callback
+    def forward() -> None:
+        if (d := hass.data.get(DOMAIN)) is not None:
+            connection.send_message(websocket_api.event_message(msg["id"], {"plan": d["data"]["plan"], "rev": d["data"]["rev"]}))
+
+    connection.subscriptions[msg["id"]] = async_dispatcher_connect(hass, SIGNAL_PLAN, forward)
+    connection.send_result(msg["id"])
+    forward()
 
 
 # ---------- the plan photo ----------

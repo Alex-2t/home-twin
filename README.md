@@ -8,10 +8,11 @@ A live 3D twin of your home for Home Assistant: draw the floor plan, place light
    - Older versions with [HACS](https://hacs.xyz): HACS → ⋮ → **Custom repositories** → `https://github.com/Alex-2t/home-twin`, type **Integration**.
 2. Settings → Devices & services → Add integration → **Home Twin**.
 3. Click **Draw your home** in the dialog that follows. Later, open **Home Twin** in the sidebar (or Settings → Devices & services → Home Twin → Configure).
+4. Put the home on a dashboard: edit a dashboard → **Add card** → **Home Twin** (or `type: custom:home-twin-card` in YAML). It looks best in a view of the **Panel** type, where it fills the screen; elsewhere it is 600 px tall (`height: 500` to change).
 
 Manual install: download `home_twin.zip` from the latest release, unzip it into `config/custom_components/home_twin`, restart Home Assistant.
 
-The editor is for administrators. The plan and its photo are stored in Home Assistant (`.storage/home_twin.plan`, `.storage/home_twin.photo`) and are included in backups, so every computer and browser sees the same plan. Removing the integration keeps them, so reinstalling brings them back; delete those files to remove them completely.
+The editor is for administrators; the card is for everyone in the home (only administrators change its scenes and layout). The plan and its photo are stored in Home Assistant (`.storage/home_twin.plan`, `.storage/home_twin.photo`) and are included in backups, so every computer and browser sees the same plan. Removing the integration keeps them, so reinstalling brings them back; delete those files to remove them completely.
 
 License: [GPL-3.0](LICENSE).
 

@@ -1214,5 +1214,9 @@
  "● DEMO": "● DEMO",
  "No connection to Home Assistant. Your changes are kept in this browser and will be sent when it is back.": "Keine Verbindung zu Home Assistant. Deine Änderungen bleiben in diesem Browser und werden gesendet, sobald die Verbindung wieder da ist.",
  "The plan is saved in Home Assistant": "Grundriss ist in Home Assistant gespeichert",
- "Light placement still needs confirmation. The draft is saved in Home Assistant.": "Die Lichtpositionen müssen noch bestätigt werden. Der Entwurf ist in Home Assistant gespeichert."
+ "Light placement still needs confirmation. The draft is saved in Home Assistant.": "Die Lichtpositionen müssen noch bestätigt werden. Der Entwurf ist in Home Assistant gespeichert.",
+ "Your home is not drawn yet": "Dein Zuhause ist noch nicht gezeichnet",
+ "Draw it in the Home Twin editor — it shows up here.": "Zeichne es im Home-Twin-Editor – dann erscheint es hier.",
+ "An administrator can draw it in Home Twin.": "Ein Administrator kann es in Home Twin zeichnen.",
+ "Open the editor": "Editor öffnen"
 }

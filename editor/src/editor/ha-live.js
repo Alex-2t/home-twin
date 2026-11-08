@@ -79,12 +79,15 @@ export function liveHA(initial){
     identify:e=>hass.callService('light','turn_on',{entity_id:e,flash:'short'}).then(()=>e,()=>e),
     setArea:async(e,area)=>{try{await ws({type:'config/entity_registry/update',entity_id:e,area_id:area});}
       catch(err){const d=reg(e)?.device_id;if(err?.code!=='invalid_info'||!d)throw err;await ws({type:'config/device_registry/update',device_id:d,area_id:area});}},
-    // the entity card — via an event on the HA root (the panel is in an iframe of the same origin: the parent document is accessible)
-    moreInfo:e=>{let root=null;try{root=window.parent!==window?window.parent.document.querySelector('home-assistant'):null;}catch{}
+    // the entity card — via an event on the HA root (the panel is in an iframe of the same origin: the parent document is accessible;
+    // the dashboard card is in HA's own document)
+    moreInfo:e=>{let root=null;try{root=(window.parent!==window?window.parent.document:document).querySelector('home-assistant');}catch{}
       (root||document.body).dispatchEvent(new CustomEvent('hass-more-info',{detail:{entityId:e},bubbles:true,composed:true}));},
     url:path=>hass.hassUrl?hass.hassUrl(path):path,
     areasUrl:'/config/areas/dashboard',
     devicesUrl:'/config/devices/dashboard',
+    // no longer needed (the dashboard card was removed): forecast subscriptions end, nobody is told about changes
+    close(){for(const u of fsubs.values())u?.();fsubs.clear();cancelAnimationFrame(raf);raf=0;subs.clear();ssubs.clear();},
   };
   return ha;
 }

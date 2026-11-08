@@ -7,6 +7,7 @@
 //   onApp(ed) — right after the editor is created, before the first plan
 //   dev    — the test panel (standalone app on localhost only)
 import {createApp} from './editor/app.js';
+import {haPlanLights} from './editor/ha.js';
 import {createFlows} from './editor/flows.js';
 import {devPanel} from './editor/devpanel.js';
 import {translateDom} from './i18n/i18n.js';
@@ -14,9 +15,7 @@ import {loadKenney,thumbnails} from './core/furniture3d.js';
 import {MODELS} from './gen/models.gen.js';
 
 export async function boot({ha,demo=null,demoUnderlay=null,plans=null,photos=undefined,onApp=null,dev=false}){
-  // An HA light group (it has a member list) whose lamps are also in the list is not placed on the plan — the lamps themselves are.
-  const haLights=()=>{const all=ha.lights(),ids=new Set(all.map(l=>l.entity));
-    return all.filter(l=>!l.members?.some(id=>ids.has(id))).map(l=>({...l,on:true,placed:false,points:[],segments:[],room:null}));};
+  const haLights=()=>haPlanLights(ha);
   translateDom(document.body); // static markup — in the user's language
   const ed=createApp({haLights,ha,photos});
   onApp?.(ed);

@@ -1214,5 +1214,9 @@
  "● DEMO": "● 演示",
  "No connection to Home Assistant. Your changes are kept in this browser and will be sent when it is back.": "未连接到 Home Assistant。你的更改保存在此浏览器中，恢复连接后会自动发送。",
  "The plan is saved in Home Assistant": "平面图已保存在 Home Assistant 中",
- "Light placement still needs confirmation. The draft is saved in Home Assistant.": "灯光位置仍需确认。草稿已保存在 Home Assistant 中。"
+ "Light placement still needs confirmation. The draft is saved in Home Assistant.": "灯光位置仍需确认。草稿已保存在 Home Assistant 中。",
+ "Your home is not drawn yet": "你的家还没有绘制",
+ "Draw it in the Home Twin editor — it shows up here.": "在 Home Twin 编辑器中绘制后，它会显示在这里。",
+ "An administrator can draw it in Home Twin.": "管理员可以在 Home Twin 中绘制。",
+ "Open the editor": "打开编辑器"
 }

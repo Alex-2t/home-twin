@@ -1,6 +1,6 @@
 # Home Twin integration for Home Assistant
 
-The editor from [`editor/`](../editor/README.md) inside Home Assistant, with the plan stored in HA itself. The integration code is [`custom_components/home_twin`](../custom_components/home_twin) at the repository root (that is where the HACS / Marketplace catalog expects it); this page covers how it works, the test HA and releasing a version. Decisions: [D-053](../docs/decisions.md) (dashboard, plan in HA), D-054 (setup dashboard instead of a menu item, packaging). There is no dashboard card yet.
+The editor from [`editor/`](../editor/README.md) inside Home Assistant, with the plan stored in HA itself, and the dashboard card. The integration code is [`custom_components/home_twin`](../custom_components/home_twin) at the repository root (that is where the HACS / Marketplace catalog expects it); this page covers how it works, the test HA and releasing a version. Decisions: [D-053](../docs/decisions.md) (the editor in HA, plan in HA), D-054 and D-056 (where the editor is, packaging), D-058 (the plan photo, no connection), D-059 (the dashboard card).
 
 ## How it works
 ```
@@ -11,11 +11,14 @@ custom_components/home_twin/
   const.py           addresses and names
   translations/      en, ru — texts of the setup flow and the “Done” dialog with a link to the editor
   brand/             icon (icon.png 256, icon@2x.png 512) — HA 2026 takes it from a third-party integration
-  frontend/panel.js  editor build (editor: npm run build) — not in git, goes into the release archive
+  frontend/          the build (editor: npm run build) — not in git, goes into the release archive:
+    panel.js           the editor panel
+    card.js            the dashboard card's small loader, on every HA page
+    card-app.js        the card's 3D and home panel, loaded where a card is shown
 hacs.json            for the catalog: install from the release archive home_twin.zip, HA from 2024.7
 ```
 - **Where the editor is.** In the sidebar — “Home Twin” (`mdi:floor-plan`), admins only, like other floor-plan integrations (NeonPlan 3D, NextFloor); a user who doesn't need it hides it with HA's own sidebar editing. The panel is also the integration's configuration panel (`config_panel_domain`): the “Configure” button on Home Twin in “Settings → Devices & services” opens it, and the dialog after adding links to it (“Draw your home”). Address — `/home-twin`. Later the dashboard card will link to it too (D-054, D-056).
-- **The plan** is `.storage/home_twin.plan`: `{plan, rev}`. Commands: `home_twin/plan/get` → `{plan, rev}`; `home_twin/plan/save {plan, rev?}` → `{rev}` (administrator only). `rev` is the revision the change was based on: if the plan was already changed in another window, the result is a `conflict` error and the editor asks “Load from HA / Keep mine”. Written to disk with a 2 s delay. Included in HA backups.
+- **The plan** is `.storage/home_twin.plan`: `{plan, rev}`. Commands: `home_twin/plan/get` → `{plan, rev}`; `home_twin/plan/subscribe` → events `{plan, rev}` now and after every write (the card); `home_twin/plan/save {plan, rev?}` → `{rev}` (administrator only). `rev` is the revision the change was based on: if the plan was already changed in another window, the result is a `conflict` error and the editor asks “Load from HA / Keep mine”. Written to disk with a 2 s delay. Included in HA backups.
 - **The plan photo** (D-058) is the file `.storage/home_twin.photo`. `POST /api/home_twin/photo` with the image as the body (administrator) → `{id}`; `GET /api/home_twin/photo?v=<id>` → the image (any signed-in user; the address changes with the photo, so the browser caches it). Its placement on the plan is kept with the plan: `home_twin/photo/get` → `{photo: {id, type, size, place} | null, never}`; `home_twin/photo/place {photo: id, place: {a, b, opacity, visible}}`; `home_twin/photo/delete`. `never` — HA has never had a photo: the editor then brings over the one it kept in the browser before D-058.
 - **No connection.** While HA is unreachable the editor says “Not saved”, keeps the plan and the photo in the browser with a mark of what was not sent, and sends them when HA is back or at the next start (if another window wrote in between — “Load from HA / Keep mine”).
 - **Removal.** If you remove the integration, the panel disappears but the plan and the photo stay: install it again and they are back. To delete them completely, remove the files `.storage/home_twin.plan` and `.storage/home_twin.photo`.
@@ -23,7 +26,9 @@ hacs.json            for the catalog: install from the release archive home_twin
 - **The HA layer** is [ha-live.js](../editor/src/editor/ha-live.js): the same interface as the demo (`editor/ha.js`), built from `hass` — registries, states (events within a frame are merged), commands, history, statistics, weather with an hourly forecast, the HA entity card.
 - Area for a lamp: for an entity without a name of its own, HA 2026.11 does not accept an area on the entity itself — it is written to its device.
 
-Not yet as it will be: there is no dashboard card.
+- **The dashboard card** (D-059) is `custom:home-twin-card`, “Home Twin” in the card picker: HA loads `card.js` on every page (`frontend.add_extra_js_url`), it loads `card-app.js` when a card is shown. The same 3D and home panel as the editor's “Preview” ([card-main.js](../editor/src/card-main.js)); the plan through `home_twin/plan/subscribe`. Best in a panel view (the whole screen); in other views it is 600 px tall (`height: 500` in its YAML to change). Settings written into the plan (scenes, panel layout) — administrators only. Out of sight it stops drawing; removed for a minute — it lets go of the 3D.
+
+Not yet as it will be: adding the card from the editor, a compact view for a regular dashboard.
 
 ## Releasing a version
 A GitHub release tagged `v0.1.0` → [release.yml](../.github/workflows/release.yml) builds the editor, runs the tests, puts `0.1.0` into `manifest.json` and attaches `home_twin.zip` (the contents of `custom_components/home_twin` together with `frontend/panel.js`). The catalog installs exactly that (`hacs.json`: `zip_release`, `hide_default_branch` — it cannot be installed from a branch without a build). [validate.yml](../.github/workflows/validate.yml) on every push: hassfest, the HACS check (works only for a public repository), editor build and tests.

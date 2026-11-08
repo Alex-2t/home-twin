@@ -49,6 +49,11 @@
 // Until HA is connected — demo data (mockHA).
 import {demoStatistics,demoStateHistory} from './ha-demo.js';
 // An entity that is missing right now is no reason to erase its placement from the saved file.
+// HA lamps as plan lamps, not placed yet. An HA light group (it has a member list) whose lamps are also in the list is not placed
+// on the plan — the lamps themselves are.
+export function haPlanLights(ha){const all=ha.lights(),ids=new Set(all.map(l=>l.entity));
+  return all.filter(l=>!l.members?.some(id=>ids.has(id))).map(l=>({...l,on:true,placed:false,points:[],segments:[],room:null}));}
+
 export function mergePlanLights(saved,current,switches=[]){
   const live=[...current,...saved.filter(s=>s.relay&&!current.some(l=>l.id===s.id)).flatMap(s=>{const w=switches.find(w=>w.entity===s.entity);return w?[{...s,name:w.name,area:w.area}]:[];})];
   const ids=new Set(live.map(l=>l.id));
