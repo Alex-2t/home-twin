@@ -7,7 +7,7 @@
       }
     },
     "create_entry": {
-      "default": "[Нарисовать дом](/home-twin). Потом редактор открывается отсюда: Настройки → Устройства и службы → Home Twin → «Настроить»."
+      "default": "[Нарисовать дом](/home-twin). Потом откройте **Home Twin** в боковом меню."
     },
     "abort": {
       "single_instance_allowed": "Home Twin уже добавлен."

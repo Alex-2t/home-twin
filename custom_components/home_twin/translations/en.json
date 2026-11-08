@@ -7,7 +7,7 @@
       }
     },
     "create_entry": {
-      "default": "[Draw your home](/home-twin). Later, the editor opens from here: Settings → Devices & services → Home Twin → Configure."
+      "default": "[Draw your home](/home-twin). Later, open **Home Twin** in the sidebar."
     },
     "abort": {
       "single_instance_allowed": "Home Twin is already set up."

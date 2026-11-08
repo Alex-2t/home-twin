@@ -7,7 +7,7 @@ Requires Home Assistant 2026.11 or newer.
 
 1. In Home Assistant open the Marketplace (HACS) → **Add from link** → `https://github.com/Alex-2t/home-twin` (the Marketplace asks to connect a GitHub account first, as for any repository outside its catalog). Download **Home Twin** and restart Home Assistant.
 2. Settings → Devices & services → Add integration → **Home Twin**.
-3. Click **Draw your home** in the dialog that follows. Later the editor opens from Settings → Devices & services → Home Twin → Configure.
+3. Click **Draw your home** in the dialog that follows. Later, open **Home Twin** in the sidebar (or Settings → Devices & services → Home Twin → Configure).
 
 Manual install: download `home_twin.zip` from the latest release, unzip it into `config/custom_components/home_twin`, restart Home Assistant.
 

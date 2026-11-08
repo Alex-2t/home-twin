@@ -43,7 +43,7 @@ Testing on a real tablet, trackpad and new users requires access to devices or p
 These are the not-yet-implemented parts of the target package D-015. The stages are described in more detail in the [release plan](free-version.md).
 
 1. HA test environment — **exists** (2026-11-08): HA 2026.11 in Docker with `demo`, set up by a script ([integration/README.md](../integration/README.md)).
-2. Integration — **skeleton exists** (D-053, D-054): the integration's configuration panel (the “Configure” button, a link after adding; no menu item), the plan in `.storage` with a revision number. Left: the plan photo in HA, updating the panel without a restart; then hour counters for light and appliance statistics (D-049).
+2. Integration — **skeleton exists** (D-053, D-054): a sidebar panel that is also the integration's configuration panel (“Home Twin” in the sidebar, the “Configure” button, a link after adding — D-056), the plan in `.storage` with a revision number. Left: the plan photo in HA, updating the panel without a restart; then hour counters for light and appliance statistics (D-049).
 3. HA layer on `hass` — **exists** ([ha-live.js](../editor/src/editor/ha-live.js)): registries, states, commands, history, statistics, energy, weather, the entity card; checked on the test HA. Left: non-administrator permissions, connection loss, freeing 3D (`dispose`).
 4. Dashboard card: 3D and a regular apartment panel on the right per D-015 (the first version of the panel is “Preview” in the editor, D-047), device control, adding to a dashboard. The free scope and Pro need clarification.
 5. User upload of a ready apartment `.glb`. Loading built-in furniture models already exists; this is a different scenario.

@@ -17,13 +17,19 @@ New decisions are appended at the top of their section, old ones are not rewritt
 
 ## Decisions
 
+### D-056. The editor goes back to the sidebar — **accepted** (2026-11-08)
+- Revises the first point of D-054. The owner couldn't find the editor in the test HA himself ("it's hard to get to — will users get it?"): the link after adding is shown once, and "Settings → Devices & services → Home Twin → Configure" is not something people remember.
+- How others do it: NeonPlan 3D and NextFloor (its fork) register the editor as a sidebar panel ("NeonPlan 3D" / "NextFloor", `mdi:floor-plan`), always on, and their READMEs say "Open … in the sidebar". In HA every user can hide a sidebar item with HA's own sidebar editing, so an always-present item costs little.
+- Now: "Home Twin" in the sidebar (`mdi:floor-plan`, admins only) and still the integration's config panel (`config_panel_domain`) — "Configure" and the link after adding open the same panel. The dashboard card (stage 2) will add a third way in.
+- Verified on the test HA: the sidebar item and "Configure" both open the editor.
+
 ### D-055. Number and time formats follow the Home Assistant profile — **accepted** (2026-11-08)
 - The owner asked for the panel to take formats from HA, not from the language. The HA user profile has its own "Number format" and "Time format"; the panel now reads them from `hass.locale` (`number_format`, `time_format`) and maps them the way HA's frontend does: comma_decimal → 1,234.5; decimal_comma → 1.234,5; space_comma → 1 234,5; quote_decimal → 1'234.5; none → no grouping; system → the browser's; language → by the UI language. The clock is 12- or 24-hour as set (am_pm / 24; for language and system — what that locale does with 22:00).
 - One place: `num()`, `clock()` and `dateTime()` in [i18n.js](../editor/src/i18n/i18n.js); every number and time in the editor and Preview goes through them. Set at panel start (`HOME_TWIN_LOCALE`) and on every `hass` update. Outside HA — by the language, as before.
 - Not yet: HA's date format (DMY/MDY/YMD — our dates use month names, so it rarely matters), first weekday, and "use server time zone" (times are in the browser's time zone).
 - Verified on the test HA: with decimal_comma and 24 in the profile, an English UI shows "80,2 m²" and "13:53".
 
-### D-054. The editor is an integration settings panel, not a menu item; the repository is prepared for opening — **accepted** (2026-11-08)
+### D-054. The editor is an integration settings panel, not a menu item; the repository is prepared for opening — **accepted** (2026-11-08; the sidebar part revised by D-056)
 - The owner: the editor is needed at the start and then only occasionally — it does not belong in the sidebar. The panel is registered without a menu item, as an integration settings panel (`config_panel_domain`, as with ZHA, Z-Wave, Matter): the “Configure” button on Home Twin in “Devices & services”; right after adding, in the “Done” window — the “Draw your home” link (`config.create_entry.default`). The card on the dashboard is viewed every day (stage 2) — it will also be an entry into the editor (“Edit plan”; an empty card invites you to draw your home). A full-screen “Home” in the menu, if needed, is a separate thing, not the editor.
 - Removal: the plan stays in `.storage/home_twin.plan` — if you reinstall the integration, it is still there; it is in HA backups. To delete it completely, delete that file. To start over — “New plan” in the editor (the previous one goes to the backup slot).
 - A separate public repository is not needed: the catalog rule “one repository — one add-on” means one integration, the editor and docs folders next to it do not interfere. The integration is moved to the root (`custom_components/home_twin`), next to it `hacs.json` (`zip_release`, `hide_default_branch`, HA from 2026.11.0), `LICENSE` (GPL-3.0, O-004), the icon in `custom_components/home_twin/brand/` (HA 2026 takes it from a third-party integration). GitHub Actions: `release.yml` — a tagged release builds the editor, sets the version in `manifest.json`, attaches `home_twin.zip`; `validate.yml` — hassfest, HACS, build and tests.

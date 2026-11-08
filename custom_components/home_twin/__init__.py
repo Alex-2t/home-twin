@@ -1,9 +1,9 @@
 """Home Twin — a live 3D twin of your home for Home Assistant.
 
 The integration gives the editor a place in HA: the /home-twin panel (frontend/panel.js — the editor/ build) and plan storage
-in .storage/home_twin.plan. The editor is opened at the start and rarely afterwards, so it is not in the sidebar: it is the
-integration's config panel — the “Configure” button on Home Twin in “Devices & services” (ZHA, Z-Wave and Matter work the same way);
-a link to it is also shown in the dialog after adding. The editor talks to HA through the hass object that HA hands to the panel, and
+in .storage/home_twin.plan. The panel is in the sidebar ("Home Twin", like other floor-plan integrations — each user can hide it
+with HA's own sidebar editing) and is also the integration's config panel: the “Configure” button on Home Twin in
+“Devices & services” opens it too (D-056). The editor talks to HA through the hass object that HA hands to the panel, and
 reads and writes the plan with the websocket commands home_twin/plan/get and home_twin/plan/save. The revision number (rev) grows
 with every write — that is how the editor sees that the plan was changed in another window.
 """
@@ -50,8 +50,10 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         webcomponent_name=PANEL_ELEMENT,
         frontend_url_path=PANEL_URL,
         module_url=f"{STATIC_URL}/panel.js?v={stamp}",
+        sidebar_title="Home Twin",
+        sidebar_icon="mdi:floor-plan",
         require_admin=True,
-        # no sidebar entry: the integration's config panel — the “Configure” button on its page
+        # also the integration's config panel: the “Configure” button on its page opens it
         config_panel_domain=DOMAIN,
         # in its own iframe: the editor has its own document and styles — like the standalone app
         embed_iframe=True,
