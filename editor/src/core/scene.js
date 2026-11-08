@@ -65,7 +65,7 @@ export function createView(host){
   // Like Blender: middle button orbits, Shift + middle pans; left orbits too (a trackpad has no middle button), Shift + left pans.
   controls.mouseButtons={LEFT:THREE.MOUSE.ROTATE,MIDDLE:THREE.MOUSE.ROTATE,RIGHT:THREE.MOUSE.PAN};
   // Trackpad like Blender: two fingers orbit, Shift + two fingers pan, pinch zooms. Mouse wheel zooms.
-  renderer.domElement.addEventListener('wheel',e=>{
+  renderer.domElement.addEventListener('wheel',e=>{if(!controls.enabled)return; // a still picture (the compact dashboard card): the page scrolls
     const mouse=e.deltaX===0&&e.wheelDeltaY!==undefined&&e.wheelDeltaY!==0&&e.wheelDeltaY%120===0;
     if(e.ctrlKey||mouse)return; // OrbitControls zooms by itself
     e.preventDefault();e.stopImmediatePropagation();setMoved(true);tween=null;

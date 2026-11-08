@@ -17,7 +17,7 @@
 // are dragged there and back; “Favorites” — tiles of any entities (look/layout.js, look/favorites.js); the layout is in the plan.
 // The gear is by the overview title and in the room row (instead of “⌂”): each room has its own part order and its own “Favorites”.
 // Not yet: TV.
-//   open() / close(); esc() — one step back; insets() — {right, bottom}: what covers the 3D
+//   open() / close(); esc() — one step back; insets() — {right, bottom}: what covers the 3D; room(id) — a room's screen
 import CARD_CSS from '../look/card.css';
 import {icon} from '../look/icons.js';
 import {t,N,getLang,locale,num as fmtNum,clock} from '../i18n/i18n.js';
@@ -696,5 +696,7 @@ export function createLook(ed,host0){
       if(getComputedStyle(sb).position==='absolute')return {right:sb.offsetWidth,bottom:0};const mr=map.getBoundingClientRect();return {right:0,bottom:Math.max(0,hr.bottom-mr.bottom)};},
     width(){return this.insets().right;},
     refresh:render,
+    // a room's screen, as a click on its chip (the dashboard card opened with ?room=)
+    room:id=>{if(on)selectRoom(id);},
   };
 }

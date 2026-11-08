@@ -315,8 +315,20 @@ export function createFlows(ed,{demo,demoUnderlay}){
     'wizard':()=>{hideStart();ed.path.resume();},
     'prev':()=>swapPrev(),
     'versions':()=>ed.showVersions(),
+    'board':()=>f.addBoard(),
   };
   document.querySelectorAll('.menu [data-a]').forEach(b=>b.onclick=()=>{closeMenus();act[b.dataset.a]();});syncPrev();
+  // The whole home on a dashboard (D-059, in HA only): the Home Twin dashboard with the card, in the sidebar; there already — go there.
+  // The menu item says which of the two it will do.
+  const boardBtn=document.querySelector('[data-a=board]');
+  const syncBoard=()=>{const b=ed.ha.board;boardBtn.hidden=!b;if(b)boardBtn.lastChild.textContent=b.exists()?t('Open dashboard'):t('Add to dashboard');};
+  $('brand-btn').addEventListener('click',syncBoard);syncBoard();
+  f.addBoard=async()=>{const b=ed.ha.board;if(!b)return;if(b.exists()){b.open();return;}const name=ed.plan.name||t('My home');
+    // after the message — the summary again, if it was open: now without “Add to dashboard”
+    const done=()=>{if(ed.stepNow()?.o?.id==='fin')ed.path.finale();else ed.banner();};
+    try{await b.add(name);syncBoard();
+      ed.banner(t('Your home is on the dashboard “{0}” in the sidebar.',name),[[t('Got it'),done],[t('Open|verb'),()=>{done();b.open();},true]]);}
+    catch(e){ed.banner(t('Could not create the dashboard: {0}',e?.message||String(e)),[[t('Got it'),()=>ed.banner(),true]]);}};
   $('grid').onchange=e=>{ed.grid=e.target.checked;};
   $('file-json').onchange=async e=>{const file=e.target.files[0];e.target.value='';if(!file)return;
     let plan;try{plan=readPlan(await file.text());}catch{ed.banner(t('This isn\'t a plan file.'),[[t('Got it'),()=>ed.banner()]]);return;}

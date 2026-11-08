@@ -18,6 +18,7 @@ export async function start(panel){
   ed=await boot({ha,plans,photos});
   // the “Saved” mark at the top: whether HA has everything. While HA is unreachable its frontend holds requests until it is back,
   // so “no connection” comes from hass.connected
+  document.querySelector('#file-menu .menu-head small').textContent=t('The plan is saved in Home Assistant');
   ed.remote=()=>{const p=plans.state();return p==='conflict'?p:panel.hass?.connected===false?'offline':p!=='saved'?p:photos.state();};status();
   if(asked)ask();
   addEventListener('pagehide',()=>{plans.flush();photos.flush();ed.history.flush();});

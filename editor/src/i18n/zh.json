@@ -1218,5 +1218,9 @@
  "Your home is not drawn yet": "你的家还没有绘制",
  "Draw it in the Home Twin editor — it shows up here.": "在 Home Twin 编辑器中绘制后，它会显示在这里。",
  "An administrator can draw it in Home Twin.": "管理员可以在 Home Twin 中绘制。",
- "Open the editor": "打开编辑器"
+ "Open the editor": "打开编辑器",
+ "Add to dashboard": "添加到仪表盘",
+ "Open dashboard": "打开仪表盘",
+ "Your home is on the dashboard “{0}” in the sidebar.": "你的家已在侧边栏的仪表盘“{0}”中。",
+ "Could not create the dashboard: {0}": "无法创建仪表盘：{0}"
 }

@@ -1218,5 +1218,9 @@
  "Your home is not drawn yet": "Дом ещё не нарисован",
  "Draw it in the Home Twin editor — it shows up here.": "Нарисуйте его в редакторе Home Twin — он появится здесь.",
  "An administrator can draw it in Home Twin.": "Администратор может нарисовать его в Home Twin.",
- "Open the editor": "Открыть редактор"
+ "Open the editor": "Открыть редактор",
+ "Add to dashboard": "Добавить на дашборд",
+ "Open dashboard": "Открыть дашборд",
+ "Your home is on the dashboard “{0}” in the sidebar.": "Дом теперь на дашборде «{0}» в боковом меню.",
+ "Could not create the dashboard: {0}": "Не удалось создать дашборд: {0}"
 }

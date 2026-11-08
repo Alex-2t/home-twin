@@ -17,6 +17,14 @@ New decisions are appended at the top of their section, old ones are not rewritt
 
 ## Decisions
 
+### D-060. The home on a dashboard: “Add to dashboard” and the compact card — **accepted** (2026-11-08)
+- The owner agreed to the proposals after D-059.
+- **“Add to dashboard”** — the main button of the wizard summary while there is no Home Twin dashboard (“See the result” becomes the second one), and an item in the plan menu (“Open dashboard” once it exists). It creates the dashboard `home-twin-3d` named after the plan (“My home” by default), in everyone's sidebar, with one panel view holding the card — the whole home on the screen. An existing one is not touched. After it — “Your home is on the dashboard … in the sidebar” with “Open”.
+- **Compact card:** on an ordinary dashboard (not a panel view) the card is a window into the home while that dashboard exists: the 3D as a still live picture (the page scrolls over it), “Now” on top, the room strip at the bottom, ⤢ in the corner; a tap on the model, a room or ⤢ opens the dashboard — a room opens straight on its screen (`?room=`). Without the dashboard the card stays the whole home (nothing would be out of reach); `compact: false` in its YAML keeps it whole. Height: 6 rows in a sections view, 360 px elsewhere.
+- **Night follows the sun** in the card, as in D-059.
+- **The room strip is one row** in the card and in “Preview”: buttons share the width (72–200 px), more rooms than fit — the row scrolls sideways. Before, a seventh room wrapped to a second row over the view buttons.
+- Checked on HA 2026.11.0 with the typical apartment: the summary button and the message, the menu item, the dashboard created, the compact card in sections and masonry views, a drag on it does not navigate, a tap and ⤢ do, a room opens on its screen; phone (390 px), tablet in both orientations, desktop.
+
 ### D-059. The dashboard card, first step: the editor's “Preview” on any dashboard — **accepted** (2026-11-08)
 - Stage 4 of D-015. The card is free and open (D-052) and shows what “Preview” shows (D-047): the 3D home and the home panel — weather, “Now”, scenes, rooms, lights and climate, security, cleaning, statistics — with the same controls. One code: the card builds the 3D with the same calls as the editor (`core/plan-scene.js`) and uses the same panel (`editor/look.js`).
 - **No setup.** The integration has HA load a small `card.js` (1 KB) on every page (`add_extra_js_url`), so “Home Twin” is in the card picker (`custom:home-twin-card`, no options). The 3D and the panel (`card-app.js`, about 2 MB) load only where a card is shown.
@@ -24,7 +32,7 @@ New decisions are appended at the top of their section, old ones are not rewritt
 - **Sizes:** a panel view — the whole screen, as in “Preview”; a sections or masonry view — the panel's own narrow layout (3D on top, the panel below, scrolling inside the card), 600 px tall by default (`height` in the card's YAML).
 - **Out of sight it does not draw:** scrolled away, another dashboard, a dashboard HA keeps in memory — 0 frames; removed and not back within a minute — the 3D, subscriptions and timers are let go (HA never tells a card it is gone for good), put back — it starts anew.
 - **Users:** everyone sees and controls the home; settings the panel writes into the plan (scenes, “Customize panel”) — administrators only, the buttons are hidden for others. Night follows the sun (`sun.sun`) until “Day / night” is pressed.
-- Checked on HA 2026.11.0 and 2024.7.4 with the typical apartment: panel, sections and masonry views, a live edit, the empty plan, a non-administrator, 60 → 0 frames out of sight, the context freed after a minute. Next: how the card gets onto a dashboard (from the editor), the compact view for a regular dashboard, phone and tablet.
+- Checked on HA 2026.11.0 and 2024.7.4 with the typical apartment: panel, sections and masonry views, a live edit, the empty plan, a non-administrator, 60 → 0 frames out of sight, the context freed after a minute. Next steps — D-060.
 
 ### D-058. The plan photo lives in Home Assistant; edits survive a lost connection — **accepted** (2026-11-08)
 - Until now the photo of the plan (the image rooms are traced over) stayed in the browser it was added from (IndexedDB): another computer, a phone or a cleared browser showed the plan without it. Now it is a file in HA, `.storage/home_twin.photo`, sent and read over HTTP at `/api/home_twin/photo` (reading — any signed-in user, like the plan; writing — administrators). Its id, type and placement on the plan (`{a, b, opacity, visible}`) are kept with the plan in `.storage/home_twin.plan`; commands `home_twin/photo/get`, `home_twin/photo/place`, `home_twin/photo/delete`. Both files are in HA backups.

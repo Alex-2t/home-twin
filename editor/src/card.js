@@ -2,6 +2,7 @@
 // small file on every page, so nothing has to be set up by hand; the 3D and the home panel (card-app.js, a few MB) load only when
 // a card is actually shown. No imports here — this file must stay small.
 const APP=new URL('./card-app.js'+new URL(import.meta.url).search,import.meta.url).href; // the same ?v= as this file: a new build — a new address
+const BOARD='home-twin-3d'; // the Home Twin dashboard the editor creates (editor/ha-live.js: board)
 
 class HomeTwinCard extends HTMLElement{
   static getStubConfig(){return {};}
@@ -11,8 +12,11 @@ class HomeTwinCard extends HTMLElement{
   // in a panel view the card fills the screen; in a sections view — the rows HA gives it; elsewhere — its own height
   set isPanel(v){this.toggleAttribute('panel',!!v);}
   set layout(v){this.toggleAttribute('grid',v==='grid');}
-  getCardSize(){return 10;}
-  getGridOptions(){return {columns:'full',rows:10,min_rows:6,min_columns:6};}
+  // Compact — the 3D, the room strip and “Now”; a tap opens the whole home on the Home Twin dashboard. So it is on an ordinary
+  // dashboard once that dashboard exists; in a panel view, or without it, the card is the whole home itself. compact: false in YAML — never.
+  get compact(){return this._config?.compact!==false&&!this.hasAttribute('panel')&&!!this._hass?.panels?.[BOARD];}
+  getCardSize(){return this.compact?7:12;}
+  getGridOptions(){return this.compact?{columns:'full',rows:6,min_rows:4,min_columns:6}:{columns:'full',rows:10,min_rows:6,min_columns:6};}
   // taken off the page: HA may put it back (another dashboard and back, edit mode), or it is gone for good — HA does not say which.
   // At once the 3D stops drawing; not back within a minute — everything is let go, and put back later it starts anew
   connectedCallback(){clearTimeout(this._bye);if(this._app)this._app.resume();else this._load();}

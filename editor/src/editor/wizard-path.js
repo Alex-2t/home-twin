@@ -68,7 +68,7 @@ export function createPath(ed){
   // The main button is “See the result”: “Preview”, the home as it will be seen on the card (D-047).
   // Everything confirmed — “The basics are done”. Readings on the walls are not listed as a separate item: they were asked about before the summary
   // (P.ask); to go back — the icon in the path strip.
-  P.finale=()=>{ed.wizard.set(id(),{fin:true});
+  P.finale=()=>{ed.wizard.set(id(),{fin:true});const toBoard=!!ed.ha?.board&&!ed.ha.board.exists();
     const open=MAND.filter(([k])=>P.status(k)!=='confirmed'),result=document.createElement('div');result.className='wizard-result';
     for(const [k] of open){const s=P.status(k),f=stepFacts(ed.plan,k),b=document.createElement('button');b.type='button';b.dataset.status=s;
       b.innerHTML=icon(s==='confirmed'?'check':'right',14)+'<span></span><small></small>';
@@ -77,7 +77,9 @@ export function createPath(ed){
     const back=ed.backBtn();back.path=true; // the wizard card — with the path strip
     ed.step(open.length?t('You can return to deferred steps at any time.'):t('The basics are done — your home is in 3D.'),
       [...(open.length?[result]:[]),back,...(open.length?[[t('Continue later'),()=>{ed.wizard.set(id(),null);ed.step(null);}]]:[]),
-        [t('See the result'),()=>{ed.wizard.set(id(),null);ed.step(null);ed.setLook?.(true);},true]],null,{exit:false,id:'fin',fixed:true});};
+        // in HA, while the Home Twin dashboard does not exist, the main step is putting the home there (D-059)
+        [t('See the result'),()=>{ed.wizard.set(id(),null);ed.step(null);ed.setLook?.(true);},!toBoard],
+        ...(toBoard?[[t('Add to dashboard'),()=>ed.flows.addBoard(),true]]:[])],null,{exit:false,id:'fin',fixed:true});};
   // The path strip (D-043) is always visible: step numbers, a done step — with a check mark, a deferred one — with an orange ring,
   // optional ones — with icons. The tooltip on a dot is the name and the state, a click jumps to the step.
   P.el=()=>{const k0=P.cur();if(!k0)return null;

@@ -1218,5 +1218,9 @@
  "Your home is not drawn yet": "La tua casa non è ancora disegnata",
  "Draw it in the Home Twin editor — it shows up here.": "Disegnala nell’editor di Home Twin e comparirà qui.",
  "An administrator can draw it in Home Twin.": "Un amministratore può disegnarla in Home Twin.",
- "Open the editor": "Apri l’editor"
+ "Open the editor": "Apri l’editor",
+ "Add to dashboard": "Aggiungi alla dashboard",
+ "Open dashboard": "Apri la dashboard",
+ "Your home is on the dashboard “{0}” in the sidebar.": "La tua casa è nella dashboard «{0}» nella barra laterale.",
+ "Could not create the dashboard: {0}": "Impossibile creare la dashboard: {0}"
 }

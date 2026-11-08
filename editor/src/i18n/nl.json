@@ -1218,5 +1218,9 @@
  "Your home is not drawn yet": "Je woning is nog niet getekend",
  "Draw it in the Home Twin editor — it shows up here.": "Teken hem in de Home Twin-editor — dan verschijnt hij hier.",
  "An administrator can draw it in Home Twin.": "Een beheerder kan hem tekenen in Home Twin.",
- "Open the editor": "Editor openen"
+ "Open the editor": "Editor openen",
+ "Add to dashboard": "Aan dashboard toevoegen",
+ "Open dashboard": "Dashboard openen",
+ "Your home is on the dashboard “{0}” in the sidebar.": "Je woning staat op het dashboard ‘{0}’ in de zijbalk.",
+ "Could not create the dashboard: {0}": "Kon het dashboard niet maken: {0}"
 }

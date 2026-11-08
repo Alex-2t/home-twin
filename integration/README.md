@@ -27,8 +27,7 @@ hacs.json            for the catalog: install from the release archive home_twin
 - Area for a lamp: for an entity without a name of its own, HA 2026.11 does not accept an area on the entity itself — it is written to its device.
 
 - **The dashboard card** (D-059) is `custom:home-twin-card`, “Home Twin” in the card picker: HA loads `card.js` on every page (`frontend.add_extra_js_url`), it loads `card-app.js` when a card is shown. The same 3D and home panel as the editor's “Preview” ([card-main.js](../editor/src/card-main.js)); the plan through `home_twin/plan/subscribe`. Best in a panel view (the whole screen); in other views it is 600 px tall (`height: 500` in its YAML to change). Settings written into the plan (scenes, panel layout) — administrators only. Out of sight it stops drawing; removed for a minute — it lets go of the 3D.
-
-Not yet as it will be: adding the card from the editor, a compact view for a regular dashboard.
+- **The Home Twin dashboard** (D-060): “Add to dashboard” at the end of the wizard or in the plan menu creates `home-twin-3d` (`lovelace/dashboards/create`, `lovelace/config/save`): in everyone's sidebar, one panel view with the card. While it exists, a card on any other dashboard is compact (3D, “Now”, rooms); a tap opens the dashboard, a room — with `?room=<id>`. `compact: false` keeps a card whole.
 
 ## Releasing a version
 A GitHub release tagged `v0.1.0` → [release.yml](../.github/workflows/release.yml) builds the editor, runs the tests, puts `0.1.0` into `manifest.json` and attaches `home_twin.zip` (the contents of `custom_components/home_twin` together with `frontend/panel.js`). The catalog installs exactly that (`hacs.json`: `zip_release`, `hide_default_branch` — it cannot be installed from a branch without a build). [validate.yml](../.github/workflows/validate.yml) on every push: hassfest, the HACS check (works only for a public repository), editor build and tests.

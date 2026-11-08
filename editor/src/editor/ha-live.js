@@ -5,12 +5,15 @@
 // An entity's area is its own or its device's. Setting the area: HA 2026.11 does not allow it for an entity without its own name
 // (“set the area on its device instead”) — then it goes to the device.
 const HOUR=3600e3;
+const BOARD='home-twin-3d'; // the Home Twin dashboard (D-059); card.js and card-main.js know it too
+// HA's own navigation from the panel's iframe or from the card in HA's page
+const navigate=path=>{const w=window.parent!==window?window.parent:window;w.history.pushState(null,'',path);w.dispatchEvent(new CustomEvent('location-changed'));};
 const num=s=>s==null||s===''||s==='unknown'||s==='unavailable'?NaN:Number(s);
 const SENSOR_DEVICE=new Set(['door','window','garage_door','opening','moisture']); // binary_sensor for the model and “Security”
 const iso=ms=>new Date(ms).toISOString();
 
 export function liveHA(initial){
-  let hass=initial,raf=0;const subs=new Set(),ssubs=new Set(),hist=new Map(),forecast=new Map(),fsubs=new Map();
+  let hass=initial,raf=0,boardMade=false;const subs=new Set(),ssubs=new Set(),hist=new Map(),forecast=new Map(),fsubs=new Map();
   const reg=e=>hass.entities?.[e]||null;
   const devOf=r=>r?.device_id?hass.devices?.[r.device_id]||null:null;
   const areaOf=e=>{const r=reg(e);return r?.area_id||devOf(r)?.area_id||null;};
@@ -84,6 +87,14 @@ export function liveHA(initial){
     moreInfo:e=>{let root=null;try{root=(window.parent!==window?window.parent.document:document).querySelector('home-assistant');}catch{}
       (root||document.body).dispatchEvent(new CustomEvent('hass-more-info',{detail:{entityId:e},bubbles:true,composed:true}));},
     url:path=>hass.hassUrl?hass.hassUrl(path):path,
+    // The Home Twin dashboard (D-059): the whole home on the screen, in everyone's sidebar. add(title) — create it (an administrator)
+    // with one panel view holding the card; one that exists is not touched. open() — go there.
+    board:{exists:()=>boardMade||!!hass.panels?.[BOARD],
+      async add(title){if(ha.board.exists())return;
+        await ws({type:'lovelace/dashboards/create',url_path:BOARD,title,icon:'mdi:home-modern',show_in_sidebar:true,require_admin:false,mode:'storage'});
+        await ws({type:'lovelace/config/save',url_path:BOARD,config:{title,views:[{title,path:'home',type:'panel',cards:[{type:'custom:home-twin-card'}]}]}});
+        boardMade=true;},
+      open:()=>navigate(`/${BOARD}/home`)},
     areasUrl:'/config/areas/dashboard',
     devicesUrl:'/config/devices/dashboard',
     // no longer needed (the dashboard card was removed): forecast subscriptions end, nobody is told about changes
