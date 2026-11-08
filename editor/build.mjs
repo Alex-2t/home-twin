@@ -37,5 +37,6 @@ if(process.argv.includes('--serve')){
   await ctx.watch();const {port}=await ctx.serve({servedir:'dist',port:8766});console.log(`http://localhost:${port}/`);
   // styles and the shell are not in esbuild's module graph — watch them ourselves
   const pctx=await esbuild.context({...panelOpts,plugins:[{name:'done',setup(b){b.onEnd(r=>{if(!r.errors.length)panelDone();});}}]});await pctx.watch();
-  let t=0;for(const f of ['src/styles.css','src/shell.html'])fs.watch(f,()=>{clearTimeout(t);t=setTimeout(()=>{shellGen();ctx.rebuild().catch(()=>{});},80);});
+  // watch the folder, not the files: editors save by replacing the file, and a watch on the old file then goes silent on macOS
+  let t=0;fs.watch('src',(_e,f)=>{if(!['styles.css','shell.html'].includes(String(f)))return;clearTimeout(t);t=setTimeout(()=>{shellGen();ctx.rebuild().catch(()=>{});},80);});
 }else{write(await esbuild.build(opts));await esbuild.build(panelOpts);panelDone();}
