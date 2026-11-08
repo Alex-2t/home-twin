@@ -1,0 +1,106 @@
+<!doctype html><html lang="ru" data-theme="light"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Home Twin — editor</title>
+<style>/*STYLES*/</style></head><body data-mode="rooms" data-main="plan">
+<!-- Full-screen canvas; all controls float on top (D-017, D-018). Icons <i data-ic> are filled in by icons.js. -->
+<main id="work" class="work">
+  <section id="pane-plan" class="pane plan-pane">
+    <canvas id="plan"></canvas>
+    <div id="ctx" class="ctx glass" hidden></div>
+    <div id="ask" class="ask glass"><span></span><input><small class="ask-hint" hidden></small></div>
+    <div class="pip-cover" title="Expand plan (Tab)"></div>
+    <span class="pane-tag">Plan</span>
+    <div class="view-tools"></div>
+    <div class="pip-grip" title="Drag to resize"></div>
+  </section>
+  <section id="pane-3d" class="pane view-pane"><div id="view3d"></div>
+    <span class="pane-tag"><i class="live-dot"></i>3D · live</span>
+    <div class="view-tools"><button id="save-view-pip" class="txt sm save-view" title="Save as the home view — your home opens with it, and the card shows it" hidden><i data-ic="check" data-s="14"></i><span>Save view</span></button><button id="home-pip" class="ib" title="Home view — as on the card (Home)"><i data-ic="house" data-s="15"></i></button><button id="daynight-pip" class="ib" title="Day / night"><i data-ic="sun" data-s="15"></i></button></div>
+    <div class="pip-grip" title="Drag to resize"></div>
+  </section>
+  <div id="divider" class="divider" title="Drag to resize; double-click to split evenly"></div>
+
+  <aside id="side" class="side glass"><div class="side-head">
+    <button id="side-head" class="side-title" title="Collapse or expand (\)"><span class="t"></span><span class="c"></span></button>
+    <button id="side-pin" class="ib pin"><i data-ic="pin" data-s="15"></i></button>
+    <button id="side-chev" class="ib chev" title="Collapse or expand (\)"></button>
+  </div><div id="side-body" class="side-body"></div></aside>
+
+  <div id="brand" class="fl brand glass">
+    <button id="brand-btn" class="brand-btn" title="My home — file"><span class="logo"><i data-ic="house" data-s="15"></i></span><i data-ic="down" data-s="14"></i></button>
+    <div id="file-menu" class="menu glass" hidden>
+      <div class="menu-head"><b id="plan-name">My home</b><small>Saves automatically in this browser</small></div><hr>
+      <button data-a="new"><i data-ic="file"></i>New plan…</button>
+      <button data-a="open"><i data-ic="upload"></i>Open from file…</button>
+      <button data-a="download"><i data-ic="download"></i>Save to file</button>
+      <button data-a="versions"><i data-ic="history"></i>Version history</button>
+      <button data-a="prev" hidden><i data-ic="undo"></i>Restore previous plan</button>
+      <hr><button data-a="wizard" title="Step by step: outline, rooms, windows and doors, Home Assistant, furniture, lights, sensors"><i data-ic="sparkles"></i>Run setup</button>
+    </div>
+  </div>
+  <nav id="modes" class="fl modes glass">
+    <button data-mode="rooms" title="Rooms and walls"><i data-ic="plan"></i>Plan</button>
+    <button data-mode="furniture" title="Furniture from the catalog"><i data-ic="sofa"></i>Furniture</button>
+    <button data-mode="lights" title="Lights from Home Assistant"><i data-ic="bulb"></i>Lights<em id="lights-badge" hidden></em></button>
+    <button data-mode="devices" title="Air conditioners, curtains and door/window sensors from Home Assistant"><i data-ic="airVent"></i>Devices</button>
+    <button data-mode="sensors" title="Home Assistant sensor readings on walls"><i data-ic="thermo"></i>Sensors</button>
+    <span class="sep"></span><button id="look-btn" title="How your home will look on the Home Assistant dashboard"><i data-ic="eye"></i>Preview</button>
+  </nav>
+  <div id="topr" class="fl topr glass">
+    <button id="undo" class="ib" title="Undo (⌘Z)"><i data-ic="undo"></i></button><button id="redo" class="ib" title="Redo (⇧⌘Z)"><i data-ic="redo"></i></button>
+    <span class="sep"></span><span class="saved" title="The plan saves automatically in this browser"><i data-ic="check" data-s="14"></i>Saved</span>
+    <button id="menu-btn" class="ib" title="Settings"><i data-ic="more"></i></button>
+    <div id="menu" class="menu glass" hidden>
+      <div class="menu-row"><span>Theme</span><div id="theme-seg" class="seg">
+        <button data-th="auto" title="Match system"><i data-ic="monitor" data-s="14"></i></button>
+        <button data-th="light" title="Light"><i data-ic="sun" data-s="14"></i></button>
+        <button data-th="dark" title="Dark"><i data-ic="moon" data-s="14"></i></button></div></div>
+      <div class="menu-row"><span>Language</span><select id="lang" title="Interface language"></select></div>
+      <label class="menu-row check"><span>Snap to 5 cm grid</span><input id="grid" type="checkbox" checked></label>
+      <hr><div class="menu-row"><span>Exterior walls</span><select id="wall-outer" title="For all exterior walls"><option value=".25">25 cm</option><option value=".3">30 cm</option><option value=".38">38 cm</option><option value=".4">40 cm</option><option value=".51">51 cm</option><option value=".64">64 cm</option></select></div>
+      <div class="menu-row"><span>Interior walls</span><select id="wall-inner" title="Between adjacent rooms"><option value=".1">10 cm</option><option value=".12">12 cm</option><option value=".15">15 cm</option></select></div>
+      <label class="menu-row check" title="Separate thickness for each wall — rarely needed"><span>Per-wall thickness</span><input id="wall-each" type="checkbox"></label>
+      <hr><button data-a="keys"><i data-ic="keyboard"></i>Keyboard shortcuts</button>
+    </div>
+  </div>
+  <div id="dock" class="fl dock glass">
+    <div id="tools" class="tools"></div>
+    <div class="grp plan-only">
+      <button id="rotate-plan" class="ib" data-tool="rotate" title="Rotate plan with photo"><i data-ic="rotate"></i></button>
+      <button id="hand" class="ib" data-tool="hand" title="Hand: pan the plan (H or Space)"><i data-ic="hand"></i></button><span class="sep"></span>
+      <button id="zoom-out" class="ib" title="Zoom out"><i data-ic="minus"></i></button><button id="zoom" class="zoom" title="Whole plan (Home)" translate="no">100%</button><button id="zoom-in" class="ib" title="Zoom in"><i data-ic="plus"></i></button>
+      <button id="fit" class="ib" title="Whole plan (Home)"><i data-ic="fit"></i></button>
+    </div>
+    <div class="grp v3-only">
+      <button id="daynight" class="txt" title="Day / night"><i data-ic="sun"></i><span>Day</span></button>
+      <button id="view-reset" class="ib" title="Home view — as on the card (Home)"><i data-ic="house"></i></button><button id="save-view" class="txt save-view" title="Save as the home view — your home opens with it, and the card shows it" hidden><i data-ic="check"></i><span>Save view</span></button>
+    </div>
+    <span class="sep"></span><button id="help" class="ib" title="Keyboard shortcuts (?)"><i data-ic="help"></i></button>
+  </div>
+  <div id="banner" class="fl banner" hidden></div>
+  <button id="pill" class="fl pill glass" hidden></button>
+  <button id="pip-show" class="pip-show glass" hidden></button>
+</main>
+
+<div id="keys" class="keys" hidden><div class="keys-box glass"><div class="keys-head"><b>Keyboard shortcuts</b><button class="ib" data-close title="Close"><i data-ic="x"></i></button></div>
+  <dl><dt translate="no">V · Esc</dt><dd>select</dd><dt translate="no">R</dt><dd>Plan: room (rectangle)</dd><dt>Double-click</dt><dd>on a wall: length; on a room: name</dd>
+  <dt translate="no">S</dt><dd>Plan: split into rooms, Tab rotates the line</dd><dt>Click a wall</dt><dd>its menu: length, corner, remove wall</dd><dt>Click a dimension</dt><dd>enter side length</dd><dt>Shift + drag</dt><dd>no snapping</dd>
+  <dt translate="no">R</dt><dd>Furniture: rotate 90° (Shift+R: 15°)</dd><dt translate="no">Delete</dt><dd>delete selected</dd>
+  <dt>H · Space</dt><dd>hand: pan the plan</dd><dt>Wheel · pinch</dt><dd>zoom</dd><dt>Two fingers</dt><dd>pan the plan; in 3D: orbit</dd>
+  <dt translate="no">Tab</dt><dd>swap plan and 3D (in “Split”: rotate the line)</dd><dt translate="no">Home · Shift+1</dt><dd>whole plan (in 3D: starting view)</dd><dt translate="no">\</dt><dd>left panel</dd><dt translate="no">⌘Z · ⇧⌘Z</dt><dd>undo, redo</dd></dl></div></div>
+<div id="start" class="start" hidden>
+  <div class="start-box">
+    <span class="logo big"><i data-ic="house" data-s="26"></i></span>
+    <h1>Let's draw your home</h1>
+    <p>Rooms, furniture and your lights — step by step in 3D.</p>
+    <button class="choice continue glass" data-a="continue"><b>Continue</b><span>Back to your saved plan</span><i data-ic="right"></i></button>
+    <div class="choices">
+      <button class="choice glass" data-a="upload"><span class="ci"><i data-ic="image" data-s="20"></i></span><b>Upload a plan</b><span>A photo or scan — trace rooms over it.</span></button>
+      <button class="choice glass" data-a="scratch"><span class="ci"><i data-ic="pen" data-s="20"></i></span><b>Draw from scratch</b><span>A rectangle you split into rooms.</span></button>
+      <button class="choice glass" data-a="demo"><span class="ci"><i data-ic="sparkles" data-s="20"></i></span><b>Demo home</b><span>A ready-made example: rooms, furniture, lights.</span></button>
+    </div>
+    <button class="start-prev" data-a="prev" hidden>Restore previous plan</button>
+  </div>
+</div>
+<input id="file-plan" type="file" accept="image/*" hidden><input id="file-json" type="file" accept="application/json,.json" hidden>
+<script type="module">/*BUNDLE*/</script>
+</body></html>

@@ -1,0 +1,1174 @@
+/* Apartment card styles — a copy of 3d_floor/apartment/smart-home/web/src/style.css (the owner, 2026-11-07: “take the logic entirely from the sibling project — same colors, same animations”). The copied part is not edited: our own additions go at the end, in the “home-twin” block. */
+:host{display:block;color:var(--ink);font-family:Inter,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;font-size:14px;--paper:var(--primary-background-color,#f4f3ee);--card:var(--ha-card-background,var(--card-background-color,#fffefa));--ink:var(--primary-text-color,#273a35);--muted:var(--secondary-text-color,#88918b);--line:var(--divider-color,#e1e4dc);--green:#6f9a82;--amber:#c5944b;--view:color-mix(in srgb,var(--ink) 6%,var(--paper));--fill:color-mix(in srgb,var(--ink) 6%,var(--card));--fill-hi:color-mix(in srgb,var(--ink) 13%,var(--card));--fill-sunk:color-mix(in srgb,var(--ink) 5%,var(--paper))}*{box-sizing:border-box}button,input{font:inherit}button{cursor:pointer;color:inherit}button:focus-visible,input:focus-visible{outline:3px solid #c3a96a;outline-offset:4px}button{border:0}button:disabled{cursor:default;opacity:.45}svg{width:20px;height:20px;flex-shrink:0}h1,h2,h3,p{margin:0}.shell{container:twin/size;height:100vh;height:100dvh;background:var(--paper)}.main{padding:28px 30px 22px;min-width:0;height:100%;display:flex;flex-direction:column;min-height:0}.workspace{display:grid;grid-template-columns:minmax(0,1fr);gap:20px;flex:1;min-height:0}.map-card{position:relative;background:var(--view);border:1px solid var(--line);border-radius:22px;overflow:hidden;min-width:0;display:flex;flex-direction:column;transition:background .3s}.segmented{display:flex;gap:3px;padding:4px;background:#ffffffb8;border:1px solid #dde1d6;border-radius:11px;pointer-events:auto}.segmented button{display:flex;align-items:center;gap:6px;background:transparent;font-size:11px;border-radius:7px;padding:7px 10px;color:#879084;transition:.2s}.segmented button.active{background:#fffefa;color:var(--ink);box-shadow:0 1px 5px #2f483412}.segmented svg{width:15px;height:15px}.canvas-wrap{position:relative;flex:1;min-height:360px}.canvas{position:absolute;inset:0}.canvas canvas{display:block;touch-action:none;width:100%;height:100%}.pins{position:absolute;inset:0;pointer-events:none;overflow:hidden}.view-controls{position:absolute;left:21px;bottom:108px;z-index:5;display:flex;flex-direction:column;gap:4px;padding:5px;border-radius:12px;background:#fffef8f7;border:1px solid #e0e3d6}.icon-btn{width:31px;height:31px;background:transparent;border-radius:8px;display:grid;place-items:center}.icon-btn:hover{background:#e8ece1}.icon-btn svg{width:16px;height:16px}.view-controls .divider{border-bottom:1px solid var(--line);margin:1px 4px}.map-caption{position:absolute;top:20px;left:23px;color:#919a8f;font-size:10px;line-height:1.6;pointer-events:none;z-index:4}.room-strip{position:absolute;left:0;right:0;bottom:0;z-index:3;padding:40px 17px 17px;display:grid;grid-template-columns:repeat(6,1fr);gap:6px;background:linear-gradient(to top,color-mix(in srgb,var(--paper) 72%,transparent) 42%,transparent)}.room-chip{border:1px solid transparent;background:#ffffff65;border-radius:12px;min-width:0;padding:12px 3px 10px;display:flex;flex-direction:column;align-items:center;gap:7px;color:#8b968c;font-size:10px;transition:.2s}.room-chip svg{height:20px;width:20px}.room-chip.selected{color:var(--green);background:#fffef8;border-color:#c8d3c1;box-shadow:0 3px 8px #273a3508}.room-chip:hover{background:#fffef8}.sidebar{display:flex;flex-direction:column;min-height:0;gap:15px}.all-off{width:100%;margin-top:19px;display:flex;align-items:center;justify-content:center;gap:8px;padding:10px;background:var(--fill);color:var(--muted);border-radius:9px;font-size:11px}.all-off:hover{background:var(--fill-hi)}.all-off svg{width:15px;height:15px}.room-panel{background:var(--card);border:1px solid var(--line);border-radius:18px;flex:1;overflow:auto;padding:22px 20px;min-height:240px;scrollbar-width:thin}.room-heading{display:flex;gap:9px;align-items:center;margin-bottom:6px}h2{font-size:20px;letter-spacing:-.5px;font-weight:500}.room-heading svg{width:20px;color:var(--muted)}.room-subtitle{font-size:11px;color:var(--muted);line-height:1.5}.section-label{font-size:10px;letter-spacing:1.4px;color:var(--muted);text-transform:uppercase;margin:26px 0 15px}.light-control{margin-bottom:18px;padding-bottom:18px;border-bottom:1px solid var(--line)}.light-control:last-child{margin-bottom:0}.light-row{display:flex;align-items:center;gap:10px}.light-icon{display:grid;place-items:center;width:34px;height:34px;background:var(--fill);color:var(--muted);border-radius:10px;flex-shrink:0}.light-control.on .light-icon{background:color-mix(in srgb,var(--amber) 25%,var(--card));color:var(--amber)}.light-icon svg{width:18px;height:18px}.light-label{flex:1;min-width:0}.light-label strong{font-size:12px;font-weight:500;display:block;line-height:1.4}.light-label small{font-size:10px;color:var(--muted);display:block;margin-top:3px}.toggle{background:var(--fill-hi);width:32px;height:19px;border-radius:20px;position:relative;flex-shrink:0;transition:.2s}.toggle::after{content:"";position:absolute;width:13px;height:13px;border-radius:50%;background:white;top:3px;left:3px;box-shadow:0 1px 3px #0001;transition:transform .2s}.toggle[aria-pressed="true"]{background:var(--green)}.toggle[aria-pressed="true"]::after{transform:translateX(13px)}.brightness{margin-top:15px;display:flex;gap:10px;align-items:center}.brightness input{appearance:none;height:3px;border-radius:10px;background:var(--fill-hi);flex:1;min-width:0;accent-color:#bca16b}.brightness input::-webkit-slider-thumb{appearance:none;width:11px;height:11px;border-radius:50%;background:#a49166;cursor:pointer}.brightness input::-moz-range-thumb{width:11px;height:11px;border:0;border-radius:50%;background:#a49166}.brightness span{font-size:10px;color:var(--muted);min-width:28px;text-align:right}.equipment{display:flex;gap:10px;align-items:center;margin-bottom:14px;color:var(--muted)}.equipment svg{width:16px;height:16px}.equipment-name{font-size:11px;line-height:1.5;color:var(--ink)}.equipment small{display:block;font-size:9px;color:var(--muted)}.cover-control{margin-bottom:18px;padding-bottom:18px;border-bottom:1px solid var(--line)}.cover-control.open .light-icon{background:color-mix(in srgb,var(--green) 18%,var(--card));color:var(--green)}.cover-buttons{display:flex;gap:2px;background:var(--fill);border-radius:10px;padding:3px;flex-shrink:0}.cover-btn{width:26px;height:26px;border-radius:8px;background:transparent;color:var(--muted);display:grid;place-items:center;transition:.15s}.cover-btn:hover:not(:disabled){background:var(--card);color:var(--ink);box-shadow:0 1px 4px #2f483412}.cover-btn svg{width:15px;height:15px}.swatches{display:flex;gap:7px;margin-top:13px;flex-wrap:wrap}.swatch{width:19px;height:19px;border-radius:50%;border:1px solid #27352e1f;box-shadow:inset 0 0 0 2px var(--card);transition:.15s}.swatch:hover:not(:disabled){transform:scale(1.12)}.swatch.active{box-shadow:inset 0 0 0 2px var(--card),0 0 0 2px #7d9280}.loading{position:absolute;inset:0;z-index:7;display:grid;place-items:center;gap:16px;background:color-mix(in srgb,var(--paper) 85%,transparent);backdrop-filter:blur(5px);font-size:13px;color:var(--muted);text-align:center}.loading[hidden]{display:none}.loading-content{display:flex;align-items:center;flex-direction:column;gap:18px}.loader{width:34px;height:34px;border-radius:50%;border:2px solid var(--line);border-top-color:#6b8b69;animation:spin 1s linear infinite}@keyframes spin{to{transform:rotate(360deg)}}.toast{position:absolute;bottom:112px;left:50%;transform:translateX(-50%);background:#344a3e;color:#f6f7ee;padding:11px 17px;border-radius:12px;font-size:11px;z-index:10;max-width:90%;text-align:center}.toast[hidden]{display:none}.night .map-card{--view:#202b30;border-color:#303d3e}.night .map-caption{color:#a2b0ac}.night .segmented{background:#344145c9;border-color:#465255}.night .segmented button{color:#a9b6b1}.night .segmented button.active{background:#52605d;color:#f4f2e6;box-shadow:none}.night .room-chip{background:#36443c;color:#9dab9f}.night .room-chip.selected{background:#536455;color:#f2f5e9;border-color:#879a79}.night .room-chip:hover{background:#485947}.night .view-controls{background:#3c4b44f5;border-color:#596e57;color:#dfe8d6}.night .icon-btn:hover{background:#5d7158}.night .loading{background:#20302be0}:host(.embedded) .shell{height:calc(100dvh - var(--twin-top,0px));min-height:320px}/* No bottom padding: the model and the panel reach the edge of the page. */
+:host(.embedded) .main{padding:22px 22px 0}@container twin (width>=1600px){.main{padding:34px 40px 28px}}@container twin (width<1100px){.main{padding:22px 18px}.room-panel{padding:18px 15px}.room-chip{font-size:9px}.room-strip{gap:3px;padding:34px 10px 12px}}
+/* On a large monitor the room buttons stretched into long empty strips. */
+.room-strip{grid-template-columns:repeat(6,minmax(0,200px));justify-content:center}
+
+.climate-panel{margin-top:20px;padding:15px 13px 12px;border:1px solid var(--line);border-radius:12px;background:var(--fill)}
+.climate-panel-heading{display:flex;justify-content:space-between;align-items:center;font-size:11px;color:var(--muted)}
+.demo-tag{font-size:9px;border:1px solid var(--line);border-radius:5px;padding:2px 5px;color:var(--muted)}
+.climate-metrics{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-top:14px}
+.climate-metrics>div>span{display:block;font-size:10px;color:var(--muted)}
+.climate-metrics strong{display:block;margin-top:5px;font-size:25px;font-weight:500;letter-spacing:-.6px;color:var(--ink);font-variant-numeric:tabular-nums}
+.climate-metrics strong small{font-size:13px;font-weight:400;color:var(--muted);letter-spacing:0}
+.climate-panel p{margin-top:13px;font-size:9px;line-height:1.5;color:var(--muted)}
+/* Transparent model canvas occludes notifications; device pins stay above it. */
+.canvas{z-index:1}
+.pins{z-index:2}
+/* The collapsed notification stack (note-stack.js) lies under the model: the apartment
+   covers the cards, not the cards the apartment. So mouse and finger never reach it —
+   they are caught by the canvas wrapper (bindNoteStack). Cards are absolutely positioned and
+   move via a spring transform (--note-spring); the layout is computed by
+   renderNotes. The side and bottom padding is room for shadows: the expanded list
+   scrolls and would clip them. */
+.notifications{position:absolute;top:52px;right:6px;z-index:0;pointer-events:none;width:calc(min(250px,48%) + 28px);height:0;padding:0 14px;
+  overflow:visible;overscroll-behavior:contain;scrollbar-width:none;outline:none;
+  transition:height .6s var(--note-spring,ease)}
+.notifications::-webkit-scrollbar{display:none}
+.notifications.expanded{overflow-x:hidden;overflow-y:auto;padding-bottom:24px}
+/* The expanded list sits above the model and pins: it is being read, and a tap on
+   a card must not select the device beneath it. Finger scrolling is driven by
+   bindNoteStack, so the browser does not start its own. */
+.notifications.raised{z-index:3;pointer-events:auto;touch-action:none}
+/* Cards are opaque, as in Sonner: while moving they pass over one
+   another, and through translucent ones the other cards' text would show. A scrolled
+   list fades out at the top instead of being cut off along a straight line. */
+.notifications.scrolled{-webkit-mask-image:linear-gradient(transparent,#000 26px);mask-image:linear-gradient(transparent,#000 26px)}
+.notifications:focus-visible .notification[data-index="0"] .notification-card{outline:2px solid #c3a96a;outline-offset:3px}
+.note-track{position:relative}
+.notification{position:absolute;top:0;left:0;right:0;transform-origin:50% 100%;
+  transform:translate(var(--x,0px),var(--y,0px)) scale(var(--s,1));opacity:var(--o,1);
+  transition:transform .6s var(--note-spring,cubic-bezier(.2,.9,.25,1)),opacity .32s ease}
+/* A leaving card fades faster than it moves: what folds into the stack is a single card, not a trail. */
+.notification.leaving{transition:transform .6s var(--note-spring,cubic-bezier(.2,.9,.25,1)),opacity .16s ease}
+/* A sheet under the front card is just an edge: its text and icon are hidden. */
+.notification-card>*{transition:opacity .22s ease .08s}
+.notification.behind .notification-card>*{opacity:0;transition-delay:0s}
+/* Cards use the same tokens as the panel tiles: the theme's background, border and text.
+   The stack looks like part of the card and adapts by itself to HA's light and dark
+   themes; it has no color of its own — only the type icon is colored. */
+.notification-card{display:flex;gap:10px;align-items:center;padding:10px 12px;border-radius:15px;
+  background:var(--card);border:1px solid var(--line);color:var(--ink);box-shadow:0 8px 22px color-mix(in srgb,#000 18%,transparent)}
+.notification-icon{width:30px;height:30px;border-radius:10px;display:grid;place-items:center;flex-shrink:0;
+  background:color-mix(in srgb,var(--k) 15%,var(--card));color:var(--k)}
+.notification-icon svg{width:16px;height:16px}
+.notification-text{min-width:0}
+.notification-text strong{display:block;font-size:12px;font-weight:500;line-height:1.35;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.notification-text small{display:block;margin-top:2px;font-size:10px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+/* Type colors (note-types.js) come from the palette the card already has: the
+   “Now” chips and the tiles. Alert — the red of the “Water shut off” chip; manual —
+   the amber of lights; automation — purple; hint — the card's green;
+   connectivity — blue muted toward gray: it is housekeeping. An all-clear (“The leak
+   is gone”) is green: it is good news. Alerts are additionally marked by a border. */
+.notification{--k:var(--tile-accent)}
+.type-alert{--k:rgb(var(--color-red,219,68,55))}
+.type-manual{--k:var(--tile-accent)}
+/* The Minimalist theme uses one purple for both modes (102,31,255) — in the dark one, where
+   the other colors are pastel, it is garish. Mixed with the text color, it
+   becomes a pastel on the dark theme and a deep purple on the light one. */
+.type-automation{--k:color-mix(in srgb,rgb(var(--color-purple,146,107,199)) 58%,var(--ink))}
+.type-hint{--k:var(--green)}
+.type-link{--k:color-mix(in srgb,rgb(var(--color-blue,66,133,244)) 45%,var(--muted))}
+.notification.resolved{--k:var(--green)}
+.notification.type-alert:not(.resolved) .notification-card{border-color:color-mix(in srgb,var(--k) 50%,var(--line))}
+/* Where and by whose decision may be truncated; the time never is. */
+.notification-text{flex:1}
+.notification-text small{display:flex}
+.notification-source{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.notification-age{flex-shrink:0;white-space:pre}
+.notification-age::before{content:" · "}
+.notification-source:empty+.notification-age::before{content:none}
+
+/* The notification settings button sits above the stack, like the model view buttons. The dots are the colors
+   of the enabled types: a legend for the stack at a glance. While the window is open,
+   the gear is rotated. */
+.note-gear{position:absolute;top:14px;right:20px;z-index:4;display:flex;align-items:center;gap:8px;height:30px;padding:0 9px 0 11px;
+  border-radius:999px;background:var(--card);border:1px solid var(--line);color:var(--muted);
+  box-shadow:0 6px 16px color-mix(in srgb,#000 14%,transparent);transition:background .2s,color .2s}
+.note-gear:hover,.note-gear.open{background:color-mix(in srgb,var(--ink) 7%,var(--card));color:var(--ink)}
+.note-gear svg{width:15px;height:15px;transition:transform .5s cubic-bezier(.3,1.3,.5,1)}
+.note-gear.open svg{transform:rotate(90deg)}
+.note-dots{display:flex;gap:4px}
+.note-dots i{width:6px;height:6px;border-radius:50%;background:var(--k)}
+
+/* The notification settings window uses the theme colors, like the panel tiles. At the top,
+   the home's last 24 hours as one bar split by type, with disabled types muted: you see
+   how much there was in total and how much of it is hidden. The window lives at the card root
+   (openNoteSettings places it under the gear), so the canvas does not clip it. */
+.shell{position:relative}
+.note-settings{position:absolute;z-index:30;width:352px;max-width:calc(100% - 16px);overflow:auto;overscroll-behavior:contain;scrollbar-width:none;
+  padding:18px 14px 12px;border-radius:24px;color:var(--ink);
+  background:color-mix(in srgb,var(--card) 94%,transparent);border:1px solid var(--line);
+  box-shadow:0 30px 70px -20px color-mix(in srgb,#000 45%,transparent),0 10px 24px -10px color-mix(in srgb,#000 28%,transparent);
+  backdrop-filter:blur(24px) saturate(1.2);-webkit-backdrop-filter:blur(24px) saturate(1.2);
+  transform-origin:top right;animation:ns-in .26s cubic-bezier(.2,.9,.25,1)}
+.note-settings[hidden]{display:none}
+@keyframes ns-in{from{opacity:0;transform:translateY(-8px) scale(.96)}}
+.ns-head{display:flex;justify-content:space-between;align-items:flex-start;gap:12px;padding:0 6px}
+.ns-head h3{font-size:16px;font-weight:500;letter-spacing:-.3px}
+.ns-head p{margin-top:3px;font-size:11px;color:var(--muted)}
+.ns-close{width:28px;height:28px;border-radius:50%;display:grid;place-items:center;flex-shrink:0;background:var(--fill);color:var(--muted);transition:background .2s,color .2s}
+.ns-close:hover{background:var(--fill-hi);color:var(--ink)}
+.ns-close svg{width:14px;height:14px}
+.ns-day{margin:14px 0 8px;padding:12px 13px 13px;border-radius:16px;background:var(--fill)}
+.ns-day-line{display:flex;align-items:baseline;gap:7px;font-size:11px;color:var(--muted)}
+.ns-day-line b{font-size:22px;font-weight:500;letter-spacing:-.6px;color:var(--ink);font-variant-numeric:tabular-nums}
+.ns-bar{display:flex;gap:3px;height:6px;margin-top:10px;border-radius:4px;background:var(--fill-hi)}
+.ns-bar i{min-width:5px;flex:0 1 0;border-radius:4px;background:var(--k);
+  transition:flex-grow .5s cubic-bezier(.2,.9,.25,1),opacity .25s}
+.ns-bar i.off{opacity:.25}
+.ns-bar i[hidden]{display:none}
+.ns-list{display:flex;flex-direction:column;gap:2px}
+.ns-row{display:grid;grid-template-columns:36px minmax(0,1fr) auto 36px;align-items:center;gap:11px;width:100%;padding:9px 8px;
+  border-radius:15px;background:transparent;text-align:left;color:inherit;transition:background .18s}
+button.ns-row:hover{background:var(--fill)}
+button.ns-row:focus-visible{outline:2px solid var(--k);outline-offset:-2px}
+.ns-tile{width:36px;height:36px;border-radius:12px;display:grid;place-items:center;color:var(--k);
+  background:color-mix(in srgb,var(--k) 15%,var(--card));transition:filter .25s,opacity .25s}
+.ns-tile svg{width:17px;height:17px}
+.ns-row:not(.on) .ns-tile{filter:saturate(0);opacity:.55}
+.ns-text b{display:block;font-size:13px;font-weight:500;line-height:1.3;transition:color .2s}
+.ns-text small{display:block;margin-top:2px;font-size:10.5px;line-height:1.35;color:var(--muted)}
+.ns-row:not(.on) .ns-text b{color:var(--muted)}
+.ns-count{font-size:11px;color:var(--muted);font-variant-numeric:tabular-nums}
+.ns-switch{justify-self:end;position:relative;width:36px;height:21px;border-radius:21px;background:var(--fill-hi);transition:background .25s}
+.ns-switch::after{content:"";position:absolute;top:2.5px;left:2.5px;width:16px;height:16px;border-radius:50%;background:white;
+  box-shadow:0 1px 4px #0006;transition:transform .32s cubic-bezier(.3,1.35,.5,1)}
+.ns-row.on .ns-switch{background:var(--k)}
+.ns-row.on .ns-switch::after{transform:translateX(15px)}
+.ns-lock{justify-self:end;display:grid;place-items:center;width:36px;height:21px;border-radius:21px;color:var(--k);background:color-mix(in srgb,var(--k) 14%,var(--card))}
+.ns-lock svg{width:12px;height:12px}
+.ns-foot{margin:10px 8px 2px;font-size:10px;line-height:1.5;color:var(--muted)}
+@media(prefers-reduced-motion:reduce){.note-settings{animation:none}.ns-switch::after,.note-gear svg,.ns-bar i{transition:none}}
+@media(prefers-reduced-motion:reduce){.notification,.notifications{transition:none}}
+
+/* Robot vacuum. In the overview it is a single row: the device with its state and the main button
+   on the right. On the remote the same card expands: a progress bar and both buttons
+   under the row; the link to the remote is no longer needed there. */
+.vacuum-card{display:grid;grid-template-columns:minmax(0,1fr) auto;align-items:center;gap:14px 10px;padding:13px;
+  background:var(--card);border:1px solid var(--line);border-radius:var(--ulm-radius)}
+.vacuum-open{grid-column:1/-1;display:flex;align-items:center;gap:11px;min-width:0;background:transparent;padding:0;text-align:left;color:inherit}
+.vacuum-open .tile-text{flex:1}
+.vacuum-open:hover:not(:disabled) .tile-text strong{color:var(--green)}
+.vacuum-panel:not(.compact) .vacuum-open:disabled{opacity:1}
+.vacuum-panel.cleaning .tile-chip{background:color-mix(in srgb,var(--green) 22%,transparent);color:var(--green)}
+.vacuum-progress{grid-column:1/-1;width:100%;height:5px;accent-color:#628e78}
+.vacuum-actions{grid-column:1/-1;display:flex;gap:8px}
+.vacuum-btn{flex:1;padding:10px;border-radius:12px;background:var(--fill);color:var(--ink);font-size:12px;white-space:nowrap}
+.vacuum-btn:hover:not(:disabled){background:var(--fill-hi)}
+/* Only the simulated route has a percentage: a real robot does not report cleaning progress. */
+.vacuum-panel.live .vacuum-progress{display:none}
+.vacuum-panel:not(.compact) .section-head{display:none}
+.vacuum-panel.compact .vacuum-open{grid-column:1}
+.vacuum-panel.compact .vacuum-actions{grid-column:2}
+.vacuum-panel.compact .vacuum-progress,.vacuum-panel.compact [data-action="vacuum-home"]{display:none}
+.vacuum-panel.compact .vacuum-btn{flex:none;padding:8px 12px;font-size:11px}
+/* Without a binding there are no commands: the row stays informational, with no button. */
+.vacuum-panel.compact.unavailable .vacuum-actions{display:none}
+/* In a narrow panel (300 px) there is no room for the button alongside: the name broke onto two
+   lines and the state was cut off. So the button moves under the row at full width. */
+.vacuum-panel{container-type:inline-size}
+@container (max-width:320px){
+  .vacuum-panel.compact .vacuum-open,.vacuum-panel.compact .vacuum-actions{grid-column:1/-1}
+  .vacuum-panel.compact .vacuum-btn{flex:1;padding:9px}
+}
+
+.tv-remote{--tv-accent:rgb(var(--color-green,111,154,130));margin:18px 0 24px;padding:16px;background:var(--fill);border:1px solid var(--line);border-radius:var(--ulm-radius)}
+/* In place of the button grid among dashboard cards: the same spacing as its neighbors. */
+.tv-slot .tv-remote{margin:0}.tv-heading{display:flex;align-items:center;justify-content:space-between;gap:8px}.tv-heading strong{font-size:13px}.tv-heading small{display:block;font-size:11px;line-height:1.6;color:var(--muted);margin-top:4px}.tv-key{display:flex;justify-content:center;align-items:center;min-height:40px;min-width:40px;border:1px solid var(--line);border-radius:12px;background:var(--card);color:var(--ink);cursor:pointer;font:inherit;font-size:13px;transition:background .15s,transform .15s}.tv-key:hover:enabled{background:var(--fill-hi)}.tv-key:active:enabled{transform:scale(.94)}.tv-key:focus-visible{outline:2px solid var(--tv-accent);outline-offset:3px}.tv-key:disabled{opacity:.35;cursor:default}.tv-key svg{width:19px;height:19px}.tv-power{border-radius:50%;flex-shrink:0}.tv-power.on{background:var(--tv-accent);color:var(--card)}.tv-navigation{display:grid;grid-template-columns:repeat(3,48px);grid-template-rows:repeat(3,44px);gap:5px;justify-content:center;margin:20px auto 14px}.tv-up{grid-area:1/2}.tv-left{grid-area:2/1}.tv-ok{grid-area:2/2;background:var(--tv-accent);color:var(--card);font-weight:600}.tv-right{grid-area:2/3}.tv-down{grid-area:3/2}.tv-shortcuts{display:flex;gap:6px;margin:8px 0}.tv-shortcuts .tv-key{flex:1;font-size:11px}.tv-volume{display:flex;align-items:center;justify-content:space-between;margin:12px 0;gap:8px}.tv-volume span{font-size:12px}.tv-hint{font-size:11px;line-height:1.5;color:var(--muted)}
+
+.tv-ok:hover:enabled{background:color-mix(in srgb,var(--ink) 15%,var(--tv-accent))}
+
+.ac-control{border:1px solid var(--line);border-radius:16px;background:var(--card);margin:18px 0 24px;padding:14px 12px 16px;color:var(--ink)}.ac-title{display:flex;align-items:center;justify-content:space-between;gap:8px}.ac-title strong{font-size:12px;font-weight:500}.ac-title span{font-size:10px;color:var(--muted)}.ac-dial{display:block;width:100%;height:auto;max-width:300px;margin:4px auto 0;touch-action:none;cursor:grab;overflow:visible}.ac-dial[aria-disabled=true]{cursor:default}.ac-dial:focus-visible{outline:2px solid var(--ac-color);border-radius:50%;outline-offset:2px}.ac-dial-track,.ac-dial-fill{fill:none;stroke-width:18;stroke-linecap:round}.ac-dial-track{stroke:var(--fill-hi)}.ac-dial-fill{stroke:var(--ac-color);opacity:.65}.ac-dial-knob{fill:var(--card);stroke:var(--ac-color);stroke-width:3}.ac-dial text{text-anchor:middle;pointer-events:none;font-family:inherit}.ac-dial-status{font-size:11px;fill:var(--ac-color)}.ac-dial-value{font-size:40px;font-weight:400;letter-spacing:-1.5px;fill:var(--ink)}.ac-dial-unit{font-size:14px;fill:var(--ink)}.ac-dial-current{font-size:12px;fill:var(--ac-color)}.ac-temperature-buttons{display:flex;justify-content:center;gap:16px;margin-top:-36px;margin-bottom:18px;position:relative}.ac-button{border:1px solid var(--line);border-radius:22px;min-height:40px;padding:8px 14px;background:transparent;font-size:12px;color:var(--muted)}.ac-temperature-buttons .ac-button{width:40px;height:40px;border-radius:50%;font-size:24px;line-height:1;padding:0}.ac-button:hover:enabled{background:var(--fill)}.ac-power-row{display:flex;justify-content:center;margin-bottom:14px}.ac-power-row .ac-button{color:var(--ac-color)}.ac-option{display:flex;flex-direction:column;gap:5px;font-size:11px;color:var(--muted);margin-top:12px}.ac-option select,.ac-option input{width:100%;min-width:0;min-height:38px;border:1px solid var(--line);border-radius:9px;background:var(--fill);color:var(--ink);font:inherit;font-size:12px;padding:8px}.ac-option select:disabled{opacity:.5}
+
+/* ── Apartment overview ─────────────────────────────────────────────────
+   Three groups under identical labels: scenes, rooms, cleaning. The label uses
+   the same uppercase style as the sections inside a room, with the group's single
+   action to its right. The cards look the same as the tiles in a room. */
+.section-head{display:flex;align-items:center;justify-content:space-between;gap:8px;min-height:26px;margin:0 4px 8px;
+  font-size:10px;letter-spacing:1.4px;text-transform:uppercase;color:color-mix(in srgb,var(--ink) 35%,var(--muted))}
+/* The labels sit directly on the panel glass, not on a card: plain --muted there
+   nearly merges with the blurred model, so the color is pulled slightly toward the text color. */
+.overview-heading .home-line{color:color-mix(in srgb,var(--ink) 35%,var(--muted))}
+.section-action{display:flex;align-items:center;gap:6px;background:transparent;padding:4px 0;color:inherit;
+  font-size:11px;letter-spacing:0;text-transform:none;transition:color .15s}
+.section-action:hover:not(:disabled){color:var(--ink)}
+.section-action svg{width:14px;height:14px}
+.sidebar>.scenes-panel,.sidebar>.rooms-overview,.sidebar>.vacuum-panel.compact{margin-top:8px}
+.scenes-panel{flex-shrink:0}
+.scene-choices{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}
+.scene-choices button{display:flex;flex-direction:column;align-items:center;gap:7px;padding:13px 4px 11px;border-radius:16px;
+  background:var(--card);border:1px solid var(--line);color:var(--ink);font-size:12px;transition:background .15s}
+.scene-choices button:hover:not(:disabled){background:color-mix(in srgb,var(--ink) 6%,var(--card))}
+.scene-choices svg{width:20px;height:20px;color:var(--muted)}
+.scene-result{font-size:10px;line-height:1.5;color:var(--muted);margin:8px 4px 0}
+.scene-result:empty{display:none}
+/* Rooms as a list: what is running in the room and its temperature. The row order
+   is fixed — a list that reorders when a lamp is switched on
+   slides out from under your finger. */
+.room-list{background:var(--card);border:1px solid var(--line);border-radius:var(--ulm-radius);overflow:hidden}
+.room-row{display:flex;align-items:center;gap:10px;width:100%;min-height:46px;padding:0 12px 0 16px;background:transparent;
+  text-align:left;color:var(--ink);border-top:1px solid var(--line);transition:background .15s}
+.room-row:first-child{border-top:0}
+.room-row:hover{background:color-mix(in srgb,var(--ink) 5%,var(--card))}
+.room-row-name{flex:1;min-width:0;font-size:13px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.room-badges{display:flex;gap:4px}
+.room-badge{width:22px;height:22px;border-radius:7px;display:grid;place-items:center;
+  color:var(--badge);background:color-mix(in srgb,var(--badge) 20%,transparent)}
+.room-badge svg{width:13px;height:13px}
+.room-badge.light{--badge:var(--tile-accent)}
+.room-badge.climate{--badge:var(--m,rgb(var(--color-blue,66,133,244)))}
+.room-badge.media{--badge:rgb(var(--color-purple,146,107,199))}
+.room-badge.appliance{--badge:var(--green)}
+.room-temp{width:42px;text-align:right;font-size:12px;color:var(--muted);font-variant-numeric:tabular-nums}
+.room-row>svg{width:14px;height:14px;color:var(--muted);opacity:.6}
+.sidebar{overflow-y:auto;scrollbar-width:thin}
+
+/* Overview → room → device. Only the active level occupies the side panel. */
+[hidden]{display:none!important}
+.masthead-actions{display:flex;align-items:center;gap:12px}
+.panel-navigation button{background:var(--fill);color:var(--muted);border-radius:9px;padding:10px 12px;font-size:11px}
+.panel-navigation{display:flex;align-items:center;gap:8px;flex-shrink:0;padding:4px 0}
+.panel-navigation button:last-child{margin-left:auto;padding:8px}
+.panel-navigation svg{width:17px;height:17px}
+.panel-path{font-size:11px;color:var(--muted);overflow:hidden;text-overflow:ellipsis}
+.overview-heading{padding:5px 4px 0}
+.overview-heading h2{font-size:22px}
+.overview-heading p{font-size:12px;line-height:1.6;color:var(--muted);margin-top:6px}
+.sidebar{padding-right:3px;gap:13px}
+.sidebar>.room-panel{flex:none;overflow:visible;min-height:0}
+.sidebar>.rooms-overview,.sidebar>.vacuum-panel{flex-shrink:0}
+.device-row{width:100%;display:flex;align-items:center;gap:10px;padding:14px 0;background:transparent;text-align:left;border-bottom:1px solid var(--line);color:var(--ink)}
+.device-row>svg{width:20px;height:20px;flex-shrink:0}
+.device-row>svg:last-child{width:13px;margin-left:auto}
+.device-row span{min-width:0}
+.device-row strong{font-size:12px;font-weight:500;display:block}
+.device-row small{display:block;font-size:11px;color:var(--muted);margin-top:5px}
+.device-name{font:inherit;color:inherit;text-align:left;background:transparent;padding:4px 0;font-size:12px}
+.device-name:hover{text-decoration:underline}
+.shell[data-level="room"] .light-control .brightness,.shell[data-level="room"] .swatches{display:none}
+.shell[data-level="device"] .room-subtitle,.shell[data-level="device"] .climate-panel{display:none}
+.shell[data-level="device"] .room-heading{margin-bottom:18px}
+.scene-editor{background:var(--card);border:1px solid var(--line);border-radius:18px;padding:18px}
+/* Scene tabs in the editor: a single “Customize” entry instead of a button under each scene. */
+.scene-tabs{display:grid;grid-template-columns:repeat(3,1fr);gap:4px;padding:4px;border-radius:14px;background:var(--fill)}
+.scene-tabs button{display:flex;align-items:center;justify-content:center;gap:6px;padding:8px 4px;border-radius:10px;
+  background:transparent;color:var(--muted);font-size:12px;transition:background .15s,color .15s}
+.scene-tabs button svg{width:15px;height:15px}
+.scene-tabs button:hover{color:var(--ink)}
+.scene-tabs button[aria-selected="true"]{background:var(--card);color:var(--ink);box-shadow:0 1px 4px #0000001f}
+.scene-editor>p{font-size:11px;color:var(--muted);line-height:1.6;margin:12px 0}
+.scene-editor fieldset{border:0;border-top:1px solid var(--line);margin:20px 0 0;padding:12px 0 0}
+.scene-editor legend{font-size:12px;color:var(--ink);padding-right:8px}
+.scene-device{margin-bottom:16px}
+.scene-device label{font-size:11px;color:var(--muted);display:block}
+.scene-device select{width:100%;margin-top:7px;padding:9px;border:1px solid var(--line);border-radius:8px;background:var(--fill);font:inherit;color:var(--ink)}
+.scene-brightness{display:flex!important;align-items:center;justify-content:space-between;margin-top:8px}
+.scene-brightness input{width:64px;border:1px solid var(--line);border-radius:6px;background:var(--fill);color:var(--ink);padding:7px;font:inherit}
+.scene-editor-actions{display:flex;gap:8px;position:sticky;bottom:0;background:var(--card);padding:10px 0}
+.scene-editor-actions button{margin:0}
+.scene-reset{font-size:11px;background:transparent;color:var(--muted);margin-top:12px;text-decoration:underline}
+.shell[data-level="device"][data-device="ac"] .room-heading,.shell[data-level="device"][data-device="tv"] .room-heading{display:none}
+/* The overview footer as a single line: where the commands and the weather come from. Pinned to the bottom
+   of the panel so it doesn't hang in the middle of the empty space below the last group. */
+
+.camera-dialog{box-sizing:border-box;width:min(800px,calc(100vw - 28px));padding:0;border:1px solid #65735f;border-radius:20px;background:var(--card);color:var(--ink);box-shadow:0 24px 90px #0008;max-height:90dvh;overflow:auto}
+.camera-dialog::backdrop{background:#101e21b8;backdrop-filter:blur(5px)}
+.camera-dialog header{display:flex;align-items:center;justify-content:space-between;padding:20px 24px;gap:16px}
+.camera-dialog h2{margin:0;font-size:20px}.camera-dialog p{margin:5px 0 0;font-size:12px;color:var(--muted)}
+.camera-dialog header button{width:44px;height:44px;border:0;border-radius:50%;background:var(--fill);color:var(--ink);font-size:28px;cursor:pointer}
+.camera-dialog button:focus-visible{outline:3px solid #a59462;outline-offset:3px}
+.camera-feed{position:relative;background:#182321}.camera-feed canvas{display:block;width:100%;height:auto}
+.camera-feed span,.camera-feed time{position:absolute;top:16px;color:#e9f0df;background:#14201ab8;padding:6px 10px;border-radius:5px;font:12px monospace}
+.camera-feed span{left:16px}.camera-feed time{right:16px}
+.camera-dialog footer{padding:16px 24px;color:var(--muted);font-size:12px}
+@media(max-width:480px){.camera-dialog header{padding:14px}.camera-dialog h2{font-size:17px}.camera-feed time,.camera-feed span{font-size:9px;top:8px;padding:4px}.camera-feed span{left:8px}.camera-feed time{right:8px}}
+
+
+
+/* Room entities without geometry: a valve, a boiler, an extractor fan, a relay's second channel.
+   They mirror the look of the light and blind rows, but without a link to an object in the model. */
+.extras{display:flex;flex-direction:column}
+.light-control.extra,.cover-control.extra{width:100%;text-align:left;background:transparent;padding:14px 0;margin:0;border:0;border-bottom:1px solid var(--line)}
+.extras>:last-child{border-bottom:0;padding-bottom:0}
+button.light-control.extra{display:block}
+button.light-control.extra:hover .light-label strong{color:var(--green)}
+.extra .light-label strong{font-size:12px;font-weight:500;display:block;line-height:1.4}
+.extra .light-label small{font-size:10px;color:var(--muted);display:block;margin-top:3px}
+.extra-chevron{color:var(--muted);font-size:17px;line-height:1;padding:0 2px;flex-shrink:0}
+.cover-control.extra .brightness{margin-top:12px}
+/* Home device names are longer than model object names (“Water shut-off valve”):
+   the buttons may move onto their own line instead of squeezing the label. */
+.cover-control.extra .light-row{flex-wrap:wrap;row-gap:10px}
+.cover-control.extra .light-label{min-width:118px}
+.cover-control.extra .cover-buttons{margin-left:auto}
+
+/* A mini chart of reading history under the climate figure. */
+.spark{display:block;width:100%;height:26px;margin-top:8px;overflow:visible}
+.spark-line{fill:none;stroke:var(--green);stroke-width:1.5;stroke-linejoin:round;stroke-linecap:round;vector-effect:non-scaling-stroke}
+.spark-area{fill:color-mix(in srgb,var(--green) 16%,transparent);stroke:none}
+.climate-metrics>div{min-width:0}
+
+/* ──────────────────────────────────────────────────────────────────────────
+   The look of the UI Lovelace Minimalist dashboard room cards. Values are taken from
+   the minimalist-desktop theme (--border-radius: 20px, --color-yellow, --opacity-bg)
+   and from the mini-graph-card configuration in the room views: hours_to_show 3,
+   points_per_hour 12, line_width 3, show.fill. Inside Home Assistant the card
+   uses the same variables; outside it, the fallback values.
+   ────────────────────────────────────────────────────────────────────────── */
+:host{
+  --ulm-radius:var(--border-radius,20px);
+  --tile-accent:rgb(var(--color-yellow,197,148,75));
+}
+
+/* Light tiles: two columns, as in a horizontal-stack of card_light. */
+.tiles{display:grid;grid-template-columns:minmax(0,1fr);gap:10px}
+.tile{display:flex;align-items:center;gap:11px;width:100%;text-align:left;color:inherit;
+  background:var(--card);border:1px solid var(--line);border-radius:var(--ulm-radius);padding:13px;min-height:68px}
+.tile.wide{grid-column:1/-1;flex-direction:column;align-items:stretch;gap:12px}
+.tile:hover:not(:disabled){background:color-mix(in srgb,var(--ink) 5%,var(--card))}
+.tile:disabled,.tile-head:disabled{opacity:.45;cursor:default}
+.tile-head{display:flex;align-items:center;gap:11px;width:100%;text-align:left;color:inherit;background:transparent;padding:0}
+.tile-chip{width:42px;height:42px;border-radius:14px;display:grid;place-items:center;flex-shrink:0;
+  background:var(--fill);color:var(--muted);transition:background .2s,color .2s}
+.tile-chip svg{width:21px;height:21px}
+.tile.on .tile-chip{background:color-mix(in srgb,var(--tile-accent) 22%,transparent);color:var(--tile-accent)}
+.tile-text{min-width:0}
+.tile-text strong{display:block;font-size:13px;font-weight:600;line-height:1.25;hyphens:auto;overflow-wrap:anywhere}
+.tile-text small{display:block;font-size:11px;color:var(--muted);margin-top:3px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.tile-more{background:transparent;padding:0;font-size:11px;color:var(--muted);text-align:left}
+.tile-more:hover{color:var(--tile-accent)}
+.tile .swatches{margin-top:0}
+
+/* A full-width brightness slider in the tile, as with ulm_card_light_enable_slider. */
+.bar{position:relative;height:44px;border-radius:14px;background:var(--fill);overflow:hidden}
+.bar::before{content:"";position:absolute;left:0;top:0;bottom:0;width:var(--level,0%);
+  background:color-mix(in srgb,var(--tile-accent) 38%,transparent);transition:width .2s}
+.bar input{position:absolute;inset:0;width:100%;height:100%;margin:0;opacity:0;cursor:pointer}
+.bar input:disabled{cursor:default}
+.bar input:focus-visible{opacity:1;outline:3px solid var(--tile-accent);outline-offset:-3px}
+.bar-value{position:absolute;right:13px;top:50%;transform:translateY(-50%);font-size:11px;color:var(--muted);pointer-events:none}
+
+/* Readings in the spirit of mini-graph-card: label and icon on top, a large
+   value, and a chart along the bottom edge across the full card width. */
+.metrics{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px;margin-bottom:10px}
+.metric-card{position:relative;overflow:hidden;background:var(--card);border:1px solid var(--line);
+  border-radius:var(--ulm-radius);padding:13px 14px 46px;min-height:120px}
+.metric-card.wide{grid-column:1/-1}
+.metric-top{display:flex;align-items:center;justify-content:space-between;gap:6px;color:var(--muted);font-size:12px}
+.metric-top svg{width:17px;height:17px}
+.metric-value{margin-top:11px;display:flex;align-items:baseline;gap:4px}
+.metric-value b{font-size:26px;font-weight:400;letter-spacing:-.8px;line-height:1;font-variant-numeric:tabular-nums}
+.metric-value small{font-size:11px;color:var(--muted)}
+.metric-graph{position:absolute;left:0;right:0;bottom:0;width:100%;height:46px;display:block}
+.metric-line{fill:none;stroke:var(--metric);stroke-width:3;stroke-linejoin:round;stroke-linecap:round;vector-effect:non-scaling-stroke}
+.metric-fill{fill:var(--metric);opacity:.2;stroke:none}
+.metrics-note{font-size:10px;color:var(--muted);line-height:1.5;margin-bottom:4px}
+
+/* Two tile columns only when the panel is wide enough for them
+   (for example, in full-screen mode). In the Home Assistant side panel
+   its width fits exactly one column. */
+.room-panel{container-type:inline-size}
+@container (min-width:330px){
+  .tiles{grid-template-columns:repeat(2,minmax(0,1fr))}
+  .tile.wide{grid-column:1/-1}
+}
+@container (max-width:240px){
+  .metrics{grid-template-columns:minmax(0,1fr)}
+}
+
+/* Devices and blinds look the same as lights: a name row, buttons on the right,
+   a position bar below — like card_cover with enable_controls and enable_slider. */
+.tile-chevron{margin-left:auto;color:var(--muted);font-size:18px;line-height:1;padding-left:4px;flex-shrink:0}
+.tile-head-row{display:flex;align-items:center;gap:10px;width:100%;flex-wrap:wrap;row-gap:12px}
+.tile-head-row .tile-head{flex:1 1 150px;min-width:0}
+.tile-head-row .cover-buttons{flex-shrink:0;margin-left:auto}
+.cover-tile .tile-chip{color:var(--muted)}
+.cover-tile.on .tile-chip{background:color-mix(in srgb,var(--tile-accent) 22%,transparent);color:var(--tile-accent)}
+.tile>.tile-head{display:flex;align-items:center;gap:11px}
+span.tile-head{background:transparent;padding:0;display:flex;align-items:center;gap:11px;flex:1;min-width:0}
+div.tile:not(.wide){cursor:default}
+
+/* On a dark page a separate backdrop under the model is unnecessary: the canvas is transparent,
+   and the model sits directly on the dashboard background instead of competing with it
+   with a rectangle of its own. A light page needs the backdrop — the overlays
+   on top of the model are dark. Decided by background brightness, see applyBackdrop. */
+:host(.on-dark) .map-card{--view:transparent;border-color:transparent}
+/* The loading screen covers the same area and was painted with the same teal
+   .night .loading rule — on a dark page that is unnecessary too. */
+:host(.on-dark) .night .loading{background:color-mix(in srgb,var(--paper) 88%,transparent)}
+
+/* Real dashboard cards inserted into the room panel. We don't impose our own
+   layout on them — they bring theirs along; our job is only to stack
+   them in a column with the same spacing as in the room views. */
+/* Native Home Assistant cards take their radius from --ha-card-border-radius.
+   A measurement on a live dashboard showed that ha-card had 0px on all of them, whereas
+   button-card had 20px: the ui_lovelace_minimalist templates set the radius themselves,
+   while the rest rely on the variable, and it does not reach the cards we
+   create — border-radius collapses to zero. We declare it on the container:
+   custom properties are inherited into shadow trees, so all nested
+   ha-card elements pick it up at once, the thermostat included. */
+.ha-cards{display:flex;flex-direction:column;gap:12px;--ha-card-border-radius:var(--ulm-radius)}
+.ha-cards>*{display:block;max-width:100%}
+.ha-cards-note{font-size:11px;line-height:1.5;color:var(--muted)}
+
+/* Dashboard cards bring their own --card colored surface. If the panel beneath
+   them stays a card of the same kind, the borders between them vanish: a card on
+   a card of the same color. So the panel recedes into the page background and gives them the full
+   width — the same as in the room views on a phone. */
+:host(.dashboard-cards) .room-panel{background:transparent;border-color:transparent;padding:0}
+:host(.dashboard-cards) .room-heading{padding:0 2px 2px}
+
+/* ── A stage instead of a void ───────────────────────────────────────────
+   The model hung in flat blackness. A soft light spot behind it reads as
+   a studio backdrop and adds depth; together with the contact shadow in the scene the apartment
+   no longer looks cut out and pasted on. The spot is in screen space: when orbiting it
+   stays put, as a background should.
+
+   It covers the whole card, not just the canvas area: the canvas area ends
+   above the room strip, and the spot's edge showed as a straight line across the screen. */
+.map-card::before{
+  content:"";position:absolute;inset:0;z-index:0;pointer-events:none;
+  background:
+    radial-gradient(ellipse 68% 58% at 50% 50%,color-mix(in srgb,var(--ink) 8%,transparent),transparent 72%),
+    radial-gradient(ellipse 120% 80% at 50% 118%,color-mix(in srgb,var(--ink) 5%,transparent),transparent 65%);
+}
+
+/* ── Card entrance cascade ───────────────────────────────────────────────── */
+.ha-cards>*{animation:card-in .42s cubic-bezier(.22,.61,.36,1) backwards;animation-delay:var(--enter-delay,0ms)}
+@keyframes card-in{from{opacity:0;transform:translateY(12px)}}
+@media(prefers-reduced-motion:reduce){.ha-cards>*{animation:none}}
+
+/* ── One visual language with the dashboard cards ───────────────────────
+   The room buttons, view controls and breadcrumbs were left over from the previous
+   design — dark-green pills with their own radius. Next to the dashboard
+   cards this read as two different programs. Now they share the surface,
+   radius and accent. */
+.room-chip,.night .room-chip{background:var(--card);border:1px solid var(--line);
+  border-radius:var(--ulm-radius);color:var(--muted)}
+.room-chip:hover,.night .room-chip:hover{background:color-mix(in srgb,var(--ink) 6%,var(--card))}
+.room-chip.selected,.night .room-chip.selected{
+  background:color-mix(in srgb,var(--tile-accent) 16%,var(--card));
+  border-color:color-mix(in srgb,var(--tile-accent) 42%,transparent);color:var(--ink)}
+.view-controls,.night .view-controls{background:var(--card);border:1px solid var(--line);
+  border-radius:16px;color:var(--muted)}
+/* The Home Assistant menu button — on a page without the header and menu (kiosk): where
+   the header's “≡” used to be, in the same pill as the view controls. The tooltip goes below
+   the button: above it is the edge of the model and it would be clipped. The selector goes through
+   .map-card — otherwise the generic [data-tip]{position:relative} below overrides it. */
+.map-card .ha-menu{position:absolute;top:14px;left:14px;z-index:6;width:38px;height:38px;border-radius:13px;
+  background:var(--card);border:1px solid var(--line);color:var(--muted)}
+.ha-menu[aria-pressed="true"]{color:var(--ink);background:color-mix(in srgb,var(--ink) 9%,var(--card))}
+.map-card .ha-menu[data-tip]::after{top:calc(100% + 7px);bottom:auto;left:0;transform:none}
+.map-card.kiosk .map-caption{left:64px}
+.model-expanded .ha-menu{display:none}
+.icon-btn:hover,.night .icon-btn:hover{background:color-mix(in srgb,var(--ink) 9%,var(--card))}
+.panel-navigation button{background:var(--card);border:1px solid var(--line);border-radius:14px;color:var(--muted)}
+.panel-navigation button:hover{background:color-mix(in srgb,var(--ink) 7%,var(--card))}
+
+/* ── Glass panel ─────────────────────────────────────────────────────────
+   The canvas extends under the panel across the full width of the workspace, and the panel lies over
+   it as a translucent blurred layer: behind the cards you see the blurred silhouette
+   of the apartment. The model itself does not slide under the panel — the viewer knows its width and
+   fits the frame to the free part (ApartmentViewer.setInset). The same goes for
+   the room strip and notifications: they are inside the canvas and are inset by the panel width.
+   The --glass-panel variable acts as a switch; measureInset reads it.
+
+   The layout is chosen by the size of the card itself, not the window: in Home Assistant
+   the sidebar may be open next to it, and the window width is off by its 256 px.
+   The glass panel is only for a landscape card. In portrait (a phone,
+   an upright tablet) the model becomes a strip at the top and the panel goes below it, see below. */
+@container twin (aspect-ratio>1/1) and (width>=540px){
+  .main{--glass-panel:1;--panel-w:380px}
+  .workspace{position:relative;grid-template-columns:minmax(0,1fr)}
+  .map-card{grid-column:1/-1}
+  .sidebar{
+    position:absolute;right:0;top:0;bottom:0;width:var(--panel-w);z-index:6;padding:0 16px 17px 18px;
+    background:color-mix(in srgb,var(--paper) 62%,transparent);
+    backdrop-filter:blur(26px) saturate(1.25);
+    -webkit-backdrop-filter:blur(26px) saturate(1.25);
+    border-left:1px solid color-mix(in srgb,var(--ink) 10%,transparent);
+  }
+  .room-strip{padding-right:calc(var(--panel-w) + 17px)}
+  .note-gear{right:calc(var(--panel-w) + 20px)}
+  .notifications{right:calc(var(--panel-w) + 6px)}
+  /* Inside a dashboard the card fills the whole page, so it has no side
+     padding: the panel is flush with the right edge of the window, and the free
+     corridor for the model starts at the left edge. With padding the panel stood 22 px
+     from the edge, the model was centered in the corridor between the padding and the panel — and
+     the gap to the left window edge was those 22 px larger than to the panel on the right.
+     Geometrically the frame was centered, but to the eye it pressed against the panel. */
+  :host(.embedded) .main{padding-left:0;padding-right:0}
+}
+@container twin (aspect-ratio>1/1) and (width>=1600px){.main{--panel-w:420px}}
+@container twin (aspect-ratio>1/1) and (width<1100px){.main{--panel-w:300px}}
+@container twin (aspect-ratio>1/1) and (width<760px){.main{--panel-w:270px}}
+
+/* ── Short card ──────────────────────────────────────────────────────────
+   A phone on its side, a short browser window. There is not enough height for the room strip
+   and a column of five controls: the strip goes away (the rooms are listed in the
+   panel), the controls line up in a row, and the rotation hint disappears.
+   On such a screen zooming is easier by pinch or wheel; the ± buttons are unnecessary. */
+@container twin (height<600px) or (aspect-ratio<=1/1) or (width<540px){
+  .map-caption,.room-strip{display:none}
+  .view-controls{left:12px;bottom:12px;flex-direction:row;padding:4px;border-radius:14px}
+  .view-controls .divider,.view-controls [data-action="plus"],.view-controls [data-action="minus"]{display:none}
+  .notifications{top:48px}
+  .note-gear{top:10px}
+  .notification-text strong{font-size:11px}
+  .toast{bottom:60px}
+}
+/* Phone — a narrow card or a phone on its side: the model there is a strip, and the stack
+   would cover almost all of it, while the small cards got clipped. There are no notifications
+   on a phone at all — neither the stack nor the gear. The log keeps accumulating; on a
+   tablet or computer everything is in place. */
+@container twin (width<600px) or (height<500px){
+  .notifications,.note-gear,.note-settings{display:none}
+}
+@container twin (aspect-ratio>1/1) and (width>=540px) and (height<600px){
+  .main{padding:12px 14px}
+  :host(.embedded) .main{padding:10px 0 0}
+  .sidebar{padding-top:4px}
+}
+
+/* ── Portrait card: the model on top, the panel below it ─────────────────
+   There used to be a bottom sheet over the model here. Collapsed, it showed
+   a single line “Lights on: 6”, and the model got lost in a tall empty canvas:
+   the apartment is wide and took up a quarter of a portrait frame. Now
+   the model gets a strip matching its proportions, and all the remaining space goes to the control
+   panel, which is what people open the card on a phone for. The model can be
+   expanded to the whole card with the corner button (see toggleModel), and then
+   the room strip comes back too. */
+@container twin (aspect-ratio<=1/1) or (width<540px){
+  .main{padding:12px 12px 0}
+  :host(.embedded) .main{padding:10px 12px 0}
+  .workspace{display:flex;flex-direction:column;gap:14px}
+  .map-card{flex:none;height:clamp(190px,min(66cqw,46cqh),620px);border-radius:18px}
+  .canvas-wrap{min-height:0}
+  .sidebar{flex:1;min-height:0;padding:0 max(0px,(100% - 640px)/2) 20px;overscroll-behavior:contain}
+  /* The header with “Back” stays in place while the remote scrolls beneath it. */
+  .panel-navigation{position:sticky;top:0;z-index:2;background:var(--paper);padding:2px 0 10px}
+  .overview-heading{padding-top:2px}
+  .overview-heading h2{font-size:20px}
+  .model-expanded .map-card{flex:1;height:auto}
+  .model-expanded .sidebar{display:none}
+  .model-expanded .room-strip{display:grid;gap:4px;padding:30px 10px 10px}
+  .model-expanded .view-controls{bottom:auto;top:12px}
+  .model-expanded .notifications,.model-expanded .note-gear{display:none}
+  .room-chip{font-size:9px;padding:10px 1px 9px;gap:5px}
+  .room-chip svg{width:18px;height:18px}
+}
+
+/* Soft panel edges while scrolling. The content ran into the panel's bounds and
+   broke off along a straight line — especially noticeable at the top, where the blinds card slides
+   under the header. The gradients lie over the panel, match its width and turn on
+   only on the side that can still be scrolled (see updateScrollEdges).
+   The color comes from the page background and fades to transparent, so over
+   the glass it reads as dissolving rather than as a stripe. */
+@container twin (aspect-ratio>1/1) and (width>=540px){
+  .workspace::before,.workspace::after{
+    content:"";position:absolute;right:0;width:var(--panel-w);height:68px;z-index:7;
+    pointer-events:none;opacity:0;transition:opacity .22s ease;
+  }
+  .workspace::before{top:0;background:linear-gradient(to bottom,
+    var(--paper) 0,var(--paper) 18%,
+    color-mix(in srgb,var(--paper) 72%,transparent) 48%,transparent 100%)}
+  .workspace::after{bottom:0;background:linear-gradient(to top,
+    var(--paper) 0,var(--paper) 18%,
+    color-mix(in srgb,var(--paper) 72%,transparent) 48%,transparent 100%)}
+  .shell.fade-top .workspace::before,.shell.fade-bottom .workspace::after{opacity:1}
+}
+@media(prefers-reduced-motion:reduce){.workspace::before,.workspace::after{transition:none}}
+
+/* Until the camera delivers its first frame, there is an empty rectangle in its place —
+   it's unclear whether something broke or it's still loading. The class is set by
+   markLoadingMedia, which walks shadow trees too. The background and ring lie over
+   the card and disappear as soon as a frame appears. We don't clip:
+   the card rounds itself, and an extra overflow gets in its way. */
+.ha-cards hui-picture-entity-card,
+.ha-cards hui-picture-card,
+.ha-cards hui-picture-glance-card{position:relative}
+.ha-cards .media-loading::before{
+  content:"";position:absolute;inset:0;z-index:2;border-radius:var(--ulm-radius);
+  background:var(--fill);
+}
+.ha-cards .media-loading::after{
+  content:"";position:absolute;z-index:3;left:50%;top:50%;width:26px;height:26px;margin:-13px 0 0 -13px;
+  border-radius:50%;border:2px solid var(--line);border-top-color:var(--muted);
+  animation:spin 1s linear infinite;
+}
+@media(prefers-reduced-motion:reduce){.ha-cards .media-loading::after{animation-duration:2.4s}}
+
+/* Panel breadcrumbs: a round back button, the room name centered as
+   the heading, a round overview button on the right. Previously a wide pill
+   “← Back” hung on the left, the name ran beside it in small gray text, and inside the panel the same name
+   was repeated as a heading — two different things for one label. */
+.panel-navigation{display:grid;grid-template-columns:40px minmax(0,1fr) 40px;align-items:center;
+  gap:10px;flex-shrink:0;padding:6px 0 10px}
+.panel-navigation .nav-round{width:40px;height:40px;padding:0;display:grid;place-items:center;
+  border-radius:50%;background:var(--card);border:1px solid var(--line);color:var(--muted);
+  transition:background .18s,color .18s}
+.panel-navigation .nav-round:hover{background:color-mix(in srgb,var(--ink) 8%,var(--card));color:var(--ink)}
+.panel-navigation .nav-round svg{width:18px;height:18px}
+/* The only arrow in the icon set points right — we mirror it. */
+.panel-navigation [data-action="back"] svg{transform:scaleX(-1)}
+.panel-path{font-size:17px;font-weight:600;color:var(--ink);text-align:center;
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+
+/* ── Wall control plate ──────────────────────────────────────────────────
+   The plate stands on top of the bedroom wall and lies in its plane: its position is set by
+   a matrix() assembled in positionPlate from three projected points. The camera is
+   orthographic, so the plane maps to the screen affinely — a plain matrix() is
+   enough, no perspective, no matrix3d.
+
+   Sizes are in CSS pixels: the button diameter is at most 30 px, and the camera scale
+   is compensated in positionPlate. The tilt along the wall is preserved. The card measures the row's length and height
+   from this same markup (measurePlate), so sizes are adjusted
+   in one style — no need to recompute world constants by hand.
+
+   There is no backing: a solid plate is a big blot on the light model, so here only
+   the buttons themselves stand on the wall edge. The row does not catch clicks in the gaps
+   between the circles: pointer-events are enabled on the buttons, not the container. */
+.wall-plate{position:absolute;left:0;top:0;transform-origin:0 0;display:flex;align-items:center;
+  pointer-events:none}
+/* There is no plate — only circles on the wall edge. The room caption is not needed: they
+   already sit right above the bedroom, and an extra label on the model is just noise. */
+.plate-caption{display:none}
+.plate-row{display:flex;gap:5px}
+.wall-plate.lead .plate-row{flex-direction:row-reverse}
+.plate-btn{position:relative;pointer-events:auto;width:30px;height:30px;padding:0;flex-shrink:0;border-radius:50%;
+  display:grid;place-items:center;color:#eef3ec;border:1px solid #ffffff2b;
+  background:linear-gradient(to bottom,#2029248c,#121a179c);
+  box-shadow:0 5px 16px #04100b66,inset 0 1px 0 #ffffff26;
+  backdrop-filter:blur(6px);-webkit-backdrop-filter:blur(6px);
+  transition:background .16s ease,border-color .16s ease,box-shadow .16s ease,transform .16s ease}
+/* Hover lifts the button above the wall: the Y axis here is the world vertical,
+   so the shift reads as lifting off the edge, not as sliding across the screen. */
+.plate-btn:hover:not(:disabled){transform:translateY(-3px);border-color:#ffffff4d;
+  background:linear-gradient(to bottom,#2f3b35ab,#1c2621b8);
+  box-shadow:0 9px 22px #04100b7a,inset 0 1px 0 #ffffff33}
+.plate-btn svg{width:16px;height:16px}
+/* An active device gets a light button: blinds open, climate or TV
+   on. Warm amber is reserved for lights only, otherwise half a dozen lamps would glow
+   on the wall and the eye would stop telling lights that are on from everything else. */
+.plate-btn.on{color:#1b231f;border-color:#ffffff8c;
+  background:linear-gradient(to bottom,#eef3ecd9,#dde5dbe0)}
+.plate-btn.on:hover:not(:disabled){border-color:#ffffffbf;
+  background:linear-gradient(to bottom,#f8fbf7e8,#e8efe6ed)}
+/* A light that is on is the only warm spot: it is visible from afar. Hover
+   intensifies it rather than dimming it: the generic hover rule would repaint the button
+   dark, and a lamp that is on would look off for a moment. */
+.plate-light.on,.plate-btn.on[data-action="toggle"]{color:#4a330d;border-color:#ffe0a3;
+  background:linear-gradient(to bottom,#f8d794,#ecb960);
+  box-shadow:0 5px 16px #04100b55,0 0 16px #ecb96066}
+.plate-light.on:hover:not(:disabled),
+.plate-btn.on[data-action="toggle"]:hover:not(:disabled){border-color:#fff0cc;
+  background:linear-gradient(to bottom,#ffe4a8,#f3c674);
+  box-shadow:0 9px 22px #04100b6b,0 0 22px #ecb96085}
+
+/* A label instead of the browser's native tooltip: that one popped up as a black box
+   over the model and broke the whole view. This one lies in the wall plane together with
+   the buttons and extends downward, onto the wall — there is no room above, that's the frame edge. */
+.plate-btn::after{content:attr(data-label);position:absolute;top:calc(100% + 7px);left:50%;
+  translate:-50% 0;white-space:nowrap;padding:6px 10px;border-radius:9px;
+  background:#121b18ed;border:1px solid #ffffff21;color:#e9efe7;
+  font-size:14px;line-height:1;letter-spacing:.3px;
+  box-shadow:0 5px 14px #04100b59;
+  opacity:0;visibility:hidden;transition:opacity .15s ease,visibility .15s;pointer-events:none}
+.plate-btn:hover:not(:disabled)::after,.plate-btn:focus-visible::after{opacity:1;visibility:visible}
+.plate-more svg{transition:transform .2s ease}
+.plate-extra{display:none}
+.wall-plate.open .plate-extra{display:grid}
+.wall-plate.open .plate-more svg{transform:rotate(45deg)}
+@media(prefers-reduced-motion:reduce){.plate-btn,.plate-btn::after,.plate-more svg{transition:none}}
+
+/* ── Overview: weather, “Now”, climate, monitoring ───────────────────────
+   The lower half of the overview used to be empty. Now the panel answers the questions
+   people open it for: what's outside now and later tonight, what's on in the home, whether
+   the rooms are warm and not stuffy, whether everything is fine with the water and the camera. Hovering
+   any row, chip or tile highlights where it is in the model (data-highlight). */
+.is-empty{display:none!important}
+.sidebar>.now-panel,.sidebar>.climate-overview,.sidebar>.watch-panel{margin-top:8px;flex-shrink:0}
+.overview-title{display:flex;align-items:flex-start;justify-content:space-between;gap:12px}
+.overview-name{min-width:0}
+.weather-now{display:flex;align-items:center;gap:8px;flex-shrink:0;text-align:right}
+.weather-icon svg{width:30px;height:30px;color:color-mix(in srgb,var(--ink) 75%,var(--muted))}
+.weather-text b{display:block;font-size:28px;font-weight:300;letter-spacing:-1px;line-height:1;font-variant-numeric:tabular-nums}
+.weather-text small{display:block;margin-top:4px;font-size:11px;color:var(--muted);white-space:nowrap}
+.forecast{display:grid;grid-template-columns:repeat(6,minmax(0,1fr));margin-top:14px;padding:9px 2px 8px;
+  background:var(--card);border:1px solid var(--line);border-radius:16px;text-align:center}
+.forecast-cell{min-width:0;display:flex;flex-direction:column;align-items:center;gap:4px}
+.forecast-cell small{font-size:10px;color:var(--muted);font-variant-numeric:tabular-nums;white-space:nowrap}
+.forecast-cell svg{width:18px;height:18px;color:color-mix(in srgb,var(--ink) 70%,var(--muted))}
+.forecast-cell b{font-size:12px;font-weight:500;font-variant-numeric:tabular-nums}
+.forecast-cell.now b{color:var(--ink)}
+.forecast-cell.sunset,.forecast-cell.sunrise{color:var(--tile-accent)}
+.forecast-cell.sunset small,.forecast-cell.sunset svg,.forecast-cell.sunrise small,.forecast-cell.sunrise svg{color:var(--tile-accent)}
+.forecast-cell.sunset b,.forecast-cell.sunrise b{font-weight:400;font-size:11px}
+
+/* “Now” chips: the color is the device kind, the same as the icons in the room rows. */
+.now-chips{display:flex;flex-wrap:wrap;gap:6px}
+.now-chip{--k:var(--muted);display:flex;align-items:center;gap:6px;padding:6px 11px 6px 8px;border-radius:999px;font-size:12px;
+  background:color-mix(in srgb,var(--k) 14%,var(--card));border:1px solid color-mix(in srgb,var(--k) 32%,transparent);
+  color:color-mix(in srgb,var(--k) 55%,var(--ink));transition:background .15s,transform .15s}
+.now-chip:hover{background:color-mix(in srgb,var(--k) 24%,var(--card))}
+.now-chip:active{transform:scale(.97)}
+.now-chip svg{width:15px;height:15px;color:var(--k)}
+.now-chip i{font-style:normal;font-variant-numeric:tabular-nums;opacity:.7}
+.now-chip.light{--k:var(--tile-accent)}
+.now-chip.climate{--k:var(--m,rgb(var(--color-blue,66,133,244)))}
+.now-chip.media{--k:rgb(var(--color-purple,146,107,199))}
+.now-chip.appliance{--k:var(--green)}
+.now-chip.warn{--k:#e0a800}
+.now-chip.alert{--k:rgb(var(--color-red,219,68,55));font-weight:500}
+.now-empty{display:flex;align-items:center;gap:7px;margin:0 4px;font-size:12px;color:var(--muted)}
+.now-empty svg{width:15px;height:15px}
+
+/* Air conditioner mode — the color for the button, the tile, the “Now” chip and the icon in
+   the room row. The same colors as the remote and the airflow in the model, but from
+   the theme palette: heat is between its red and yellow so as not to clash with either
+   alerts or lights; cool is light blue; dry is a muted lilac;
+   fan is teal; auto is green. The boiler heats, so it uses the heat color. */
+.mode-cool{--m:rgb(var(--color-blue,66,133,244))}
+.mode-heat{--m:color-mix(in srgb,rgb(var(--color-red,222,104,72)) 62%,rgb(var(--color-yellow,197,148,75)))}
+.mode-dry{--m:color-mix(in srgb,rgb(var(--color-purple,146,107,199)) 58%,var(--ink))}
+.mode-fan{--m:color-mix(in srgb,rgb(var(--color-blue,66,133,244)) 50%,var(--green))}
+.mode-auto{--m:var(--green)}
+
+/* Climate tiles: the boiler and air conditioners, two columns. One that is on shows a colored
+   power button and the setpoint; one that is off shows the room temperature. */
+.room-tiles{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}
+.ctile{--k:rgb(var(--color-blue,66,133,244));display:flex;flex-direction:column;justify-content:space-between;gap:8px;min-width:0;
+  padding:10px 10px 10px 11px;background:var(--card);border:1px solid var(--line);border-radius:var(--ulm-radius);transition:background .2s,border-color .2s}
+.ctile.boiler{--k:var(--m)}
+/* “Lights & climate”: the room tile. Lights on — amber, like lights in the model;
+   only the air conditioner running — the color of its mode. At the bottom: the room light button,
+   the all-blinds button and, at the edge, the air conditioner button (D-049, 2026-11-08); while it runs, a mode and
+   setpoint row sits below them. The room light button is filled only by lights. */
+.ctile.room{--k:var(--tile-accent);justify-content:flex-start}
+.ctile.room.ac-on:not(.lit){--k:var(--m)}
+.ctile.room.lit,.ctile.room.ac-on{border-color:color-mix(in srgb,var(--k) 26%,var(--line))}
+.ctile.room.lit .ctile-chip,.ctile.room.ac-on .ctile-chip{background:color-mix(in srgb,var(--k) 20%,transparent);color:var(--k)}
+.ctile.room.lit .ctile-power{background:var(--k);color:#fff}
+.ctile.room.lit .ctile-power:hover:not(:disabled){background:color-mix(in srgb,var(--k) 85%,#000)}
+.rtile-devices{display:flex;gap:5px;flex-shrink:0;margin-left:auto}
+.ltile-lamp.ac{--k:var(--m,rgb(var(--color-blue,66,133,244)));flex-shrink:0}
+/* blinds in the tile are green, like the blind tile on the room screen: only lights glow yellow */
+.ltile-lamp.cover{--k:rgb(var(--color-green,111,154,130))}
+.rtile-climate{padding-top:8px;border-top:1px solid var(--line)}
+.rtile-mode{display:flex;flex-direction:column;gap:3px;min-width:0;padding:0;background:transparent;color:inherit;text-align:left}
+.rtile-mode small{font-size:10px;color:color-mix(in srgb,var(--m) 70%,var(--muted));white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+/* Tooltips on the round tile buttons are our own, not title: the native one pops up
+   after a second and looks foreign. A dark pill in the theme's text color above the button,
+   on hover and on keyboard focus. For the outermost buttons the pill is aligned to their
+   edge: centered, it would stick out past the panel edge and be clipped. */
+[data-tip]{position:relative}
+/* The pill exists only under the cursor: hidden by opacity, it would still
+   take up space, and a narrow panel would scroll sideways. The states are
+   in :where, with zero specificity: otherwise the outermost-button rules below (.ctile-power::after)
+   lose, left:50% stays together with right:0, and the pill shrinks to nothing. */
+[data-tip]:where(:hover,:focus-visible)::after{content:attr(data-tip);position:absolute;bottom:calc(100% + 7px);left:50%;z-index:5;
+  padding:5px 8px;border-radius:8px;background:var(--ink);color:var(--card);font-size:11px;font-weight:400;line-height:1.25;
+  white-space:nowrap;letter-spacing:0;pointer-events:none;transform:translateX(-50%);
+  box-shadow:0 6px 16px color-mix(in srgb,#000 22%,transparent);animation:tip-in .12s ease .2s both}
+@keyframes tip-in{from{opacity:0;translate:0 3px}}
+.ltile-lamps>[data-tip]:first-child::after{left:0;transform:none}
+.rtile-devices>:last-child::after,.ctile-power::after,.ctile-steps>:last-child::after{left:auto;right:0;transform:none}
+@media(hover:none){[data-tip]:hover::after{display:none}}
+@media(prefers-reduced-motion:reduce){[data-tip]::after{animation:none}}
+.ltile-lamps{display:flex;gap:5px;min-width:0}
+.ltile-lamp{width:28px;height:28px;border-radius:50%;padding:0;display:grid;place-items:center;background:var(--fill);color:var(--muted);transition:background .15s,color .15s}
+.ltile-lamp svg{width:14px;height:14px}
+.ltile-lamp:hover:not(:disabled){background:var(--fill-hi);color:var(--ink)}
+.ltile-lamp.on{background:color-mix(in srgb,var(--k) 22%,var(--card));color:var(--k)}
+.ltile-lamp.on:hover:not(:disabled){background:color-mix(in srgb,var(--k) 32%,var(--card))}
+.ctile.on{border-color:color-mix(in srgb,var(--k) 26%,var(--line))}
+.ctile.unbound,.ctile.unavailable{opacity:.55}
+.ctile-top{display:flex;align-items:center;gap:6px}
+.ctile-head{flex:1;min-width:0;display:flex;align-items:center;gap:9px;background:transparent;padding:0;text-align:left;color:inherit}
+button.ctile-head:hover strong{color:var(--k)}
+.ctile-chip{width:32px;height:32px;border-radius:11px;display:grid;place-items:center;flex-shrink:0;background:var(--fill);color:var(--muted);transition:background .2s,color .2s}
+.ctile-chip svg{width:17px;height:17px}
+.ctile.on .ctile-chip{background:color-mix(in srgb,var(--k) 20%,transparent);color:var(--k)}
+.ctile-text{min-width:0}
+.ctile-text strong{display:block;font-size:13px;font-weight:500;line-height:1.25;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;transition:color .15s}
+.ctile-text small{display:block;margin-top:2px;font-size:11px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.ctile-power{width:28px;height:28px;border-radius:50%;display:grid;place-items:center;flex-shrink:0;padding:0;
+  background:var(--fill);color:var(--muted);transition:background .2s,color .2s}
+.ctile-power svg{width:14px;height:14px}
+.ctile-power:hover:not(:disabled){background:var(--fill-hi);color:var(--ink)}
+.ctile.on .ctile-power{background:var(--k);color:#fff}
+.ctile.on .ctile-power:hover:not(:disabled){background:color-mix(in srgb,var(--k) 85%,#000)}
+.ctile-bottom{display:flex;align-items:center;justify-content:space-between;gap:6px;min-height:28px}
+.ctile-target{font-size:24px;font-weight:300;letter-spacing:-.6px;line-height:1;font-variant-numeric:tabular-nums}
+.ctile-steps{display:flex;gap:4px}
+.ctile-step{width:28px;height:28px;border-radius:50%;padding:0;display:grid;place-items:center;background:var(--fill);color:var(--ink);font-size:17px;line-height:1;transition:background .15s}
+.ctile-step:hover:not(:disabled){background:var(--fill-hi)}
+.ctile-idle{font-size:12px;color:var(--muted);font-variant-numeric:tabular-nums}
+
+/* Room rows: the second line is humidity and CO₂, on the right a temperature curve
+   for the last few hours. A warm bar on the left means a light is on in the room. */
+.room-row{position:relative;min-height:50px}
+.room-row-name{display:flex;flex-direction:column;gap:2px}
+.room-row-name>span{overflow:hidden;text-overflow:ellipsis}
+.room-row-sub{font-size:11px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.room-row-sub:empty{display:none}
+.room-row-sub .tone-stuffy{color:#d39b00}
+.room-row-sub .tone-bad{color:rgb(var(--color-red,219,68,55))}
+.room-row.lit{background:linear-gradient(90deg,color-mix(in srgb,var(--tile-accent) 10%,transparent),transparent 55%)}
+.room-row.lit:hover{background:linear-gradient(90deg,color-mix(in srgb,var(--tile-accent) 14%,var(--card)),color-mix(in srgb,var(--ink) 5%,var(--card)) 55%)}
+.room-row.lit::before{content:"";position:absolute;left:0;top:12px;bottom:12px;width:3px;border-radius:0 3px 3px 0;
+  background:var(--tile-accent);box-shadow:0 0 10px 1px color-mix(in srgb,var(--tile-accent) 55%,transparent)}
+.room-row>svg.room-spark{width:44px;height:18px;opacity:1;color:inherit;overflow:visible}
+.room-spark path{fill:none;stroke:color-mix(in srgb,var(--ink) 40%,var(--muted));stroke-width:1.4;stroke-linejoin:round;stroke-linecap:round;vector-effect:non-scaling-stroke}
+
+/* “Security”: the camera frame on the left spans as many rows as there are tiles on the right. */
+.watch-grid{display:grid;grid-template-columns:minmax(0,1.25fr) minmax(0,1fr);gap:8px}
+.watch-grid:not(:has(.cam-tile)){grid-template-columns:repeat(2,minmax(0,1fr))}
+/* Two tiles on the right — equal columns: the camera already stretches over two rows,
+   and the “Leaks” summary needs width. */
+.watch-grid.stacked{grid-template-columns:repeat(2,minmax(0,1fr))}
+.cam-tile{grid-row:span var(--rows,1);position:relative;min-height:108px;padding:0;overflow:hidden;border-radius:var(--ulm-radius);
+  border:1px solid var(--line);background:#0e1412;color:#fff;text-align:left}
+.cam-tile canvas,.cam-tile img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;display:block;transition:transform .4s ease}
+.cam-tile:hover canvas,.cam-tile:hover img{transform:scale(1.04)}
+.cam-tile img:not([src]){visibility:hidden}
+.cam-tile::after{content:"";position:absolute;inset:0;background:linear-gradient(to bottom,#0007,transparent 38%,transparent 70%,#0006);pointer-events:none}
+.cam-badge{position:absolute;left:8px;top:8px;z-index:1;display:flex;align-items:center;gap:6px;max-width:calc(100% - 16px);
+  padding:3px 9px 3px 7px;border-radius:999px;background:#000a;font-size:10px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.cam-badge i{width:6px;height:6px;border-radius:50%;background:#ff5a4f;flex-shrink:0;animation:cam-live 1.6s ease-in-out infinite}
+@keyframes cam-live{50%{opacity:.35}}
+.cam-time{position:absolute;right:9px;bottom:7px;z-index:1;font-size:10px;color:#ffffffd9;font-variant-numeric:tabular-nums}
+.cam-empty{position:absolute;inset:0;z-index:1;display:none;place-items:center;font-size:11px;color:#ffffffa6}
+.cam-tile.empty .cam-empty{display:grid}
+.cam-tile.empty .cam-badge i{animation:none;background:#9aa0a6}
+.cam-tile.loading{background:linear-gradient(100deg,#141b18 30%,#1e2824 50%,#141b18 70%) 0 0/300% 100%;animation:cam-wait 1.4s linear infinite}
+@keyframes cam-wait{to{background-position:-150% 0}}
+.mini-tile{display:flex;align-items:center;gap:10px;min-width:0;padding:10px 11px;background:var(--card);border:1px solid var(--line);
+  border-radius:var(--ulm-radius);text-align:left;color:var(--ink);transition:background .15s,border-color .2s,box-shadow .3s}
+button.mini-tile:hover:not(:disabled){background:color-mix(in srgb,var(--ink) 5%,var(--card))}
+.mini-tile:disabled{opacity:1;cursor:default}
+.mini-chip{--k:var(--muted);width:32px;height:32px;border-radius:11px;display:grid;place-items:center;flex-shrink:0;
+  background:color-mix(in srgb,var(--k) 18%,transparent);color:var(--k)}
+.mini-chip svg{width:17px;height:17px}
+.mini-text{min-width:0}
+.mini-text strong{display:block;font-size:13px;font-weight:500;line-height:1.25}
+.mini-text small{display:block;margin-top:2px;font-size:11px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.water-tile.open .mini-chip{--k:rgb(var(--color-blue,66,133,244))}
+.water-tile.closed .mini-chip,.water-tile.confirm .mini-chip{--k:rgb(var(--color-red,219,68,55))}
+.water-tile.closed small,.water-tile.confirm small{color:rgb(var(--color-red,219,68,55))}
+.water-tile.confirm{border-color:color-mix(in srgb,rgb(var(--color-red,219,68,55)) 55%,var(--line))}
+.water-tile.unbound,.water-tile.unavailable,.vacuum-mini{opacity:.55}
+.water-tile.flash{animation:tile-flash 1.2s ease}
+@keyframes tile-flash{30%{box-shadow:0 0 0 3px color-mix(in srgb,rgb(var(--color-red,219,68,55)) 45%,transparent)}}
+/* “Leaks”: a summary and a button per sensor beneath it. Dry is green; water is
+   red with a pulse, like “Water shut off”; an offline sensor is a hollow gray
+   dot; a low battery is yellow, like a stuffy room. */
+.leak-tile{flex-wrap:wrap;row-gap:8px}
+/* Without a zero flex-basis a long summary would wrap all its text below the icon. */
+.leak-tile .mini-text{flex:1 1 0}
+.leak-tile .mini-chip{--k:var(--green)}
+.leak-tile.offline .mini-chip{--k:var(--muted)}
+.leak-tile.warn small{color:#d39b00}
+.leak-tile.leak{border-color:color-mix(in srgb,rgb(var(--color-red,219,68,55)) 55%,var(--line));
+  background:color-mix(in srgb,rgb(var(--color-red,219,68,55)) 7%,var(--card))}
+.leak-tile.leak .mini-chip{--k:rgb(var(--color-red,219,68,55))}
+.leak-tile.leak small{color:rgb(var(--color-red,219,68,55));font-weight:500}
+.leak-pills{flex-basis:100%;display:flex;flex-wrap:wrap;gap:4px;min-width:0}
+.leak-pill{--k:var(--green);display:flex;align-items:center;gap:5px;min-width:0;padding:3px 8px 3px 7px;border-radius:999px;
+  background:var(--fill);color:var(--ink);font-size:10.5px;line-height:1.3;transition:background .15s}
+.leak-pill:hover{background:var(--fill-hi)}
+.leak-pill i{width:6px;height:6px;border-radius:50%;flex-shrink:0;background:var(--k)}
+.leak-pill.low{--k:#d39b00}
+.leak-pill.leak{--k:rgb(var(--color-red,219,68,55));background:color-mix(in srgb,var(--k) 16%,var(--card))}
+.leak-pill.leak i{animation:cam-live 1.2s ease-in-out infinite}
+.leak-pill.offline{color:var(--muted)}
+.leak-pill.offline i{background:transparent;box-shadow:inset 0 0 0 1.2px var(--muted)}
+.leak-pills>[data-tip]:first-child::after{left:0;transform:none}
+.leak-pills>[data-tip]:last-child:not(:first-child)::after{left:auto;right:0;transform:none}
+/* A tile in the right column (next to a camera or valve): the first button's pill, aligned
+   left, ran past the panel's right edge — there all pills are aligned to the button's right edge. */
+.watch-grid:has(.cam-tile) .leak-pills>[data-tip]::after,
+.watch-grid>.leak-tile:nth-child(even) .leak-pills>[data-tip]::after{left:auto;right:0;transform:none}
+/* A robot that has gone offline shrinks to a tile in “Security”; there is no large card in the overview. */
+.vacuum-panel.compact.unavailable{display:none}
+@media(prefers-reduced-motion:reduce){.cam-badge i,.cam-tile.loading,.water-tile.flash,.leak-pill.leak i{animation:none}.cam-tile canvas,.cam-tile img,.now-chip{transition:none}}
+
+/* Narrow panel (300 and 270 px): there is no room for the curves and the climate tile icons,
+   nor for the icons of the two tiles next to the camera — without them the summary fits. */
+@container twin (aspect-ratio>1/1) and (width<1100px){
+  .room-row>svg.room-spark,.ctile-chip,.watch-grid.stacked .mini-chip{display:none}
+  .forecast-cell small{font-size:9px}
+  .weather-text b{font-size:24px}
+}
+.home-line span{white-space:nowrap}
+
+/* On hover, a room button under the model takes on the color of the glow
+   its room lights up with at that moment (GLOW_COLOR in room-glow.js):
+   you can see that the button and the light in the model are one thing. The selected one stays amber. */
+:host{--glow:#a3c6ff}
+.room-chip:not(.selected):hover,.night .room-chip:not(.selected):hover,.room-chip:not(.selected):focus-visible{
+  background:color-mix(in srgb,var(--glow) 13%,var(--card));
+  border-color:color-mix(in srgb,var(--glow) 50%,transparent);color:var(--ink)}
+.room-chip:not(.selected):hover svg,.room-chip:not(.selected):focus-visible svg{color:color-mix(in srgb,var(--glow) 75%,var(--ink))}
+.room-chip svg{transition:color .2s}
+
+/* ── Light statistics ────────────────────────────────────────────────────
+   A room's color is categorical, in the fixed manifest order (checked for
+   distinguishability with color blindness; the dark theme has its own steps of the same hues).
+   Color carries only a marker, text is always in the text color; labels, the legend and
+   the light list repeat the color in words. */
+:host{--room-bedroom:#2a78d6;--room-kitchen:#eb6834;--room-bathroom:#1baf7a;--room-living:#eda100;--room-panorama:#e87ba4;--room-hall:#008300}
+:host(.on-dark){--room-bedroom:#3987e5;--room-kitchen:#d95926;--room-bathroom:#199e70;--room-living:#c98500;--room-panorama:#d55181;--room-hall:#008300}
+.sidebar>.stats-panel{margin-top:8px}
+.stats-tile{display:flex;flex-direction:column;gap:10px;width:100%;padding:12px 13px 11px;background:var(--card);border:1px solid var(--line);
+  border-radius:var(--ulm-radius);text-align:left;color:var(--ink);transition:background .15s}
+.stats-tile:hover{background:color-mix(in srgb,var(--ink) 5%,var(--card))}
+.stats-tile .mini-chip{--k:var(--tile-accent)}
+.stats-tile-top{display:flex;align-items:center;gap:10px}
+.stats-tile-head{flex:1;min-width:0}
+.stats-tile-head strong{display:block;font-size:13px;font-weight:500}
+.stats-tile-head small{display:block;margin-top:2px;font-size:11px;color:var(--muted)}
+.stats-tile-total{font-size:24px;font-weight:500;letter-spacing:-.5px;font-variant-numeric:tabular-nums}
+.stats-mini{display:flex;align-items:flex-end;gap:2px;height:30px}
+.stats-mini i{flex:1;min-width:1px;border-radius:2px 2px 0 0;background:color-mix(in srgb,var(--tile-accent) 70%,var(--card))}
+.stats-mini i.empty{height:2px!important;background:var(--line)}
+.stats-tile-sub{font-size:11px;color:var(--muted);line-height:1.4}
+
+.stats-view{position:relative;background:var(--card);border:1px solid var(--line);border-radius:18px;padding:16px 16px 18px;flex-shrink:0}
+.stats-view[hidden]{display:none}
+.stats-periods{display:grid;grid-template-columns:repeat(3,1fr);gap:3px;padding:3px;background:var(--fill);border-radius:11px}
+.stats-periods button{padding:7px 4px;border-radius:8px;background:transparent;font-size:12px;color:var(--muted);transition:background .15s,color .15s}
+.stats-periods button[aria-selected="true"]{background:var(--card);color:var(--ink);box-shadow:0 1px 4px #1d2b2514}
+.stats-empty{margin:24px 4px;font-size:12px;color:var(--muted)}
+.stats-summary{display:flex;align-items:flex-end;justify-content:space-between;gap:12px;margin:18px 2px 14px}
+.stats-total b{display:block;font-size:30px;font-weight:500;letter-spacing:-.8px;line-height:1.05;font-variant-numeric:tabular-nums}
+.stats-total span{display:block;margin-top:4px;font-size:11px;color:var(--muted)}
+.stats-facts{display:flex;gap:14px;text-align:right}
+.stats-facts span{font-size:10px;color:var(--muted)}
+.stats-facts b{display:block;font-size:14px;font-weight:500;color:var(--ink);font-variant-numeric:tabular-nums}
+.stats-rooms{display:flex;flex-wrap:wrap;gap:5px;margin-bottom:14px}
+.stats-room{display:flex;align-items:center;gap:6px;padding:5px 9px 5px 7px;border-radius:999px;background:var(--fill);font-size:11px;color:var(--ink);
+  border:1px solid transparent;transition:background .15s,border-color .15s,opacity .15s}
+.stats-room i{width:9px;height:9px;border-radius:3px;background:var(--c)}
+.stats-room small{color:var(--muted);font-variant-numeric:tabular-nums}
+.stats-room:hover{background:var(--fill-hi)}
+.stats-room[aria-pressed="true"]{background:var(--card);border-color:color-mix(in srgb,var(--ink) 30%,var(--line))}
+.stats-rooms:has([aria-pressed="true"]) .stats-room[aria-pressed="false"]{opacity:.55}
+.stats-chart{position:relative;height:150px;margin:0 0 22px 34px}
+.stats-grid{position:absolute;inset:0}
+.stats-grid span{position:absolute;left:0;right:0;border-top:1px solid color-mix(in srgb,var(--line) 70%,transparent)}
+.stats-grid span:first-child{border-top-color:var(--line)}
+.stats-grid em{position:absolute;right:calc(100% + 6px);top:-7px;font-style:normal;font-size:9px;color:var(--muted);white-space:nowrap;font-variant-numeric:tabular-nums}
+.stats-cols{position:absolute;inset:0;display:flex;align-items:stretch;gap:2px}
+.stats-col{position:relative;flex:1;min-width:0;display:flex;flex-direction:column;justify-content:flex-end;cursor:default}
+.stats-stack{display:flex;flex-direction:column-reverse;gap:2px;border-radius:4px 4px 0 0;overflow:hidden;transition:opacity .15s}
+.stats-stack i{flex-basis:0;min-height:0}
+.stats-cols:hover .stats-col:not(.hover) .stats-stack{opacity:.55}
+.stats-col.empty::after{content:"";position:absolute;left:15%;right:15%;bottom:0;height:2px;border-radius:1px;background:var(--line)}
+.stats-x{position:absolute;top:calc(100% + 5px);left:50%;transform:translateX(-50%);font-size:9px;color:var(--muted);white-space:nowrap}
+.stats-hours{position:relative;margin:0 0 4px}
+.stats-hours svg{display:block;width:100%;height:64px}
+.stats-hours-area{fill:color-mix(in srgb,var(--section,var(--tile-accent)) 20%,transparent)}
+.stats-hours-line{fill:none;stroke:var(--section,var(--tile-accent));stroke-width:2;vector-effect:non-scaling-stroke;stroke-linejoin:round}
+.stats-hours-x{display:flex;justify-content:space-between;margin-top:5px;font-size:9px;color:var(--muted)}
+.stats-cross{position:absolute;top:0;height:64px;width:0;border-left:1px dashed color-mix(in srgb,var(--ink) 40%,transparent);pointer-events:none}
+.stats-dot{position:absolute;width:8px;height:8px;margin:-4px 0 0 -4px;border-radius:50%;background:var(--section,var(--tile-accent));box-shadow:0 0 0 2px var(--card);pointer-events:none}
+.stats-hint{font-size:11px;color:var(--muted);line-height:1.5;margin:8px 2px 0}
+.stats-lamps{display:flex;flex-direction:column;gap:2px}
+.stats-lamp{display:grid;grid-template-columns:minmax(0,1.15fr) minmax(0,1fr) auto;align-items:center;gap:10px;padding:6px 2px;border-radius:8px}
+.stats-lamp:hover{background:var(--fill)}
+.stats-lamp-name strong{display:block;font-size:12px;font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.stats-lamp-name small{display:flex;align-items:center;gap:5px;margin-top:2px;font-size:10px;color:var(--muted)}
+.stats-lamp-name small::before{content:"";width:7px;height:7px;border-radius:2px;background:var(--c);flex-shrink:0}
+.stats-lamp-bar{height:8px;border-radius:0 4px 4px 0;background:var(--fill)}
+.stats-lamp-bar i{display:block;height:100%;border-radius:0 4px 4px 0;background:var(--c)}
+.stats-lamp-value{text-align:right;min-width:62px}
+.stats-lamp-value b{display:block;font-size:12px;font-weight:500;font-variant-numeric:tabular-nums}
+.stats-lamp-value small{display:block;font-size:9px;color:var(--muted);white-space:nowrap}
+.stats-lamp.idle{opacity:.55}
+.stats-view .metrics-note{margin-top:14px}
+.stats-tip{position:absolute;z-index:4;display:flex;flex-direction:column;gap:3px;min-width:120px;padding:8px 10px;border-radius:10px;
+  background:var(--card);border:1px solid var(--line);box-shadow:0 6px 20px #10191424;font-size:11px;pointer-events:none;white-space:nowrap}
+.stats-tip[hidden]{display:none}
+.stats-tip b{font-weight:600;margin-bottom:2px}
+.stats-tip span{display:flex;align-items:center;gap:6px;color:var(--ink)}
+.stats-tip span i{width:8px;height:8px;border-radius:2px;flex-shrink:0}
+.stats-tip em{margin-left:auto;padding-left:10px;font-style:normal;font-variant-numeric:tabular-nums;color:var(--muted)}
+.stats-tip .tip-muted{color:var(--muted)}
+/* On the model: hours above each room's floor; the wall buttons don't get in the way. */
+.stat-pin{position:absolute;left:0;top:0;display:flex;flex-direction:column;align-items:center;padding:5px 9px 4px;border-radius:10px;
+  background:color-mix(in srgb,var(--card) 88%,transparent);border:1px solid var(--line);box-shadow:0 2px 8px #10191418;
+  backdrop-filter:blur(4px);color:var(--ink);white-space:nowrap;transition:opacity .2s}
+.stat-pin[hidden]{display:none}
+.stat-pin b{font-size:13px;font-weight:600;font-variant-numeric:tabular-nums;line-height:1.15}
+.stat-pin small{font-size:9px;color:var(--muted)}
+.stat-pin.selected{border-color:color-mix(in srgb,var(--glow) 70%,transparent)}
+.stat-pin.dim{opacity:.45}
+.shell[data-level="stats"] .wall-plate{display:none}
+@media (prefers-reduced-motion:reduce){.stats-stack,.stats-room,.stat-pin{transition:none}}
+
+/* Statistics sections: lights, climate, appliances, home, connectivity. */
+:host{--tone-heat:color-mix(in srgb,rgb(var(--color-red,222,104,72)) 62%,rgb(var(--color-yellow,197,148,75)));
+  --tone-cool:rgb(var(--color-blue,66,133,244));--tone-alert:rgb(var(--color-red,222,104,72))}
+.stats-tiles{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px;margin-top:8px}
+.stats-mini-tile{width:100%}
+.stats-mini-tile .mini-chip{--k:var(--section,var(--muted))}
+/* Section color. Yellow is for lights only, as everywhere in the card; climate is the air conditioners'
+   blue, appliances the media purple, home green. Connectivity and system are
+   housekeeping, uncolored. It paints the tile icon and the “by hour” curve on the section screen. */
+[data-section="light"]{--section:var(--tile-accent)}
+[data-section="climate"]{--section:rgb(var(--color-blue,66,133,244))}
+[data-section="appliances"]{--section:rgb(var(--color-purple,146,107,199))}
+[data-section="home"]{--section:var(--green)}
+.stats-mini-tile strong b{font-weight:600;margin-left:4px;font-variant-numeric:tabular-nums}
+/* “System” is the last row of the overview, with no heading of its own: the name is already in the tile. */
+.system-panel[hidden]{display:none}
+.system-tile{width:100%}
+.system-tile .mini-text{flex:1}
+/* On a phone the line wraps: its key part — offline devices — comes at the end. */
+.system-tile small{white-space:normal}
+.system-tile small span{white-space:nowrap}
+.system-tile>svg{width:14px;height:14px;color:var(--muted);opacity:.6}
+.stats-sections{display:grid;grid-template-columns:repeat(var(--n,5),minmax(0,1fr));gap:4px;margin-bottom:10px}
+.stats-sections button{display:flex;flex-direction:column;align-items:center;gap:4px;min-width:0;padding:8px 2px 7px;border-radius:12px;
+  background:transparent;border:1px solid var(--line);font-size:11px;color:var(--muted);transition:background .15s,color .15s,border-color .15s}
+.stats-sections button span{max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.stats-sections button svg{width:17px;height:17px}
+.stats-sections button:hover{background:var(--fill)}
+.stats-sections button[aria-selected="true"]{background:var(--ink);border-color:var(--ink);color:var(--card)}
+.stats-room.static{cursor:default}
+.stats-room.static:hover{background:var(--fill)}
+.stats-chart.lines svg{position:absolute;inset:0;width:100%;height:100%;overflow:visible;pointer-events:none}
+.stats-chart.lines path{fill:none;stroke-width:2;vector-effect:non-scaling-stroke;stroke-linejoin:round;stroke-linecap:round}
+.stats-chart.lines .stats-col.hover{background:color-mix(in srgb,var(--ink) 6%,transparent);border-radius:4px}
+.stats-chart.lines .stats-col.empty::after{display:none}
+.stats-climate{display:flex;flex-direction:column;gap:2px;margin-bottom:6px}
+.stats-climate-row{display:grid;align-items:center;gap:4px 10px;padding:7px 2px;border-radius:8px}
+.stats-climate-row:hover{background:var(--fill)}
+.stats-climate-row .stats-lamp-name small::before{display:none}
+.stats-climate-row .stats-lamp-name strong{display:flex;align-items:center;gap:6px}
+.stats-climate-row .stats-lamp-name strong::before{content:"";width:8px;height:8px;border-radius:2px;background:var(--c);flex-shrink:0}
+.stats-climate-facts{grid-column:1/-1;font-size:10px;color:var(--muted);padding-left:14px}
+.stats-range{position:relative;height:8px;border-radius:4px;background:var(--fill)}
+.stats-range .band{position:absolute;top:0;bottom:0;border-radius:4px;background:color-mix(in srgb,var(--c) 45%,transparent)}
+.stats-range .mark{position:absolute;top:-3px;bottom:-3px;width:3px;margin-left:-1.5px;border-radius:2px;background:var(--c);box-shadow:0 0 0 1.5px var(--card)}
+.stats-climate-row{grid-template-columns:minmax(0,1fr) minmax(0,1.1fr) 74px}
+.stats-climate-row.scale{padding:0 2px;margin-bottom:-2px}
+.stats-climate-row.scale:hover{background:transparent}
+.stats-climate-scale{position:relative;display:flex;justify-content:space-between;padding-top:15px;font-size:9px;color:var(--muted)}
+.stats-climate-scale i{position:absolute;top:0;height:11px;border-radius:3px;background:color-mix(in srgb,var(--green) 22%,transparent);
+  display:flex;align-items:center;justify-content:center}
+.stats-climate-scale em{font-style:normal;font-size:8.5px;color:color-mix(in srgb,var(--green) 70%,var(--ink));white-space:nowrap}
+.stats-people{display:flex;flex-direction:column;gap:6px}
+.stats-person{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1.1fr) auto;align-items:center;gap:10px;padding:4px 2px}
+.stats-person .stats-mini{height:24px}
+.stats-person .stats-lamp-name small::before{display:none}
+
+/* Long names (air conditioner · mode, connectivity devices) — a wider name column, a shorter bar. */
+.stats-lamps.wide .stats-lamp{grid-template-columns:minmax(0,1.75fr) minmax(0,.65fr) auto}
+
+/* ── Room panel in the demo: Minimalist cards from a dashboard snapshot (demo-cards.js) ──
+   Sizes and colors were measured from the home's cards: light tile 68 px, icon circle 42 px,
+   name 14/700, state 12/700; mini-graph — header 40, figure 25 px/300, chart 63 px;
+   a lamp that is on — background 10 % of its color, circle 20 %. Colors are theme variables. */
+.demo-cards>*{animation:none}
+.demo-cards.enter>*{animation:card-in .42s cubic-bezier(.22,.61,.36,1) backwards;animation-delay:var(--enter-delay,0ms)}
+@media(prefers-reduced-motion:reduce){.demo-cards.enter>*{animation:none}}
+.dc-slot[hidden]{display:none}
+.dc-row{display:flex;align-items:flex-start;gap:8px}
+.dc-cell-wrap{flex:1;min-width:0;display:flex;flex-direction:column}
+.dc-stack{display:flex;flex-direction:column;gap:8px}
+.dc-grid{display:grid;grid-template-columns:repeat(var(--columns,3),minmax(0,1fr));gap:8px}
+.dc-card{--theme:var(--color-theme,39,58,53);--k:rgb(var(--color-yellow,197,148,75));display:block;width:100%;box-sizing:border-box;
+  background:var(--card);border:0;border-radius:var(--ulm-radius);padding:0;color:var(--ink);text-align:left;font:inherit}
+.dc-card .mdi{width:24px;height:24px;fill:currentColor;flex-shrink:0}
+.dc-head{display:flex;align-items:center;width:100%;padding:12px;background:transparent;border:0;border-radius:inherit;color:inherit;text-align:left;font:inherit;cursor:pointer}
+.dc-head.static{cursor:default}
+.dc-head:disabled{cursor:default}
+.dc-cell{width:42px;height:42px;border-radius:50%;display:grid;place-items:center;flex-shrink:0;background:rgba(var(--theme),.05);color:rgba(var(--theme),.2);transition:background .2s,color .2s}
+.dc-cell .mdi{width:20px;height:20px}
+.dc-text{display:flex;flex-direction:column;justify-content:center;gap:1px;min-width:0;padding:0 6px 0 12px}
+.dc-text b{font-size:14px;font-weight:700;line-height:17px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.dc-text small{font-size:12px;font-weight:700;line-height:15px;opacity:.4;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.dc-light{transition:background .2s}
+.dc-light.on{background:color-mix(in srgb,var(--k) 10%,transparent)}
+.dc-light.on .dc-cell{background:color-mix(in srgb,var(--k) 20%,transparent);color:var(--k)}
+/* The card_light and card_cover slider: a full-width track, filled with the lamp color or the blinds green. */
+.dc-slider{position:relative;height:42px;margin:0 12px 12px;border-radius:14px;background:rgba(var(--theme),.05);overflow:hidden}
+.dc-slider::before{content:"";position:absolute;inset:0 auto 0 0;width:max(12px,var(--level,0%));border-radius:14px 0 0 14px;background:rgba(var(--theme),.55);transition:width .15s}
+.dc-light.on .dc-slider{background:color-mix(in srgb,var(--k) 18%,var(--card))}
+.dc-light.on .dc-slider::before{background:var(--k)}
+.dc-slider.cover::before{background:color-mix(in srgb,rgb(var(--color-green,111,154,130)) 80%,var(--card))}
+.dc-slider input{position:absolute;inset:0;width:100%;height:100%;margin:0;opacity:0;cursor:pointer}
+.dc-slider input:disabled{cursor:default}
+.dc-light.with-swatches{border-bottom-left-radius:0;border-bottom-right-radius:0}
+.dc-swatches{display:grid;grid-template-columns:repeat(8,minmax(0,1fr));margin-top:-4px;padding:0 10px 14px;background:var(--card);border-radius:0 0 var(--ulm-radius) var(--ulm-radius)}
+.dc-swatch-cell{aspect-ratio:1;display:grid;place-items:center}
+.dc-swatch:disabled{opacity:1}
+.dc-swatch{width:78%;aspect-ratio:1;margin:0 auto;padding:0;border:0;border-radius:50%;cursor:pointer;
+  box-shadow:inset 0 0 0 1px rgba(255,255,255,.16),0 2px 6px rgba(0,0,0,.35);transition:transform .15s}
+.dc-swatch:hover{transform:scale(1.08)}
+/* Charts: mini-graph-card — name and icon on top, the figure, a chart along the bottom edge; card_graph — like a tile. */
+.dc-graph{display:flex;flex-direction:column;overflow:hidden}
+.dc-graph.mini{padding-top:16px}
+.dc-graph-head{display:flex;align-items:center;justify-content:space-between;padding:0 16px 16px;font-size:14px;line-height:24px}
+.dc-graph-name{font-size:16.8px;opacity:.65;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.dc-graph-value{display:flex;align-items:flex-end;gap:4px;padding:0 16px 16px}
+.dc-graph-value b{font-size:25.2px;font-weight:300;line-height:30px}
+.dc-graph-value small{font-size:14.7px;opacity:.6;line-height:23.5px}
+.dc-graph-ulm{padding-top:16px;margin-top:auto}
+.dc-graph-svg{display:block;width:100%;height:auto;aspect-ratio:5/1;margin-top:auto}
+.dc-graph-empty{aspect-ratio:5/1}
+.dc-graph-line{fill:none;stroke-linejoin:round;stroke-linecap:round}
+.dc-graph-fill{opacity:.15;stroke:none}
+.dc-camera{aspect-ratio:16/9;overflow:hidden;cursor:pointer}
+.dc-camera canvas{display:block;width:100%;height:100%}
+/* card_cover: a green circle when open, three buttons, a position slider. */
+.dc-cover.on .dc-cell{background:color-mix(in srgb,rgb(var(--color-green,111,154,130)) 20%,transparent);color:rgb(var(--color-green,111,154,130))}
+.dc-buttons{display:flex;gap:8px;padding:0 12px 12px}
+.dc-button{flex:1;height:42px;display:grid;place-items:center;border:0;border-radius:16px;background:rgba(var(--theme),.07);color:var(--ink);cursor:pointer;transition:background .15s}
+.dc-button .mdi{width:20px;height:20px}
+.dc-button:hover:enabled{background:rgba(var(--theme),.12)}
+.dc-button:disabled{opacity:1;color:rgba(var(--theme),.3);cursor:default}
+/* Home Assistant thermostat: a 270° arc, the target large, the current value below it, −/+, modes as lists. */
+.dc-thermostat{--mode:var(--muted);display:flex;flex-direction:column;align-items:center;padding:12px}
+.dc-th-title{position:relative;width:100%;padding:0 32px;text-align:center;font-size:16px;line-height:24px}
+.dc-th-title .dc-th-menu{position:absolute;right:0;top:4px}
+.dc-th-dial{position:relative;width:min(100%,320px);aspect-ratio:1;margin-top:18px}
+.dc-th-dial svg{display:block;width:100%;height:100%;overflow:visible}
+.dc-th-track,.dc-th-dim,.dc-th-active{fill:none;stroke-width:22;stroke-linecap:round}
+.dc-th-track{stroke:rgba(var(--theme),.07)}
+.dc-th-dim{stroke:color-mix(in srgb,var(--mode) 50%,var(--card))}
+.dc-th-active{stroke:var(--mode)}
+.dc-th-dot{fill:rgba(var(--theme),.55)}
+.dc-th-handle{fill:#fff;stroke:var(--mode);stroke-width:4}
+.dc-thermostat:not(.on) .dc-th-handle{stroke:rgba(var(--theme),.6);stroke-width:3}
+.dc-th-center{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;padding-bottom:22px;pointer-events:none}
+.dc-th-mode{font-size:16px;line-height:24px}
+.dc-th-target{font-size:57px;line-height:64px;font-weight:400}
+.dc-th-target sup{font-size:20px;line-height:1;vertical-align:top;position:relative;top:8px;margin-left:2px}
+.dc-th-current{display:flex;align-items:center;gap:4px;font-size:15px}
+.dc-th-current .mdi{width:16px;height:16px}
+.dc-th-buttons{position:relative;display:flex;gap:24px;margin-top:-62px;margin-bottom:16px}
+.dc-round{width:46px;height:46px;display:grid;place-items:center;border:1px solid rgba(var(--theme),.6);border-radius:50%;background:transparent;color:var(--ink);cursor:pointer;transition:background .15s}
+.dc-round:hover:enabled{background:rgba(var(--theme),.08)}
+.dc-round:disabled{opacity:.35;cursor:default}
+.dc-round .mdi{width:20px;height:20px}
+.dc-select{position:relative;display:flex;align-items:center;gap:12px;width:100%;height:40px;margin-top:12px;padding:0 12px;border-radius:10px;background:rgba(var(--theme),.05);font-size:14px;cursor:pointer}
+.dc-select .mdi{width:18px;height:18px}
+.dc-select .dc-caret{margin-left:auto}
+.dc-select select{position:absolute;inset:0;width:100%;height:100%;opacity:0;cursor:pointer}
+/* Demo: a “ghost” cursor with a label drags the model — a hint that the home can be rotated
+   (in the spirit of collaborative editors' cursors). Neutral colors: yellow is reserved for
+   lights (card.js, playDragHint). */
+.drag-cursor{position:absolute;left:0;top:0;z-index:6;width:28px;height:28px;margin:-3px 0 0 -4px;opacity:0;pointer-events:none;will-change:transform,opacity;transition:opacity .3s}
+.drag-cursor.gone{display:none}
+.drag-cursor svg{position:relative;width:28px;height:28px;fill:#fff;stroke:#0d0f12;stroke-width:1.5;stroke-linejoin:round;filter:drop-shadow(0 4px 8px #0008);transform-origin:15% 12%;transition:transform .25s cubic-bezier(.2,.8,.2,1)}
+.drag-cursor b{position:absolute;left:17px;top:22px;padding:5px 11px;border-radius:999px;font-size:12px;font-weight:600;letter-spacing:.1px;line-height:1.2;white-space:nowrap;color:#fff;background:#14161aeb;border:1px solid #ffffff3d;backdrop-filter:blur(10px);box-shadow:0 6px 18px #0007;transition:transform .25s cubic-bezier(.2,.8,.2,1)}
+.drag-cursor i{position:absolute;left:5px;top:3px;width:52px;height:52px;margin:-26px 0 0 -26px;border-radius:50%;background:radial-gradient(circle,#ffffff80 0,#ffffff33 45%,#ffffff00 70%);transform:scale(.4);opacity:0;transition:transform .35s cubic-bezier(.2,.8,.2,1),opacity .35s}
+.drag-cursor.down svg{transform:scale(.9) rotate(-4deg)}
+.drag-cursor.down b{transform:translate(1px,1px)}
+.drag-cursor.down i{transform:scale(1);opacity:1}
+/* Everything scrolls, but no scrollbars are shown: neither on the side panel nor on the lists (on the dark theme the native scrollbar shows up white). */
+.shell,.shell *{scrollbar-width:none}.shell *::-webkit-scrollbar{display:none}

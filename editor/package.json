@@ -1,0 +1,19 @@
+{
+  "name": "home-twin-editor",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "node build.mjs",
+    "dev": "node build.mjs --serve",
+    "test": "node --test src/core/*.test.js src/editor/*.test.js src/look/*.test.js src/i18n/*.test.js"
+  },
+  "dependencies": {
+    "polygon-clipping": "0.15.7",
+    "three": "0.186.1"
+  },
+  "devDependencies": {
+    "acorn": "^8.19.0",
+    "acorn-walk": "^8.3.5",
+    "esbuild": "0.28.2"
+  }
+}

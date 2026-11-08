@@ -1,0 +1,56 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Plan editor sketch</title>
+<style>
+*{box-sizing:border-box}
+html,body{margin:0;height:100%;font:13px/1.35 system-ui,sans-serif;color:#222;background:#f1f1ef}
+.app{display:grid;grid-template-rows:auto auto 1fr auto;height:100vh}
+.bar{display:flex;flex-wrap:wrap;gap:4px;align-items:center;padding:8px 10px;background:#fff;border-bottom:1px solid #ddd}
+.bar .sep{width:1px;height:22px;background:#ddd;margin:0 6px}
+button{background:#f3f3f1;border:1px solid #d4d4d0;border-radius:7px;padding:4px 9px;cursor:pointer;font:inherit}
+button.on{background:#2f6fd0;border-color:#2f6fd0;color:#fff}
+label{display:flex;gap:5px;align-items:center;color:#555}
+#hint{padding:5px 10px;min-height:46px;color:#555;background:#fafaf8;border-bottom:1px solid #e6e6e2}
+.main{display:grid;grid-template-columns:1.25fr 1fr;min-height:0}
+.pane{position:relative;min-height:0;overflow:hidden}
+#plan{position:absolute;inset:0;touch-action:none}
+#view3d{position:absolute;inset:0;border-left:1px solid #ddd}
+#status{padding:6px 10px;background:#fff;border-top:1px solid #ddd;min-height:30px}
+.bad{color:#c4291c}
+#ask{position:absolute;display:none;gap:6px;align-items:center;background:#fff;border:1px solid #2f6fd0;border-radius:8px;padding:5px 8px;box-shadow:0 4px 16px rgba(0,0,0,.15);transform:translate(-50%,-130%);z-index:3}
+#ask input{width:110px;font:inherit;padding:2px 4px}
+#catalog{display:none;position:absolute;left:0;top:0;bottom:0;width:200px;overflow:auto;background:rgba(255,255,255,.94);border-right:1px solid #ddd;padding:6px;z-index:2}
+body.furniture #catalog{display:block}
+#lightlist{display:none;position:absolute;left:0;top:0;bottom:0;width:240px;overflow:auto;background:rgba(255,255,255,.95);border-right:1px solid #ddd;padding:6px;z-index:2}
+body.lights #lightlist{display:block}body.lights .roomtools button{opacity:.4;pointer-events:none}
+.area{font-weight:600;margin:8px 2px 3px;font-size:12px}
+.lamp{display:flex;gap:6px;align-items:center;padding:4px 5px;margin:2px 0;border:1px solid #e3e3df;border-radius:8px;background:#fff;cursor:grab;user-select:none;font-size:12px}
+.lamp.sel{border-color:#2f6fd0}.lamp:not(.placed){background:#fff8e8;border-color:#f0d08c}
+.lamp span{display:flex;flex-direction:column}.lamp small{color:#888;font-size:10.5px}
+.bulb{padding:1px 4px;filter:grayscale(1);opacity:.5}.bulb.on{filter:none;opacity:1}
+#inspector select{font:inherit}
+body.furniture .roomtools button{opacity:.4;pointer-events:none}
+.cat-title{font-size:11px;color:#777;margin:6px 2px 4px}
+.item{display:inline-flex;flex-direction:column;align-items:center;width:84px;margin:2px;padding:3px;border:1px solid #e3e3df;border-radius:8px;background:#fff;cursor:grab;user-select:none;font-size:11px;text-align:center}
+.item:hover{border-color:#2f6fd0}.item img{width:72px;height:72px;pointer-events:none}
+#inspector{display:none;position:absolute;left:250px;bottom:10px;background:#fff;border:1px solid #d4d4d0;border-radius:10px;padding:8px 10px;box-shadow:0 4px 14px rgba(0,0,0,.12);z-index:2}
+#inspector small{color:#888}#inspector .row{display:flex;gap:6px;align-items:center;margin-top:6px}#inspector input{width:58px}
+</style></head><body>
+<div class="app">
+<div class="bar">
+ <button data-mode="rooms">Rooms</button><button data-mode="furniture">Furniture</button><button data-mode="lights">Lights</button><button id="night" style="display:none">Day</button>
+ <span class="sep"></span>
+ <span class="roomtools"><button data-tool="select">Select (V)</button><button data-tool="rect">Rectangle (R)</button><button data-tool="poly">Polygon (P)</button></span>
+ <span class="sep"></span>
+ <button id="undo">Undo</button><button id="redo">Redo</button><button id="grid" class="on">Grid 5 cm</button>
+ <span class="sep"></span>
+ <button data-tool="underlay">Move underlay</button><button id="calib">Scale by two points</button><button id="ulreset">Reset underlay</button>
+ <label>Underlay <input id="ulop" type="range" min="0" max="1" step=".05" value=".45"></label>
+ <span class="sep"></span>
+ <button id="reset">My apartment</button><button id="clear">Start from scratch</button><button id="download">Download JSON</button>
+</div>
+<div id="hint"></div>
+<div class="main"><div class="pane"><canvas id="plan"></canvas><div id="ask"><span></span><input></div><div id="catalog"></div><div id="lightlist"></div><div id="inspector"></div></div><div class="pane"><div id="view3d"></div></div></div>
+<div id="status"></div>
+</div>
+<script type="module">/*BUNDLE*/</script>
+</body></html>

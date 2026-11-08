@@ -1,0 +1,47 @@
+<!doctype html>
+<html lang="en">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Home Twin — step help sketch</title>
+<style>
+*{box-sizing:border-box}body{margin:0;font:14px/1.5 var(--font-sans,system-ui,sans-serif);color:var(--foreground,#e9e9ef);background:transparent}button{font:inherit;cursor:pointer}button:focus-visible,summary:focus-visible{outline:3px solid #bdadff;outline-offset:4px}button{border:0;border-radius:10px;padding:9px 13px;background:#30303b;color:#e9e9ef;min-height:40px}button:hover{filter:brightness(1.13)}[hidden]{display:none!important}.meta{display:flex;justify-content:space-between;gap:12px;align-items:center;margin:0 0 12px;color:var(--muted-foreground,#a6a6b5);font-size:12px}.reset{font-size:12px;min-height:32px;padding:5px 10px;background:var(--secondary,#25252d);color:var(--foreground,#eee)}.demo{padding:20px;border-radius:var(--radius,18px);background:#111218;color:#ececf2;overflow:hidden}.top{display:flex;justify-content:space-between;color:#9696a9;font-size:12px}.top b{color:#e3e3ed;font-size:14px}.workspace{display:grid;grid-template-columns:minmax(160px,1fr) 242px;align-items:center;gap:22px;min-height:300px}.floor{position:relative;width:100%;max-width:300px;margin:auto;aspect-ratio:1/1}.floor svg{display:block;width:100%;height:100%}.room{font:11px system-ui;fill:#a8a8b8;text-anchor:middle}.wall{position:absolute;top:12%;left:81%;width:24px;height:70%;padding:0;background:transparent;border-radius:6px;min-height:0;transform:translateX(-50%)}.wall::after{content:"";position:absolute;inset:0 8px;background:#aa94ff;border-radius:3px}.wall.attention::before{content:"";position:absolute;inset:-2px 1px;border:2px solid #aa94ff;border-radius:6px;animation:halo 1.1s ease-out 2}.wall:hover::after{background:#d1c3ff}.opening{position:absolute;left:81%;top:40%;width:13px;height:43px;transform:translateX(-50%);border:2px solid #c8baff;background:#242439;pointer-events:none;z-index:2}.opening.door{height:36px;background:#111218;border-width:0 0 2px 2px;border-radius:0 0 0 22px;transform:translateX(-100%);width:34px}.panel{background:#1c1d25;border:1px solid #343440;border-radius:14px;padding:16px;box-shadow:0 8px 22px #0003}.panel h2{font-size:15px;font-weight:650;margin:0 0 5px}.muted{color:#a3a3b3;font-size:12px;margin:0}.choices{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin:16px 0 8px}.choice{background:#322947;border:1px solid #ab94ff;color:#e3d9ff;font-weight:600}.primary{background:#b19cff;color:#161122;font-weight:650}.extra{border-top:1px solid #353540;margin-top:16px;padding-top:12px;font-size:12px;color:#b6b6c5}.extra summary{cursor:pointer}.extra p{margin:9px 0 0}.success{color:#ace0c8;font-weight:600}.note{min-height:22px;margin:0 0 12px;color:#b1b1c1;font-size:12px}.guide{border-top:1px solid #34343e;padding:16px 0 0}.guidehead{display:flex;justify-content:space-between;align-items:center;gap:12px;margin-bottom:7px}.step{font-size:12px;color:#b8a5ff;font-weight:650}.help{min-height:32px;padding:4px 8px;background:transparent;color:#aaaabc;font-size:12px;text-decoration:underline;text-underline-offset:3px}.actionrow{display:flex;align-items:center;justify-content:space-between;gap:18px}.actionrow p{margin:0;max-width:390px;font-size:14px}.guidance{padding:12px 16px;margin:12px 0 0;background:#22232c;border-radius:10px;color:#c6c6d3;font-size:13px}.receipt{padding:32px 16px;text-align:center}.receipt h2{font-size:21px;margin:0 0 10px}.receipt p{color:#b9b9c7;max-width:430px;margin:0 auto 20px}.footnote{font-size:12px;color:var(--muted-foreground,#9696a6);margin:12px 0 0}.delete{color:#f1b7b7;margin-top:10px;font-size:12px;background:transparent;padding:4px 0;min-height:30px}@keyframes halo{0%{opacity:1;transform:scaleX(.85)}100%{opacity:0;transform:scaleX(1.7)}}@media(prefers-reduced-motion:reduce){.wall.attention::before{animation:none;opacity:.35}}@media(max-width:540px){.demo{padding:16px}.workspace{grid-template-columns:1fr;gap:8px;min-height:0;padding:8px 0 18px}.floor{max-width:215px}.panel{padding:16px}.choices{margin-top:10px}.actionrow{align-items:stretch;flex-direction:column;gap:12px}.actionrow>button{width:100%}.meta{align-items:flex-start}.top{font-size:11px}}
+</style>
+<div class="meta"><span>Interactive sketch · proposed variant</span><button class="reset" id="reset">Start over</button></div>
+<section class="demo" aria-label="Example of the Windows &amp; doors step">
+  <div class="top"><b>Apartment plan</b><span id="count">Openings: 0</span></div>
+  <div id="work">
+    <div class="workspace">
+      <div class="floor">
+        <svg viewBox="0 0 300 300" aria-hidden="true"><path d="M54 36H243V255H54Z" fill="#181920" stroke="#d7d7df" stroke-width="8"/><path d="M54 143H243M148 143V255" fill="none" stroke="#b8b8c5" stroke-width="5"/><text x="145" y="95" class="room">Living room</text><text x="100" y="200" class="room">Kitchen</text><text x="196" y="200" class="room">Bedroom</text></svg>
+        <button class="wall attention" id="wall" aria-label="Select the exterior wall on the right"></button>
+        <div class="opening" id="opening" hidden></div>
+      </div>
+      <aside class="panel" id="panel" aria-live="polite">
+        <h2 id="paneltitle">Windows &amp; doors</h2>
+        <p class="muted" id="paneltext">No wall selected yet.</p>
+        <div class="choices" id="choices" hidden><button class="choice" data-kind="window">＋ Window</button><button class="choice" data-kind="door">＋ Door</button></div>
+        <div id="added" hidden><p class="success" id="success">Window added</p><p class="muted">You can adjust the position and width on the plan.</p><button class="delete" id="remove">Remove opening</button></div>
+        <details class="extra" id="extra" hidden><summary>Finish and sizes</summary><p>Exact sizes and the material of the selected wall are available here. They are not needed to add an opening.</p></details>
+      </aside>
+    </div>
+    <div class="guide">
+      <div class="guidehead"><span class="step">3 of 6 · Windows &amp; doors</span><button class="help" id="help" aria-expanded="false" aria-controls="guidance">How to do it</button></div>
+      <div class="actionrow"><p id="instruction" aria-live="polite">Click the wall where you need a window or door.</p><button id="next">Postpone step</button></div>
+      <p class="guidance" id="guidance" hidden>Select a wall, then click “Window” or “Door”. In the editor you can move the opening and drag its edges to change the width. In this sketch you can select a wall and add one opening.</p>
+    </div>
+  </div>
+  <div class="receipt" id="receipt" hidden><h2 id="receipttitle"></h2><p id="receipttext"></p><button class="primary" id="return">Back to openings</button></div>
+</section>
+<p class="footnote">The sketch shows the hierarchy and the state changes. Dragging and saving the project are not implemented here.</p>
+<script>
+const $=id=>document.getElementById(id);let state='wall',kind=null;
+function render(){const chosen=state!=='wall',added=state==='edit';$('choices').hidden=!chosen||added;$('added').hidden=!added;$('extra').hidden=!chosen;$('opening').hidden=!added;$('opening').classList.toggle('door',kind==='door');$('count').textContent='Openings: '+(added?1:0);$('paneltitle').textContent=added?(kind==='door'?'Door':'Window'):'Windows & doors';$('paneltext').textContent=chosen?'Exterior wall · 420 cm':'No wall selected yet.';$('success').textContent=kind==='door'?'Door added':'Window added';$('instruction').textContent=state==='wall'?'Click the wall where you need a window or door.':state==='choose'?'What to add to the selected wall?':'Opening added. When you are done, move on to linking rooms.';$('next').textContent=added?'To linking rooms →':'Postpone step';$('next').classList.toggle('primary',added);$('wall').classList.toggle('attention',!chosen);}
+$('wall').onclick=()=>{if(state==='wall'){state='choose';render();}};
+document.querySelectorAll('[data-kind]').forEach(b=>b.onclick=()=>{kind=b.dataset.kind;state='edit';render();});
+$('remove').onclick=()=>{kind=null;state='choose';render();};
+$('help').onclick=()=>{const open=$('guidance').hidden;$('guidance').hidden=!open;$('help').setAttribute('aria-expanded',String(open));};
+$('next').onclick=()=>{const done=state==='edit';$('work').hidden=true;$('receipt').hidden=false;$('receipttitle').textContent=done?'Next step — linking rooms':'Windows & doors postponed';$('receipttext').textContent=done?'The plan has one opening. You can come back to this step and add the rest.':'The step will appear in the “For later” list. Its status differs from completed.';$('return').focus();};
+$('return').onclick=()=>{$('work').hidden=false;$('receipt').hidden=true;$('next').focus();};
+$('reset').onclick=()=>{state='wall';kind=null;$('work').hidden=false;$('receipt').hidden=true;$('guidance').hidden=true;$('help').setAttribute('aria-expanded','false');$('extra').open=false;render();};render();
+</script>
+</html>

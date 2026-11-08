@@ -1,0 +1,23 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Walls from JSON + .glb furniture + card lighting</title>
+<style>
+.wrap{position:relative}
+#view{position:relative;height:470px;border-radius:var(--radius,10px);overflow:hidden}
+.panel{margin:0 0 10px;font-size:13px;line-height:1.35}
+.panel h1{font-size:14px;margin:0 0 4px}
+.panel p{margin:0 0 8px;color:var(--muted-foreground,#888)}
+.panel button{background:var(--secondary,#2a2f3a);color:var(--secondary-foreground,#eee);border:1px solid var(--border,transparent);border-radius:8px;padding:4px 9px;margin:2px 4px 2px 0;cursor:pointer;font:inherit}
+.room{display:inline-block;margin:3px 12px 0 0}.room b{margin-right:4px;font-weight:600}
+.room button.on{background:#f0b44c;color:#1d1a14;border-color:#f0b44c}
+</style></head><body>
+<div class="wrap">
+<div class="panel">
+<h1>Sketch: walls built by code</h1>
+<p>Walls, floor and openings are built from the room outlines in JSON. Furniture in the bedroom and kids' room comes from your model (separate .glb files); the other rooms use the free Kenney kit. Lighting and “light stays inside the room” are your card's code, unchanged. Drag with the mouse to rotate the model.</p>
+<div class="top"><button id="night">Night</button><button id="walls">Walls: tall</button><button id="furn">Furniture: on</button><button id="own">Bedroom and kids' room: custom furniture</button></div>
+<div id="rooms"></div>
+</div>
+<div id="view"></div>
+</div>
+<script type="module">/*BUNDLE*/</script>
+</body></html>

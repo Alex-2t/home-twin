@@ -1,0 +1,7 @@
+{
+  "name": "Home Twin",
+  "homeassistant": "2026.11.0",
+  "zip_release": true,
+  "filename": "home_twin.zip",
+  "hide_default_branch": true
+}

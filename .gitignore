@@ -1,0 +1,14 @@
+node_modules/
+.DS_Store
+prototypes/*/index.html
+prototypes/*/models.gen.js
+prototypes/*/underlay.gen.js
+prototypes/*/node_modules
+editor/src/gen/
+editor/dist/
+prototypes/walls-from-json/own/
+integration/dev/
+custom_components/home_twin/frontend/
+__pycache__/
+editor/demo/own*.mjs
+docs/research/images/onboarding-audit-2026-11-06/

@@ -1,0 +1,16 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "Home Twin",
+        "description": "Draw your home, place lights, devices and sensors, and see it live in 3D."
+      }
+    },
+    "create_entry": {
+      "default": "[Draw your home](/home-twin). Later, the editor opens from here: Settings → Devices & services → Home Twin → Configure."
+    },
+    "abort": {
+      "single_instance_allowed": "Home Twin is already set up."
+    }
+  }
+}

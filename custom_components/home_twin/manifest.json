@@ -1,0 +1,14 @@
+{
+  "domain": "home_twin",
+  "name": "Home Twin",
+  "codeowners": ["@Alex-2t"],
+  "config_flow": true,
+  "dependencies": ["frontend", "http", "panel_custom", "websocket_api"],
+  "documentation": "https://github.com/Alex-2t/home-twin",
+  "integration_type": "service",
+  "iot_class": "calculated",
+  "issue_tracker": "https://github.com/Alex-2t/home-twin/issues",
+  "requirements": [],
+  "single_config_entry": true,
+  "version": "0.1.0"
+}
