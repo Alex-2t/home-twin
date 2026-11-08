@@ -6,7 +6,7 @@ import {icon} from './icons.js';
 import {pointIn,area,WALL} from '../core/geometry.js';
 import {pal,dimLabel} from './draw.js';
 import {DRAW_RECT} from './modes/rooms.js';
-import {tiltOf} from './underlay.js';
+import {tiltOf,fitPhoto} from './underlay.js';
 import {readPlan} from '../core/plan-file.js';
 import {idb} from './underlay.js';
 import {axisCursor} from './drag-gesture.js';
@@ -28,7 +28,7 @@ export function createFlows(ed,{demo,demoUnderlay}){
   f.pickUnderlay=()=>{fresh=false;$('file-plan').click();};
   $('file-plan').onchange=async e=>{
     const file=e.target.files[0];e.target.value='';if(!file)return;
-    const src=await new Promise(ok=>{const r=new FileReader();r.onload=()=>ok(r.result);r.readAsDataURL(file);});
+    const src=await fitPhoto(await new Promise(ok=>{const r=new FileReader();r.onload=()=>ok(r.result);r.readAsDataURL(file);}));
     if(fresh){await keepPrev();hideStart();ed.setMain('plan');ed.setPlan(emptyPlan(),{fit:false});ed.setMode('rooms');}
     await ed.underlay.set(src,{place:img=>{const k=UPLOAD_WIDTH_M/img.width;ed.underlay.a=[k,0];ed.underlay.b=[0,img.height*k];}});
     ed.underlay.opacity=.7;ed.underlay.visible=true;ed.underlay.save();ed.mode.refresh?.();if(fresh||!ed.plan.rooms.length)ed.fit();

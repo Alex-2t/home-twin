@@ -1211,5 +1211,8 @@
  "“{0}” {1} · {2} more": "“{0}”{1} · 另有 {2} 项",
  "“{0}” {1} · {2} more — 3D on hold": "“{0}”{1} · 另有 {2} 项，3D 暂停更新",
  "“{0}” {1} — 3D on hold": "“{0}”{1}，3D 暂停更新",
- "● DEMO": "● 演示"
+ "● DEMO": "● 演示",
+ "No connection to Home Assistant. Your changes are kept in this browser and will be sent when it is back.": "未连接到 Home Assistant。你的更改保存在此浏览器中，恢复连接后会自动发送。",
+ "The plan is saved in Home Assistant": "平面图已保存在 Home Assistant 中",
+ "Light placement still needs confirmation. The draft is saved in Home Assistant.": "灯光位置仍需确认。草稿已保存在 Home Assistant 中。"
 }

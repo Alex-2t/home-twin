@@ -1,16 +1,26 @@
-// The editor in the Home Assistant panel: real HA (editor/ha-live.js), plan stored in HA (the home_twin integration), no demo apartment.
+// The editor in the Home Assistant panel: real HA (editor/ha-live.js), the plan and its photo stored in HA (the home_twin integration), no demo apartment.
 // Loaded from ha-panel.js after the HA user's language is set.
 import './i18n/boot.js';
 import {boot} from './boot.js';
-import {liveHA,hassPlans} from './editor/ha-live.js';
+import {liveHA,hassPlans,hassPhotos} from './editor/ha-live.js';
+import {browserPhotos} from './editor/underlay.js';
 import {t,setFormats} from './i18n/i18n.js';
 
 export async function start(panel){
-  const ha=liveHA(panel.hass);let ed=null;
-  // the plan was changed in another window — ask: take that one or write ours over it
-  const plans=hassPlans(()=>panel.hass,{onConflict:()=>ed?.banner(t('The plan was changed in another window.'),[
-    [t('Load from HA'),()=>window.top.location.reload()],[t('Keep mine'),()=>{plans.keepMine();ed.banner();},true]])});
-  ed=await boot({ha,plans});
-  addEventListener('pagehide',()=>{plans.flush();ed.history.flush();});
-  return {update(h){ha.update(h);setFormats(h.locale);const dark=!!h.themes?.darkMode;if(dark!==globalThis.HOME_TWIN_DARK){globalThis.HOME_TWIN_DARK=dark;ed.applyTheme?.();}}};
+  const ha=liveHA(panel.hass);let ed=null,asked=false;
+  // the plan was changed in another window (or edits that did not reach HA last time clash with it) — take that one or write ours over it;
+  // asked before the editor is up (at the start) — shown once it is
+  const ask=()=>{if(!ed){asked=true;return;}ed.banner(t('The plan was changed in another window.'),[
+    [t('Load from HA'),()=>{plans.discard();window.top.location.reload();}],[t('Keep mine'),()=>{plans.keepMine();ed.banner();},true]]);};
+  const status=()=>ed?.syncSave?.();
+  const plans=hassPlans(()=>panel.hass,{onConflict:ask,onStatus:status});
+  const photos=hassPhotos(()=>panel.hass,{local:browserPhotos,onStatus:status});
+  ed=await boot({ha,plans,photos});
+  // the “Saved” mark at the top: whether HA has everything. While HA is unreachable its frontend holds requests until it is back,
+  // so “no connection” comes from hass.connected
+  ed.remote=()=>{const p=plans.state();return p==='conflict'?p:panel.hass?.connected===false?'offline':p!=='saved'?p:photos.state();};status();
+  if(asked)ask();
+  addEventListener('pagehide',()=>{plans.flush();photos.flush();ed.history.flush();});
+  let online=panel.hass?.connected;
+  return {update(h){ha.update(h);setFormats(h.locale);if(h.connected!==online){online=h.connected;status();}const dark=!!h.themes?.darkMode;if(dark!==globalThis.HOME_TWIN_DARK){globalThis.HOME_TWIN_DARK=dark;ed.applyTheme?.();}}};
 }

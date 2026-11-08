@@ -91,17 +91,89 @@ export function liveHA(initial){
 
 // The plan in HA (the home_twin integration): read at startup, written with a delay after edits. rev — the revision the plan
 // was changed from: if it was changed in another window, HA does not write (conflict) and reports onConflict; keepMine — write ours on top.
-export function hassPlans(getHass,{onConflict}={}){
-  let rev=null,timer=0,want=null,sending=false,stop=false;
-  async function send(force=false){if(sending||!want)return;sending=true;const plan=want;want=null;
-    try{const r=await getHass().callWS({type:'home_twin/plan/save',plan,...(force||rev==null?{}:{rev})});rev=r.rev;}
-    catch(e){want??=plan;if(e?.code==='conflict'){stop=true;onConflict?.();}else setTimeout(()=>{if(!stop)send();},5000);}
-    finally{sending=false;if(want&&!stop)schedule();}}
-  const schedule=()=>{clearTimeout(timer);timer=setTimeout(()=>send(),700);};
+// No connection (HA restarts, the network dropped): the write is retried every 5 s and the state is 'offline' (onStatus). The browser
+// keeps the plan (history.js) and a mark “not sent yet, edited from revision N”, so the next start sends it instead of losing it:
+// load(local) — the browser's plan; HA has not changed since — ours goes up, it has — ask (D-058).
+const UNSENT='home-twin-editor:ha-unsent';
+const keep=key=>({get:()=>{try{return JSON.parse(localStorage.getItem(key)||'null');}catch{return null;}},
+  set:v=>{try{localStorage.setItem(key,JSON.stringify(v));}catch{}},clear:()=>{try{localStorage.removeItem(key);}catch{}}});
+const json=p=>JSON.stringify(p??null);
+export function hassPlans(getHass,{onConflict,onStatus,mark=keep(UNSENT)}={}){
+  // base, last — snapshots (JSON) of the plan this browser started from and of the plan HA has: the editor changes its plan in place
+  let rev=null,base,last,timer=0,want=null,sending=false,stop=false,state='saved';
+  const status=s=>{if(s!==state){state=s;onStatus?.(s);}};
+  const conflict=()=>{stop=true;status('conflict');onConflict?.();};
+  const ws=m=>getHass().callWS(m);
+  async function send(force=false){if(sending||!want||stop&&!force)return;sending=true;const plan=want;want=null;let wait=700;
+    try{
+      // the start could not read HA: read now; HA has a plan other than the one this browser started from — ask
+      if(rev==null&&!force){const r=await ws({type:'home_twin/plan/get'});if(r.plan&&json(r.plan)!==base){want??=plan;conflict();return;}rev=r.rev;}
+      const sent=json(plan),r=await ws({type:'home_twin/plan/save',plan,...(force?{}:{rev})});rev=r.rev;last=sent;stop=false;
+      if(want)mark.set({rev});else mark.clear();
+      status('saved');}
+    catch(e){want??=plan;if(e?.code==='conflict')conflict();else{status('offline');wait=5000;}}
+    finally{sending=false;if(want&&!stop)schedule(wait);}}
+  const schedule=(ms=700)=>{clearTimeout(timer);timer=setTimeout(()=>send(),ms);};
   return {
-    load:async()=>{const r=await getHass().callWS({type:'home_twin/plan/get'});rev=r.rev;return r;},
-    save:p=>{want=p;if(!stop)schedule();},
+    async load(local){base=json(local);const r=await ws({type:'home_twin/plan/get'});rev=r.rev;last=json(r.plan);const m=mark.get();
+      if(!m||!local||base===last){mark.clear();return r;}
+      // the last edits did not reach HA (no connection, the tab was closed): HA unchanged since — send them, changed — ask
+      want=local;if(m.rev===r.rev)schedule();else conflict();
+      return {...r,plan:local};},
+    // the same plan HA already has (the start, an edit undone) is not written: a write would make other windows see a conflict
+    save(p){if(!want&&!sending&&json(p)===last)return;want=p;mark.set({rev});if(!stop)schedule();},
     keepMine:()=>{stop=false;send(true);},
+    // “Load from HA”: forget what was not sent
+    discard:()=>{want=null;mark.clear();},
     flush:()=>{clearTimeout(timer);return send();},
+    state:()=>state,
+  };
+}
+
+// The plan photo in HA (D-058): the image goes to /api/home_twin/photo over HTTP, its placement — home_twin/photo/place.
+// The same interface as underlay.js: browserPhotos. Writes wait a moment (dragging) and are retried while there is no
+// connection; until HA confirms them they also sit in the browser (local — browserPhotos, and the mark of what is not sent yet),
+// so a closed tab does not lose them. HA has never had a photo, but this browser kept one (before D-058) — it is sent once.
+const PHOTO_UNSENT='home-twin-editor:photo-unsent',PHOTO='/api/home_twin/photo';
+export function hassPhotos(getHass,{local,onStatus,mark=keep(PHOTO_UNSENT)}={}){
+  // todo: {clear, src, place} — what HA does not have yet; gen grows with “Remove”: what was not sent before it is dropped
+  let id=null,todo=mark.get()||{},gen=0,timer=0,busy=false,fails=0;
+  const ws=m=>getHass().callWS(m);
+  const schedule=(ms=400)=>{clearTimeout(timer);timer=setTimeout(sync,ms);};
+  const need=o=>{todo={...todo,...o};mark.set(todo);schedule();};
+  async function image(pid){const r=await getHass().fetchWithAuth(PHOTO+'?v='+pid);if(!r.ok)throw new Error('plan photo: HTTP '+r.status);
+    const blob=await r.blob();return await new Promise((ok,err)=>{const f=new FileReader();f.onload=()=>ok(f.result);f.onerror=()=>err(f.error);f.readAsDataURL(blob);});}
+  async function sync(){if(busy)return schedule();busy=true;timer=0;const t={...todo},g=gen;todo={};
+    try{
+      if(t.clear){await ws({type:'home_twin/photo/delete'});id=null;t.clear=false;}
+      if(t.src){const s=await local.load();
+        if(s){const blob=await (await fetch(s.src)).blob();
+          const r=await getHass().fetchWithAuth(PHOTO,{method:'POST',headers:{'Content-Type':blob.type||'image/jpeg'},body:blob});
+          if(!r.ok)throw new Error('plan photo: HTTP '+r.status);id=(await r.json()).id;}
+        t.src=false;t.place=!!s;}
+      if(t.place){const p=local.where();
+        if(p&&id)try{await ws({type:'home_twin/photo/place',photo:id,place:p});}catch(e){if(e?.code!=='no_photo')throw e;} // another window replaced the photo
+        t.place=false;}
+      if(fails){fails=0;onStatus?.('saved');}}
+    catch(e){console.warn('Home Twin:',e);if(!fails++)onStatus?.('offline');}
+    finally{busy=false;
+      const left=g===gen?t:{};todo={clear:!!(left.clear||todo.clear),src:!!(left.src||todo.src),place:!!(left.place||todo.place)};
+      if(todo.clear||todo.src||todo.place){mark.set(todo);if(!timer)schedule(fails?Math.min(3e5,1e4*2**(fails-1)):400);}
+      else{todo={};mark.clear();if(g===gen)await local.clear();}}}
+  return {
+    async load(){const r=await ws({type:'home_twin/photo/get'});id=r.photo?.id||null;const t=todo;
+      if(t.clear){schedule(0);return null;}
+      // not sent last time (or kept in this browser before D-058) — the browser's copy, sent now
+      const s=t.src||r.never?await local.load():null;
+      if(s){need({src:true,place:true});return s;}
+      const p=t.place&&id?local.where():null;
+      if(p){need({place:true});return {src:await image(id),place:p};}
+      if(t.src||t.place){todo={};mark.clear();}
+      return r.photo?.place?{src:await image(id),place:r.photo.place}:null;},
+    async put(src){await local.put(src);need({src:true,place:true,clear:false});},
+    place(p){local.place(p);need({place:true});return true;},
+    async clear(){gen++;id=null;await local.clear();todo={};need({clear:true});},
+    flush(){if(timer){clearTimeout(timer);timer=0;return sync();}},
+    state:()=>fails?'offline':'saved',
   };
 }

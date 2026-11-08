@@ -1,8 +1,28 @@
 // Underlay: the plan image beneath the rooms. A similarity “world = a·z + b”, where z = (u, −v) is an image pixel.
-// The image is stored in IndexedDB (it is large); its placement in localStorage.
+// Where it is kept is up to a store: in the standalone app — this browser (browserPhotos), in the HA panel — Home Assistant (ha-live.js: hassPhotos, D-058).
 const KEY='home-twin-editor:underlay';
 import {idb} from './idb.js';
 export {idb};
+
+// A photo store: load() → {src, place} | null; put(src) — a new image; place({a, b, opacity, visible}) — where it sits
+// (often: while dragging); clear() — no photo. In this browser: the image in IndexedDB (it is large), its placement in localStorage (where()).
+export const browserPhotos={
+  where(){try{return JSON.parse(localStorage.getItem(KEY)||'null');}catch{return null;}},
+  async load(){const place=browserPhotos.where(),src=place&&await idb('get','underlay').catch(()=>null);return src?{src,place}:null;},
+  put:src=>idb('put','underlay',src).catch(()=>{}),
+  place(s){try{localStorage.setItem(KEY,JSON.stringify(s));return true;}catch{return false;}},
+  clear(){localStorage.removeItem(KEY);return idb('del','underlay').catch(()=>{});},
+};
+
+// A new photo bigger than needed is shrunk before it is placed: the plan shows at most 2400 px of it anyway (inkMask),
+// and Home Assistant takes up to 16 MB in one request. Smaller ones stay as they are.
+export const PHOTO_MAX_SIDE=4096,PHOTO_MAX_CHARS=12e6;
+export async function fitPhoto(src){
+  const img=new Image();img.src=src;try{await img.decode();}catch{return src;}
+  const side=Math.max(img.width,img.height);if(side<=PHOTO_MAX_SIDE&&src.length<=PHOTO_MAX_CHARS)return src;
+  const k=Math.min(1,PHOTO_MAX_SIDE/side),c=document.createElement('canvas');c.width=Math.round(img.width*k);c.height=Math.round(img.height*k);
+  const x=c.getContext('2d');x.fillStyle='#fff';x.fillRect(0,0,c.width,c.height);x.drawImage(img,0,0,c.width,c.height); // transparent PNG — on white paper
+  return c.toDataURL('image/jpeg',.9);}
 
 
 // Plan photo “as a scan”: even out the lighting (shadow on the paper, phone vignetting) and keep only the lines.
@@ -51,7 +71,7 @@ export function tiltOf(img){
 // image fingerprint: length and tail of the data URL — different photos won't collide
 const photoId=src=>src?src.length+':'+src.slice(-32):'';
 
-export function createUnderlay(onChange){
+export function createUnderlay(onChange,store=browserPhotos){
   const u={img:null,src:null,a:null,b:null,opacity:.45,visible:true,ink:{},
     // photo placement for undo and versions: without the image itself (it is large), with a fingerprint of whose placement it is
     snapshot(){return u.ready?{ph:photoId(u.src),a:[...u.a],b:[...u.b]}:null;},
@@ -82,14 +102,14 @@ export function createUnderlay(onChange){
       if(Math.abs(th)>1e-4)u.turn(u.center(),th);return th;},
     async set(src,{place,save=true}={}){
       const img=new Image();img.src=src;await img.decode();u.img=img;u.src=src;u.ink={};u._thumb=null;
-      if(place)place(img);if(save){await idb('put','underlay',src).catch(()=>{});u.save();}onChange?.();
+      if(place)place(img);if(save){await store.put(src);u.save();}onChange?.();
     },
-    async clear(){u.img=null;u.src=null;u.a=null;u.ink={};localStorage.removeItem(KEY);await idb('del','underlay').catch(()=>{});onChange?.();},
-    save(){try{localStorage.setItem(KEY,JSON.stringify({a:u.a,b:u.b,opacity:u.opacity,visible:u.visible}));return true;}catch{return false;}},
-    async load(){let s;try{s=JSON.parse(localStorage.getItem(KEY)||'null');}catch{return false;}
+    async clear(){u.img=null;u.src=null;u.a=null;u.ink={};await store.clear();onChange?.();},
+    save(){return store.place({a:u.a,b:u.b,opacity:u.opacity,visible:u.visible});},
+    async load(){const r=await store.load().catch(()=>null),s=r?.place;
       if(!s||![s.a,s.b].every(p=>Array.isArray(p)&&p.length===2&&p.every(Number.isFinite))||!Math.hypot(...s.a))return false;
-      const src=await idb('get','underlay').catch(()=>null);if(!src)return false;
-      const img=new Image();img.src=src;try{await img.decode();}catch{return false;}Object.assign(u,s);u.img=img;u.src=src;u.ink={};u._thumb=null;return true;},
+      const img=new Image();img.src=r.src;try{await img.decode();}catch{return false;}
+      Object.assign(u,{a:s.a,b:s.b,opacity:s.opacity??u.opacity,visible:s.visible??true});u.img=img;u.src=r.src;u.ink={};u._thumb=null;return true;},
     draw(v,dark){if(!u.visible||!u.ready)return;const {ctx,sc,ox,oy,dpr}=v,a=u.a,b=u.b;
       ctx.globalAlpha=u.opacity;ctx.setTransform(dpr*sc*a[0],-dpr*sc*a[1],dpr*sc*a[1],dpr*sc*a[0],dpr*(ox+sc*b[0]),dpr*(oy-sc*b[1]));
       ctx.drawImage(u.inkFor(dark)||u.img,0,0,u.img.width,u.img.height);ctx.globalAlpha=1;v.base();},

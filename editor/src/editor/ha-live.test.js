@@ -1,7 +1,7 @@
 // HA layer on a real hass (the Home Twin panel): the same answers as the demo, from HA registries and states.
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {liveHA,hassPlans} from './ha-live.js';
+import {liveHA,hassPlans,hassPhotos} from './ha-live.js';
 
 globalThis.requestAnimationFrame??=f=>setTimeout(f,0);
 const st=(state,attributes={})=>({state,attributes,last_changed:'2026-11-08T10:00:00Z'});
@@ -77,4 +77,92 @@ test('plan in HA: written with a delay and a revision number; changed in another
   rev=10; // another window wrote its own
   P.save({rooms:[9]});await P.flush();assert.equal(conflicts,1);
   P.keepMine();await new Promise(r=>setTimeout(r,5));assert.equal(sent.at(-1).rev,undefined,'“Keep mine” — without a revision, on top');
+});
+
+const memMark=(v=null)=>({v,get(){return this.v;},set(x){this.v=x;},clear(){this.v=null;}});
+const tick=(ms=5)=>new Promise(r=>setTimeout(r,ms));
+
+test('plan in HA: no connection — retried, the state is “offline”; the plan HA already has is not written again', async t => {
+  t.mock.timers.enable({apis:['setTimeout']});let rev=1,down=true;const sent=[],states=[],mark=memMark();
+  const hass={callWS:async m=>{if(down)throw new Error('lost');sent.push(m);return m.type==='home_twin/plan/get'?{plan:{rooms:[]},rev}:{rev:++rev};}};
+  const P=hassPlans(()=>hass,{onStatus:s=>states.push(s),mark});
+  down=false;await P.load(null);down=true;
+  P.save({rooms:[]});assert.equal(mark.v,null,'the same plan as in HA — nothing to send');
+  P.save({rooms:[1]});assert.deepEqual(mark.v,{rev:1},'not sent yet — marked, from revision 1');
+  await P.flush();assert.deepEqual(states,['offline']);assert.equal(P.state(),'offline');
+  down=false;await P.flush();assert.deepEqual(states,['offline','saved']);assert.equal(mark.v,null,'sent — the mark is gone');
+  assert.deepEqual(sent.at(-1),{type:'home_twin/plan/save',plan:{rooms:[1]},rev:1});
+});
+
+test('plan in HA: the editor changes its plan in place — every change after a write is still sent', async () => {
+  let rev=1;const sent=[];const hass={callWS:async m=>{sent.push(structuredClone(m));return m.type==='home_twin/plan/get'?{plan:{rooms:[]},rev}:{rev:++rev};}};
+  const P=hassPlans(()=>hass,{mark:memMark()}),plan=(await P.load(null)).plan;
+  plan.rooms.push(1);P.save(plan);await P.flush();plan.rooms.push(2);P.save(plan);await P.flush();
+  assert.deepEqual(sent.filter(m=>m.type==='home_twin/plan/save').map(m=>m.plan.rooms),[[1],[1,2]]);
+});
+
+test('plan in HA: edits that did not reach HA last time — sent at the start if HA has not changed, otherwise asked', async () => {
+  let rev=4;const sent=[];let conflicts=0;
+  const hass={callWS:async m=>{sent.push(m);return m.type==='home_twin/plan/get'?{plan:{rooms:['ha']},rev}:{rev:++rev};}};
+  // HA is still at revision 4 — the browser's plan wins and goes up
+  let P=hassPlans(()=>hass,{mark:memMark({rev:4})});
+  assert.deepEqual((await P.load({rooms:['mine']})).plan,{rooms:['mine']});await P.flush();
+  assert.deepEqual(sent.at(-1),{type:'home_twin/plan/save',plan:{rooms:['mine']},rev:4});
+  // another window has written since — nothing is written, the editor asks
+  sent.length=0;P=hassPlans(()=>hass,{mark:memMark({rev:2}),onConflict:()=>conflicts++});
+  assert.deepEqual((await P.load({rooms:['mine']})).plan,{rooms:['mine']});await P.flush();
+  assert.equal(conflicts,1);assert.equal(P.state(),'conflict');assert.equal(sent.filter(m=>m.type==='home_twin/plan/save').length,0);
+  // the mark is there, but the browser has exactly what HA has (the last write did arrive) — nothing to do
+  const mark=memMark({rev:1});P=hassPlans(()=>hass,{mark});
+  assert.deepEqual((await P.load({rooms:['ha']})).plan,{rooms:['ha']});assert.equal(mark.v,null);
+});
+
+// the plan photo: a fake HA (websocket + HTTP) and a fake browser store
+function photoHA(){
+  const ha={photo:null,never:true,file:null,down:false,calls:[]};
+  const fail=()=>{if(ha.down)throw new Error('lost');};
+  ha.hass={
+    callWS:async m=>{fail();ha.calls.push(m.type);
+      if(m.type==='home_twin/photo/get')return {photo:ha.photo,never:ha.never};
+      if(m.type==='home_twin/photo/place'){if(ha.photo?.id!==m.photo)throw Object.assign(new Error('x'),{code:'no_photo'});ha.photo.place=m.place;return {};}
+      if(m.type==='home_twin/photo/delete'){ha.photo=null;ha.never=false;ha.file=null;return {};}},
+    fetchWithAuth:async(path,init={})=>{fail();ha.calls.push((init.method||'GET')+' '+path);
+      if(init.method==='POST'){ha.file=new Uint8Array(await init.body.arrayBuffer());ha.photo={id:'p'+ha.file.length,type:init.headers['Content-Type'],place:null};ha.never=false;return {ok:true,json:async()=>({id:ha.photo.id})};}
+      return ha.file?{ok:true,blob:async()=>new Blob([ha.file],{type:ha.photo.type})}:{ok:false,status:404};}};
+  return ha;
+}
+function memPhotos(){const m={src:null,at:null,
+  where:()=>m.at,load:async()=>m.src&&m.at?{src:m.src,place:m.at}:null,
+  put:async s=>{m.src=s;},place:p=>{m.at=p;return true;},clear:async()=>{m.src=null;m.at=null;}};return m;}
+globalThis.FileReader??=class{readAsDataURL(b){b.arrayBuffer().then(x=>{this.result=`data:${b.type};base64,`+Buffer.from(x).toString('base64');this.onload();});}};
+const SRC='data:image/png;base64,'+Buffer.from('fake-png-bytes').toString('base64'),AT={a:[.01,0],b:[0,5],opacity:.7,visible:true};
+
+test('plan photo in HA: the image goes over HTTP, then its placement; another device reads both', async () => {
+  const ha=photoHA(),local=memPhotos(),mark=memMark(),P=hassPhotos(()=>ha.hass,{local,mark});
+  assert.equal(await P.load(),null,'HA has no photo, the browser neither');
+  await P.put(SRC);P.place(AT);await P.flush();
+  assert.equal(ha.photo.type,'image/png');assert.deepEqual(ha.photo.place,AT);
+  assert.equal(local.src,null,'sent — the browser copy is not needed');assert.equal(mark.v,null);
+  P.place({...AT,opacity:.3});await P.flush();assert.equal(ha.photo.place.opacity,.3,'only the placement changed — only it is sent');
+  const other=hassPhotos(()=>ha.hass,{local:memPhotos(),mark:memMark()}),r=await other.load();
+  assert.equal(r.src,SRC);assert.equal(r.place.opacity,.3);
+  await other.clear();await other.flush();assert.equal(ha.photo,null);assert.equal(ha.file,null);
+});
+
+test('plan photo in HA: no connection — kept in the browser, sent on the next start; one kept before D-058 is brought over once', async t => {
+  t.mock.timers.enable({apis:['setTimeout']});const ha=photoHA(),local=memPhotos(),mark=memMark(),states=[];
+  let P=hassPhotos(()=>ha.hass,{local,mark,onStatus:s=>states.push(s)});
+  await P.load();ha.down=true;await P.put(SRC);P.place(AT);await P.flush();
+  assert.equal(P.state(),'offline');assert.deepEqual(states,['offline']);assert.equal(local.src,SRC,'not sent — the browser keeps it');
+  // the tab was closed; next time HA is back
+  ha.down=false;P=hassPhotos(()=>ha.hass,{local,mark});
+  assert.equal((await P.load()).src,SRC,'shown right away from the browser');await P.flush();
+  assert.deepEqual(ha.photo.place,AT);assert.equal(local.src,null);
+  // before D-058 the photo was only in this browser and HA has never had one — it moves to HA
+  const ha2=photoHA(),old=memPhotos();await old.put(SRC);old.place(AT);
+  P=hassPhotos(()=>ha2.hass,{local:old,mark:memMark()});assert.equal((await P.load()).src,SRC);await P.flush();
+  assert.deepEqual(ha2.photo.place,AT);
+  // HA had a photo and it was removed — the old browser copy does not come back
+  const ha3=photoHA();ha3.never=false;const stale=memPhotos();await stale.put(SRC);stale.place(AT);
+  P=hassPhotos(()=>ha3.hass,{local:stale,mark:memMark()});assert.equal(await P.load(),null);await P.flush();assert.equal(ha3.photo,null);
 });

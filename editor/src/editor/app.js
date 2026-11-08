@@ -37,7 +37,7 @@ import {LANGS,getLang} from '../i18n/i18n.js';
 const isMouseWheel=e=>e.deltaX===0&&e.wheelDeltaY!==undefined&&e.wheelDeltaY!==0&&e.wheelDeltaY%120===0;
 const UI='home-twin-editor:ui';
 
-export function createApp({haLights,ha}){
+export function createApp({haLights,ha,photos}){
   const areaName=id=>ha.areas().find(a=>a.area_id===id)?.name||id;
   fillIcons();
   const ed={plan:emptyPlan(),sel:{},guides:[],drag:null,capture:null,grid:true,errors:[],conflicts:new Map(),hidden:0,areaName,ha,hover:null,
@@ -116,7 +116,7 @@ export function createApp({haLights,ha}){
     ed.showVersions=()=>openVersions(ed);
     addEventListener('visibilitychange',()=>{if(document.visibilityState==='hidden')ed.history.flush();});
     addEventListener('pagehide',()=>ed.history.flush());}
-  ed.underlay=createUnderlay(()=>{ed.draw();ed.mode.refresh?.();});
+  ed.underlay=createUnderlay(()=>{ed.draw();ed.mode.refresh?.();},photos); // photos: where the plan photo is kept (absent — this browser)
   ed.modes={rooms:roomsMode(ed),furniture:furnitureMode(ed),lights:lightsMode(ed),devices:devicesMode(ed),sensors:sensorsMode(ed)};
   ed.mode=ed.modes.rooms;
 
@@ -657,8 +657,12 @@ export function createApp({haLights,ha}){
       b.title=live?t('Save as the home view — your home opens with it, and the card shows it'):t('Rotate the model to save a new view');}
     demo.run(ask&&!viewMoved&&!ed.reducedMotion()&&ed.role('3d')!=='off');
     syncFinishHint();
-    const saved=document.querySelector('.saved'),draft=ed.plan.lights.some(l=>l.draft),failed=!!ed.history.error;
-    if(saved){saved.replaceChildren(el(icon(failed?'alert':'check',14)),document.createTextNode(failed?t('Not saved'):draft?t('Draft saved'):t('Saved')));saved.title=failed?t('Could not save the plan in this browser. Download the plan file.'):draft?t('Light placement still needs confirmation. The draft is saved in this browser.'):t('The plan saves automatically in this browser');}};
+    // in the HA panel the plan is saved in HA (ed.remote: 'saved' | 'offline' | 'conflict'), otherwise — in this browser
+    const saved=document.querySelector('.saved'),draft=ed.plan.lights.some(l=>l.draft),remote=ed.remote?.(),off=remote==='offline'||remote==='conflict',failed=off||!remote&&!!ed.history.error;
+    if(saved){saved.replaceChildren(el(icon(failed?'alert':'check',14)),document.createTextNode(failed?t('Not saved'):draft?t('Draft saved'):t('Saved')));
+      saved.title=remote==='offline'?t('No connection to Home Assistant. Your changes are kept in this browser and will be sent when it is back.'):remote==='conflict'?t('The plan was changed in another window.')
+        :failed?t('Could not save the plan in this browser. Download the plan file.'):remote?(draft?t('Light placement still needs confirmation. The draft is saved in Home Assistant.'):t('The plan is saved in Home Assistant'))
+        :draft?t('Light placement still needs confirmation. The draft is saved in this browser.'):t('The plan saves automatically in this browser');}};
   ed.view.onMoved?.(m=>{viewMoved=m;ed.syncSave();});
   // Default wall thicknesses are a plan property (the house is like that), so they change through the history.
   const near=(sel,v)=>{let best=sel.options[0];for(const o of sel.options)if(Math.abs(+o.value-v)<Math.abs(+best.value-v))best=o;sel.value=best.value;};

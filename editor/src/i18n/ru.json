@@ -1211,5 +1211,8 @@
  "“{0}” {1} · {2} more": "«{0}» {1} · ещё {2}",
  "“{0}” {1} · {2} more — 3D on hold": "«{0}» {1} · ещё {2} — 3D ждёт",
  "“{0}” {1} — 3D on hold": "«{0}» {1} — 3D ждёт",
- "● DEMO": "● ДЕМО"
+ "● DEMO": "● ДЕМО",
+ "No connection to Home Assistant. Your changes are kept in this browser and will be sent when it is back.": "Нет связи с Home Assistant. Изменения сохранены в этом браузере и уйдут, когда связь вернётся.",
+ "The plan is saved in Home Assistant": "План сохранён в Home Assistant",
+ "Light placement still needs confirmation. The draft is saved in Home Assistant.": "Положение света ещё нужно подтвердить. Черновик сохранён в Home Assistant."
 }

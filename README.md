@@ -11,7 +11,7 @@ A live 3D twin of your home for Home Assistant: draw the floor plan, place light
 
 Manual install: download `home_twin.zip` from the latest release, unzip it into `config/custom_components/home_twin`, restart Home Assistant.
 
-The editor is for administrators. The plan is stored in Home Assistant (`.storage/home_twin.plan`) and is included in backups. Removing the integration keeps the plan, so reinstalling brings it back; delete that file to remove it completely. For now the photo of the plan stays in the browser it was added from.
+The editor is for administrators. The plan and its photo are stored in Home Assistant (`.storage/home_twin.plan`, `.storage/home_twin.photo`) and are included in backups, so every computer and browser sees the same plan. Removing the integration keeps them, so reinstalling brings them back; delete those files to remove them completely.
 
 License: [GPL-3.0](LICENSE).
 

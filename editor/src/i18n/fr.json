@@ -1211,5 +1211,8 @@
  "“{0}” {1} · {2} more": "« {0} » {1} · +{2}",
  "“{0}” {1} · {2} more — 3D on hold": "« {0} » {1} · +{2} — 3D en attente",
  "“{0}” {1} — 3D on hold": "« {0} » {1} — 3D en attente",
- "● DEMO": "● DÉMO"
+ "● DEMO": "● DÉMO",
+ "No connection to Home Assistant. Your changes are kept in this browser and will be sent when it is back.": "Pas de connexion à Home Assistant. Vos modifications sont gardées dans ce navigateur et seront envoyées dès son retour.",
+ "The plan is saved in Home Assistant": "Le plan est enregistré dans Home Assistant",
+ "Light placement still needs confirmation. The draft is saved in Home Assistant.": "La position des luminaires reste à confirmer. Le brouillon est enregistré dans Home Assistant."
 }
