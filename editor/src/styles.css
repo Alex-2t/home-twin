@@ -50,6 +50,11 @@ input[type=range],input[type=checkbox]{accent-color:var(--acc)}
 .pane-tag{display:none;position:absolute;left:10px;top:10px;z-index:8;align-items:center;gap:6px;height:24px;padding:0 9px;border-radius:99px;font-size:11.5px;font-weight:600;
   background:var(--panel);-webkit-backdrop-filter:blur(12px);backdrop-filter:blur(12px);border:1px solid var(--line)}
 .pane.pip .pane-tag{display:inline-flex;left:24px}.pane.dock .pane-tag{display:inline-flex}
+/* empty 3D view (no rooms yet): what will appear here; gone with the first room */
+.pane-empty{position:absolute;inset:0;z-index:2;display:none;flex-direction:column;align-items:center;justify-content:center;gap:3px;padding:16px;text-align:center;pointer-events:none}
+.pane[data-empty] .pane-empty{display:flex}
+.pane-empty-ic{width:46px;height:46px;margin-bottom:9px;border-radius:14px;display:grid;place-items:center;color:var(--mut);border:1.5px dashed var(--line2)}
+.pane-empty b{font-size:13px;font-weight:600;color:var(--tx)}.pane-empty>span:last-child{font-size:12px;color:var(--mut)}
 .live-dot{width:7px;height:7px;border-radius:50%;background:#22c55e;box-shadow:0 0 0 3px rgba(34,197,94,.22)}
 .view-tools{display:none;position:absolute;right:8px;top:8px;z-index:8;gap:2px;padding:3px;border-radius:11px;background:var(--panel);-webkit-backdrop-filter:blur(12px);backdrop-filter:blur(12px);border:1px solid var(--line)}
 .pane:not(.main) .view-tools{display:flex}.pane.dock .view-tools{top:auto;bottom:12px;right:12px}

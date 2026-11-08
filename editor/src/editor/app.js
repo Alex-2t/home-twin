@@ -192,6 +192,7 @@ export function createApp({haLights,ha}){
       ed.view.setClimate?.(live.climate);ed.view.setContacts?.(live.contacts);
       const placed=plan.lights.filter(l=>l.placed),lk=JSON.stringify([placed,plan.rooms]);
       if(lk!==keys.lights){keys.lights=lk;ed.view.setLights(placed,plan.rooms);}
+      $('pane-3d').toggleAttribute('data-empty',!plan.rooms.length); // an attribute: the pane layout rewrites className
       if(!plan.rooms.length){if(keys.walls!=='empty'){keys.walls='empty';ed.view.set(null);last={};}}
       else if(!ed.errors.length){
         const wk=JSON.stringify([plan.rooms,plan.openings,plan.wall]);

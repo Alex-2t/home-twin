@@ -1,5 +1,5 @@
 // UI bits: an input field on the plan, the hint bar at the top, collapsible sections.
-import {t} from '../i18n/i18n.js';
+import {t,num} from '../i18n/i18n.js';
 import {icon} from './icons.js';
 export const $=id=>document.getElementById(id);
 export function el(html){const t=document.createElement('template');t.innerHTML=html.trim();return t.content.firstElementChild;}
@@ -69,4 +69,4 @@ export function section(parent,key,title,{count,open=true,action}={}){
   if(action){const b=el(`<button class="act soft" title="${esc(action[2]||'')}">${esc(action[0])}</button>`);b.onclick=e=>{e.preventDefault();e.stopPropagation();action[1]();};d.querySelector('summary').appendChild(b);}
   parent.appendChild(d);return d.querySelector('.sec-body');
 }
-export const fmtArea=a=>Math.abs(a).toFixed(1).replace('.',',')+t(' m²');
+export const fmtArea=a=>num(Math.abs(a),1)+t(' m²');
