@@ -17,6 +17,11 @@ New decisions are appended at the top of their section, old ones are not rewritt
 
 ## Decisions
 
+### D-057. Minimum Home Assistant version — 2024.7 — **accepted** (2026-11-08)
+- `hacs.json` said 2026.11 only because nothing older had been tested; HACS would refuse to install on older HA. The code needs 2024.7 (`async_register_static_paths` / `StaticPathConfig`; `ConfigFlowResult` 2024.4, `single_config_entry` 2024.3); the panel's `hass` APIs are older.
+- Verified on 2024.7.4, 2025.1.4 and 2026.11.0 in Docker: the integration installs from a release-like zip, adds, the sidebar item and "Configure" work, the plan saves to HA, Preview renders with weather and forecast, no console errors. Below 2024.7 the integration does not load; supporting it is not worth it.
+- README: two install paths — the Marketplace (HA 2026.11+) and HACS custom repositories (older). `integration/tools/try-version.sh <version> <port>` repeats the check before releases.
+
 ### D-056. The editor goes back to the sidebar — **accepted** (2026-11-08)
 - Revises the first point of D-054. The owner couldn't find the editor in the test HA himself ("it's hard to get to — will users get it?"): the link after adding is shown once, and "Settings → Devices & services → Home Twin → Configure" is not something people remember.
 - How others do it: NeonPlan 3D and NextFloor (its fork) register the editor as a sidebar panel ("NeonPlan 3D" / "NextFloor", `mdi:floor-plan`), always on, and their READMEs say "Open … in the sidebar". In HA every user can hide a sidebar item with HA's own sidebar editing, so an always-present item costs little.

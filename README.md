@@ -3,9 +3,11 @@
 A live 3D twin of your home for Home Assistant: draw the floor plan, place lights, devices and sensors, and see the home in 3D with live states. Early alpha.
 
 ## Install
-Requires Home Assistant 2026.11 or newer.
+Requires Home Assistant 2024.7 or newer (verified on 2024.7, 2025.1 and 2026.11).
 
-1. In Home Assistant open the Marketplace (HACS) → **Add from link** → `https://github.com/Alex-2t/home-twin` (the Marketplace asks to connect a GitHub account first, as for any repository outside its catalog). Download **Home Twin** and restart Home Assistant.
+1. Add this repository and download **Home Twin**, then restart Home Assistant:
+   - Home Assistant 2026.11 and newer: Marketplace → **Add from link** → `https://github.com/Alex-2t/home-twin` (the Marketplace asks to connect a GitHub account first, as for any repository outside its catalog).
+   - Older versions with [HACS](https://hacs.xyz): HACS → ⋮ → **Custom repositories** → `https://github.com/Alex-2t/home-twin`, type **Integration**.
 2. Settings → Devices & services → Add integration → **Home Twin**.
 3. Click **Draw your home** in the dialog that follows. Later, open **Home Twin** in the sidebar (or Settings → Devices & services → Home Twin → Configure).
 

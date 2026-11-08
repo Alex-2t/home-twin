@@ -12,7 +12,7 @@ custom_components/home_twin/
   translations/      en, ru — texts of the setup flow and the “Done” dialog with a link to the editor
   brand/             icon (icon.png 256, icon@2x.png 512) — HA 2026 takes it from a third-party integration
   frontend/panel.js  editor build (editor: npm run build) — not in git, goes into the release archive
-hacs.json            for the catalog: install from the release archive home_twin.zip, HA from 2026.11
+hacs.json            for the catalog: install from the release archive home_twin.zip, HA from 2024.7
 ```
 - **Where the editor is.** In the sidebar — “Home Twin” (`mdi:floor-plan`), admins only, like other floor-plan integrations (NeonPlan 3D, NextFloor); a user who doesn't need it hides it with HA's own sidebar editing. The panel is also the integration's configuration panel (`config_panel_domain`): the “Configure” button on Home Twin in “Settings → Devices & services” opens it, and the dialog after adding links to it (“Draw your home”). Address — `/home-twin`. Later the dashboard card will link to it too (D-054, D-056).
 - **The plan** is `.storage/home_twin.plan`: `{plan, rev}`. Commands: `home_twin/plan/get` → `{plan, rev}`; `home_twin/plan/save {plan, rev?}` → `{rev}` (administrator only). `rev` is the revision the change was based on: if the plan was already changed in another window, the result is a `conflict` error and the editor asks “Load from HA / Keep mine”. Written to disk with a 2 s delay. Included in HA backups.
@@ -27,6 +27,13 @@ Not yet as it will be: the plan photo is stored in the browser (IndexedDB), not 
 A GitHub release tagged `v0.1.0` → [release.yml](../.github/workflows/release.yml) builds the editor, runs the tests, puts `0.1.0` into `manifest.json` and attaches `home_twin.zip` (the contents of `custom_components/home_twin` together with `frontend/panel.js`). The catalog installs exactly that (`hacs.json`: `zip_release`, `hide_default_branch` — it cannot be installed from a branch without a build). [validate.yml](../.github/workflows/validate.yml) on every push: hassfest, the HACS check (works only for a public repository), editor build and tests.
 
 To build the same archive locally: `cd editor && npm run build && cd ../custom_components/home_twin && zip -r /tmp/home_twin.zip . -x '__pycache__/*'`.
+
+## Older Home Assistant versions
+The minimum is HA 2024.7: the integration serves the panel with `async_register_static_paths` / `StaticPathConfig`, which appeared in 2024.7 (also `ConfigFlowResult` — 2024.4, `single_config_entry` — 2024.3). Everything the panel reads from `hass` is older. Verified on 2024.7.4, 2025.1.4 and 2026.11.0: install from the zip, add, save the plan, Preview with weather and forecast, no console errors. Brand icons from `brand/` show from HA 2026 on; older versions show a placeholder. Check a version before a release:
+```
+integration/tools/try-version.sh 2024.7.4 8126   # fresh HA with demo, Home Twin from a release-like zip, demo plan saved
+docker rm -f ht-try-2024-7-4
+```
 
 ## Test HA (Docker on Mac)
 ```
