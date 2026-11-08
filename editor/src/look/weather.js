@@ -3,7 +3,7 @@
 // falls within those hours. Difference: the source is not Open-Meteo by coordinates as in 3d_floor, but the weather from HA (HA layer: weather()) —
 // any home, no extra outside requests. The condition follows HA conditions (sunny, partlycloudy…), not WMO codes.
 // No DOM: look.js lays out the markup.
-import {t,N,locale} from '../i18n/i18n.js';
+import {t,N,clock} from '../i18n/i18n.js';
 
 // HA condition (weather.*: state, and condition in the forecast) → the card's caption and icon; at night the moon replaces the sun
 const COND={
@@ -25,7 +25,6 @@ export function isDay(at,{sunrise,sunset}={}){
   return sunset<sunrise?at<sunset||at>=sunrise:at>=sunrise&&at<sunset;}
 
 export const degrees=value=>`${Math.round(value)===0?0:Math.round(value)}°`.replace('-','−');
-const clock=at=>new Intl.DateTimeFormat(locale(),{hour:'2-digit',minute:'2-digit'}).format(at);
 
 // Weather now: {temperature, feels, label, icon} or null — HA has no weather or it is unavailable.
 // w — from the HA layer: {condition, temperature, feels, hourly:[{at, condition, temperature}], sunrise, sunset}

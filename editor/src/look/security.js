@@ -5,7 +5,7 @@
 // water or without a class — or a motorized valve that arrived as a curtain: a cover without a class with “valve” in its name, as at the owner's;
 // a gas valve is not water; core/devices.js: isWaterValve), leak sensors (binary_sensor of class moisture) with the battery
 // of their own device. None at all — no section. Time follows the browser clock, not the 3d_floor time zone. No DOM: look.js lays out the markup.
-import {t,locale} from '../i18n/i18n.js';
+import {t,locale,clock} from '../i18n/i18n.js';
 import {isWaterValve} from '../core/devices.js';
 
 export const LOW_BATTERY=20;
@@ -42,7 +42,7 @@ export function securityDevices(ha,room=()=>null){
 export function sinceText(at,now=Date.now()){
   if(!Number.isFinite(at))return '';
   const day=v=>new Intl.DateTimeFormat(locale(),{dateStyle:'short'}).format(v);
-  return t('since {0}',day(at)===day(now)?new Intl.DateTimeFormat(locale(),{hour:'2-digit',minute:'2-digit'}).format(at)
+  return t('since {0}',day(at)===day(now)?clock(at)
     :new Intl.DateTimeFormat(locale(),{day:'numeric',month:'long'}).format(at));}
 
 /**

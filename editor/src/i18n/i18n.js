@@ -56,9 +56,22 @@ export function t(s,...args){
   return args.length||r.includes('{')?format(r,args):r;}
 export const N=s=>s;
 export const tr=s=>s==null?s:t(s);
-// number formatted for the language: 23,1 or 23.1; d — decimal places (default: as is, up to 2)
-// digit grouping only from five digits (1234 cm, but 12 345 m²)
-export const num=(v,d)=>Number.isFinite(v)?new Intl.NumberFormat(LOCALE[lang],{useGrouping:'min2',...(d==null?{maximumFractionDigits:2}:{minimumFractionDigits:d,maximumFractionDigits:d})}).format(v):String(v);
+// Number and time formats. In Home Assistant — from the user's profile (hass.locale: number_format, time_format), mapped
+// the way HA's own frontend does it; outside HA (and for "language") — by the UI language.
+let numberFormat='language',timeFormat='language';
+export function setFormats(l){numberFormat=l?.number_format||'language';timeFormat=l?.time_format||'language';}
+const NUMBER_LOCALE={comma_decimal:['en-US','en'],decimal_comma:['de','es','it'],space_comma:['fr','sv','cs'],quote_decimal:['de-CH']};
+const numLocale=()=>numberFormat==='system'?undefined:NUMBER_LOCALE[numberFormat]||LOCALE[lang];
+// 12-hour clock: am_pm / 24 as set; for "language" and "system" — whatever that locale does with 22:00
+export const amPm=()=>timeFormat==='am_pm'||(timeFormat!=='24'&&new Date(2023,0,1,22).toLocaleString(timeFormat==='system'?undefined:LOCALE[lang]).includes('10'));
+// number: 23,1 or 23.1; d — decimal places (default: as is, up to 2); grouping — 'min2' by default (1234 cm, but
+// 12 345 m²), 'auto' as the locale groups; "none" in HA turns grouping off
+export const num=(v,d,{grouping='min2',...o}={})=>Number.isFinite(v)?new Intl.NumberFormat(numLocale(),{useGrouping:numberFormat==='none'?false:grouping,
+  ...(d==null?{maximumFractionDigits:2}:{minimumFractionDigits:d,maximumFractionDigits:d}),...o}).format(v):String(v);
+// date and time in the UI language; with an hour — on the 12- or 24-hour clock from HA
+export const dateTime=(at,o)=>new Intl.DateTimeFormat(LOCALE[lang],o.hour?{...o,hourCycle:amPm()?'h12':'h23'}:o).format(at);
+// time of day: 14:05 or 2:05 PM
+export const clock=(at,o={})=>dateTime(at,{hour:'numeric',minute:'2-digit',...o});
 // Static markup (shell.html): text and tooltips are translated by the string itself, once at startup.
 // Elements with translate="no" (key names, numbers) are left as they are.
 export function translateDom(root){

@@ -1,7 +1,7 @@
 // Air conditioner and thermostat remote on the room screen — carried over from 3d_floor/apartment/smart-home/web/src/ac-control.js and
 // ac-state.js (D-049): a round setpoint dial, − / +, power, mode, fan. Translations go through the editor's t().
 // s: {status, on, mode, action, temperature, current, min, max, step, unit, modes, fans, fan, canTemperature, canPower}
-import {t,N,getLang} from '../i18n/i18n.js';
+import {t,N,num} from '../i18n/i18n.js';
 import {MODE_NAMES} from './overview.js';
 
 export const ACTION_NAMES={off:N('Off'),idle:N('Target reached'),cooling:N('Cooling'),heating:N('Heating|ac'),drying:N('Drying'),fan:N('Fan|mode'),
@@ -9,7 +9,7 @@ export const ACTION_NAMES={off:N('Off'),idle:N('Target reached'),cooling:N('Cool
 export const OPTION_NAMES={auto:N('Auto'),low:N('Low'),medium_low:N('Medium-low'),medium:N('Medium'),medium_high:N('Medium-high'),high:N('High'),turbo:N('Turbo'),
   quiet:N('Quiet'),on:N('On|short'),off:N('Off|short'),vertical:N('Vertical'),horizontal:N('Horizontal'),both:N('All directions')};
 const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
-const number=n=>Number.isFinite(n)?n.toLocaleString(getLang(),{maximumFractionDigits:1}):'—';
+const number=n=>Number.isFinite(n)?num(n,null,{grouping:'auto',maximumFractionDigits:1}):'—';
 const name=(map,k)=>map[k]?t(map[k]):k;
 export const acStatus=s=>s.status==='unbound'?t('Not linked'):s.status==='unavailable'?t('Unavailable'):ACTION_NAMES[s.action]?t(ACTION_NAMES[s.action]):name(MODE_NAMES,s.mode);
 const angle=value=>({x:120+92*Math.cos(value),y:120+92*Math.sin(value)});

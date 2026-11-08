@@ -2,7 +2,7 @@
 // 960×540 canvas, no video and no permissions. It also draws the camera tile in “Security”: the tile shows what opens on
 // tap. Differences: the window title shows the camera name from HA (it used to be “Camera · Hallway”), the time follows the browser clock.
 // In HA the window is replaced by the entity's card (HA layer: moreInfo), and the tile shows the entity_picture frame.
-import {t,locale} from '../i18n/i18n.js';
+import {t,dateTime} from '../i18n/i18n.js';
 
 export function drawDemoFeed(c){
   function poly(points,color){c.fillStyle=color;c.beginPath();points.forEach(([x,y],i)=>i?c.lineTo(x,y):c.moveTo(x,y));c.closePath();c.fill();}
@@ -35,7 +35,7 @@ export function openCameraPreview(host,name){
     <div class="camera-feed"><canvas width="960" height="540" aria-label="${esc(t('Simulated hallway view'))}"></canvas><span>${esc(t('● DEMO'))}</span><time></time></div>
     <footer>${esc(t('Simulated video · no real camera connected'))}</footer>`;
   host.append(d);const c=d.querySelector('canvas').getContext('2d');
-  function draw(){if(document.hidden)return;drawDemoFeed(c);d.querySelector('time').textContent=new Date().toLocaleString(locale());}
+  function draw(){if(document.hidden)return;drawDemoFeed(c);d.querySelector('time').textContent=dateTime(new Date(),{year:'numeric',month:'2-digit',day:'2-digit',hour:'numeric',minute:'2-digit',second:'2-digit'});}
   draw();const timer=setInterval(draw,150);
   const cleanup=()=>{clearInterval(timer);d.remove();};
   d.addEventListener('close',cleanup,{once:true});d.querySelector('button').onclick=()=>d.close();

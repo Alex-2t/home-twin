@@ -17,6 +17,12 @@ New decisions are appended at the top of their section, old ones are not rewritt
 
 ## Decisions
 
+### D-055. Number and time formats follow the Home Assistant profile — **accepted** (2026-11-08)
+- The owner asked for the panel to take formats from HA, not from the language. The HA user profile has its own "Number format" and "Time format"; the panel now reads them from `hass.locale` (`number_format`, `time_format`) and maps them the way HA's frontend does: comma_decimal → 1,234.5; decimal_comma → 1.234,5; space_comma → 1 234,5; quote_decimal → 1'234.5; none → no grouping; system → the browser's; language → by the UI language. The clock is 12- or 24-hour as set (am_pm / 24; for language and system — what that locale does with 22:00).
+- One place: `num()`, `clock()` and `dateTime()` in [i18n.js](../editor/src/i18n/i18n.js); every number and time in the editor and Preview goes through them. Set at panel start (`HOME_TWIN_LOCALE`) and on every `hass` update. Outside HA — by the language, as before.
+- Not yet: HA's date format (DMY/MDY/YMD — our dates use month names, so it rarely matters), first weekday, and "use server time zone" (times are in the browser's time zone).
+- Verified on the test HA: with decimal_comma and 24 in the profile, an English UI shows "80,2 m²" and "13:53".
+
 ### D-054. The editor is an integration settings panel, not a menu item; the repository is prepared for opening — **accepted** (2026-11-08)
 - The owner: the editor is needed at the start and then only occasionally — it does not belong in the sidebar. The panel is registered without a menu item, as an integration settings panel (`config_panel_domain`, as with ZHA, Z-Wave, Matter): the “Configure” button on Home Twin in “Devices & services”; right after adding, in the “Done” window — the “Draw your home” link (`config.create_entry.default`). The card on the dashboard is viewed every day (stage 2) — it will also be an entry into the editor (“Edit plan”; an empty card invites you to draw your home). A full-screen “Home” in the menu, if needed, is a separate thing, not the editor.
 - Removal: the plan stays in `.storage/home_twin.plan` — if you reinstall the integration, it is still there; it is in HA backups. To delete it completely, delete that file. To start over — “New plan” in the editor (the previous one goes to the backup slot).

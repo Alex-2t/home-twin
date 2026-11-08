@@ -3,7 +3,7 @@
 import './i18n/boot.js';
 import {boot} from './boot.js';
 import {liveHA,hassPlans} from './editor/ha-live.js';
-import {t} from './i18n/i18n.js';
+import {t,setFormats} from './i18n/i18n.js';
 
 export async function start(panel){
   const ha=liveHA(panel.hass);let ed=null;
@@ -12,5 +12,5 @@ export async function start(panel){
     [t('Load from HA'),()=>window.top.location.reload()],[t('Keep mine'),()=>{plans.keepMine();ed.banner();},true]])});
   ed=await boot({ha,plans});
   addEventListener('pagehide',()=>{plans.flush();ed.history.flush();});
-  return {update(h){ha.update(h);const dark=!!h.themes?.darkMode;if(dark!==globalThis.HOME_TWIN_DARK){globalThis.HOME_TWIN_DARK=dark;ed.applyTheme?.();}}};
+  return {update(h){ha.update(h);setFormats(h.locale);const dark=!!h.themes?.darkMode;if(dark!==globalThis.HOME_TWIN_DARK){globalThis.HOME_TWIN_DARK=dark;ed.applyTheme?.();}}};
 }

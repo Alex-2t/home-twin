@@ -20,7 +20,7 @@
 //   open() / close(); esc() — one step back; insets() — {right, bottom}: what covers the 3D
 import CARD_CSS from '../look/card.css';
 import {icon} from '../look/icons.js';
-import {t,N,getLang,locale} from '../i18n/i18n.js';
+import {t,N,getLang,locale,num as fmtNum,clock} from '../i18n/i18n.js';
 import {overview} from '../core/overview.js';
 import {acView,coverView} from '../core/devices.js';
 import {metricOf,isClimate,fitsAuto} from '../core/sensors.js';
@@ -264,7 +264,7 @@ export function createLook(ed,host0){
     $('.watch-panel').classList.toggle('is-empty',!sec.camera&&!small);}
   // the frame in the tile: in the demo — a synthetic hallway every 2 s, in HA — entity_picture every 10 s; only while the tile is visible
   function camera(){const tile=$('.cam-tile'),c=sec.camera;if(!tile||!c||document.hidden||!tile.getClientRects().length)return;
-    const time=tile.querySelector('.cam-time'),stamp=()=>new Date().toLocaleTimeString(locale());
+    const time=tile.querySelector('.cam-time'),stamp=()=>clock(new Date(),{second:'2-digit'});
     if(ed.ha?.demo){drawDemoFeed(tile.querySelector('canvas').getContext('2d'));time.textContent=stamp();tile.classList.remove('loading','empty');return;}
     if(!c.picture){tile.classList.remove('loading');tile.classList.add('empty');return;}
     // the new frame loads off to the side: swapping src on the fly would flash an empty tile
@@ -539,7 +539,7 @@ export function createLook(ed,host0){
     render();resultT=setTimeout(()=>{out.textContent='';},r.failed?20000:8000);}
 
   // ---------- room screen — as in 3d_floor/card.js (renderMetrics, renderAC, renderCoverTile, renderLightTile, renderExtras) ----------
-  const num=v=>(Math.round(v*10)/10).toLocaleString(getLang(),{maximumFractionDigits:1});
+  const num=v=>fmtNum(Math.round(v*10)/10,null,{grouping:'auto'});
   function metrics(r,M){const c=M.climate[r.id],ent={temperature:r.sens.t?.entity,humidity:r.sens.h?.entity,co2:r.sens.co2?.entity};
     const card=key=>{if(c[key]==null)return '';const spec=METRICS[key],value=key==='temperature'?num(c[key]):String(c[key]),colour=metricColor(key,c[key]);
       const path=sparkline(hist(ent[key]),{width:160,height:46,pad:4,span:spec.span});

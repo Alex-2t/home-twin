@@ -8,7 +8,7 @@
 // Not carried over: lights, appliances, “who is home” and doors: HA keeps no long-term statistics for on / off, 3d_floor counts
 // them with counters set up by hand in the owner's home. The integration will add them (D-015) once it sets up counters itself.
 // No DOM: markup is in stats-view.js. HA layer (editor/ha.js): statistics(), stateHistory(), energy(); the demo answers the same way.
-import {t,N,locale} from '../i18n/i18n.js';
+import {t,N,num,dateTime} from '../i18n/i18n.js';
 
 export const PERIODS=[{id:'week',label:N('Week'),days:7},{id:'month',label:N('Month'),days:30},{id:'year',label:N('Year'),months:12}];
 export const DAY=864e5;
@@ -168,15 +168,15 @@ export function sectionTile(id,data){if(!data||data.empty)return null;
 
 // ---------- Captions ----------
 const thin=s=>s.replace(/ /g,' ');
-const fmt=(v,d)=>Number(v.toFixed(d)).toLocaleString(locale(),{minimumFractionDigits:d,maximumFractionDigits:d});
+const fmt=(v,d)=>num(Number(v.toFixed(d)),d,{grouping:'auto'});
 // human-readable hours: 0.4 h · 12 h · 1,234 h
-export function formatHours(h){if(!(h>=.05))return '0 '+t('h');return (h<10?fmt(h,1):thin(Math.round(h).toLocaleString(locale())))+' '+t('h');}
+export function formatHours(h){if(!(h>=.05))return '0 '+t('h');return (h<10?fmt(h,1):thin(num(Math.round(h),0,{grouping:'auto'})))+' '+t('h');}
 // number: 21.6 · 8.8; from a hundred up and with digits = 0 — an integer with digit grouping
-export function formatNumber(v,d=1){if(!Number.isFinite(v))return '—';return Math.abs(v)<100&&d?fmt(v,d):thin(Math.round(v).toLocaleString(locale()));}
+export function formatNumber(v,d=1){if(!Number.isFinite(v))return '—';return Math.abs(v)<100&&d?fmt(v,d):thin(num(Math.round(v),0,{grouping:'auto'}));}
 // energy: 0.8 kWh · 12 kWh · 1,234 kWh
-export function formatEnergy(k){if(!(k>=.05))return '0 '+t('kWh');return (k<10?fmt(k,1):thin(Math.round(k).toLocaleString(locale())))+' '+t('kWh');}
+export function formatEnergy(k){if(!(k>=.05))return '0 '+t('kWh');return (k<10?fmt(k,1):thin(num(Math.round(k),0,{grouping:'auto'})))+' '+t('kWh');}
 export const formatPower=k=>(k<10?fmt(k,k<1?2:1):formatNumber(k,0))+' '+t('kW');
-const dt=(o,x)=>new Intl.DateTimeFormat(locale(),o).format(new Date(x));
+const dt=(o,x)=>dateTime(new Date(x),o);
 const cap=s=>s.charAt(0).toUpperCase()+s.slice(1);
 // under a bar: weekday for a week, day of month for a month, month for a year
 export const bucketLabel=(start,bucket,period)=>bucket==='month'?dt({month:'short'},start).replace(/\.$/,''):period==='week'?dt({weekday:'short'},start):String(new Date(start).getDate());

@@ -1,7 +1,7 @@
 // The “Version history” window (⌂ menu): versions with thumbnails on the left, the selected one large on the right, plus “Restore this version”.
 // The first row is “Now”. Restoring is an edit: ⌘Z brings it back, and the current plan itself becomes a “Before restoring a version” version.
 // At the bottom — the “Previous plan” from the backup slot (flows.js), if there is one.
-import {t,N,locale} from '../i18n/i18n.js';
+import {t,N,locale,clock} from '../i18n/i18n.js';
 import {el,esc} from './ui.js';
 import {icon} from './icons.js';
 import {pal,FONT} from './draw.js';
@@ -15,7 +15,7 @@ const STEP=Object.fromEntries([...MAND,...OPT].map(s=>[s[0],s[1]]));
 export const versionLabel=v=>v.kind==='step'?t('Step “{0}”',t(STEP[v.what]||v.what)):v.kind==='before'?t(BEFORE[v.what]||v.what):t('Autosave');
 
 // when: today — the time, yesterday — “Yesterday, 18:40”, earlier — date and time
-function when(at){const d=new Date(at),now=new Date(),tm=new Intl.DateTimeFormat(locale(),{hour:'2-digit',minute:'2-digit'}).format(d);
+function when(at){const d=new Date(at),now=new Date(),tm=clock(d);
   const day=x=>new Date(x.getFullYear(),x.getMonth(),x.getDate()).getTime(),k=Math.round((day(now)-day(d))/864e5);
   if(k===0)return tm;if(k===1)return t('Yesterday, {0}',tm);
   return new Intl.DateTimeFormat(locale(),{day:'numeric',month:'short',...(d.getFullYear()!==now.getFullYear()?{year:'numeric'}:{})}).format(d)+', '+tm;}

@@ -2,7 +2,7 @@
 // the day line, the “Now” chips, light and climate tiles, the second room line. No DOM; look.js lays out the markup.
 // Differences from 3d_floor: translations go through the editor's t() (placeholders {0}, {1}); any home (not only the owner's apartment);
 // TV, vacuum, water and alarm chips — once those devices appear in the HA layer. An open window or door is a “warn” chip.
-import {t,N,getLang} from '../i18n/i18n.js';
+import {t,N,getLang,num} from '../i18n/i18n.js';
 
 export const CO2_STUFFY=1000,CO2_BAD=1500;
 const number=v=>{const n=typeof v==='string'?Number(v):v;return Number.isFinite(n)?n:null;};
@@ -16,7 +16,7 @@ const MODE_LOOK={cool:{icon:'snowflake',tone:'cool'},heat:{icon:'flame',tone:'he
 export const modeLook=mode=>MODE_LOOK[mode]||{icon:'wind',tone:'cool'};
 
 export const formatDegrees=value=>{const n=number(value);if(n===null)return '';
-  return (Math.round(n*10)/10).toLocaleString(loc(),{maximumFractionDigits:1}).replace('-','−');};
+  return num(Math.round(n*10)/10,null,{grouping:'auto',maximumFractionDigits:1}).replace('-','−');};
 // “Sunday, November 1”
 export function dayLine(now=Date.now()){const text=new Intl.DateTimeFormat(loc(),{weekday:'long',day:'numeric',month:'long'}).format(now);return text[0].toUpperCase()+text.slice(1);}
 // “home 20–24°” from room readings; no readings — null. climate: {room: {temperature, humidity, co2}}
