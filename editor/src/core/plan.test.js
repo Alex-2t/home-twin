@@ -2,6 +2,7 @@ import {test} from 'node:test';
 import assert from 'node:assert/strict';
 import {validate,buildPlan2d,openingCoords,openingOut,wallsAt,area,labelPoint,pointIn as inside,segDist as sdist} from './geometry.js';
 import {migrate,linkedEdges,moveEdges,snapshot,setEdgeLength,addRoom,wallInfo,setWallThickness,setWallOpen,settleRoom,rotatePlan,cutChord,splitRoom,addCorner,mergeRooms,scalePlan,wallAt,absorbRoom,closeOuterOpen,zoneParts,setZone,moveZone,zoneFromEdge,addOpening,setOpeningWidth,openingGap,turnDoor,addRoom as add2} from './plan.js';
+import {checkItem} from './parts.js';
 import {snapToWall,furnitureConflicts,setRoomArea,autoPlaceLights,footRects,stackOf,snapLightPoint} from './layout.js';
 import {sideWall,roomWall,bakeFinish,WALL_KINDS} from './surfaces.js';
 
@@ -35,6 +36,16 @@ test('furniture snaps back-first to a wall and detects overlap',()=>{
   assert.equal(f.rot,180);assert.ok(Math.abs(f.y-.353)<.01);
   p.furniture.push(f,{...f,id:'w2',x:f.x+.5});
   assert.match(furnitureConflicts(p).get('w2'),/overlaps/);
+});
+test('a chair from parts at a table from parts is tucked under it when both say so, as catalog ones are',()=>{
+  const box=(w,d,h)=>({w,d,h,materials:{m:{color:'#777777'}},parts:[{kind:'box',mat:'m',size:[w,h,d],at:[0,0,0]}]});
+  const p=two(),table={id:'t',model:'parts',w:1,d:1,h:.75,rot:0,x:1.5,y:1.5,parts:box(1,1,.75)},chair={id:'c',model:'parts',w:.5,d:.5,h:.85,rot:0,x:1.5,y:1.05,parts:box(.5,.5,.85)};
+  p.furniture.push(table,chair);
+  assert.match(furnitureConflicts(p).get('c'),/overlaps/,'without a word: overlapping');
+  table.parts.table=true;chair.parts.under=.48;
+  assert.equal(furnitureConflicts(p).size,0,'a seat at 0.48 m under a 0.75 m top: tucked');
+  chair.parts.under=.8;assert.match(furnitureConflicts(p).get('c'),/overlaps/,'arms higher than the top: overlapping');
+  assert.deepEqual(checkItem({...box(1,1,.75),table:'high'}),['table must be true or a height in meters']);
 });
 test('furniture at a wall: snaps to the corner and the middle within snap (depends on zoom)',()=>{
   const p=two(),b={id:'b',model:'bed',w:1.6,d:2.1,h:1,rot:0,x:0,y:0},at=(x,snap)=>snapToWall(p,b,[x,.4],false,snap),lo=at(1,.25).x;

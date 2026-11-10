@@ -5,6 +5,9 @@
 // Parts: box {size: [w,h,d], round}, cyl {r, h, r2 (top radius), seg}, sphere {r, scale: [x,y,z]}, profile {points: [[x,y],…] in the x–y
 // plane, depth along z}, lathe {points: [[r,y],…] turned around y}, repeat {count, step: [x,y,z], part}. Every part: mat, at: [x,y,z] —
 // the anchor (box, cyl, sphere stand on it; profile and lathe use their own coordinates around it), tilt: [x,y,z] degrees around the anchor.
+// Optional: under (true, or the height in meters up to which it slides under a table: a chair's seat) and table (true, or the
+// tabletop height) — a chair from parts at a table from parts is then tucked under it, not overlapping it (layout.js), as catalog
+// chairs and tables are.
 // checkItem works without WebGL (plan-file.js validates with it); buildItem makes a three.js group, furniture3d.js bakes it.
 import * as THREE from 'three';
 import {RoundedBoxGeometry} from 'three/addons/geometries/RoundedBoxGeometry.js';
@@ -66,6 +69,7 @@ export function checkItem(item){
     if(!HEX.test(m?.color||''))errors.push(`materials.${n}: color must be "#rrggbb"`);
     for(const k of ['rough','metal'])if(m?.[k]!=null&&!(num(m[k])&&m[k]>=0&&m[k]<=1))errors.push(`materials.${n}: ${k} must be 0–1`);
   }
+  for(const k of ['under','table'])if(item[k]!=null&&item[k]!==true&&!(num(item[k])&&item[k]>0&&item[k]<=LIMITS.maxSize))errors.push(`${k} must be true or a height in meters`);
   if(!Array.isArray(item.parts)||!item.parts.length){errors.push('parts: at least one part is needed');return errors;}
   item.parts.forEach((p,i)=>checkPart(p,`parts[${i}]`,mats,errors));
   const n=expand(item.parts).length;if(n>LIMITS.parts)errors.push(`parts: at most ${LIMITS.parts} after expanding repeat (got ${n})`);
