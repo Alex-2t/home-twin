@@ -6,7 +6,7 @@ import {migrate,emptyPlan,roomById,wallDefaults,closeOuterOpen} from '../core/pl
 import {furnitureConflicts} from '../core/layout.js';
 import {syncRuns} from '../core/runs.js';
 import {syncFurnStrips} from '../core/fixtures.js';
-import {byId} from '../core/catalog.js';
+import {byId,nameOf} from '../core/catalog.js';
 import {sensorsMode} from './modes/sensors.js';
 import {devicesMode} from './modes/devices.js';
 import {createView2d} from './view2d.js';
@@ -214,7 +214,7 @@ export function createApp({haLights,ha,photos}){
     if(ed.errors.length){const e=ed.errors[0],nm=roomById(ed.plan,e.room)?.name,more=ed.errors.length-1;text=more?t('“{0}” {1} · {2} more — 3D on hold',nm,e.text,more):t('“{0}” {1} — 3D on hold',nm,e.text);
       go=()=>{if(ed.mode.id!=='rooms')ed.setMode('rooms');ed.select('room',e.room);};}
     else if(last.fail){text=t('Walls failed to build — 3D shows the previous plan');}
-    else if(ed.mode.id==='furniture'&&ed.conflicts.size){const [id,why]=[...ed.conflicts][0],nm=byId(ed.plan.furniture.find(f=>f.id===id)?.model)?.name,more=ed.conflicts.size-1;warn=true;
+    else if(ed.mode.id==='furniture'&&ed.conflicts.size){const [id,why]=[...ed.conflicts][0],g=ed.plan.furniture.find(f=>f.id===id),nm=g?nameOf(g):'',more=ed.conflicts.size-1;warn=true;
       text=more?t('“{0}” {1} · {2} more',nm,why,more):t('“{0}” {1}',nm,why);go=()=>ed.select('furn',id);}
     else if(ed.mode.id==='rooms'&&ed.hidden){warn=true;text=t('Openings that don\'t fit the wall: {0}',ed.hidden);}
     pill.hidden=!text;pill.textContent=text;pill.classList.toggle('warn',warn);pill.onclick=go;

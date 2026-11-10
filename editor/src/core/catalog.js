@@ -176,6 +176,9 @@ export const CATALOG=[
 const LOOSE=['chairCushion','stool','barStool','chairDesk','highChair','ottoman','diningTable','tableRound','tableExt','tableCoffee','sideTable',
   'kidsTable','kitchenIsland','patioTable','patioChair','sunLounger','rug','petBed'];
 for(const id of LOOSE){const c=CATALOG.find(x=>x.id===id);if(c)c.loose=true;}
+// An item from parts (core/parts.js): the AI build describes what it could not match to the catalog; the shape is in the item (f.parts),
+// the name in f.name. Never in the catalog picker; any size (it stretches to fit), no colors or variants: the parts carry their own materials.
+CATALOG.push({id:'parts',hidden:true,cat:'',name:N('Custom item'),kind:'gen',w:.6,d:.4,h:.8,lift:0,min:[.01,.01,.01],max:[6,6,6]});
 export const CATEGORIES=[N('Bedroom'),N('Living room'),N('Kitchen & dining'),N('Storage'),N('Home office'),N('Hallway'),N('Bathroom'),N('Kids\' room'),N('Climate'),N('Lighting & decor'),N('Garage & outdoor')];
 // Names, sections, search tags, variants and colors are in the UI language (D-036). The translation keys are the English strings above
 // (the scanner collects them from this whole file); the language is set before the module loads (i18n/boot.js).

@@ -7,6 +7,7 @@ import {mergeGeometries} from 'three/addons/utils/BufferGeometryUtils.js';
 import {CATALOG,COLORS,TOPS,byId,zOf,lArms,extOf} from './catalog.js';
 import {runShape} from './runs.js';
 import {car as car3d} from './car3d.js';
+import {checkItem,buildItem} from './parts.js';
 
 // ---------- generators ----------
 const mats=new Map();
@@ -1256,10 +1257,19 @@ function runObject(item,c){const color=item.color||c.color,col=COLORS[color][1],
   for(const s of geo?.sides||[]){const inner=new THREE.Group();RUN_LOOK[c.id](inner,s,{h,v,M});
     if(!inner.children.length)continue;const b=bake(inner);b.position.y=z;b.userData.ry=s.ry;out.add(b);out.userData.parts.push(b);}
   return out;}
+// ---------- an item from parts (model 'parts', parts.js) ----------
+// The parts describe the item at its own size (parts.w/d/h); resized on the plan, it is stretched to the item's w/d/h along each axis.
+// Shared materials (mat) and merged by material, like a generated item. Parts that do not pass checkItem (a plan from HA or the history
+// is not checked by plan-file.js) — a plain box of the item's size.
+function partsObject(item){const P=item.parts,{w=P?.w,d=P?.d,h=P?.h}=item,inner=new THREE.Group();
+  if(P&&!checkItem(P).length){inner.add(buildItem(P,m=>mat(m.color,m.rough??.6,m.metal??0)));inner.scale.set(w/P.w,h/P.h,d/P.d);}
+  else part(inner,w||.5,h||.5,d||.5,finish(item.color||'white'),0,0,0,Math.min(.015,(w||.5)/4,(d||.5)/4,(h||.5)/4));
+  const g=new THREE.Group(),b=bake(inner);b.position.y=zOf(item);g.add(b);return g;}
 export function makeObject(item){
   const c=byId(item.model);
   if(c.run)return runObject(item,c);
   if(c.kind==='kenney')return kenney.get(c.id).clone(true);
+  if(c.id==='parts')return partsObject(item);
   // hanging items at their own height (f.z), left/right by mirroring across the width; parts merged by material
   const g=new THREE.Group(),inner=new THREE.Group();GEN[c.id](inner,{...item,color:item.color||c.color,v:item.v||c.vars?.[0][0]});
   const b=bake(inner);b.position.y=zOf(item);if(item.mx)b.scale.x=-1;g.add(b);return g;

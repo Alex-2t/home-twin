@@ -190,15 +190,16 @@ export function furnitureMode(ed){
     renderCatalog();
     ctxPanel();stepBanner();
   };
-  let more=false;
+  let more=false;const named=c=>c.id==='custom'||c.id==='parts';
   function ctxPanel(){
     const f=find(sel().furn);if(!f){ed.showCtx(null);return;}
     const c=byId(f.model),cm=x=>Math.round(x*100),line=el(`<div class="line"><b>${esc(c.name)}</b></div>`);
-    if(c.id==='custom'){const nm=el(`<input class="nm" value="${esc(f.name||'')}" placeholder="${t('Name it')}" title="${t('Item name')}">`);nm.onkeydown=e=>{e.stopPropagation();if(e.key==='Enter')nm.blur();};
+    // a custom item and one from parts (the AI build) have their own name instead of the catalog one
+    if(named(c)){const nm=el(`<input class="nm" value="${esc(f.name||'')}" placeholder="${t('Name it')}" title="${t('Item name')}">`);nm.onkeydown=e=>{e.stopPropagation();if(e.key==='Enter')nm.blur();};
       nm.onchange=()=>{const t=nm.value.trim();if(t)f.name=t;else delete f.name;ed.commit();};line.firstChild.replaceWith(nm);}
     // stacked on top of each other — a switch instead of the name: bottom to top, the selected one highlighted (the owner: a hanging one cannot be selected by click)
     const stack=stackOf(plan(),f);if(stack.length>1){const seg=el(`<span class="stack" title="${t('Stacked on top of each other — choose which one to edit')}"></span>`),own=line.firstChild;
-      for(const g of stack){if(g===f&&c.id==='custom'){seg.append(own);continue;}const b=el(`<button class="chip ${g===f?'on':''}">${esc(nameOf(g))}</button>`);
+      for(const g of stack){if(g===f&&named(c)){seg.append(own);continue;}const b=el(`<button class="chip ${g===f?'on':''}">${esc(nameOf(g))}</button>`);
         b.onclick=()=>{if(g!==f){more=false;ed.select('furn',g.id);}};seg.append(b);}
       line.prepend(seg);if(own.parentNode===line)own.remove();}if(c.kind==='gen'&&c.color)line.appendChild(el('<span class="sep"></span>'));
     if(c.kind==='gen'&&c.color)for(const k of colorsOf(c)){const [n,hex]=colorOf(c,k);const b=el(`<button class="sw ${k===f.color?'on':''}" title="${n}" style="background:#${hex.toString(16).padStart(6,'0')}"></button>`);b.onclick=()=>{f.color=k;ed.commit();};line.appendChild(b);}

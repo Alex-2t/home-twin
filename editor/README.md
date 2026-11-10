@@ -35,6 +35,7 @@ src/core/            core — no UI, will move into HA later
   catalog.js         furniture catalog (data)
   furniture3d.js     furniture in 3D from dimensions and Kenney models
   car3d.js           procedural sedan and SUV: separate glazing, LED lamps, body seams and detailed wheels
+  parts.js           an item from simple parts (model 'parts', written by the AI build): checks and 3D; stretched to the plan's size
   scene.js           3D view: walls, floor, furniture, lights, room mask
   surfaces.js        floor by room type (textures in code), shading at walls and corners (D-028)
   card/              card lighting — a copy from 3d_floor (lighting.js, room-light-mask.js)

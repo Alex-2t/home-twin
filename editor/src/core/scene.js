@@ -6,6 +6,7 @@ import {RoomEnvironment} from 'three/addons/environments/RoomEnvironment.js';
 import {WALL,pointIn} from './geometry.js';
 import {formFor,lineForm,shadeOf,housingOf} from './fixtures.js';
 import {makeObject} from './furniture3d.js';
+import {partsKey} from './parts.js';
 import {createAirflow} from './airflow.js';
 import {createRoomGlow} from './room-glow.js';
 import {zOf,byId} from './catalog.js';
@@ -189,7 +190,7 @@ export function createView(host){
   function setFurniture(items,selected){
     const keep=new Set();
     for(const it of items){
-      const key=[it.model,it.w,it.d,it.h,it.color,it.top,it.v,it.mx,it.z,it.geo?.key,it.open?.toFixed(2)].join('|');let o=objs.get(it.id);
+      const key=[it.model,it.w,it.d,it.h,it.color,it.top,it.v,it.mx,it.z,it.geo?.key,it.open?.toFixed(2),partsKey(it.parts)].join('|');let o=objs.get(it.id);
       if(!o||o.userData.key!==key){if(o){furn.remove(o);o.traverse(m=>m.isMesh&&m.geometry.dispose());}o=makeObject(it);o.userData.key=key;objs.set(it.id,o);furn.add(o);}
       // a built-in wardrobe (it.geo) is built directly in plan coordinates; it hides piece by piece, each wall has its own
       if(it.geo){o.position.set(0,0,0);o.rotation.y=0;o.userData.tall=false;}

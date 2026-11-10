@@ -1,6 +1,7 @@
 // Validate a file before it replaces the current project. Geometry errors can be fixed in the editor;
 // an invalid structure or an unknown version must not turn into an empty saved plan.
 import {migrate,PLAN_VERSION} from './plan.js';
+import {checkItem} from './parts.js';
 
 const obj=x=>x!==null&&typeof x==='object'&&!Array.isArray(x);
 const str=x=>typeof x==='string'&&x.length>0;
@@ -51,5 +52,7 @@ export function readPlan(text){
   if(p.scenes!=null){check(obj(p.scenes)&&Object.values(p.scenes).every(s=>obj(s)&&Object.values(s).every(v=>obj(v)&&typeof v.action==='string')));}
   optional(p,'panel',panel); // the overview layout
   if(p.view!=null){check(obj(p.view));check(Array.isArray(p.view.t)&&p.view.t.length===3&&p.view.t.every(Number.isFinite));check(point(p.view.fit));check(Number.isFinite(p.view.theta)&&Number.isFinite(p.view.phi));}
+  // an item from parts (model 'parts', parts.js) must be buildable; the message names the item and the first problem
+  for(const f of p.furniture||[])if(f.model==='parts'||f.parts!=null){const e=checkItem(f.parts);if(e.length)throw new Error(`Invalid plan file: furniture "${f.id}": ${e[0]}`);}
   return migrate(p);
 }
