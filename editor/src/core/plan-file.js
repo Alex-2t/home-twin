@@ -38,6 +38,8 @@ export function readPlan(text){
     }else check(point(o.a)&&point(o.b));
   }
   for(const f of p.furniture||[]){check(str(f.id)&&str(f.model));check(['x','y','w','d','h'].every(k=>Number.isFinite(f[k])));numbers(f,['rot','z']);optional(f,'top',str);}
+  // an item's color: a named one (catalog COLORS) or a custom #rrggbb; color2 — the second one (a rug's border)
+  for(const f of p.furniture||[])for(const k of ['color','color2'])optional(f,k,x=>typeof x==='string'&&(/^#[0-9a-f]{6}$/i.test(x)||/^[a-z]+$/.test(x)));
   for(const l of p.lights||[]){
     check(str(l.id));optional(l,'points',points);optional(l,'segments',x=>Array.isArray(x)&&x.every(s=>points(s)&&s.length===2));
     numbers(l,['h','count']);optional(l,'room',str);optional(l,'shade',str);optional(l,'name',x=>typeof x==='string');

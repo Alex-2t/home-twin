@@ -1,7 +1,8 @@
 // The “Furniture” mode: the catalog in the panel, dragging onto the plan, snapping back-to-wall, rotation, sizes.
 import {t} from '../../i18n/i18n.js';
 import {axisCursor} from '../drag-gesture.js';
-import {CATALOG,CATEGORIES,colorOf,TOP,TOPS,byId,zOf,colorsOf,nameOf,lArms} from '../../core/catalog.js';
+import {CATALOG,CATEGORIES,colorOf,TOP,TOPS,byId,zOf,colorsOf,nameOf,lArms,hexOf} from '../../core/catalog.js';
+import {isHex,cssHex,shadeHex,snapColor} from '../../core/color.js';
 import {GRID,axes,corners,localXY,snapToWall,inFoot,stackOf} from '../../core/layout.js';
 import {WALL,pointIn} from '../../core/geometry.js';
 import {isRun,runGeo,runAt,runSet,runStops,ring,faceOf,ringProject,syncRun,RUN_MIN} from '../../core/runs.js';
@@ -191,6 +192,15 @@ export function furnitureMode(ed){
     ctxPanel();stepBanner();
   };
   let more=false;const named=c=>c.id==='custom'||c.id==='parts';
+  // Colors: the model's swatches and a custom one (the color picker); a picked color practically equal to a swatch (ΔE < 3) selects that
+  // swatch. key: 'color', or 'color2' — a rug's border; not set, it is a shade darker than the field: the first swatch, split in two.
+  function swatches(f,c,key){const two=key==='color2',cur=two?f.color2:f.color??c.color,keys=colorsOf(c),hex=k=>colorOf(c,k)?.[1]??hexOf(k),out=[];
+    const set=v=>{if(v===cur)return;if(v==null)delete f[key];else f[key]=v;ed.commit();},main=hex(f.color??c.color),auto=shadeHex(main,.78);
+    if(two){const b=el(`<button class="sw ${cur?'':'on'}" title="${t('A shade darker than the rug')}" style="background:linear-gradient(135deg,${cssHex(main)} 50%,${cssHex(auto)} 50%)"></button>`);b.onclick=()=>set(null);out.push(b);}
+    for(const k of keys){const b=el(`<button class="sw ${k===cur?'on':''}" title="${esc(colorOf(c,k)[0])}" style="background:${cssHex(hex(k))}"></button>`);b.onclick=()=>set(k);out.push(b);}
+    const own=isHex(cur),pk=el(`<label class="sw own ${own?'on':''}" title="${t('Custom color')}"${own?` style="background:${cur}"`:''}><input type="color" value="${own?cur.toLowerCase():cssHex(cur?hex(cur):auto)}"></label>`);
+    pk.querySelector('input').onchange=e=>set(snapColor(e.target.value,keys.map(k=>[k,hex(k)])));out.push(pk);
+    return out;}
   function ctxPanel(){
     const f=find(sel().furn);if(!f){ed.showCtx(null);return;}
     const c=byId(f.model),cm=x=>Math.round(x*100),line=el(`<div class="line"><b>${esc(c.name)}</b></div>`);
@@ -201,13 +211,13 @@ export function furnitureMode(ed){
     const stack=stackOf(plan(),f);if(stack.length>1){const seg=el(`<span class="stack" title="${t('Stacked on top of each other — choose which one to edit')}"></span>`),own=line.firstChild;
       for(const g of stack){if(g===f&&named(c)){seg.append(own);continue;}const b=el(`<button class="chip ${g===f?'on':''}">${esc(nameOf(g))}</button>`);
         b.onclick=()=>{if(g!==f){more=false;ed.select('furn',g.id);}};seg.append(b);}
-      line.prepend(seg);if(own.parentNode===line)own.remove();}if(c.kind==='gen'&&c.color)line.appendChild(el('<span class="sep"></span>'));
-    if(c.kind==='gen'&&c.color)for(const k of colorsOf(c)){const [n,hex]=colorOf(c,k);const b=el(`<button class="sw ${k===f.color?'on':''}" title="${n}" style="background:#${hex.toString(16).padStart(6,'0')}"></button>`);b.onclick=()=>{f.color=k;ed.commit();};line.appendChild(b);}
+      line.prepend(seg);if(own.parentNode===line)own.remove();}if(c.kind==='gen'&&c.color)line.append(el('<span class="sep"></span>'),...swatches(f,c,'color'));
     const rot=el(`<button class="ib" title="${t('Rotate 90° (R)')}">${icon('rotate',15)}</button>`);rot.onclick=()=>{f.rot=(f.rot+90)%360;ed.commit();};
     const del=el(`<button class="ib bad" title="${t('Remove (Delete)')}">${icon('trash',15)}</button>`);del.onclick=()=>{plan().furniture=plan().furniture.filter(x=>x!==f);sel().furn=null;ed.commit();};
     if(!isRun(f))line.append(el('<span class="sep"></span>'),rot);
     if(c.mirror){const mb=el(`<button class="ib ${f.mx?'on':''}" title="${t('Mirror: left or right')}">${icon('swap',15)}</button>`);mb.onclick=()=>{f.mx=!f.mx;if(!f.mx)delete f.mx;ed.commit();};line.append(mb);}
     const lines=[line];
+    if(c.color2){const bl=el(`<div class="line opts"><small>${t('Border')}</small></div>`);bl.append(...swatches(f,c,'color2'));lines.push(bl);} // a rug's second color
     if(c.vars){const vl=el(`<div class="line opts"></div>`),cur=f.v||c.vars[0][0]; // variants of one object — as chips, like for a strip
       for(const [k,n] of c.vars){const b=el(`<button class="chip ${k===cur?'on':''}">${esc(n)}</button>`);b.onclick=()=>{if(k===cur)return;
         // a sofa bed unfolded — deeper toward the front, the backrest stays at the wall

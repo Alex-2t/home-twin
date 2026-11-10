@@ -10,6 +10,7 @@ import {HOMES} from '../../demo/homes.mjs';
 import {migrate} from './plan.js';
 import {validate,openingCoords,pointIn} from './geometry.js';
 import {byId,colorsOf} from './catalog.js';
+import {isHex} from './color.js';
 import {furnitureConflicts,setRoomArea} from './layout.js';
 import {autoPlace as autoLights} from './fixtures.js';
 import {recommend,orphans,isClimate,fitsAuto,roomOfArea} from './sensors.js';
@@ -40,7 +41,8 @@ for(const h of HOMES)test(h.title,async t=>{
     const bad=[];
     for(const f of plan.furniture){const c=byId(f.model);if(!c){bad.push(`${f.id}: no model “${f.model}” in the catalog`);continue;}
       if(c.min&&c.max)['w','d','h'].forEach((k,i)=>{if(f[k]<c.min[i]-1e-6||f[k]>c.max[i]+1e-6)bad.push(`${f.id} ${f.model}: ${k}=${f[k]} outside ${c.min[i]}…${c.max[i]}`);});
-      if(f.color&&!colorsOf(c).includes(f.color))bad.push(`${f.id} ${f.model}: no color “${f.color}”`);
+      for(const k of ['color','color2'])if(f[k]&&!isHex(f[k])&&!colorsOf(c).includes(f[k]))bad.push(`${f.id} ${f.model}: no color “${f[k]}”`); // or a custom #rrggbb
+      if(f.color2&&!c.color2)bad.push(`${f.id} ${f.model}: no second color`);
       if(f.v&&c.vars&&!c.vars.some(v=>v[0]===f.v))bad.push(`${f.id} ${f.model}: no variant “${f.v}”`);}
     const ids=plan.furniture.map(f=>f.id);bad.push(...ids.filter((id,i)=>ids.indexOf(id)!==i).map(id=>`${id}: repeated id`));
     assert.deepEqual([...bad,...conflicts(plan)],[]);});

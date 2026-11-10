@@ -22,6 +22,13 @@ test('foreign JSON, invalid data and future versions are rejected before opening
     p=>p.lights=[{id:'l',was:{s:'broken'}}],p=>p.openings[0].at.edge=99,p=>p.openings[0].at.s0=null,p=>p.sensors=[{id:'s',at:1}],p=>p.onboarding={steps:null},p=>p.view={t:[0,0,0],fit:2}];
   for(const change of bad){const p=plan();change(p);assert.throws(()=>readPlan(JSON.stringify(p)));}
 });
+test('furniture colors: named and custom #rrggbb (a rug also has a border color) are kept; malformed ones are rejected',()=>{
+  const rug={id:'f',model:'rug',x:2,y:2,w:2,d:1.4,h:.012,rot:0},p=plan();
+  p.furniture=[{...rug,color:'#b8b1a5',color2:'#978E80'},{...rug,id:'g',model:'bed',color:'oak'},{...rug,id:'h',model:'tv'}];
+  assert.deepEqual(readPlan(JSON.stringify(p)),p);
+  for(const bad of ['#b8b1a','#b8b1a5ff','b8b1a5','#gggggg','rgb(1,2,3)','Oak','',5,true,{}])for(const k of ['color','color2']){
+    const q=plan();q.furniture=[{...rug,[k]:bad}];assert.throws(()=>readPlan(JSON.stringify(q)),`${k}: ${JSON.stringify(bad)}`);}
+});
 test('overlapping rooms can be opened and fixed; the file check does not replace the geometry check',()=>{
   const p=plan();p.rooms.push({...p.rooms[0],id:'overlap'});assert.equal(readPlan(JSON.stringify(p)).rooms.length,2);
 });

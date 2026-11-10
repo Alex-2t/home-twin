@@ -4,7 +4,8 @@ import * as THREE from 'three';
 import {RoundedBoxGeometry} from 'three/addons/geometries/RoundedBoxGeometry.js';
 import {GLTFLoader} from 'three/addons/loaders/GLTFLoader.js';
 import {mergeGeometries} from 'three/addons/utils/BufferGeometryUtils.js';
-import {CATALOG,COLORS,TOPS,byId,zOf,lArms,extOf} from './catalog.js';
+import {CATALOG,COLORS,TOPS,byId,zOf,lArms,extOf,hexOf} from './catalog.js';
+import {isHex} from './color.js';
 import {runShape} from './runs.js';
 import {car as car3d} from './car3d.js';
 import {checkItem,buildItem} from './parts.js';
@@ -13,22 +14,24 @@ import {checkItem,buildItem} from './parts.js';
 const mats=new Map();
 const mat=(color,rough=.62,metal=0)=>{const k=color+':'+rough+':'+metal;if(!mats.has(k))mats.set(k,new THREE.MeshStandardMaterial({color,roughness:rough,metalness:metal}));return mats.get(k);};
 // metal by color key: chrome and steel are shiny, the rest is painted
-const finish=k=>k==='chrome'?mat(COLORS.chrome[1],.14,.9):k==='steel'?mat(COLORS.steel[1],.3,.75):mat(COLORS[k]?.[1]??0xeeebe6,k==='black'?.4:.32);
+const finish=k=>k==='chrome'?mat(COLORS.chrome[1],.14,.9):k==='steel'?mat(COLORS.steel[1],.3,.75):mat(hexOf(k),k==='black'?.4:.32);
 const shade=(c,k)=>new THREE.Color(c).multiplyScalar(k).getHex();
+// A named color this item draws in its own tone (an appliance white is not the furniture white); any other color, a custom #rrggbb too, as it is.
+const tone=(k,own)=>own[k]??hexOf(k);
 function part(g,w,h,d,m,x,y,z,r=.006){ // y is the bottom of the part
   const mesh=new THREE.Mesh(new RoundedBoxGeometry(w,h,d,2,Math.min(r,w/2-1e-4,h/2-1e-4,d/2-1e-4)),m);
   mesh.position.set(x,y+h/2,z);mesh.castShadow=mesh.receiveShadow=true;g.add(mesh);return mesh;
 }
 // Common table construction: a tabletop and four legs.
 function table(g,{w,d,h,color},thickness=.04){
-  const m=mat(COLORS[color][1]);
+  const m=mat(hexOf(color));
   part(g,w,thickness,d,m,0,h-thickness,0,.012);
   for(const x of [-1,1])for(const z of [-1,1])
     part(g,.045,h-thickness,.045,m,x*(w/2-.055),0,z*(d/2-.055));
 }
 // Carcass with separate drawers; proportions are kept when resizing.
 function drawers(g,{w,d,h,color},rows=3,base=.08){
-  const c=COLORS[color][1],m=mat(c);
+  const c=hexOf(color),m=mat(c);
   if(base)part(g,w-.08,base,d-.08,mat(shade(c,.6)),0,0,0);
   part(g,w,h-base,d-.02,mat(shade(c,.8)),0,base,-.01);
   const dh=(h-base)/rows;
@@ -50,11 +53,16 @@ function frustum(w,h,d,tw,td,tz){const geo=new THREE.BoxGeometry(w,h,d),a=geo.at
   geo.computeVertexNormals();return geo;}
 // TOP(k): the kitchen worktop (catalog TOPS, item.top): gray stone by default, white quartz, oak, walnut, black stone
 const CERAMIC=()=>mat(0xf6f5f0,.22),CHROME=()=>finish('chrome'),METAL=()=>mat(0xb9bcc0,.3),TOP=k=>mat(...(TOPS[k]||TOPS.stone).slice(1));
+// Sanitary ware (toilet, bidet, washbasin, bathtubs): white ceramic, black or any other color glazed; inside — the floor of the bowl or tub.
+const glaze=k=>!k||k==='white'?0xf6f5f0:k==='black'?0x2a2b2e:hexOf(k),ceramic=k=>mat(glaze(k),!k||k==='white'?.22:k==='black'?.3:.25);
+const inside=(k,white,rough)=>mat(!k||k==='white'?white:shade(glaze(k),1.04),rough);
+// Appliances and devices: their own white, any other color painted (steel and chrome shiny); a panel on the front a little lighter.
+const enamel=(k,white,rough=.3)=>k==='white'?mat(white,rough):finish(k),panel=(k,white)=>k==='white'?white:shade(hexOf(k),1.05);
 const GLASS=new THREE.MeshStandardMaterial({color:0xd6e6ec,roughness:.05,transparent:true,opacity:.22,depthWrite:false,side:THREE.DoubleSide});
 const glass=mesh=>{mesh.castShadow=false;return mesh;};
 // Kitchen base unit: recessed plinth, carcass, overhanging countertop — shared by all units, so a row reads as one kitchen.
 const KB={P:.1,T:.038};
-function kitBase(g,{w,d,h,color='white',top:tk},{top=true,body=true}={}){const c=COLORS[color][1],{P,T}=KB;
+function kitBase(g,{w,d,h,color='white',top:tk},{top=true,body=true}={}){const c=hexOf(color),{P,T}=KB;
   part(g,w,P,d-.09,mat(0x2c2d30,.7),0,0,-.045,.002);
   if(body)part(g,w,h-T-P,d-.05,mat(shade(c,.82)),0,P,-.025,.003);
   if(top)part(g,w,T,d,TOP(tk),0,h-T,0,.004);
@@ -70,7 +78,7 @@ function oven(g,w,y,F){const fr=mat(0x2a2c30,.3);part(g,w-.008,.595,.02,fr,0,y,F
 // Sofas and armchair: legs, frame rail, armrests and cushions as separate soft blocks; cushions ~70 cm each, throw pillows in a contrasting color.
 // Seat at 45 cm, armrest up to 62 cm, back at the full height h.
 const SOFA={leg:.1,base:.2,seat:.15,back:.17};
-function softMats(color){const c=COLORS[color]?.[1]??COLORS.grey[1],lum=((c>>16&255)*.3+(c>>8&255)*.59+(c&255)*.11)/255;
+function softMats(color){const c=hexOf(color,COLORS.grey[1]),lum=((c>>16&255)*.3+(c>>8&255)*.59+(c&255)*.11)/255;
   return {fab:mat(c,.95),frame:mat(shade(c,.88),.96),cush:mat(shade(c,1.05),.93),leg:mat(0x2f2620,.45),pil:mat(lum>.5?0x59606b:0xe4dccd,.95),pil2:mat(lum>.5?0xb98d55:0xc7b08b,.95)};}
 const sofaLegs=(g,M,pts)=>{for(const [x,z] of pts)cyl(g,.022,SOFA.leg,M.leg,x,0,z,{rb:.015,seg:12});};
 const seatTop=SOFA.leg+SOFA.base+SOFA.seat;
@@ -131,10 +139,10 @@ function bowlTop(g,{w,d,y,T,bw,bd,bx=0,bz=0,dep,top,bowl}){const L=bx-bw/2+w/2,R
   part(g,bw,.01,bd,bowl,bx,y+T-dep,bz,.004);for(const s of [-1,1]){part(g,.01,dep,bd,bowl,bx+s*(bw/2-.005),y+T-dep,bz,.003);part(g,bw,dep,.01,bowl,bx,y+T-dep,bz+s*(bd/2-.005),.003);}}
 // Faucet on the ledge behind the basin: base, body, forward spout, lever.
 function faucet(g,x,y,z,reach=.11,m=CHROME()){cyl(g,.02,.025,m,x,y,z);cyl(g,.014,.14,m,x,y+.025,z);cyl(g,.012,reach,m,x,y+.15,z+reach/2,{axis:'z'});cyl(g,.01,.03,m,x,y+.125,z+reach-.005);part(g,.012,.012,.07,m,x,y+.165,z-.035,.004);}
-const sideM=c=>c==='chrome'?CHROME():c==='black'?mat(0x27282b,.4,.3):c==='white'?mat(0xf2f2f0,.4):mat(COLORS[c]?.[1]??0x888888,.5);
+const sideM=c=>c==='chrome'?CHROME():c==='black'?mat(0x27282b,.4,.3):c==='white'?mat(0xf2f2f0,.4):mat(hexOf(c,0x888888),.5);
 const BINC=[0x6c8f5a,0x4f6d9a,0xc9a24a];
 // Wide refrigerator: side-by-side (narrower freezer on the left, two full-height doors, dispenser) or French door (two doors on top, a drawer below).
-function wideFridge(g,{w,d,h,color='white',v}){const c=COLORS[color][1],mt=color==='steel'?.6:0,side=mat(shade(c,.92),.46,mt),fr=mat(c,.3,mt),seal=mat(0x373b40,.8),hm=mat(0xc9cdd1,.2,.8),D=.05,z=d/2-D/2;
+function wideFridge(g,{w,d,h,color='white',v}){const c=hexOf(color),mt=color==='steel'?.6:0,side=mat(shade(c,.92),.46,mt),fr=mat(c,.3,mt),seal=mat(0x373b40,.8),hm=mat(0xc9cdd1,.2,.8),D=.05,z=d/2-D/2;
   part(g,w-.07,.035,d-.08,seal,0,0,0,.008);part(g,w,h-.035,d-D,side,0,.035,-D/2,.02);part(g,w-.012,h-.05,.006,seal,0,.04,d/2-D,.002);
   const bar=(x,y0,y1)=>{cyl(g,.012,y1-y0,hm,x,y0,d/2+.03,{seg:12});for(const y of [y0+.01,y1-.01])cyl(g,.008,.03,hm,x,y,d/2+.012,{axis:'z',seg:8});};
   if(v==='sbs'){const xl=-w/2+w*.42;part(g,w*.42-.008,h-.05,D-.004,fr,(-w/2+xl)/2,.04,z,.014);part(g,w*.58-.008,h-.05,D-.004,fr,(xl+w/2)/2,.04,z,.014);
@@ -248,7 +256,7 @@ const GEN={
   // Our own generic model: two compartments, recessed handles, no brand and no external assets.
   // The bounding box includes the doors; all parts stay within w/d/h for an accurate plan.
   fridge(g,p){const {w,d,h,color='white',v}=p;if(v==='sbs'||v==='french'){wideFridge(g,p);return;}
-    const c=COLORS[color][1],mt=color==='steel'?.6:0,enamel=mat(c,.38,mt),side=mat(shade(c,.92),.48,mt),seal=mat(0x373b40,.8);
+    const c=hexOf(color),mt=color==='steel'?.6:0,enamel=mat(c,.38,mt),side=mat(shade(c,.92),.48,mt),seal=mat(0x373b40,.8);
     const foot=.035,door=.045,gap=.009,split=h*.34;
     part(g,w-.07,foot,d-.08,seal,0,0,0,.008);
     part(g,w,h-foot,d-door,side,0,foot,-door/2,.018);
@@ -266,9 +274,9 @@ const GEN={
   },
   dresser(g,p){drawers(g,p,3);},
   tvStand(g,p){
-    const {w,d,h,color}=p,m=mat(COLORS[color][1]);
+    const {w,d,h,color}=p,m=mat(hexOf(color));
     // wall-hung (above the floor) — a carcass without legs, a row of flap fronts
-    if(zOf(p)>0){const c=COLORS[color][1],n=Math.max(2,Math.round(w/.6)),gap=.004,dw=(w-gap*(n+1))/n;part(g,w,h,d-.02,mat(shade(c,.85),.55),0,0,-.01,.006);
+    if(zOf(p)>0){const c=hexOf(color),n=Math.max(2,Math.round(w/.6)),gap=.004,dw=(w-gap*(n+1))/n;part(g,w,h,d-.02,mat(shade(c,.85),.55),0,0,-.01,.006);
       for(let i=0;i<n;i++){const x=-w/2+gap+dw/2+i*(dw+gap);part(g,dw,h-.008,.018,m,x,.004,d/2-.009,.003);}return;}
     table(g,p);
     part(g,w-.08,.025,d-.04,m,0,.12,0);
@@ -276,25 +284,25 @@ const GEN={
     part(g,w-.08,h-.16,.012,m,0,.12,-d/2+.02);
   },
   diningTable(g,p){table(g,p);},
-  console(g,p){table(g,p);part(g,p.w-.12,.02,p.d-.08,mat(COLORS[p.color][1]),0,.18,0);},
+  console(g,p){table(g,p);part(g,p.w-.12,.02,p.d-.08,mat(hexOf(p.color)),0,.18,0);},
   // Bench: a wooden top on four legs; upholstered — a padded seat in the color on dark wooden legs (a hall or dining banquette)
-  bench(g,p){if(p.v!=='upholstered'){table(g,p,.07);return;}const {w,d,h,color}=p,c=COLORS[color][1],leg=mat(0x3a2f26,.6);
+  bench(g,p){if(p.v!=='upholstered'){table(g,p,.07);return;}const {w,d,h,color}=p,c=hexOf(color),leg=mat(0x3a2f26,.6);
     for(const x of [-1,1])for(const z of [-1,1])part(g,.04,.12,.04,leg,x*(w/2-.06),0,z*(d/2-.06),.01);
     part(g,w,h-.12,d,mat(c,.92),0,.12,0,.05);part(g,w-.02,.04,d-.02,mat(shade(c,1.05),.94),0,h-.04,0,.02);},
   ottoman(g,{w,d,h,color}){
-    const c=COLORS[color][1];
+    const c=hexOf(color);
     part(g,w-.08,.06,d-.08,mat(shade(c,.55)),0,0,0);
     part(g,w,h-.12,d,mat(c,.95),0,.06,0,.07);
     part(g,w,.065,d,mat(shade(c,1.08),.95),0,h-.065,0,.03);
   },
   shoeCabinet(g,p){drawers(g,p,3);},
   bathShelf(g,p){
-    const {w,d,h,color}=p,m=mat(COLORS[color][1]);
+    const {w,d,h,color}=p,m=mat(hexOf(color));
     for(const x of [-1,1])for(const z of [-1,1])part(g,.025,h,.025,m,x*(w/2-.013),0,z*(d/2-.013));
     for(let i=0;i<5;i++)part(g,w,.025,d,m,0,.08+i*(h-.105)/4,0);
   },
   // Vanity unit: two drawers, a ceramic countertop with a basin and a faucet on top; wall-hung — no plinth, the floor beneath it stays free.
-  vanity(g,p){const {w,d,h,v,color}=p,c=COLORS[color][1],body=mat(shade(c,.85)),front=mat(c,.5),mt=mat(0x2b2c2f,.4,.4),cer=CERAMIC(),wall=v==='wall',y0=wall?Math.min(.35,h*.4):.08,T=.04,dep=.14,y=h-T;
+  vanity(g,p){const {w,d,h,v,color}=p,c=hexOf(color),body=mat(shade(c,.85)),front=mat(c,.5),mt=mat(0x2b2c2f,.4,.4),cer=CERAMIC(),wall=v==='wall',y0=wall?Math.min(.35,h*.4):.08,T=.04,dep=.14,y=h-T;
     if(!wall)part(g,w-.08,.08,d-.08,mat(shade(c,.6)),0,0,0,.002);
     part(g,w,y-dep-.01-y0,d-.03,body,0,y0,-.015,.004);for(const s2 of [-1,1])part(g,.018,y-y0,d-.03,body,s2*(w/2-.009),y0,-.015,.002);part(g,w,y-y0,.018,body,0,y0,-d/2+.009,.002);
     const fh=(y-y0-.012)/2;for(let i=0;i<2;i++){const yy=y0+.004+i*(fh+.004);part(g,w-.008,fh,.018,front,0,yy,d/2-.024,.003);part(g,Math.min(.3,w*.4),.01,.014,mt,0,yy+fh-.05,d/2-.008,.004);}
@@ -303,7 +311,7 @@ const GEN={
       cyl(q,.017,.003,CHROME(),0,y+T-dep+.012,bz+.03,{seg:20});faucet(q,0,h,-d/2+bk/2);}
   },
   wardrobe(g,{w,d,h,color,v}){
-    const c=COLORS[color][1],body=mat(shade(c,.82)),front=mat(c,.55),metal=mat(0x3c3e42,.4);
+    const c=hexOf(color),body=mat(shade(c,.82)),front=mat(c,.55),metal=mat(0x3c3e42,.4);
     part(g,w-.04,.06,d-.05,mat(shade(c,.6)),0,0,-.02,.002);
     part(g,w,h-.06,d-.02,body,0,.06,-.01,.004);
     // sliding: doors overlapping in two rows, rails at the top and bottom, full-height profile handles
@@ -318,7 +326,7 @@ const GEN={
   // Shelving unit: sides, a back, shelves every ~36 cm. Filled by variant: books — rows of colorful books; styled — muted books in groups,
   // a lying stack, ceramic vases and a basket, with air between them; boxes — storage boxes (a garage, a utility room); empty.
   shelf(g,{w,d,h,color,v='books'}){
-    const c=COLORS[color][1],m=mat(c),t=.018;
+    const c=hexOf(color),m=mat(c),t=.018;
     part(g,t,h,d,m,-w/2+t/2,0,0);part(g,t,h,d,m,w/2-t/2,0,0);part(g,w,h,.006,mat(shade(c,.85)),0,0,-d/2+.003,.001);
     const n=Math.max(2,Math.round(h/.36));let s=Math.round(w*1000+h*100);const rnd=()=>((s=Math.imul(s^s>>>15,1|s)+0x6D2B79F5|0)>>>0)/4294967296;
     const BOOK=[0x8c3b2e,0x2f4f6b,0xc9a24a,0x4f6b4a,0xd8d2c4,0x6b4a6b],MUTED=[0xd9d1c3,0xc1a785,0x3e4b60,0xa8644b,0x737c5c,0x2b2c2f,0xe9e2d4,0x8d9095],
@@ -340,9 +348,9 @@ const GEN={
   },
   // Bed: a base, mattress, duvet, pillows and a headboard. Upholstered (the default): in a fabric color the whole bed is upholstered
   // in it, in a wood color the frame is wood and the headboard a neutral fabric. Wooden: a solid headboard in the frame color with
-  // vertical joints and a capping rail.
+  // vertical joints and a capping rail. A custom color is fabric on the upholstered bed and wood on the wooden one.
   bed(g,{w,d,h,color,v}){
-    const c=COLORS[color][1],soft=SOFT_BED.has(color),frame=soft?mat(c,.9):mat(c),fabric=soft?mat(shade(c,1.04),.92):mat(0xd2cabb,.9),
+    const c=hexOf(color),soft=SOFT_BED.has(color)||isHex(color)&&v!=='wood',frame=soft?mat(c,.9):mat(c),fabric=soft?mat(shade(c,1.04),.92):mat(0xd2cabb,.9),
       linen=mat(0xf1eee8,.85),duvet=mat(0xdcd6cb,.9),leg=soft?mat(0x3a2f26,.6):mat(shade(c,.7));
     for(const [sx,sz] of [[-1,-1],[1,-1],[-1,1],[1,1]])part(g,.05,.08,.05,leg,sx*(w/2-.06),0,sz*(d/2-.06),.01);
     part(g,w,.24,d-.06,frame,0,.08,.03,soft?.03:.012);
@@ -355,7 +363,7 @@ const GEN={
     else{part(g,w,h-.08,.09,fabric,0,.08,-d/2+.045,.03);if(soft)for(const sx of (w>1.2?[-1,1]:[0]))part(g,w>1.2?w/2-.04:w-.08,h-.32,.03,mat(shade(c,.97),.95),sx*(w>1.2?w/4:0),.3,-d/2+.1,.015);}
   },
   nightstand(g,p){const {w,d,h,color}=p,L=zOf(p)>0?0:.06; // wall-hung — no legs
-    const c=COLORS[color][1],body=mat(shade(c,.85)),front=mat(c,.55),metal=mat(0x3c3e42,.4);
+    const c=hexOf(color),body=mat(shade(c,.85)),front=mat(c,.55),metal=mat(0x3c3e42,.4);
     if(L)for(const [sx,sz] of [[-1,-1],[1,-1],[-1,1],[1,1]])part(g,.025,L,.025,metal,sx*(w/2-.03),0,sz*(d/2-.03),.005);
     part(g,w,h-L,d-.02,body,0,L,-.01,.006);
     const fh=(h-L-.012)/2;for(let i=0;i<2;i++){const y=L+.004+i*(fh+.004);part(g,w-.008,fh,.016,front,0,y,d/2-.008,.003);part(g,.08,.01,.012,metal,0,y+fh*.6,d/2+.006,.004);}
@@ -363,7 +371,7 @@ const GEN={
   // Kitchen: plinth recessed under the fronts, overhanging countertop; fronts in ~60 cm modules, bar handles.
   // The hob is no longer part of “Base cabinets” — it is a separate unit, like the sink and the dishwasher.
   // kitchen base and wall cabinets are wall-run items: their look is in RUN_LOOK below
-  tv(g,{w,d,h}){part(g,w,h,d,mat(0x1b1c1f,.35),0,0,0,.006);part(g,w-.024,h-.024,.004,mat(0x07080b,.12),0,.012,d/2,.001);},
+  tv(g,{w,d,h,color}){part(g,w,h,d,color==='black'?mat(0x1b1c1f,.35):finish(color),0,0,0,.006);part(g,w-.024,h-.024,.004,mat(0x07080b,.12),0,.012,d/2,.001);},
   // Sink: a cutout in the countertop with a bowl beneath; from 80 cm — bowl on the left and a drainer on the right. The carcass is lower so the bowl is visible.
   kitchenSink(g,p){if(p.v==='two'){sinkTwo(g,p);return;}const {w,d,h}=p,{P,T}=KB,k=kitBase(g,p,{top:false,body:false}),body=mat(shade(k.c,.82)),top=TOP(p.top),steel=mat(0xb4b8bc,.26);
     const bw=Math.min(w-.16,.5),bd=Math.min(d-.2,.42),bx=w>=.8?-w/2+.08+bw/2:0,bz=.02,dep=.18;
@@ -398,7 +406,7 @@ const GEN={
     part(g,w-.008,y-k.y0-.006,.018,k.front,0,k.y0+.003,k.F-.009,.003);part(g,Math.min(.3,w*.5),.012,.018,k.metal,0,y-.06,k.F+.009,.005);
   },
   // Corner cabinet: L-shaped — one arm along the back wall and one along the left (mirrored — the right), fronts facing into the corner.
-  kitchenCorner(g,p){const {w,d,h,color}=p,c=COLORS[color][1],{P,T}=KB,{back:A,side:S}=lArms(p),body=mat(shade(c,.82)),pl=mat(0x2c2d30,.7),top=TOP(p.top),front=mat(c,.5),metal=METAL();
+  kitchenCorner(g,p){const {w,d,h,color}=p,c=hexOf(color),{P,T}=KB,{back:A,side:S}=lArms(p),body=mat(shade(c,.82)),pl=mat(0x2c2d30,.7),top=TOP(p.top),front=mat(c,.5),metal=METAL();
     const L=-w/2,B=-d/2,H=h-T-P,gap=.004;
     part(g,w,P,A-.09,pl,0,0,B+(A-.09)/2,.002);part(g,S-.09,P,d-A+.09,pl,L+(S-.09)/2,0,B+A-.09+(d-A+.09)/2,.002);
     part(g,w,H,A-.05,body,0,P,B+(A-.05)/2,.003);part(g,S-.05,H,d-A+.05,body,L+(S-.05)/2,P,B+A-.05+(d-A+.05)/2,.003);
@@ -409,7 +417,7 @@ const GEN={
     part(g,.018,H-.006,ls,front,fl,P+.003,zc,.003);part(g,.018,.012,Math.min(.3,ls*.5),metal,fl+.018,h-T-.07,zc,.005);
   },
   // Tall unit: a tall cabinet reaching up to the overhead storage; two doors or an oven at eye level.
-  kitchenTall(g,{w,d,h,color,v}){const c=COLORS[color][1],{P}=KB,F=d/2-.032,body=mat(shade(c,.82)),front=mat(c,.5),metal=METAL();
+  kitchenTall(g,{w,d,h,color,v}){const c=hexOf(color),{P}=KB,F=d/2-.032,body=mat(shade(c,.82)),front=mat(c,.5),metal=METAL();
     part(g,w,P,d-.09,mat(0x2c2d30,.7),0,0,-.045,.002);part(g,w,h-P,d-.05,body,0,P,-.025,.003);
     const door=(y0,y1,hy)=>{part(g,w-.008,y1-y0-.006,.018,front,0,y0+.003,F-.009,.003);part(g,.012,Math.min(.25,(y1-y0)*.4),.018,metal,w/2-.05,hy,F+.009,.005);};
     if(v==='oven'){const oy=Math.min(.85,h-.9);door(P,oy-.003,oy-.3);oven(g,w,oy,F);door(oy+.598,h,oy+.62);}
@@ -426,7 +434,7 @@ const GEN={
   },
   // ---------- bathroom ----------
   // Toilet: the bowl is an ellipse sized to fit, floor-standing with a cistern or wall-hung on an installation frame box (height is the top of the cistern or box).
-  toilet(g,{w,d,h,v,color='white'}){const blk=color==='black',cer=blk?mat(0x2a2b2e,.3):CERAMIC(),seat=blk?mat(0x323337,.35):mat(0xfbfaf7,.3),ch=CHROME(),wall=v==='wall',back=wall?.16:.17;
+  toilet(g,{w,d,h,v,color='white'}){const blk=color==='black',cer=ceramic(color),seat=blk?mat(0x323337,.35):color==='white'?mat(0xfbfaf7,.3):mat(shade(glaze(color),1.05),.3),ch=CHROME(),wall=v==='wall',back=wall?.16:.17;
     const z0=-d/2+(wall?back:back-.04),bl=d/2-z0,zc=(z0+d/2)/2,bw=Math.min(w,.4); // bowl no wider than 40 cm, the installation box spans the full width
     if(wall){part(g,w,h,back,mat(0xdedbd5,.7),0,0,-d/2+back/2,.004);part(g,Math.min(.24,w*.65),.15,.01,ch,0,Math.max(.45,Math.min(h-.2,1)),-d/2+back+.005,.004);
       cyl(g,.5,.2,cer,0,.18,zc,{rb:.3,sx:bw*.96,sz:bl});}
@@ -435,10 +443,10 @@ const GEN={
     cyl(g,.5,.018,seat,0,.38,zc+.005,{sx:bw*.98,sz:bl*.97});cyl(g,.5,.014,seat,0,.398,zc,{sx:bw*.92,sz:bl*.9});
   },
   // Bathtub: rim, bottom and panel in one white; faucet on the rim by the wall.
-  bath(g,{w,d,h}){const cer=CERAMIC(),t=.07,ch=CHROME();
+  bath(g,{w,d,h,color}){const cer=ceramic(color),t=.07,ch=CHROME();
     part(g,w,.14,d,cer,0,0,0,.01);
     for(const s of [-1,1]){part(g,w,h-.14,t,cer,0,.14,s*(d/2-t/2),.02);part(g,t,h-.14,d-2*t,cer,s*(w/2-t/2),.14,0,.02);}
-    part(g,w-2*t,.004,d-2*t,mat(0xefeee9,.16),0,.14,0,.001);cyl(g,.025,.004,ch,w/2-t-.1,.144,0);
+    part(g,w-2*t,.004,d-2*t,inside(color,0xefeee9,.16),0,.14,0,.001);cyl(g,.025,.004,ch,w/2-t-.1,.144,0);
     const x=w/2-.18,z=-d/2+t/2;cyl(g,.02,.08,ch,x,h,z);cyl(g,.014,.14,ch,x,h+.06,z+.07,{axis:'z'});part(g,.1,.014,.014,ch,x,h+.05,z,.005);
   },
   // Shower cabin: tray, glass in front and on the right (walls at the back and left; mirrored — on the right), a riser rail with a hand shower at the back wall.
@@ -488,17 +496,17 @@ const GEN={
   },
   // ---------- bathroom, continued ----------
   // Washbasin: a rectangular bowl with a faucet ledge; wall-mounted with a trap, or on a pedestal.
-  basin(g,{w,d,h,v}){const cer=CERAMIC(),ch=CHROME(),T=.15,y=h-T,t=.028,bk=.09,zc=(-d/2+bk+d/2-t)/2,iz=d-bk-t;
+  basin(g,{w,d,h,v,color}){const cer=ceramic(color),ch=CHROME(),T=.15,y=h-T,t=.028,bk=.09,zc=(-d/2+bk+d/2-t)/2,iz=d-bk-t;
     part(g,w,.04,d,cer,0,y,0,.014);part(g,w,T,bk,cer,0,y,-d/2+bk/2,.02);part(g,w,T,t,cer,0,y,d/2-t/2,.014);
     for(const s of [-1,1])part(g,t,T,iz+.004,cer,s*(w/2-t/2),y,zc,.014);
-    part(g,w-2*t,.004,iz,mat(0xeeede8,.14),0,y+.04,zc,.001);cyl(g,.017,.003,ch,0,y+.044,zc+.03,{seg:20});
+    part(g,w-2*t,.004,iz,inside(color,0xeeede8,.14),0,y+.04,zc,.001);cyl(g,.017,.003,ch,0,y+.044,zc+.03,{seg:20});
     const fz=-d/2+bk/2;cyl(g,.022,.025,ch,0,h,fz);cyl(g,.014,.13,ch,0,h+.025,fz);cyl(g,.012,.11,ch,0,h+.15,fz+.05,{axis:'z'});cyl(g,.01,.03,ch,0,h+.125,fz+.1);
     part(g,.012,.012,.07,ch,0,h+.16,fz-.04,.004);
     if(v==='pedestal')box(g,frustum(.19,y,.16,.15,.12,-.02),cer,0,0,-d/2+.13);
     else{cyl(g,.012,.07,ch,0,y-.07,zc+.03);cyl(g,.032,.13,ch,0,y-.2,zc+.03,{rb:.03});cyl(g,.012,zc+.03+d/2,ch,0,y-.11,(zc+.03-d/2)/2,{axis:'z'});}
   },
   // Mirror cabinet: carcass, mirrored doors (one, two or three across the width), lighting underneath.
-  mirrorCabinet(g,{w,d,h,color}){const c=COLORS[color][1],body=mat(shade(c,.9)),mir=mat(0xeef3f6,.04,.8),n=w<.7?1:w<1.05?2:3,gap=.004,dw=(w-gap*(n+1))/n;
+  mirrorCabinet(g,{w,d,h,color}){const c=hexOf(color),body=mat(shade(c,.9)),mir=mat(0xeef3f6,.04,.8),n=w<.7?1:w<1.05?2:3,gap=.004,dw=(w-gap*(n+1))/n;
     part(g,w,h,d-.02,body,0,0,-.01,.004);
     for(let i=0;i<n;i++){const x=-w/2+gap+dw/2+i*(dw+gap);part(g,dw,h-.008,.018,mat(c,.5),x,.004,d/2-.009,.003);part(g,dw-.024,h-.032,.004,mir,x,.016,d/2+.001,.001);}
     part(g,w-.06,.006,.02,glow(0xfff2dc),0,-.004,d/2-.05,.002);
@@ -513,7 +521,7 @@ const GEN={
   },
   // ---------- climate ----------
   // Radiator: sectional (fins) or panel (smooth front, grille on top); pipes to the floor and a thermostatic head on the right.
-  radiator(g,p){const {w,d,h,v,color='white'}=p;const c=COLORS[color][1],m=mat(c,.38),dk=mat(shade(c,.72),.55),ch=CHROME(),lift=zOf(p);
+  radiator(g,p){const {w,d,h,v,color='white'}=p;const c=hexOf(color),m=mat(c,.38),dk=mat(shade(c,.72),.55),ch=CHROME(),lift=zOf(p);
     if(v==='panel'){part(g,w,h,d*.42,m,0,0,d/2-d*.21,.006);part(g,w-.004,h-.01,d*.4,m,0,.005,-d/2+d*.2+.008,.004);
       for(let y=.05;y<h-.03;y+=.045)part(g,w-.012,.003,.002,dk,0,y,d/2+.0005,.001);
       part(g,w-.02,.004,d-.02,mat(0x3a3c40,.6),0,h-.003,0,.001);for(const s of [-1,1])part(g,.006,h-.02,d-.01,m,s*(w/2-.003),.01,0,.002);}
@@ -523,8 +531,8 @@ const GEN={
     cyl(g,.016,.05,ch,w/2-.05,-.03,-d/2+.025,{axis:'z',seg:16});cyl(g,.026,.06,mat(0xf3f3f1,.4),w/2-.05,-.03,-d/2+.08,{axis:'z'});
   },
   // Wall-mounted air conditioner: rounded body, front panel, a louvered slot at the bottom, indicator, grille on top.
-  aircon(g,{w,d,h}){const wh=mat(0xf5f5f3,.3),dk=mat(0x2b2e32,.55);
-    part(g,w,h,d,wh,0,0,0,.04);part(g,w-.012,h*.6,.006,mat(0xfbfbf9,.22),0,h*.37,d/2+.001,.005);
+  aircon(g,{w,d,h,color}){const wh=enamel(color,0xf5f5f3),dk=mat(0x2b2e32,.55);
+    part(g,w,h,d,wh,0,0,0,.04);part(g,w-.012,h*.6,.006,mat(panel(color,0xfbfbf9),.22),0,h*.37,d/2+.001,.005);
     part(g,w-.1,.03,d*.5,dk,0,-.001,d*.16,.008);const fl=part(g,w-.11,.006,.075,wh,0,.012,d/2-.03,.002);fl.rotation.x=.45;
     part(g,.045,.01,.003,glow(0x7fd9ff),w/2-.11,h*.3,d/2+.004,.002);part(g,.012,.01,.003,glow(0x9cf0b0),w/2-.17,h*.3,d/2+.004,.002);
     for(let i=0;i<5;i++)part(g,w-.1,.003,.012,mat(0xd9dad7,.5),0,h-.002,-d/2+.035+i*.03,.001);
@@ -532,7 +540,7 @@ const GEN={
   // ---------- windows ----------
   // Curtains: a rod, full-width sheer and two drapes — closed (meeting in the middle) or open (gathered at the edges). Height is to the rod.
   // open (0…1) — for curtains from HA (D-048): how far open; the drapes gather toward the edges and the folds get deeper.
-  curtains(g,{w,d,h,v,color='linen',open}){const c=COLORS[color][1],cloth=new THREE.MeshStandardMaterial({color:c,roughness:.96,side:THREE.DoubleSide}),
+  curtains(g,{w,d,h,v,color='linen',open}){const c=hexOf(color),cloth=new THREE.MeshStandardMaterial({color:c,roughness:.96,side:THREE.DoubleSide}),
     tulle=new THREE.MeshStandardMaterial({color:0xfbfaf6,roughness:.9,transparent:true,opacity:.4,side:THREE.DoubleSide,depthWrite:false}),rod=mat(0x3b3c3f,.35,.5);
     const yr=h-.035,zr=d/2-.03,zc=zr-.035,zt=-d/2+.03,drop=h-.07;
     cyl(g,.011,w,rod,0,yr,zr,{axis:'x',seg:16});for(const s of [-1,1]){const b=new THREE.Mesh(new THREE.SphereGeometry(.02,16,12),rod);b.position.set(s*(w/2-.02),yr,zr);g.add(b);cyl(g,.007,zr+d/2,rod,s*(w/2-.12),yr,(zr-d/2)/2,{axis:'z',seg:10});}
@@ -543,25 +551,25 @@ const GEN={
   },
   // ---------- tables, chairs, floor lamp (instead of Kenney models: any size and color) ----------
   // Coffee table: tabletop, lower shelf, tapered legs; round — an oval sized to fit, on three legs.
-  tableCoffee(g,{w,d,h,color,v}){const c=COLORS[color][1],m=mat(c,.55),lg=mat(shade(c,.78),.55),T=.03;
+  tableCoffee(g,{w,d,h,color,v}){const c=hexOf(color),m=mat(c,.55),lg=mat(shade(c,.78),.55),T=.03;
     if(v==='round'){cyl(g,.5,T,m,0,h-T,0,{sx:w,sz:d,seg:48});cyl(g,.5,.018,m,0,.12,0,{sx:w*.78,sz:d*.78,seg:40});
       for(let i=0;i<3;i++){const a=i*Math.PI*2/3+Math.PI/2,x=Math.cos(a)*w*.36,z=Math.sin(a)*d*.36;cyl(g,.018,h-T,lg,x,0,z,{rb:.013,seg:12});}}
     else{part(g,w,T,d,m,0,h-T,0,.01);part(g,w-.12,.018,d-.1,m,0,.12,0,.004);for(const [sx,sz] of [[-1,-1],[1,-1],[-1,1],[1,1]])cyl(g,.019,h-T,lg,sx*(w/2-.06),0,sz*(d/2-.06),{rb:.013,seg:12});}
   },
   // Round (oval) dining table on a central pedestal with a cross base.
-  tableRound(g,{w,d,h,color}){const c=COLORS[color][1],m=mat(c,.55),lg=mat(shade(c,.8),.55),T=.035;
+  tableRound(g,{w,d,h,color}){const c=hexOf(color),m=mat(c,.55),lg=mat(shade(c,.8),.55),T=.035;
     cyl(g,.5,T,m,0,h-T,0,{sx:w,sz:d,seg:56});cyl(g,.5,.05,mat(shade(c,.85),.6),0,h-T-.05,0,{sx:w*.86,sz:d*.86,seg:48});
     cyl(g,.05,h-T-.05,lg,0,0,0,{rb:.065,seg:20});for(let i=0;i<2;i++){const q=part(g,Math.min(.62,w*.55),.05,.07,lg,0,0,0,.012);q.rotation.y=i*Math.PI/2+Math.PI/4;}
   },
   // Dining chair: tapered legs, a seat with a soft cushion, a back on two posts with a curved rail.
-  chairCushion(g,{w,d,h,color}){const c=COLORS[color][1],m=mat(c,.55),cu=mat(0xd7cfc1,.95),S=.45,T=.025;
+  chairCushion(g,{w,d,h,color}){const c=hexOf(color),m=mat(c,.55),cu=mat(0xd7cfc1,.95),S=.45,T=.025;
     for(const [sx,sz] of [[-1,-1],[1,-1],[-1,1],[1,1]])cyl(g,.016,S-T,m,sx*(w/2-.03),0,sz*(d/2-.03),{rb:.012,seg:12});
     part(g,w,T,d,m,0,S-T,0,.008);part(g,w-.04,.035,d-.06,cu,0,S,.01,.015);
     for(const sx of [-1,1]){const q=part(g,.022,h-S,.022,m,sx*(w/2-.03),S,-d/2+.03,.006);q.rotation.x=-.08;}
     const z=-d/2+.03-Math.sin(.08)*(h-S)*.5;for(const [y,hh] of [[h-.12,.1],[S+.2,.035]]){const q=part(g,w-.05,hh,.02,m,0,y,z+Math.sin(.08)*(y-S),.007);q.rotation.x=-.08;}
   },
   // Desk: tabletop, metal U-shaped supports, modesty panel, a drawer pedestal on the right from 1 m.
-  desk(g,{w,d,h,color}){const c=COLORS[color][1],m=mat(c,.55),mt=mat(0x2d2f33,.45,.4),T=.03;
+  desk(g,{w,d,h,color}){const c=hexOf(color),m=mat(c,.55),mt=mat(0x2d2f33,.45,.4),T=.03;
     part(g,w,T,d,m,0,h-T,0,.006);
     for(const s of [-1,1]){const x=s*(w/2-.05);part(g,.04,h-T,.04,mt,x,0,-d/2+.06,.004);part(g,.04,h-T,.04,mt,x,0,d/2-.06,.004);part(g,.04,.04,d-.08,mt,x,0,0,.004);part(g,.03,.03,d-.08,mt,x,h-T-.03,0,.004);}
     part(g,w-.14,.3,.016,mat(shade(c,.9),.6),0,h-T-.3,-d/2+.06,.003);
@@ -569,7 +577,7 @@ const GEN={
       for(let i=0;i<2;i++){const y=h-T-hh+.006+i*hh/2;part(g,dw-.01,hh/2-.01,.016,m,x,y,d/2-.05+.008,.003);part(g,.12,.01,.012,mt,x,y+hh/4,d/2-.05+.02,.004);}}
   },
   // Office chair: five-caster star base, gas lift, seat, reclining back, armrests.
-  chairDesk(g,{w,d,h,color}){const c=COLORS[color][1],f=mat(c,.92),pl=mat(0x232427,.45,.3),ch=CHROME(),R=Math.min(w,d)/2-.03,S=.47;
+  chairDesk(g,{w,d,h,color}){const c=hexOf(color),f=mat(c,.92),pl=mat(0x232427,.45,.3),ch=CHROME(),R=Math.min(w,d)/2-.03,S=.47;
     for(let i=0;i<5;i++){const a=i*Math.PI*2/5,x=Math.cos(a)*R,z=Math.sin(a)*R,q=part(g,R,.03,.045,pl,x/2,.06,z/2,.01);q.rotation.y=-a;
       const wh=new THREE.Mesh(new THREE.SphereGeometry(.028,12,10),pl);wh.position.set(x,.03,z);g.add(wh);}
     cyl(g,.05,.03,pl,0,.06,0);cyl(g,.022,S-.16,ch,0,.09,0,{seg:16});cyl(g,.032,.12,pl,0,.09,0,{seg:16});
@@ -578,23 +586,23 @@ const GEN={
     for(const s of [-1,1]){part(g,.025,.2,.025,pl,s*(w/2-.05),S-.06,.02,.008);part(g,.06,.025,.26,pl,s*(w/2-.05),S+.14,.03,.012);}
   },
   // Floor lamp: heavy base, thin stand, a cone-shaped fabric shade (the color is the shade's).
-  lampRoundFloor(g,{w,d,h,color}){const sh=new THREE.MeshStandardMaterial({color:COLORS[color][1],roughness:.95,side:THREE.DoubleSide}),mt=mat(0x2b2c2f,.4,.5),r=Math.min(w,d)/2,sH=Math.min(.36,h*.24);
+  lampRoundFloor(g,{w,d,h,color}){const sh=new THREE.MeshStandardMaterial({color:hexOf(color),roughness:.95,side:THREE.DoubleSide}),mt=mat(0x2b2c2f,.4,.5),r=Math.min(w,d)/2,sH=Math.min(.36,h*.24);
     cyl(g,r*.62,.025,mt,0,0,0,{rb:r*.66,seg:32});cyl(g,.011,h-sH*.6,mt,0,.025,0,{seg:12});
     const s=new THREE.Mesh(new THREE.CylinderGeometry(r*.72,r,sH,40,1,true),sh);s.position.set(0,h-sH/2,0);s.castShadow=true;g.add(s);
     cyl(g,.03,.06,mat(0xf4efe4,.6),0,h-sH*.75,0,{seg:16});
   },
   // Potted plant: a pot with a rim and soil, a rosette of ellipse leaves in different directions (golden angle), shades of green.
   // Plant: monstera, fiddle-leaf fig, palm, snake plant, hydrangea (PLANT above); w×d is the canopy width, the pot is sized from it
-  pottedPlant(g,{w,d,h,color='white',v='monstera'}){const c=COLORS[color][1];
+  pottedPlant(g,{w,d,h,color='white',v='monstera'}){const c=hexOf(color);
     (PLANT[v]||PLANT.monstera)(g,{D:Math.min(w,d),h,pm:leafMat(c,color==='terracotta'?.85:.6),rnd:seeded(Math.round(w*1000)*31+Math.round(h*1000))});},
   // Floor vase: a solid of revolution with a neck; dried flowers, eucalyptus or empty (then the whole height is the vase)
   floorVase(g,{w,d,h,color='sand',v='pampas'}){const D=Math.min(w,d),R=Math.min(.17,D*(v==='eucalyptus'?.36:.45)),hv=v==='empty'?h:Math.min(.65,h*.5);
-    vessel(g,[[0,0],[R*.55,0],[R*.62,.01],[R,hv*.36],[R*.9,hv*.62],[R*.42,hv*.86],[R*.37,hv*.93],[R*.47,hv],[R*.4,hv],[R*.31,hv*.93],[0,hv*.88]],leafMat(COLORS[color][1],.5));
+    vessel(g,[[0,0],[R*.55,0],[R*.62,.01],[R,hv*.36],[R*.9,hv*.62],[R*.42,hv*.86],[R*.37,hv*.93],[R*.47,hv],[R*.4,hv],[R*.31,hv*.93],[0,hv*.88]],leafMat(hexOf(color),.5));
     (VASE[v]||VASE.empty)(g,{h,y0:hv,R,rnd:seeded(Math.round(w*1000)*17+Math.round(h*1000))});},
   // Tabletop decor: stands on furniture at its own height (f.z). Books — a stack of 3–4 lying books (covers, a spine, cream pages) with
   // a small ceramic vase on top; vase — a bud vase with eucalyptus; candles — three pillar candles on a tray; bowl — a bowl of fruit.
   // The color is the ceramic (books, vase, bowl) or the tray.
-  decor(g,{w,d,h,color='white',v='books'}){const c=COLORS[color][1],cer=mat(c,color==='terracotta'||color==='sand'?.7:.35),rnd=seeded(Math.round(w*1000)*13+Math.round(d*1000)*7+Math.round(h*1000));
+  decor(g,{w,d,h,color='white',v='books'}){const c=hexOf(color),cer=mat(c,color==='terracotta'||color==='sand'?.7:.35),rnd=seeded(Math.round(w*1000)*13+Math.round(d*1000)*7+Math.round(h*1000));
     const small=(R,H,y,x=0,z=0)=>{const m=vessel(g,[[0,0],[R*.55,0],[R*.6,.004],[R,H*.42],[R*.88,H*.7],[R*.36,H*.9],[R*.42,H],[R*.34,H],[0,H*.92]],cer);m.position.set(x,y,z);};
     if(v==='books'){const BK=[0x3e4b60,0xd9d1c3,0xa8644b,0x737c5c,0x27282b,0xe9e2d4,0xb59a72,0x6f8fa8],pg=mat(0xf1ebdc,.85),n=3+Math.floor(rnd()*2),bh=Math.min(.045,h*.55/n);let y=0;
       for(let i=0;i<n;i++){const bw=w*(.8+.18*rnd()),bd=d*(.74+.24*rnd()),t=bh*(.7+.5*rnd()),cv=mat(BK[Math.floor(rnd()*BK.length)],.72),b=new THREE.Group();
@@ -616,16 +624,16 @@ const GEN={
   },
   // ---------- on the wall ----------
   // Floating shelf: a board with hidden mounting, the end edge slightly lighter.
-  wallShelf(g,{w,d,h,color}){const c=COLORS[color][1];part(g,w,h,d,mat(c,.55),0,0,0,.004);part(g,w-.004,.002,d-.004,mat(shade(c,1.06),.55),0,h-.001,.001,.001);},
+  wallShelf(g,{w,d,h,color}){const c=hexOf(color);part(g,w,h,d,mat(c,.55),0,0,0,.004);part(g,w-.004,.002,d-.004,mat(shade(c,1.06),.55),0,h-.001,.001,.001);},
   // Coat rack: a rail with hooks (every ~15 cm), with a shelf on top if selected.
-  coatHooks(g,{w,d,h,color,v}){const c=COLORS[color][1],m=mat(c,.55),mt=mat(0x2b2c2f,.4,.5),n=Math.max(2,Math.round(w/.15)),sh=v!=='hooks';
+  coatHooks(g,{w,d,h,color,v}){const c=hexOf(color),m=mat(c,.55),mt=mat(0x2b2c2f,.4,.5),n=Math.max(2,Math.round(w/.15)),sh=v!=='hooks';
     const ph=sh?h-.025:Math.min(.12,h),py=sh?0:(h-ph)/2,y=sh?.07:py+ph/2,L=Math.min(.1,d-.04); // with a shelf — hooks at the bottom of the rail, visible from under the shelf
     part(g,w,ph,.022,m,0,py,-d/2+.011,.004);
     for(let i=0;i<n;i++){const x=-w/2+w*(i+.5)/n;cyl(g,.007,L,mt,x,y,-d/2+.022+L/2,{axis:'z',seg:10});const b=new THREE.Mesh(new THREE.SphereGeometry(.012,12,8),mt);b.position.set(x,y+.008,-d/2+.022+L);g.add(b);}
     if(sh){part(g,w,.025,d,m,0,h-.025,0,.004);for(const s2 of [-1,1])box(g,frustum(.02,.12,.02,.02,d-.04,(d-.04)/2-.01),m,s2*(w/2-.06),h-.145,-d/2+.032);} // brackets: narrow at the wall, under the whole shelf at the top
   },
   // Framed mirror: rectangular, round (an oval sized to fit) or arched.
-  wallMirror(g,{w,d,h,color,v}){const fr=color==='chrome'?CHROME():mat(COLORS[color][1],.5,color==='black'?.3:0),mir=mat(0xeef3f6,.04,.8),F=Math.min(.03,w*.06),z=-d/2;
+  wallMirror(g,{w,d,h,color,v}){const fr=color==='chrome'?CHROME():mat(hexOf(color),.5,color==='black'?.3:0),mir=mat(0xeef3f6,.04,.8),F=Math.min(.03,w*.06),z=-d/2;
     if(v==='round'){cyl(g,.5,d,fr,0,h/2,0,{axis:'z',sx:w,sz:h,seg:56});cyl(g,.5,.004,mir,0,h/2,d/2,{axis:'z',sx:w-2*F,sz:h-2*F,seg:56});}
     else if(v==='arch'){const sh=(W,H)=>{const r=W/2,s=new THREE.Shape();s.moveTo(-r,0);s.lineTo(r,0);s.lineTo(r,H-r);s.absarc(0,H-r,r,0,Math.PI,false);s.lineTo(-r,0);return s;};
       const a=new THREE.Mesh(new THREE.ExtrudeGeometry(sh(w,h),{depth:d,bevelEnabled:false,curveSegments:32}),fr);a.position.z=z;a.castShadow=true;g.add(a);
@@ -634,7 +642,7 @@ const GEN={
   },
   // ---------- kids' room ----------
   // Crib: posts, rails, dense bars along the long sides, solid headboards, mattress at 35 cm.
-  crib(g,{w,d,h,color}){const c=COLORS[color][1],m=mat(c,.5),P=.045,Y=.32;
+  crib(g,{w,d,h,color}){const c=hexOf(color),m=mat(c,.5),P=.045,Y=.32;
     for(const sx of [-1,1])for(const sz of [-1,1])part(g,P,h,P,m,sx*(w/2-P/2),0,sz*(d/2-P/2),.012);
     for(const sz of [-1,1]){part(g,w-P,.035,.035,m,0,h-.04,sz*(d/2-.0175),.01);part(g,w-P,.05,.03,m,0,Y-.03,sz*(d/2-.015),.008);
       const n=Math.max(6,Math.round((w-P*2)/.075));for(let i=0;i<n;i++){const x=-w/2+P+(i+.5)*(w-2*P)/n;cyl(g,.011,h-.04-Y-.02,m,x,Y+.02,sz*(d/2-.0175),{seg:10});}}
@@ -642,7 +650,7 @@ const GEN={
     part(g,w-.09,.1,d-.09,mat(0xf6f4ef,.85),0,Y,0,.03);part(g,(w-.1)*.5,.03,d-.1,mat(PASTEL[3],.9),(w-.1)*.22,Y+.1,0,.012);
   },
   // Bunk bed: posts, two beds with bedding, guard rails on top (in front — up to the ladder), ladder at the front right.
-  bunkBed(g,{w,d,h,color}){const c=COLORS[color][1],m=mat(c,.55),P=.06,Y1=.2,Y2=Math.min(1.2,h-.42),L=-w/2+P,R=w/2-P;
+  bunkBed(g,{w,d,h,color}){const c=hexOf(color),m=mat(c,.55),P=.06,Y1=.2,Y2=Math.min(1.2,h-.42),L=-w/2+P,R=w/2-P;
     for(const sx of [-1,1])for(const sz of [-1,1])part(g,P,h,P,m,sx*(w/2-P/2),0,sz*(d/2-P/2),.012);
     for(const y of [Y1,Y2]){for(const sz of [-1,1])part(g,w-2*P,.14,.03,m,0,y,sz*(d/2-.015),.006);for(const sx of [-1,1])part(g,.03,.14,d-2*P,m,sx*(w/2-.015),y,0,.006);}
     bedding(g,L+.01,R-.01,-d/2+.04,d/2-.04,Y1+.08,0);bedding(g,L+.01,R-.01,-d/2+.04,d/2-.04,Y2+.08,3);
@@ -652,7 +660,7 @@ const GEN={
     for(const x of [lx0,R-.02])part(g,.04,gr+.05,.035,m,x,0,d/2+.0,.008);for(let y=.3;y<gr;y+=.27)cyl(g,.014,R-.02-lx0,m,(lx0+R-.02)/2,y,d/2,{axis:'x',seg:12});
   },
   // Loft bed: the bed on top (bottom is “Above floor”), posts and a ladder to the floor; free space below fits a desk.
-  loftBed(g,p){const {w,d,h,color}=p,c=COLORS[color][1],m=mat(c,.55),P=.06,Z=zOf(p),L=-w/2+P,R=w/2-P;
+  loftBed(g,p){const {w,d,h,color}=p,c=hexOf(color),m=mat(c,.55),P=.06,Z=zOf(p),L=-w/2+P,R=w/2-P;
     for(const sx of [-1,1])for(const sz of [-1,1])part(g,P,Z+h,P,m,sx*(w/2-P/2),-Z,sz*(d/2-P/2),.012);
     for(const sz of [-1,1])part(g,w-2*P,.14,.03,m,0,0,sz*(d/2-.015),.006);for(const sx of [-1,1])part(g,.03,.14,d-2*P,m,sx*(w/2-.015),0,0,.006);
     bedding(g,L+.01,R-.01,-d/2+.04,d/2-.04,.08,1);
@@ -661,12 +669,12 @@ const GEN={
     for(const x of [lx0,R-.02])part(g,.04,Z+h,.035,m,x,-Z,d/2,.008);for(let y=-Z+.3;y<h-.1;y+=.27)cyl(g,.014,R-.02-lx0,m,(lx0+R-.02)/2,y,d/2,{axis:'x',seg:12});
   },
   // Changing dresser: a dresser with drawers, rails and a soft pad on top.
-  changer(g,p){const {w,d,h,color}=p,c=COLORS[color][1],m=mat(c,.55),T=.12;drawers(g,{...p,h:h-T},3);
+  changer(g,p){const {w,d,h,color}=p,c=hexOf(color),m=mat(c,.55),T=.12;drawers(g,{...p,h:h-T},3);
     part(g,w,T,.02,m,0,h-T,-d/2+.01,.005);for(const s of [-1,1])part(g,.02,T,d-.02,m,s*(w/2-.01),h-T,.01,.005);
     part(g,Math.min(.72,w-.06),.06,d-.06,mat(PASTEL[1],.9),-(w-.06-Math.min(.72,w-.06))/2,h-T,.01,.028);
   },
   // High chair: splayed legs, seat, back, footrest, tray in front.
-  highChair(g,{w,d,h,color}){const c=COLORS[color][1],m=mat(c,.5),S=.56,sw=.36,sd=.34,wh=mat(0xf7f6f2,.4);
+  highChair(g,{w,d,h,color}){const c=hexOf(color),m=mat(c,.5),S=.56,sw=.36,sd=.34,wh=mat(0xf7f6f2,.4);
     for(const sx of [-1,1])for(const sz of [-1,1])rod(g,[sx*(w/2-.03),0,sz*(d/2-.03)],[sx*(sw/2-.03),S,sz*(sd/2-.03)-.02],.016,m);
     rod(g,[-(w/2-.09),.24,d/2-.13],[w/2-.09,.24,d/2-.13],.014,m);
     part(g,sw,.035,sd,m,0,S,-.02,.01);part(g,sw-.04,.03,sd-.04,mat(PASTEL[2],.9),0,S+.035,-.02,.012);
@@ -675,7 +683,7 @@ const GEN={
     part(g,sw+.1,.025,.2,wh,0,S+.2,sd/2+.03,.01);part(g,sw+.1,.025,.02,wh,0,S+.225,sd/2+.12,.006);
   },
   // Toy storage: a frame, pastel bins in two or three rows (open at the top), a shelf on top.
-  toyStorage(g,{w,d,h,color,v}){const c=COLORS[color][1],m=mat(c,.55),t=.018,n=Math.max(1,Math.round((w-2*t)/.42)),rows=Math.max(1,Math.round((h-.06)/.24)),bw=(w-2*t-(n-1)*t)/n,bh=(h-.04-t)/rows;
+  toyStorage(g,{w,d,h,color,v}){const c=hexOf(color),m=mat(c,.55),t=.018,n=Math.max(1,Math.round((w-2*t)/.42)),rows=Math.max(1,Math.round((h-.06)/.24)),bw=(w-2*t-(n-1)*t)/n,bh=(h-.04-t)/rows;
     for(const s of [-1,1])part(g,t,h,d,m,s*(w/2-t/2),0,0,.004);part(g,w,t,d,m,0,h-t,0,.004);part(g,w-2*t,t,d-.02,m,0,.03,0,.003);
     for(let i=1;i<n;i++)part(g,t,h-t-.03,d-.02,m,-w/2+t+i*(bw+t)-t/2,.03,0,.003);
     const BINS=v==='neutral'?[0xd9d1c3,0xb9a184,0x9aa293,0x8d9095,0xe9e2d4]:PASTEL;
@@ -684,25 +692,25 @@ const GEN={
   },
   // ---------- workspace ----------
   // Corner desk: L-shaped tabletop, supports at the corners, back panels.
-  deskCorner(g,p){const {w,d,h,color}=p,c=COLORS[color][1],m=mat(c,.55),mt=mat(0x2d2f33,.45,.4),T=.03,{back:A,side:S}=lArms(p),L=-w/2,B=-d/2;
+  deskCorner(g,p){const {w,d,h,color}=p,c=hexOf(color),m=mat(c,.55),mt=mat(0x2d2f33,.45,.4),T=.03,{back:A,side:S}=lArms(p),L=-w/2,B=-d/2;
     part(g,w,T,A,m,0,h-T,B+A/2,.006);part(g,S,T,d-A,m,L+S/2,h-T,B+A+(d-A)/2,.006);
     for(const [x,z] of [[L+.04,B+.04],[w/2-.04,B+.04],[w/2-.04,B+A-.04],[L+.04,d/2-.04],[L+S-.04,d/2-.04]])part(g,.045,h-T,.045,mt,x,0,z,.006);
     part(g,w-.1,.28,.016,mat(shade(c,.9),.6),0,h-T-.28,B+.06,.003);part(g,.016,.28,d-.1,mat(shade(c,.9),.6),L+.06,h-T-.28,0,.003);
   },
   // Height-adjustable desk: two telescopic columns on feet, a crossbar, a control panel at the side of the tabletop.
-  deskStanding(g,{w,d,h,color}){const c=COLORS[color][1],m=mat(c,.55),mt=mat(0x2d2f33,.4,.45),mt2=mat(0x3d3f44,.4,.45),T=.025,fH=.04;
+  deskStanding(g,{w,d,h,color}){const c=hexOf(color),m=mat(c,.55),mt=mat(0x2d2f33,.4,.45),mt2=mat(0x3d3f44,.4,.45),T=.025,fH=.04;
     part(g,w,T,d,m,0,h-T,0,.008);
     for(const s of [-1,1]){const x=s*(w/2-.12);part(g,.07,fH,d-.05,mt,x,0,0,.012);const hh=h-T-.03-fH,lo=Math.min(.5,hh*.55);part(g,.07,lo,.05,mt,x,fH,0,.006);part(g,.06,hh-lo+.02,.042,mt2,x,fH+lo-.02,0,.006);
       part(g,.05,.03,d-.12,mt,x,h-T-.03,0,.006);}
     part(g,w-.3,.04,.05,mt,0,h-T-.06,-.02,.006);part(g,.12,.02,.04,mat(0x16171a,.3),w/2-.2,h-T-.02,d/2-.02,.006);
   },
   // Mobile pedestal: three drawers, on casters.
-  pedestal(g,{w,d,h,color}){const c=COLORS[color][1],body=mat(shade(c,.88),.55),fr=mat(c,.5),mt=mat(0x2b2c2f,.4,.4);
+  pedestal(g,{w,d,h,color}){const c=hexOf(color),body=mat(shade(c,.88),.55),fr=mat(c,.5),mt=mat(0x2b2c2f,.4,.4);
     for(const [sx,sz] of [[-1,-1],[1,-1],[-1,1],[1,1]]){const wh=new THREE.Mesh(new THREE.SphereGeometry(.022,12,10),mt);wh.position.set(sx*(w/2-.04),.022,sz*(d/2-.05));g.add(wh);}
     part(g,w,h-.045,d-.02,body,0,.045,-.01,.004);const hs=[.25,.25,.5];let y=.045+.004;for(const f of hs){const hh=(h-.053)*f-.004;part(g,w-.008,hh,.016,fr,0,y,d/2-.008,.003);part(g,Math.min(.2,w*.45),.01,.012,mt,0,y+hh-.035,d/2+.006,.004);y+=hh+.004;}
   },
   // Monitor: a thin screen with a bezel; on a stand — a base, on an arm — a clamp at the rear edge of the desk and the arm.
-  monitor(g,{w,d,h,v}){const bd=mat(0x1b1c1f,.35),sc=mat(0x07080b,.1),mt=mat(0x2b2c2f,.35,.5),sh=h*.72,sy=h-sh,zs=d/2-.02;
+  monitor(g,{w,d,h,v,color}){const blk=color==='black',bd=blk?mat(0x1b1c1f,.35):finish(color),sc=mat(0x07080b,.1),mt=blk?mat(0x2b2c2f,.35,.5):METAL(),sh=h*.72,sy=h-sh,zs=d/2-.02;
     part(g,w,sh,.018,bd,0,sy,zs,.006);part(g,w-.016,sh-.016,.003,sc,0,sy+.008,zs+.009,.001);part(g,w*.4,sh*.5,.025,bd,0,sy+sh*.25,zs-.02,.01);
     if(v==='arm'){part(g,.05,.12,.06,mt,0,-.06,-d/2+.03,.008);cyl(g,.015,sy+.06,mt,0,0,-d/2+.03,{seg:12});rod(g,[0,sy,-d/2+.03],[0,sy+sh*.4,zs-.035],.014,mt);}
     else{part(g,.24,.012,Math.min(.18,d-.01),mt,0,0,0,.004);const q=part(g,.04,sy+sh*.4,.025,mt,0,0,-.02,.006);q.rotation.x=.08;}
@@ -711,14 +719,14 @@ const GEN={
   // Laundry basket: woven walls (ribs), a lid with a handle.
   // Laundry basket: a woven body narrowing to the bottom in bands of two tones (the weave), a thick rim, a linen liner folded
   // over it, a handle hole on each short side. (Vertical ribs read as a radiator.)
-  laundryBasket(g,{w,d,h,color}){const c=COLORS[color][1],m=mat(c,.92),dk=mat(shade(c,.84),.95),liner=mat(color==='linen'||color==='white'?0xf1ece2:0xe2dccf,.95);
+  laundryBasket(g,{w,d,h,color}){const c=hexOf(color),m=mat(c,.92),dk=mat(shade(c,.84),.95),liner=mat(color==='linen'||color==='white'?0xf1ece2:0xe2dccf,.95);
     const H=h-.03,k=.86;box(g,frustum(w*k,H,d*k,w-.012,d-.012,0),m,0,0,0);
     for(let y=.03;y<H-.03;y+=.045){const t=y/H,bw=w*k+(w-.012-w*k)*t,bd=d*k+(d-.012-d*k)*t;part(g,bw+.006,.018,bd+.006,dk,0,y,0,.008);}
     part(g,w,.03,d,m,0,H-.01,0,.014);part(g,w+.012,.07,d+.012,liner,0,H-.05,0,.02);
     for(const s2 of [-1,1]){const q=part(g,.006,.035,.1,mat(0x3a332b,.9),s2*(w/2+.004),H-.12,0,.012);}
   },
   // Drying rack: unfolded — a center and two wings on crossed legs; folded — a flat frame.
-  dryingRack(g,{w,d,h,v,color='white'}){const m=color==='chrome'?CHROME():mat(0xf2f2f0,.4),r=.006,t=.01;
+  dryingRack(g,{w,d,h,v,color='white'}){const m=color==='chrome'?CHROME():mat(tone(color,{white:0xf2f2f0}),.4),r=.006,t=.01;
     if(v==='folded'){for(const s of [-1,1])cyl(g,t,h,m,s*(w/2-.02),0,0,{seg:10});for(let y=.1;y<h-.05;y+=.06)cyl(g,r,w-.04,m,0,y,0,{axis:'x',seg:8});return;}
     const cw=w*.5,y=h-.02;for(const s of [-1,1]){rod(g,[s*cw/2,y,-d/2+.02],[s*cw/2,y,d/2-.02],t,m);rod(g,[s*cw/2,y,-d/2+.02],[s*(w/2-.02),y-.25,-d/2+.02],t,m);rod(g,[s*cw/2,y,d/2-.02],[s*(w/2-.02),y-.25,d/2-.02],t,m);
       for(const z of [-1,1])rod(g,[s*(cw/2-.04),0,z*(d/2-.02)],[s*(cw/2-.04),y,-z*(d/2-.02)],t,m);}
@@ -726,7 +734,7 @@ const GEN={
     for(const s of [-1,1])for(let k=.06;k<1;k+=.16){const x=s*(cw/2+(w/2-.02-cw/2)*k),yy=y-.25*k;cyl(g,r,d-.04,m,x,yy,0,{axis:'z',seg:8});}
   },
   // Ironing board: a board with a nose on X-legs and an iron rest; folded — stands upright against the wall.
-  ironingBoard(g,{w,d,h,v,color}){const cv=mat(COLORS[color][1],.95),mt=mat(0xc9ccd0,.3,.6),T=.025;
+  ironingBoard(g,{w,d,h,v,color}){const cv=mat(hexOf(color),.95),mt=mat(0xc9ccd0,.3,.6),T=.025;
     const shape=(L,W)=>{const s=new THREE.Shape(),r=W/2;s.moveTo(-L/2,-r);s.lineTo(L/2-W*1.2,-r);s.quadraticCurveTo(L/2,-r*.6,L/2,0);s.quadraticCurveTo(L/2,r*.6,L/2-W*1.2,r);s.lineTo(-L/2,r);s.lineTo(-L/2,-r);return s;};
     if(v==='folded'){const b=new THREE.Mesh(new THREE.ExtrudeGeometry(shape(h,w),{depth:T,bevelEnabled:false,curveSegments:20}),cv);b.rotation.z=Math.PI/2;b.position.set(0,h/2,-d/2+.01);b.castShadow=true;g.add(b);
       for(const s of [-1,1])rod(g,[s*.1,.02,d/2-.02],[-s*.1,h-.2,d/2-.02],.01,mt);return;}
@@ -735,13 +743,13 @@ const GEN={
     part(g,.14,.008,d*.8,mt,-w/2+.07,h-T-.01,0,.003);
   },
   // Robot vacuum with a dock: the dock at the wall, a round robot with a bumper and a top sensor in front of it.
-  robotVacuum(g,{w,d,h,color}){const c=color==='black'?0x2a2b2e:0xf3f3f1,m=mat(c,.3),dk=mat(0x1d1e21,.4),bh=Math.max(.1,h),r=Math.min(w/2,(d-.12)/2)-.005;
+  robotVacuum(g,{w,d,h,color}){const c=tone(color,{black:0x2a2b2e,white:0xf3f3f1}),m=mat(c,.3),dk=mat(0x1d1e21,.4),bh=Math.max(.1,h),r=Math.min(w/2,(d-.12)/2)-.005;
     part(g,Math.min(w,.3),bh,.12,m,0,0,-d/2+.06,.02);part(g,Math.min(w,.3)-.04,.025,.004,dk,0,bh*.55,-d/2+.122,.003);
     const z=d/2-r-.005;cyl(g,r,.08,m,0,.01,z,{seg:40});cyl(g,r+.003,.03,dk,0,.012,z,{seg:40});cyl(g,.04,.018,dk,0,.09,z-r*.3,{seg:24});
   },
   // ---------- storage ----------
   // Corner wardrobe: L-shaped, doors on the inner sides.
-  wardrobeCorner(g,p){const {w,d,h,color}=p,c=COLORS[color][1],body=mat(shade(c,.82)),front=mat(c,.55),mt=mat(0x3c3e42,.4),{back:A,side:S}=lArms(p),L=-w/2,B=-d/2,P=.06,gap=.004;
+  wardrobeCorner(g,p){const {w,d,h,color}=p,c=hexOf(color),body=mat(shade(c,.82)),front=mat(c,.55),mt=mat(0x3c3e42,.4),{back:A,side:S}=lArms(p),L=-w/2,B=-d/2,P=.06,gap=.004;
     part(g,w,h-P,A-.02,body,0,P,B+(A-.02)/2,.004);part(g,S-.02,h-P,d-A+.02,body,L+(S-.02)/2,P,B+A-.02+(d-A+.02)/2,.004);
     part(g,w-.04,P,A-.05,mat(shade(c,.6)),0,0,B+(A-.05)/2,.002);part(g,S-.05,P,d-A,mat(shade(c,.6)),L+(S-.05)/2,0,B+A+(d-A)/2-.02,.002);
     const lb=w/2-(L+S-.02),n=Math.max(1,Math.round(lb/.5)),dw=(lb-gap*(n+1))/n;
@@ -750,21 +758,21 @@ const GEN={
     for(let i=0;i<m2;i++){const z=B+A-.02+gap+dl/2+i*(dl+gap);part(g,.018,h-P-2*gap,dl,front,L+S-.011,P+gap,z,.003);part(g,.02,Math.min(.35,h*.2),.012,mt,L+S+.008,h*.42,z+dl/2-.04,.005);}
   },
   // Walk-in closet section: side panels, a shelf on top, a rail with clothes on hangers, a shoe shelf at the bottom.
-  openWardrobe(g,{w,d,h,color}){const c=COLORS[color][1],m=mat(c,.55),t=.02,ch=CHROME();
+  openWardrobe(g,{w,d,h,color}){const c=hexOf(color),m=mat(c,.55),t=.02,ch=CHROME();
     for(const s of [-1,1])part(g,t,h,d,m,s*(w/2-t/2),0,0,.004);part(g,w-2*t,t,d,m,0,h-.3,0,.003);part(g,w-2*t,t,d,m,0,h-t,0,.003);part(g,w-2*t,t,d,m,0,.12,0,.003);
     const ry=h-.36;cyl(g,.012,w-2*t,ch,0,ry,0,{axis:'x',seg:12});
     clothes(g,-w/2+t+.05,w/2-t-.05,ry,d-.12);
     for(let i=0;i<Math.floor((w-2*t)/.3);i++){const sx=-w/2+t+.15+i*.3;part(g,.1,.09,.26,mat(i%2?0x2b2c2f:0xa58a6a,.6),sx-.03,.14,0,.03);part(g,.1,.09,.26,mat(i%2?0x2b2c2f:0xa58a6a,.6),sx+.07,.14,0,.03);}
   },
   // Utility cabinet: tall, doors with ventilation slots (a vacuum and mops inside).
-  utilityCabinet(g,{w,d,h,color}){const c=COLORS[color][1],body=mat(shade(c,.82)),front=mat(c,.55),dk=mat(shade(c,.6),.6),mt=mat(0x3c3e42,.4),n=w>.75?2:1,gap=.004,dw=(w-gap*(n+1))/n;
+  utilityCabinet(g,{w,d,h,color}){const c=hexOf(color),body=mat(shade(c,.82)),front=mat(c,.55),dk=mat(shade(c,.6),.6),mt=mat(0x3c3e42,.4),n=w>.75?2:1,gap=.004,dw=(w-gap*(n+1))/n;
     part(g,w-.04,.06,d-.05,mat(shade(c,.6)),0,0,-.02,.002);part(g,w,h-.06,d-.02,body,0,.06,-.01,.004);
     for(let i=0;i<n;i++){const x=-w/2+gap+dw/2+i*(dw+gap);part(g,dw,h-.068,.018,front,x,.064,d/2-.009,.003);
       for(const y0 of [.18,h-.35])for(let k=0;k<6;k++)part(g,dw*.6,.008,.004,dk,x,y0+k*.025,d/2+.001,.002);
       part(g,.012,.3,.02,mt,x+(i%2?-1:1)*(dw/2-.04),h*.45,d/2+.01,.005);}
   },
   // Display cabinet: carcass, glass doors, shelves with dishes.
-  displayCabinet(g,{w,d,h,color}){const c=COLORS[color][1],m=mat(c,.5),t=.022,plate=mat(0xf6f4ef,.25),gl=mat(0xdfe8ec,.1);
+  displayCabinet(g,{w,d,h,color}){const c=hexOf(color),m=mat(c,.5),t=.022,plate=mat(0xf6f4ef,.25),gl=mat(0xdfe8ec,.1);
     part(g,w,.08,d-.03,mat(shade(c,.7)),0,0,-.01,.003);for(const s of [-1,1])part(g,t,h-.08,d,m,s*(w/2-t/2),.08,0,.004);part(g,w,t,d,m,0,h-t,0,.004);part(g,w-2*t,h-.1,.008,mat(shade(c,.62)),0,.08,-d/2+.004,.002);
     const n=Math.max(3,Math.round((h-.1)/.38));for(let i=0;i<n;i++){const y=.08+i*(h-.1)/n;if(i)glass(part(g,w-2*t,.012,d-.03,GLASS,0,y,0,.002));else part(g,w-2*t,.015,d-.03,m,0,y,0,.002);
       if(i){for(let x=-w/2+t+.08;x<w/2-t-.06;x+=.13){cyl(g,.06,.012,plate,x,y+.015,-.02,{seg:24});cyl(g,.035,.09,i%2?gl:plate,x+.05,y+.015,.06,{rb:.03,seg:16});}}}
@@ -772,13 +780,13 @@ const GEN={
       for(const s of [-1,1])part(g,.025,h-.12,.02,m,x+s*(dw/2-.0155),.09,d/2-.01,.003);part(g,dw-.006,.025,.02,m,x,.09,d/2-.01,.003);part(g,dw-.006,.025,.02,m,x,h-.055,d/2-.01,.003);}
   },
   // Sideboard: on legs, a row of doors, thin handles.
-  sideboard(g,p){const {w,d,h,color}=p,c=COLORS[color][1],m=mat(c,.5),body=mat(shade(c,.85),.55),mt=mat(0x2b2c2f,.4,.4),L=zOf(p)>0?0:.16,n=Math.max(2,Math.round(w/.42)),gap=.004,dw=(w-gap*(n+1))/n;
+  sideboard(g,p){const {w,d,h,color}=p,c=hexOf(color),m=mat(c,.5),body=mat(shade(c,.85),.55),mt=mat(0x2b2c2f,.4,.4),L=zOf(p)>0?0:.16,n=Math.max(2,Math.round(w/.42)),gap=.004,dw=(w-gap*(n+1))/n;
     if(L)for(const sx of [-1,1])for(const sz of [-1,1])rod(g,[sx*(w/2-.06),0,sz*(d/2-.06)],[sx*(w/2-.08),L,sz*(d/2-.08)],.014,m);
     part(g,w,h-L,d-.02,body,0,L,-.01,.008);part(g,w,.022,d,m,0,h-.022,0,.006);
     for(let i=0;i<n;i++){const x=-w/2+gap+dw/2+i*(dw+gap);part(g,dw,h-L-.03,.016,m,x,L+.004,d/2-.008,.003);part(g,.01,.12,.012,mt,x+(i%2?-1:1)*(dw/2-.035),L+(h-L)*.45,d/2+.006,.004);}
   },
   // Coat stand: round base, a pole, hooks in a circle at the top.
-  coatStand(g,{w,d,h,color}){const c=color==='black'?mat(0x27282b,.4,.3):mat(COLORS[color][1],.5),r=Math.min(w,d)/2;
+  coatStand(g,{w,d,h,color}){const c=color==='black'?mat(0x27282b,.4,.3):mat(hexOf(color),.5),r=Math.min(w,d)/2;
     cyl(g,r*.75,.03,c,0,0,0,{rb:r*.8,seg:36});cyl(g,.018,h-.03,c,0,.03,0,{seg:14});const b=new THREE.Mesh(new THREE.SphereGeometry(.03,16,12),c);b.position.set(0,h,0);g.add(b);
     for(let i=0;i<6;i++){const a=i*Math.PI/3,y=h-.08-(i%2)*.12;rod(g,[0,y-.03,0],[Math.cos(a)*r*.55,y+.06,Math.sin(a)*r*.55],.009,c,8);const k=new THREE.Mesh(new THREE.SphereGeometry(.014,10,8),c);k.position.set(Math.cos(a)*r*.55,y+.06,Math.sin(a)*r*.55);g.add(k);}
   },
@@ -798,14 +806,14 @@ const GEN={
     else{cyl(g,.5,T,m,0,h-T,0,{sx:w,sz:d,seg:44});cyl(g,.014,h-T,mt,0,0,0,{seg:12});cyl(g,.5,.012,mt,0,0,0,{sx:w*.6,sz:d*.6,seg:36});}
   },
   // Dressing table: a tabletop on legs with a drawer, a mirror above it, small items on the table.
-  dressingTable(g,{w,d,h,color}){const c=COLORS[color][1],m=mat(c,.5),body=mat(shade(c,.9),.55),gold=mat(0xc9ad7c,.3,.7),mir=mat(0xeef3f6,.04,.8),H=.76,T=.025;
+  dressingTable(g,{w,d,h,color}){const c=hexOf(color),m=mat(c,.5),body=mat(shade(c,.9),.55),gold=mat(0xc9ad7c,.3,.7),mir=mat(0xeef3f6,.04,.8),H=.76,T=.025;
     for(const sx of [-1,1])for(const sz of [-1,1])cyl(g,.018,H-.14,m,sx*(w/2-.05),0,sz*(d/2-.05),{rb:.012,seg:12});
     part(g,w,.12,d,body,0,H-.14,0,.006);part(g,w*.5,.09,.016,m,0,H-.125,d/2,.003);cyl(g,.012,.012,gold,0,H-.08,d/2+.012,{axis:'z',seg:12});part(g,w,T,d,m,0,H-T-.0,0,.006);
     const mw=Math.min(w*.7,.7),mh=h-H-.04;part(g,mw,mh,.025,m,0,H+.02,-d/2+.04,.012);part(g,mw-.05,mh-.05,.004,mir,0,H+.045,-d/2+.054,.002);
     cyl(g,.025,.11,mat(0xd8c3d0,.15),w*.3,H,.02,{seg:16});cyl(g,.012,.03,gold,w*.3,H+.11,.02,{seg:10});part(g,.14,.05,.1,mat(0xe8dccb,.6),-w*.3,H,.04,.01);
   },
   // Floor mirror: tall, framed, leaning against the wall at an angle.
-  floorMirror(g,{w,d,h,color}){const fr=color==='chrome'?CHROME():mat(COLORS[color][1],.5,color==='black'?.3:0),mir=mat(0xeef3f6,.04,.8),F=.035,T=.03,run=Math.max(.05,d-.06),a=Math.atan2(run,h),L=Math.hypot(h,run);
+  floorMirror(g,{w,d,h,color}){const fr=color==='chrome'?CHROME():mat(hexOf(color),.5,color==='black'?.3:0),mir=mat(0xeef3f6,.04,.8),F=.035,T=.03,run=Math.max(.05,d-.06),a=Math.atan2(run,h),L=Math.hypot(h,run);
     const q=new THREE.Group();q.position.set(0,0,d/2-.04);q.rotation.x=-a;g.add(q);part(q,w,L,T,fr,0,0,0,.008);part(q,w-2*F,L-2*F,.004,mir,0,F,T/2+.001,.001);
   },
   // Clothes rack: two uprights on feet, a rail with clothes, a bottom shelf with a box and shoes.
@@ -819,7 +827,7 @@ const GEN={
   // Kitchen island: fronts facing the kitchen (at the back), the countertop overhangs forward with bar stools beneath.
   kitchenIsland(g,p){const {w,d,h,color}=p,{P,T}=KB,ov=Math.min(.3,d*.32),bd=d-ov,q=new THREE.Group();q.rotation.y=Math.PI;q.position.z=-d/2+bd/2;g.add(q);
     const k=kitBase(q,{w,d:bd,h,color},{top:false});row(q,k,-w/2,w,k.y0+.003,k.y1-k.y0-.006);
-    part(g,w,T,d,TOP(p.top),0,h-T,0,.006);part(g,w,h-T-P,.018,mat(COLORS[color][1],.5),0,P,-d/2+bd-.009+.0,.003);
+    part(g,w,T,d,TOP(p.top),0,h-T,0,.006);part(g,w,h-T-P,.018,mat(hexOf(color),.5),0,P,-d/2+bd-.009+.0,.003);
   },
   // Cooker: an oven with a handle, a knob panel, a glass top with burners or gas burners with grates on top.
   stove(g,{w,d,h,color,v}){const body=color==='white'?mat(0xf4f4f2,.32):finish(color),dk=mat(0x16171a,.12),ch=CHROME(),T=h-.06;
@@ -837,19 +845,19 @@ const GEN={
     part(g,w,h-.01,d,body,0,.01,0,.014);part(g,w*.72,h-.04,.012,body,-w*.13,.03,d/2,.006);part(g,w*.58,h-.1,.004,dk,-w*.15,.06,d/2+.007,.004);
     part(g,w*.2,h-.05,.006,pn,w/2-w*.12,.035,d/2+.002,.004);part(g,w*.12,.025,.003,glow(0x8fe0ff),w/2-w*.12,h-.075,d/2+.006,.002);cyl(g,.018,.015,CHROME(),w/2-w*.12,h*.38,d/2+.01,{axis:'z',seg:16});
   },
-  // Pedal bin or a sorting unit of three colored containers.
+  // Pedal bin or a sorting unit: three containers in the item's color, lids and labels in the sorting colors.
   bin(g,{w,d,h,color,v}){const m=finish(color),dk=mat(0x2b2c2f,.45);
-    if(v==='sort'){const n=3,bw=(w-.02)/n;for(let i=0;i<n;i++){const x=-w/2+.01+bw*(i+.5),c=BINC[i];part(g,bw-.012,h-.03,d,mat(c,.5),x,0,0,.02);part(g,bw-.012,.03,d,mat(shade(c,.78),.5),x,h-.03,0,.012);part(g,bw*.4,.014,.02,dk,x,h-.07,d/2+.006,.005);}}
+    if(v==='sort'){const n=3,bw=(w-.02)/n;for(let i=0;i<n;i++){const x=-w/2+.01+bw*(i+.5),c=mat(BINC[i],.5);part(g,bw-.012,h-.03,d,m,x,0,0,.02);part(g,bw-.012,.03,d,c,x,h-.03,0,.012);part(g,bw*.5,.07,.004,c,x,h*.5,d/2+.001,.002);part(g,bw*.4,.014,.02,dk,x,h-.07,d/2+.006,.005);}}
     else{cyl(g,.5,h-.03,m,0,0,0,{sx:w,sz:d,rb:.47,seg:36});cyl(g,.5,.03,m,0,h-.03,0,{sx:w*1.02,sz:d*1.02,seg:36});part(g,.09,.016,.06,dk,0,.02,d/2+.02,.006);cyl(g,.5,.012,dk,0,0,0,{sx:w*.95,sz:d*.95,seg:36});}
   },
   // Extending table: a tabletop on legs with an apron; extended — longer, with a leaf in the middle.
-  tableExt(g,{w,d,h,color,v}){const c=COLORS[color][1],m=mat(c,.55),lg=mat(shade(c,.85),.55),T=.035;
+  tableExt(g,{w,d,h,color,v}){const c=hexOf(color),m=mat(c,.55),lg=mat(shade(c,.85),.55),T=.035;
     part(g,w,T,d,m,0,h-T,0,.01);part(g,w-.14,.08,d-.14,lg,0,h-T-.08,0,.006);
     for(const sx of [-1,1])for(const sz of [-1,1])part(g,.06,h-T,.06,lg,sx*(w/2-.07),0,sz*(d/2-.07),.008);
     if(v==='long'){const lw=Math.min(.5,w*.26),dk=mat(shade(c,.6));for(const s2 of [-1,1])part(g,.004,.002,d-.004,dk,s2*lw/2,h-.001,0,.001);part(g,lw-.006,.001,d-.01,mat(shade(c,1.05),.55),0,h-.0005,0,.0004);}
   },
   // Drop-leaf wall table: a wall rail, the tabletop on brackets; folded — hangs down along the wall.
-  tableFold(g,{w,d,h,color,v}){const c=COLORS[color][1],m=mat(c,.55),mt=mat(0x2b2c2f,.4,.5),T=.025;
+  tableFold(g,{w,d,h,color,v}){const c=hexOf(color),m=mat(c,.55),mt=mat(0x2b2c2f,.4,.5),T=.025;
     part(g,w,.06,.035,m,0,h-.06,-d/2+.0175,.004);
     if(v==='closed'){part(g,w,.56,T,m,0,h-.62,d/2-T/2,.006);return;}
     part(g,w,T,d,m,0,h-T,0,.008);for(const s2 of [-1,1])rod(g,[s2*(w/2-.08),h-.36,-d/2+.012],[s2*(w/2-.08),h-T,d*.18],.01,mt);
@@ -861,7 +869,7 @@ const GEN={
     cyl(g,r*.95,.06,seat,0,S-.06,0,{seg:32});const bk=part(g,w*.72,h-S-.02,.03,seat,0,S,-r*.82,.014);bk.rotation.x=-.15;
   },
   // Stool: round on three legs with a ring, or square on four with aprons.
-  stool(g,{w,d,h,color,v}){const c=COLORS[color][1],m=mat(c,.5),T=.035;
+  stool(g,{w,d,h,color,v}){const c=hexOf(color),m=mat(c,.5),T=.035;
     if(v==='square'){part(g,w,T,d,m,0,h-T,0,.008);for(const sx of [-1,1])for(const sz of [-1,1])rod(g,[sx*(w/2-.03),0,sz*(d/2-.03)],[sx*(w/2-.06),h-T,sz*(d/2-.06)],.015,m);
       for(const s2 of [-1,1]){part(g,w-.1,.02,.02,m,0,.15,s2*(d/2-.045),.004);part(g,.02,.02,d-.1,m,s2*(w/2-.045),.15,0,.004);}}
     else{const r=Math.min(w,d)/2;cyl(g,r,T,m,0,h-T,0,{seg:32});for(let i=0;i<3;i++){const a=i*Math.PI*2/3+.5;rod(g,[Math.cos(a)*r*.92,0,Math.sin(a)*r*.92],[Math.cos(a)*r*.55,h-T,Math.sin(a)*r*.55],.015,m);}
@@ -869,7 +877,7 @@ const GEN={
   },
   // ---------- second batch: bathroom ----------
   // Freestanding bathtub: an oval tub (a revolved profile) or a rectangular one on feet; a floor-standing faucet at the end.
-  bathFree(g,{w,d,h,v}){const cer=new THREE.MeshStandardMaterial({color:0xf6f5f0,roughness:.2,side:THREE.DoubleSide}),ch=CHROME(),bw=w-.16;
+  bathFree(g,{w,d,h,v,color}){const cer=new THREE.MeshStandardMaterial({color:glaze(color),roughness:.2,side:THREE.DoubleSide}),ch=CHROME(),bw=w-.16;
     if(v==='rect'){const t=.05,y0=.08;for(const sx of [-1,1])for(const sz of [-1,1])cyl(g,.022,y0,ch,sx*(bw/2-.08),0,sz*(d/2-.08),{seg:12});
       part(g,bw,.1,d,cer,-.08,y0,0,.03);for(const s2 of [-1,1]){part(g,bw,h-y0,t,cer,-.08,y0,s2*(d/2-t/2),.02);part(g,t,h-y0,d-2*t,cer,-.08+s2*(bw/2-t/2),y0,0,.02);}}
     else{const pr=[[0,.07],[.38,.07],[.45,.14],[.495,h-.02],[.5,h],[.47,h],[.44,h-.03],[.41,.2],[.33,.14],[0,.14]].map(([r,y])=>new THREE.Vector2(r,y));
@@ -891,7 +899,7 @@ const GEN={
     const lh=rod(g,[.06,.45,z+.05],[.06,.62,z+.08],.016,m);part(g,.05,.03,.04,m,.03,.5,z+.02,.008);
   },
   // Bathroom tall cabinet: on legs or wall-hung; a door at the top, an open niche with towels, a door at the bottom.
-  bathTall(g,{w,d,h,color,v}){const c=COLORS[color][1],body=mat(shade(c,.88),.55),fr=mat(c,.5),mt=CHROME(),L=v==='wall'?0:.1,H=h-L;
+  bathTall(g,{w,d,h,color,v}){const c=hexOf(color),body=mat(shade(c,.88),.55),fr=mat(c,.5),mt=CHROME(),L=v==='wall'?0:.1,H=h-L;
     if(L)for(const sx of [-1,1])for(const sz of [-1,1])cyl(g,.012,L,mt,sx*(w/2-.04),0,sz*(d/2-.04),{seg:10});
     part(g,w,H,d-.02,body,0,L,-.01,.004);const n0=L+H*.32,n1=L+H*.5;
     part(g,w-.008,n0-L-.008,.016,fr,0,L+.004,d/2-.008,.003);part(g,w-.008,h-n1-.008,.016,fr,0,n1+.004,d/2-.008,.003);
@@ -899,7 +907,7 @@ const GEN={
     for(const y of [n0-.12,n1+.04])part(g,.012,.08,.012,mt,w/2-.04,y,d/2+.004,.004);
   },
   // Water heater: a round tank with domed ends or a flat one; a panel at the bottom, pipes to the faucets.
-  waterHeater(g,{w,d,h,v}){const wh=mat(0xf4f4f2,.3),ch=CHROME(),dk=mat(0x2a2c30,.35);
+  waterHeater(g,{w,d,h,v,color}){const wh=enamel(color,0xf4f4f2),ch=CHROME(),dk=mat(0x2a2c30,.35);
     if(v==='flat'){part(g,w,h,d,wh,0,0,0,.06);part(g,w*.3,.05,.004,dk,0,h*.22,d/2+.001,.004);part(g,w*.06,.015,.003,glow(0x8fe0ff),0,h*.22+.017,d/2+.003,.002);}
     else{const r=Math.min(w,d)/2,k=r*.32;cyl(g,r,h-2*k,wh,0,k,0,{seg:40});for(const [y,up] of [[h-k,1],[k,-1]]){const sp=new THREE.Mesh(new THREE.SphereGeometry(r,40,16,0,Math.PI*2,up>0?0:Math.PI/2,Math.PI/2),wh);sp.scale.y=k/r;sp.position.y=y;sp.castShadow=true;g.add(sp);}
       part(g,r*.8,.06,.004,dk,0,k+.04,r-.004+.002,.004);}
@@ -907,34 +915,35 @@ const GEN={
   },
   // ---------- second batch: climate ----------
   // Air purifier: a rounded column, a grille on top, an indicator ring on the front.
-  purifier(g,{w,d,h,color}){const c=color==='graphite'?0x57595e:0xf3f3f1,m=mat(c,.4),dk=mat(0x2b2d31,.5);
+  purifier(g,{w,d,h,color}){const c=tone(color,{white:0xf3f3f1}),m=mat(c,.4),dk=mat(0x2b2d31,.5);
     part(g,w,h-.015,d,m,0,.015,0,Math.min(w,d)*.2);part(g,w-.02,.015,d-.02,dk,0,0,0,.01);
     cyl(g,Math.min(w,d)*.38,.006,dk,0,h-.004,0,{seg:36});for(let i=1;i<5;i++){const t=new THREE.Mesh(new THREE.TorusGeometry(Math.min(w,d)*.08*i,.002,4,40),m);t.rotation.x=Math.PI/2;t.position.y=h+.003;g.add(t);}
     const t=new THREE.Mesh(new THREE.TorusGeometry(.03,.004,8,32),glow(0x7fd9ff));t.position.set(0,h*.78,d/2+.002);g.add(t);
     for(let y=.08;y<h*.6;y+=.03)part(g,w*.6,.006,.003,mat(shade(c,.85),.5),0,y,d/2+.001,.002);
   },
   // Convector heater: a flat body, a grille on top, a slot at the bottom, a control unit on the right; on feet — for the floor.
-  convector(g,p){const {w,d,h,v}=p,m=mat(0xf4f4f2,.35),dk=mat(0x3a3c40,.55),y0=v==='floor'?.12:0;
+  convector(g,p){const {w,d,h,v,color}=p,m=mat(tone(color,{white:0xf4f4f2}),.35),dk=mat(0x3a3c40,.55),y0=v==='floor'?.12:0;
     if(y0)for(const s2 of [-1,1]){part(g,.04,y0,.04,m,s2*(w/2-.1),0,0,.008);part(g,.05,.02,Math.max(d,.24),m,s2*(w/2-.1),0,0,.008);}
-    part(g,w,h-y0,d*.85,m,0,y0,-d*.075,.012);part(g,w-.02,h-y0-.02,.006,mat(0xfafaf8,.3),0,y0+.01,d/2-.075*d+d*.425-.003+.003,.004);
+    part(g,w,h-y0,d*.85,m,0,y0,-d*.075,.012);part(g,w-.02,h-y0-.02,.006,mat(panel(color,0xfafaf8),.3),0,y0+.01,d/2-.075*d+d*.425-.003+.003,.004);
     for(let x=-w/2+.03;x<w/2-.03;x+=.02)part(g,.008,.003,d*.6,dk,x,h-.002,-d*.075,.001);part(g,w-.06,.012,d*.5,dk,0,y0-.004,-d*.075,.002);
     part(g,.1,.07,.012,mat(0xe9e9e6,.4),w/2-.08,h-.11,d/2-.01,.006);cyl(g,.015,.012,dk,w/2-.08,h-.075,d/2,{axis:'z',seg:14});
   },
   // Thermostat: a rounded square, a ring and a dark display with digits.
-  thermostat(g,{w,d,h,color}){const m=color==='black'?mat(0x232427,.3):mat(0xf6f6f4,.3),r=Math.min(w,h);
+  thermostat(g,{w,d,h,color}){const m=mat(tone(color,{black:0x232427,white:0xf6f6f4}),.3),r=Math.min(w,h);
     part(g,w,h,d,m,0,0,0,.012);const t=new THREE.Mesh(new THREE.TorusGeometry(r*.33,.0035,8,40),CHROME());t.position.set(0,h/2,d/2+.002);g.add(t);
     cyl(g,r*.28,.002,mat(0x101215,.1),0,h/2,d/2+.001,{axis:'z',seg:32});part(g,r*.22,r*.1,.002,glow(0xffa64d),0,h/2-r*.04,d/2+.003,.001);
   },
   // ---------- second batch: decor ----------
-  // Rug: a darker border, lighter field and center; rectangular, round or oval. Furniture stands on top of it.
-  rug(g,{w,d,h,color,v}){const c=COLORS[color][1],b=mat(shade(c,.78),.98),m=mat(c,.98),f2=mat(shade(c,1.12),.98);
+  // Rug: a border and lines in color2 (not set — a darker shade of the field), the field in color and a lighter center; rectangular,
+  // round or oval. Furniture stands on top of it.
+  rug(g,{w,d,h,color,color2,v}){const c=hexOf(color),b=mat(color2?hexOf(color2,shade(c,.78)):shade(c,.78),.98),m=mat(c,.98),f2=mat(shade(c,1.12),.98);
     if(v==='rect'){part(g,w,h,d,b,0,0,0,.003);part(g,w-.12,.0015,d-.12,m,0,h,0,.0005);part(g,w-.4,.0015,d-.4,f2,0,h+.0015,0,.0005);
       for(const s2 of [-1,1])part(g,w-.5,.0015,.012,b,0,h+.003,s2*(d/2-.25),.0005);}
     else{const sx=v==='round'?Math.min(w,d):w,sz=v==='round'?Math.min(w,d):d;cyl(g,.5,h,b,0,0,0,{sx,sz,seg:72});cyl(g,.5,.0015,m,0,h,0,{sx:sx-.12,sz:sz-.12,seg:72});cyl(g,.5,.0015,f2,0,h+.0015,0,{sx:sx*.55,sz:sz*.55,seg:60});}
   },
   // Roller blind (lowered to two thirds), venetian blinds (slats) or “Day-night” (stripes); a cassette on top.
   // open (0…1) — for blinds from HA (D-048): how far raised; closed — all the way down, open — rolled into the cassette.
-  blind(g,{w,d,h,color,v,open}){const c=COLORS[color][1],fab=new THREE.MeshStandardMaterial({color:c,roughness:.92,side:THREE.DoubleSide}),cas=mat(0xf2f2f0,.4),z=d/2-.02,top=h-.07,
+  blind(g,{w,d,h,color,v,open}){const c=hexOf(color),fab=new THREE.MeshStandardMaterial({color:c,roughness:.92,side:THREE.DoubleSide}),cas=mat(0xf2f2f0,.4),z=d/2-.02,top=h-.07,
     drop=open!=null?Math.max(.03,top*(1-Math.max(0,Math.min(1,open)))):top*.68;
     part(g,w,.07,d,cas,0,top,0,.012);
     if(v==='venetian'){const n=Math.max(4,Math.round(drop/.025));for(let i=0;i<n;i++){const q=part(g,w-.02,.002,.025,mat(c,.5),0,top-.02-i*drop/n,z,.0008);q.rotation.x=.5;}
@@ -956,18 +965,18 @@ const GEN={
     part(g,w*.5,.3,.12,M.fab,-w/2+w*.27,seatTop-.06,-d/2+.06,.05);cyl(g,.08,d-.12,M.pil2,-w/2+.34,seatTop+.05,0,{axis:'z',seg:24});
   },
   // Soundbar: an elongated body, a fabric grille in front, a status light.
-  soundbar(g,{w,d,h,color}){const c=color==='white'?0xf2f2f0:color==='grey'?0x8d9095:0x232427,m=mat(c,.55);
+  soundbar(g,{w,d,h,color}){const c=tone(color,{white:0xf2f2f0,black:0x232427}),m=mat(c,.55);
     part(g,w,h,d,m,0,0,0,Math.min(.025,h/2-.002));part(g,w-.04,h*.7,.004,mat(shade(c,.8),.95),0,h*.15,d/2+.001,.002);part(g,.012,.004,.002,glow(0xffffff),w*.35,h*.55,d/2+.004,.001);
   },
   // Floor-standing speaker: a cabinet on spikes, a black baffle, a tweeter and two woofers.
-  speaker(g,{w,d,h,color}){const body=color==='walnut'?mat(COLORS.walnut[1],.5):color==='white'?mat(0xf2f2f0,.4):mat(0x232427,.45),cone=mat(0x2b2c2f,.65),ring=mat(0x8a8d91,.3,.6),ft=mat(0x1b1c1e,.4);
+  speaker(g,{w,d,h,color}){const body=color==='walnut'?mat(COLORS.walnut[1],.5):color==='white'?mat(0xf2f2f0,.4):mat(tone(color,{black:0x232427}),.45),cone=mat(0x2b2c2f,.65),ring=mat(0x8a8d91,.3,.6),ft=mat(0x1b1c1e,.4);
     for(const sx of [-1,1])for(const sz of [-1,1])cyl(g,.012,.03,ft,sx*(w/2-.03),0,sz*(d/2-.03),{rb:.004,seg:10});
     part(g,w,h-.03,d,body,0,.03,0,.012);part(g,w-.012,h-.05,.006,ft,0,.04,d/2+.001,.004);
     const drv=(y,r)=>{cyl(g,r,.012,cone,0,y,d/2+.006,{axis:'z',seg:28});const t=new THREE.Mesh(new THREE.TorusGeometry(r,.006,8,32),ring);t.position.set(0,y,d/2+.01);g.add(t);cyl(g,r*.3,.01,ring,0,y,d/2+.01,{axis:'z',seg:16});};
     drv(h-.12,.025);const r=w*.34;drv(h*.55,r);drv(h*.55-2.3*r,r);
   },
   // Electric fireplace: a surround with a mantel, a dark firebox behind glass, logs and flames (glowing).
-  fireplace(g,{w,d,h,color}){const c=COLORS[color][1],m=mat(c,.5),dk=mat(0x141416,.6),fw=w*.58,fh=h*.5,fy=.12,pd=d-.05;
+  fireplace(g,{w,d,h,color}){const c=hexOf(color),m=mat(c,.5),dk=mat(0x141416,.6),fw=w*.58,fh=h*.5,fy=.12,pd=d-.05;
     part(g,w,.045,d,m,0,h-.045,0,.008);for(const s2 of [-1,1])part(g,(w-fw)/2,h-.045,pd,m,s2*(w/2-(w-fw)/4),0,-.025,.006);
     part(g,fw,h-.045-fy-fh,pd,m,0,fy+fh,-.025,.004);part(g,fw,fy,pd,m,0,0,-.025,.004);
     part(g,fw,fh,.02,dk,0,fy,-d/2+.03,.002);for(const s2 of [-1,1])part(g,.02,fh,pd-.04,dk,s2*(fw/2-.01),fy,-.025,.002);part(g,fw,.01,pd-.04,dk,0,fy,-.025,.002);
@@ -976,7 +985,7 @@ const GEN={
     glass(part(g,fw-.02,fh,.006,GLASS,0,fy,d/2-.04,.002));
   },
   // Murphy bed: folded — a tall cabinet with a front; unfolded — the bed is lowered forward out of the cabinet, legs flipped down.
-  wallBed(g,{w,d,h,color,v}){const c=COLORS[color][1],body=mat(shade(c,.86)),fr=mat(c,.5),mt=mat(0x2b2c2f,.4,.4),C=.45,B=-d/2;
+  wallBed(g,{w,d,h,color,v}){const c=hexOf(color),body=mat(shade(c,.86)),fr=mat(c,.5),mt=mat(0x2b2c2f,.4,.4),C=.45,B=-d/2;
     for(const s2 of [-1,1])part(g,.025,h,C,body,s2*(w/2-.0125),0,B+C/2,.004);part(g,w-.05,.025,C,body,0,h-.025,B+C/2,.003);part(g,w-.05,h-.025,.015,mat(shade(c,.7)),0,0,B+.0075,.002);
     if(v==='open'){const L=d-C+.12,z0=B+C-.12,zc=z0+L/2;part(g,w-.06,.2,L,fr,0,.12,zc,.008);for(const s2 of [-1,1])part(g,.04,.12,.04,mt,s2*(w/2-.08),0,d/2-.05,.006);
       part(g,w-.1,.18,L-.06,mat(0xf3f1ec,.85),0,.32,zc,.04);part(g,w-.08,.05,(L-.06)*.62,mat(PASTEL[3],.9),0,.49,zc+(L-.06)*.19,.025);
@@ -985,12 +994,12 @@ const GEN={
     else{const n=2,ph=(h-.03)/n;for(let i=0;i<n;i++)part(g,w-.056,ph-.006,.02,fr,0,.003+i*ph,B+C-.01,.003);part(g,w*.4,.02,.025,mt,0,h*.48,B+C+.012,.006);}
   },
   // Room divider: folding panels in a frame with fabric.
-  screen(g,{w,d,h,color}){const wood=color==='oak'||color==='walnut',fab=wood?mat(0xece6da,.95):mat(COLORS[color][1],.95),fr=wood?mat(COLORS[color][1],.5):mat(0x8a6e4e,.5),n=w>1.2?4:3,dz=Math.max(.02,d-.05),sx=w/n,a=Math.atan2(dz,sx),pl=Math.hypot(dz,sx)-.01;
+  screen(g,{w,d,h,color}){const wood=color==='oak'||color==='walnut',fab=wood?mat(0xece6da,.95):mat(hexOf(color),.95),fr=wood?mat(hexOf(color),.5):mat(0x8a6e4e,.5),n=w>1.2?4:3,dz=Math.max(.02,d-.05),sx=w/n,a=Math.atan2(dz,sx),pl=Math.hypot(dz,sx)-.01;
     for(let i=0;i<n;i++){const x=-w/2+sx*(i+.5),sg=i%2?-1:1,q=new THREE.Group();q.position.set(x,0,0);q.rotation.y=-sg*a;g.add(q);
       part(q,pl,h-.03,.022,fr,0,.03,0,.004);part(q,pl-.06,h-.15,.026,fab,0,.09,0,.002);for(const s2 of [-1,1])part(q,.03,.03,.06,fr,s2*(pl/2-.04),0,0,.006);}
   },
   // Kitchen trolley: three basket tiers on posts, casters, jars on top.
-  kitchenCart(g,{w,d,h,color}){const c=COLORS[color][1],m=mat(c,.4,.15),dk=mat(0x2b2c2f,.4,.4),y0=.05;
+  kitchenCart(g,{w,d,h,color}){const c=hexOf(color),m=mat(c,.4,.15),dk=mat(0x2b2c2f,.4,.4),y0=.05;
     for(const sx of [-1,1])for(const sz of [-1,1]){cyl(g,.01,h-y0,m,sx*(w/2-.015),y0,sz*(d/2-.015),{seg:10});const wh=new THREE.Mesh(new THREE.SphereGeometry(.024,12,10),dk);wh.position.set(sx*(w/2-.03),.024,sz*(d/2-.03));g.add(wh);}
     for(const y of [y0+.04,y0+(h-y0)*.45,h-.09]){part(g,w-.02,.008,d-.02,m,0,y,0,.002);for(const s2 of [-1,1]){part(g,w-.02,.07,.004,m,0,y,s2*(d/2-.012),.001);part(g,.004,.07,d-.02,m,s2*(w/2-.012),y,0,.001);}}
     for(let i=0;i<3;i++)cyl(g,.035,.09,transp(0xdfe8ec,.55),-w/2+.08+i*.1,h-.082,0,{seg:16});
@@ -1002,25 +1011,25 @@ const GEN={
     cyl(g,w*.3,.05,transp(0x6b4a2e,.6,.2),0,h,-d*.2,{seg:24});
   },
   // Bidet: a bowl without a cistern, faucet at the back; floor-standing or wall-hung.
-  bidet(g,{w,d,h,v}){const cer=CERAMIC(),ch=CHROME(),wall=v==='wall',back=wall?.12:.05,z0=-d/2+back,bl=d/2-z0,zc=(z0+d/2)/2;
+  bidet(g,{w,d,h,v,color}){const cer=ceramic(color),ch=CHROME(),wall=v==='wall',back=wall?.12:.05,z0=-d/2+back,bl=d/2-z0,zc=(z0+d/2)/2;
     if(wall){part(g,w,h+.1,back,mat(0xdedbd5,.7),0,0,-d/2+back/2,.004);cyl(g,.5,.2,cer,0,h-.2,zc,{rb:.32,sx:w*.96,sz:bl});}
     else{cyl(g,.5,.2,cer,0,0,zc+.02,{sx:w*.55,sz:bl*.6});cyl(g,.5,h-.18,cer,0,.18,zc,{rb:.4,sx:w*.96,sz:bl});}
     cyl(g,.5,.004,mat(0xeceae4,.14),0,h,zc+.01,{sx:w*.76,sz:bl*.74});part(g,w*.8,.04,.08,cer,0,h-.04,z0+.04,.015);cyl(g,.014,.06,ch,0,h,z0+.04,{seg:12});cyl(g,.01,.06,ch,0,h+.055,z0+.07,{axis:'z',seg:10});
   },
   // PC tower: case, a glass side panel with lighting inside, a button on the front.
-  pcTower(g,{w,d,h,color}){const c=color==='white'?0xf2f2f0:0x1e1f22,m=mat(c,.4,.2);
+  pcTower(g,{w,d,h,color}){const c=tone(color,{white:0xf2f2f0,black:0x1e1f22}),m=mat(c,.4,.2);
     for(const sz of [-1,1])part(g,w-.02,.02,.04,mat(0x111214,.5),0,0,sz*(d/2-.04),.006);part(g,w,h-.02,d,m,0,.02,0,.008);
     part(g,.004,h-.08,d-.08,transp(0x111214,.75,.05),w/2+.001,.05,0,.002);part(g,.003,.006,d-.12,glow(0x8a7dff),w/2-.004,h-.09,0,.001);part(g,.003,h-.16,.006,glow(0x5fd0ff),w/2-.004,.08,d/2-.08,.001);
     cyl(g,.01,.004,glow(0x9fe3ff),0,h-.04,d/2+.001,{axis:'z',seg:16});for(let y=.06;y<h*.6;y+=.02)part(g,w*.6,.004,.002,mat(shade(c,.75),.5),0,y,d/2+.001,.001);
   },
   // Printer / MFP: body, scanner lid, paper tray, output slot, panel.
-  printer(g,{w,d,h,color}){const c=color==='black'?0x2a2b2e:0xf1f1ef,m=mat(c,.4),dk=mat(0x2a2c30,.4);
+  printer(g,{w,d,h,color}){const c=tone(color,{black:0x2a2b2e,white:0xf1f1ef}),m=mat(c,.4),dk=mat(0x2a2c30,.4);
     part(g,w,h*.78,d,m,0,0,0,.015);part(g,w-.004,h*.22,d-.004,mat(shade(c,.94),.35),0,h*.78,0,.012);part(g,w-.02,.003,.002,dk,0,h*.78,d/2+.001,.001);
     part(g,w*.7,.022,.004,dk,0,h*.46,d/2+.001,.003);part(g,w*.55,.008,.1,m,0,h*.4,d/2-.05,.003);part(g,w*.5,.004,.12,mat(0xffffff,.8),0,h*.41,d/2-.06,.001);
     const pn=part(g,w*.28,.012,.07,dk,w*.28,h-.006,d/2-.045,.004);pn.rotation.x=.35;
   },
   // Playpen: posts, soft rails, mesh on the sides, a pad and toys.
-  playpen(g,{w,d,h,color}){const c=COLORS[color][1],m=mat(c,.55),net=transp(0xf4f4f2,.45,.9),pad=mat(PASTEL[3],.9);
+  playpen(g,{w,d,h,color}){const c=hexOf(color),m=mat(c,.55),net=transp(0xf4f4f2,.45,.9),pad=mat(PASTEL[3],.9);
     for(const sx of [-1,1])for(const sz of [-1,1])cyl(g,.022,h,m,sx*(w/2-.025),0,sz*(d/2-.025),{seg:12});
     for(const sz of [-1,1]){cyl(g,.022,w-.05,m,0,h-.02,sz*(d/2-.025),{axis:'x',seg:12});part(g,w-.06,h-.08,.004,net,0,.05,sz*(d/2-.025),.001);}
     for(const sx of [-1,1]){cyl(g,.022,d-.05,m,sx*(w/2-.025),h-.02,0,{axis:'z',seg:12});part(g,.004,h-.08,d-.06,net,sx*(w/2-.025),.05,0,.001);}
@@ -1028,18 +1037,18 @@ const GEN={
     for(let i=0;i<3;i++)part(g,.07,.07,.07,mat(PASTEL[i],.5),w*.15+i*.06,.06+(i===2?.07:0),-d*.15+(i===2?-.03:0),.01);
   },
   // Kids' play table: a rounded tabletop on colored legs, pencils.
-  kidsTable(g,{w,d,h,color}){const c=COLORS[color][1],m=mat(c,.5),T=.025;part(g,w,T,d,m,0,h-T,0,.03);
+  kidsTable(g,{w,d,h,color}){const c=hexOf(color),m=mat(c,.5),T=.025;part(g,w,T,d,m,0,h-T,0,.03);
     let i=0;for(const sx of [-1,1])for(const sz of [-1,1])cyl(g,.025,h-T,mat(PASTEL[i++],.55),sx*(w/2-.06),0,sz*(d/2-.06),{seg:16});
     for(let k=0;k<3;k++){const q=cyl(g,.005,.15,mat(ART[k],.5),-w*.15+k*.025,h+.005,.05,{axis:'x',seg:8});q.rotation.y=.3;}part(g,.2,.002,.28,mat(0xffffff,.8),w*.15,h,0,.001);
   },
   // Humidifier: base, a transparent water tank, a lid with a mist outlet, a puff of mist.
-  humidifier(g,{w,d,h}){const wh=mat(0xf6f6f4,.3),r=Math.min(w,d)/2;
+  humidifier(g,{w,d,h,color}){const wh=mat(tone(color,{white:0xf6f6f4}),.3),r=Math.min(w,d)/2;
     cyl(g,r,h*.32,wh,0,0,0,{seg:36});cyl(g,r*.92,h*.5,transp(0xcfe6f2,.5),0,h*.32,0,{seg:36});cyl(g,r*.86,h*.36,transp(0x9fd0ea,.35),0,h*.33,0,{seg:32});
     cyl(g,r*.8,h*.12,wh,0,h*.82,0,{rb:r*.9,seg:32});cyl(g,.016,.03,mat(0x2b2c2f,.4),0,h*.94,0,{seg:12});part(g,.03,.006,.002,glow(0x7fd9ff),0,h*.16,r+.001,.001);
     for(const [y,s2] of [[.08,.05],[.15,.07],[.23,.06]]){const q=new THREE.Mesh(new THREE.SphereGeometry(s2,12,10),transp(0xffffff,.18,.9));q.position.set(.01,h+y,0);g.add(q);}
   },
   // Floor fan: base, pole, motor, a ring-and-spoke guard, blades.
-  fan(g,{w,d,h,color}){const m=color==='black'?mat(0x232427,.4,.2):mat(0xf3f3f1,.4),cg=mat(color==='black'?0x2b2c2f:0xdedfdd,.35,.4),r=Math.min(w/2-.01,.2),hy=h-r-.01,z=.04;
+  fan(g,{w,d,h,color}){const m=color==='black'?mat(0x232427,.4,.2):mat(tone(color,{white:0xf3f3f1}),.4),cg=mat(tone(color,{black:0x2b2c2f,white:0xdedfdd}),.35,.4),r=Math.min(w/2-.01,.2),hy=h-r-.01,z=.04;
     cyl(g,Math.min(w,d)*.42,.03,m,0,0,0,{seg:36});cyl(g,.015,hy-.05,m,0,.03,0,{seg:12});cyl(g,.06,.13,m,0,hy,-.04,{axis:'z',seg:24});
     for(const zz of [z+.04,z-.03]){const t=new THREE.Mesh(new THREE.TorusGeometry(r,.004,6,48),cg);t.position.set(0,hy,zz);g.add(t);}
     for(let i=0;i<16;i++){const a=i*Math.PI/8;rod(g,[0,hy,z+.045],[Math.cos(a)*r,hy+Math.sin(a)*r,z+.04],.0018,cg,4);}
@@ -1060,7 +1069,7 @@ const GEN={
   },
   // Piano. Upright: a tall case with a lid, side cheeks holding the keybed, 52 white and 36 black keys, a dark name board over them,
   // a kick board with three brass pedals, toe blocks. Digital: a slim case on two side panels, the keyboard, a music rest, a pedal bar.
-  piano(g,{w,d,h,color,v='upright'}){const c=COLORS[color][1],gloss=color==='black'||color==='white',body=mat(c,gloss?.16:.45),dk=mat(shade(c,.62),gloss?.2:.5),
+  piano(g,{w,d,h,color,v='upright'}){const c=hexOf(color),gloss=color==='black'||color==='white',body=mat(c,gloss?.16:.45),dk=mat(shade(c,.62),gloss?.2:.5),
       ivory=mat(0xf4f1ea,.35),ebony=mat(0x141416,.22),brass=mat(0xc9a65a,.25,.8),kd=.15,kw=Math.min(w-.12,1.25),ky=v==='digital'?h-.12:.72;
     const keys=(z0)=>{part(g,kw,.022,kd,ivory,0,ky,z0+kd/2,.002);const wk=kw/52;
       for(let i=0;i<52;i++)if(i)part(g,.0015,.0225,kd-.004,mat(0xc9c5bc,.5),-kw/2+i*wk,ky+.0003,z0+kd/2+.002,.0003);
@@ -1080,7 +1089,7 @@ const GEN={
   // Staircase: a straight flight rising from the front (+z) to the back, steps ~18 cm high. Solid: steps closed down to the floor in white
   // with treads in the color, a wooden handrail on white balusters; open: floating treads on two black steel stringers and a black rail.
   // The rail is on the right (mirrored: the left).
-  stairs(g,{w,d,h,color,v='solid'}){const c=COLORS[color][1],tread=mat(c,.55),n=Math.max(4,Math.round(h/.18)),rise=h/n,run=d/n,open=v==='open',
+  stairs(g,{w,d,h,color,v='solid'}){const c=hexOf(color),tread=mat(c,.55),n=Math.max(4,Math.round(h/.18)),rise=h/n,run=d/n,open=v==='open',
       white=mat(0xeeebe6,.6),steel=mat(0x26272a,.4,.45),side=w/2-.04;
     for(let i=0;i<n;i++){const y=(i+1)*rise,z=d/2-run*(i+.5);
       if(!open)part(g,w,y-.035,run,i===n-1?mat(shade(0xeeebe6,.96),.6):white,0,0,z,.002);
@@ -1093,7 +1102,7 @@ const GEN={
     for(let i=1;i<n;i+=2){const y=(i+1)*rise,z=d/2-run*(i+.5);cyl(g,.012,.9,bal,side,y,z,{seg:8});}
   },
   // Aquarium on a stand: a stand with doors, a glass tank with water, substrate, plants, stones, fish, a lid with lighting.
-  aquarium(g,{w,d,h,color}){const c=COLORS[color][1],m=mat(c,.5),ch=h*.55,th=h-ch-.06,dk=mat(shade(c,.7));
+  aquarium(g,{w,d,h,color}){const c=hexOf(color),m=mat(c,.5),ch=h*.55,th=h-ch-.06,dk=mat(shade(c,.7));
     part(g,w,ch,d,m,0,0,0,.006);for(const s2 of [-1,1])part(g,w/2-.012,ch-.06,.016,mat(shade(c,1.05),.5),s2*w/4,.03,d/2,.003);
     glass(part(g,w,th,d,GLASS,0,ch,0,.004));const wt=part(g,w-.02,th*.86,d-.02,transp(0x4fa3c7,.3,.05),0,ch+.01,0,.002);wt.castShadow=false;
     part(g,w-.02,.04,d-.02,mat(0xd8c49a,.95),0,ch+.005,0,.01);const pl=mat(0x4d7a43,.7),pl2=mat(0x6b9655,.7);
@@ -1103,7 +1112,7 @@ const GEN={
     part(g,w,.06,d,dk,0,h-.06,0,.006);part(g,w-.06,.006,d*.4,glow(0xe8f6ff),0,h-.064,0,.002);
   },
   // Cat tree: base, sisal-wrapped posts, shelves, a cubby with an entrance, a bed on top, a toy on a string.
-  catTree(g,{w,d,h,color}){const fab=mat(COLORS[color][1],.95),sis=mat(0xcbb48a,.95),dk=mat(0x1b1c1e,.6);
+  catTree(g,{w,d,h,color}){const fab=mat(hexOf(color),.95),sis=mat(0xcbb48a,.95),dk=mat(0x1b1c1e,.6);
     part(g,w,.05,d,fab,0,0,0,.015);const p1=[-w*.25,-d*.22],p2=[w*.24,d*.2],hm=h*.55;
     cyl(g,.045,hm-.05,sis,p1[0],.05,p1[1],{seg:18});cyl(g,.045,h-.12-.05,sis,p2[0],.05,p2[1],{seg:18});
     for(let y=.1;y<h-.15;y+=.05){for(const [px,pz,top] of [[...p1,hm],[...p2,h-.12]])if(y<top){const t=new THREE.Mesh(new THREE.TorusGeometry(.046,.004,4,24),mat(0xb9a175,.95));t.rotation.x=Math.PI/2;t.position.set(px,y,pz);g.add(t);}}
@@ -1117,7 +1126,7 @@ const GEN={
     else{cyl(g,.5,h*.35,M.frame,0,0,0,{sx:w,sz:d,seg:40});const t=new THREE.Mesh(new THREE.TorusGeometry(.41,.09,12,40),M.fab);t.rotation.x=Math.PI/2;t.scale.set(w,d,h/.18*.7);t.position.y=h*.62;t.castShadow=true;g.add(t);cyl(g,.5,h*.25,M.cush,0,h*.3,0,{sx:w*.72,sz:d*.72,seg:40});}
   },
   // Wall bars: two uprights at the wall, rungs every 25 cm; with a pull-up bar — brackets forward and a bar.
-  wallBars(g,{w,d,h,color,v}){const c=COLORS[color][1],m=mat(c,.5),mt=mat(0x2b2c2f,.4,.5),z=-d/2+.05;
+  wallBars(g,{w,d,h,color,v}){const c=hexOf(color),m=mat(c,.5),mt=mat(0x2b2c2f,.4,.5),z=-d/2+.05;
     for(const s2 of [-1,1]){part(g,.045,h,.07,m,s2*(w/2-.0225),0,z,.008);for(const y of [.3,h-.3])part(g,.06,.06,.03,mt,s2*(w/2-.0225),y,-d/2+.015,.006);}
     for(let y=.2;y<h-.05;y+=.25)cyl(g,.016,w-.09,m,0,y,z,{axis:'x',seg:14});
     if(v!=='plain'){const y=h-.12;for(const s2 of [-1,1])rod(g,[s2*(w/2-.0225),y,z],[s2*(w/2-.0225),y,d/2-.04],.016,mt);cyl(g,.016,w-.02,mt,0,y,d/2-.04,{axis:'x',seg:14});
@@ -1127,19 +1136,19 @@ const GEN={
   custom(g,{w,d,h,color,v}){const m=finish(color==='steel'?'steel':color);if(v==='cyl')cyl(g,.5,h,m,0,0,0,{sx:w,sz:d,seg:40});else part(g,w,h,d,m,0,0,0,Math.min(.015,w/4,d/4,h/4));},
   // ---------- house: utilities, garage, outdoors ----------
   // Boiler: wall-mounted — a body with a panel and pipes going down; floor-standing — a cabinet with a panel on top.
-  gasBoiler(g,{w,d,h,v}){const wh=mat(0xf5f5f3,.3),dk=mat(0x2a2c30,.35),ch=CHROME(),cu=mat(0xb87333,.35,.6);
+  gasBoiler(g,{w,d,h,v,color}){const wh=enamel(color,0xf5f5f3),dk=mat(0x2a2c30,.35),ch=CHROME(),cu=mat(0xb87333,.35,.6);
     part(g,w,h,d,wh,0,0,0,.03);part(g,w*.6,.06,.004,dk,0,v==='floor'?h-.12:h*.12,d/2+.001,.004);part(g,w*.12,.02,.003,glow(0x8fe0ff),0,v==='floor'?h-.1:h*.12+.02,d/2+.003,.002);
     if(v!=='floor')for(let i=0;i<4;i++){const x=-w/2+.08+i*(w-.16)/3;cyl(g,.011,.3,i===1?cu:ch,x,-.3,-d/2+.1,{seg:10});}
     else for(let y=.1;y<h*.5;y+=.03)part(g,w*.6,.006,.003,mat(0xdcdcd9,.5),0,y,d/2+.001,.002);
   },
   // Electrical panel: a cabinet, a door with a window showing the breakers.
-  elPanel(g,{w,d,h,color}){const m=color==='grey'?mat(0xb9bcc0,.4,.3):mat(0xf3f3f1,.35),dk=mat(0x1d1f22,.4);
-    part(g,w,h,d,m,0,0,0,.008);part(g,w-.02,h-.02,.006,mat(color==='grey'?0xc5c8cc:0xfafaf8,.3),0,.01,d/2+.002,.003);
+  elPanel(g,{w,d,h,color}){const m=color==='grey'?mat(0xb9bcc0,.4,.3):mat(tone(color,{white:0xf3f3f1}),.35),dk=mat(0x1d1f22,.4);
+    part(g,w,h,d,m,0,0,0,.008);part(g,w-.02,h-.02,.006,mat(color==='grey'?0xc5c8cc:panel(color,0xfafaf8),.3),0,.01,d/2+.002,.003);
     part(g,w*.75,h*.22,.004,transp(0x202226,.55,.05),0,h*.55,d/2+.006,.002);for(let i=0;i<Math.round(w*.75/.025);i++)part(g,.016,h*.12,.004,i%5===0?mat(0xd9483b,.5):mat(0xf2f2f0,.5),-w*.36+i*.025+.012,h*.6,d/2+.004,.001);
     cyl(g,.008,.01,dk,w/2-.04,h*.45,d/2+.008,{axis:'z',seg:10});
   },
   // Network rack: a frame, a glass door, a router, a switch and a NAS with status lights inside.
-  netRack(g,{w,d,h,color}){const m=color==='white'?mat(0xf2f2f0,.4,.2):mat(0x1b1c1f,.45,.3),dv=mat(0x2a2c30,.4,.3),L=[glow(0x5fe08a),glow(0x5fb8ff),glow(0xffb35f)];
+  netRack(g,{w,d,h,color}){const m=color==='white'?mat(0xf2f2f0,.4,.2):mat(tone(color,{black:0x1b1c1f}),.45,.3),dv=mat(0x2a2c30,.4,.3),L=[glow(0x5fe08a),glow(0x5fb8ff),glow(0xffb35f)];
     part(g,w,h,d,m,0,0,0,.008);const n=Math.max(2,Math.floor((h-.12)/.09));
     for(let i=0;i<n;i++){const y=.06+i*(h-.12)/n,hh=Math.min(.07,(h-.12)/n-.015);part(g,w-.08,hh,d-.12,dv,0,y,-.02,.004);for(let k=0;k<6;k++)part(g,.008,.006,.003,L[(i+k)%3],-w/2+.08+k*.03,y+hh*.6,d/2-.058,.001);}
     glass(part(g,w-.04,h-.06,.005,transp(0x2a3038,.35,.05),0,.03,d/2+.001,.002));for(let y=h-.05;y>h-.2;y-=.02)part(g,w*.5,.004,.003,mat(0x3a3c40,.6),0,y,d/2+.004,.001);
@@ -1147,7 +1156,7 @@ const GEN={
   // Car: a fastback electric sedan or a large luxury SUV, a smooth lofted body (car3d.js).
   car(g,o){car3d(g,o);},
   // Bicycle: spoked wheels, a “triangle” frame, handlebar, saddle.
-  bicycle(g,{w,d,h,color}){const c=COLORS[color][1],fr=mat(c,.35,.3),dk=mat(0x1b1c1e,.7),sp=mat(0xb7bbbf,.3,.6),R=Math.min(.34,(h-.3)/2+.05),zf=d/2-R-.02,zb=-d/2+R+.02;
+  bicycle(g,{w,d,h,color}){const c=hexOf(color),fr=mat(c,.35,.3),dk=mat(0x1b1c1e,.7),sp=mat(0xb7bbbf,.3,.6),R=Math.min(.34,(h-.3)/2+.05),zf=d/2-R-.02,zb=-d/2+R+.02;
     for(const z of [zf,zb]){const t=new THREE.Mesh(new THREE.TorusGeometry(R,.022,10,40),dk);t.rotation.y=Math.PI/2;t.position.set(0,R,z);t.castShadow=true;g.add(t);cyl(g,.03,.06,sp,0,R,z,{axis:'x',seg:12});
       for(let i=0;i<8;i++){const a=i*Math.PI/4;rod(g,[0,R,z],[0,R+Math.sin(a)*R,z+Math.cos(a)*R],.002,sp,4);}}
     const bb=[0,R-.02,(zf+zb)/2-.05],seat=[0,h-.12,zb+.25],head=[0,h-.08,zf-.18];
@@ -1155,13 +1164,13 @@ const GEN={
     rod(g,head,[0,h,head[2]+.03],.014,fr);cyl(g,.012,Math.min(w,.6),dk,0,h,head[2]+.03,{axis:'x',seg:10});part(g,.12,.04,.26,dk,0,h-.1,zb+.22,.02);
   },
   // Workbench: a thick top, legs, a lower shelf, a vise and a toolbox.
-  workbench(g,{w,d,h,color}){const c=COLORS[color][1],m=mat(c,.6),mt=mat(0x3d4f63,.45,.4),T=.05;
+  workbench(g,{w,d,h,color}){const c=hexOf(color),m=mat(c,.6),mt=mat(0x3d4f63,.45,.4),T=.05;
     part(g,w,T,d,m,0,h-T,0,.006);for(const sx of [-1,1])for(const sz of [-1,1])part(g,.06,h-T,.06,mt,sx*(w/2-.05),0,sz*(d/2-.05),.006);part(g,w-.1,.025,d-.1,m,0,.18,0,.004);
     part(g,.14,.08,.12,mt,w/2-.12,h,d/2-.08,.008);part(g,.4,.12,.2,mat(0xc0392b,.5,.2),-w/2+.3,h,-.05,.01);part(g,.5,.3,.3,mat(0x8a6e4e,.8),-w*.15,.205,-.05,.01);
   },
   // Chest freezer: body, a lid with a seam and a handle, feet.
-  freezer(g,{w,d,h}){const wh=mat(0xf4f4f2,.32),dk=mat(0x2b2c2f,.5);for(const sx of [-1,1])for(const sz of [-1,1])part(g,.04,.03,.04,dk,sx*(w/2-.05),0,sz*(d/2-.05),.006);
-    part(g,w,h-.11,d,wh,0,.03,0,.02);part(g,w+.004,.08,d+.004,mat(0xfafaf8,.3),0,h-.08,0,.02);part(g,w*.3,.02,.025,mat(0xb7bbbf,.3,.5),0,h-.07,d/2+.01,.006);part(g,.05,.012,.004,glow(0x7ee08a),w/2-.1,h-.12,d/2+.001,.002);},
+  freezer(g,{w,d,h,color}){const wh=enamel(color,0xf4f4f2,.32),dk=mat(0x2b2c2f,.5);for(const sx of [-1,1])for(const sz of [-1,1])part(g,.04,.03,.04,dk,sx*(w/2-.05),0,sz*(d/2-.05),.006);
+    part(g,w,h-.11,d,wh,0,.03,0,.02);part(g,w+.004,.08,d+.004,color==='white'?mat(0xfafaf8,.3):wh,0,h-.08,0,.02);part(g,w*.3,.02,.025,mat(0xb7bbbf,.3,.5),0,h-.07,d/2+.01,.006);part(g,.05,.012,.004,glow(0x7ee08a),w/2-.1,h-.12,d/2+.001,.002);},
   // Garden table: a metal frame, a slatted top (or a round one).
   patioTable(g,{w,d,h,color,v}){const fr=sideM(color==='oak'?'black':color),wd=mat(color==='oak'?COLORS.oak[1]:0x9a7a55,.7),T=.03;
     if(v==='round'){cyl(g,.5,T,wd,0,h-T,0,{sx:w,sz:d,seg:40});cyl(g,.02,h-T,fr,0,0,0,{seg:12});for(let i=0;i<4;i++){const a=i*Math.PI/2+Math.PI/4;rod(g,[0,.02,0],[Math.cos(a)*w*.35,.01,Math.sin(a)*d*.35],.014,fr);}return;}
@@ -1174,13 +1183,13 @@ const GEN={
     for(let i=0;i<5;i++)part(g,w-.06,.02,(d-.18)/5-.01,wd,0,S,d/2-.06-(i+.5)*(d-.18)/5,.004);for(let i=0;i<4;i++){const q=part(g,w-.06,.07,.02,wd,0,S+.08+i*.09,-d/2+.075+i*.007,.004);q.rotation.x=-.12;}
   },
   // Sun lounger: a frame on legs, a slatted bed, a raised backrest, wheels at the head end.
-  sunLounger(g,{w,d,h,color}){const fr=sideM(color==='oak'?'oak':color==='graphite'?'black':'white'),sl=mat(color==='graphite'?0x3a3b3f:color==='oak'?COLORS.oak[1]:0xf2f2f0,.6),Y=.3,bl=d*.32;
+  sunLounger(g,{w,d,h,color}){const own=isHex(color),fr=sideM(own?color:color==='oak'?'oak':color==='graphite'?'black':'white'),sl=mat(own?hexOf(color):color==='graphite'?0x3a3b3f:color==='oak'?COLORS.oak[1]:0xf2f2f0,.6),Y=.3,bl=d*.32;
     for(const sx of [-1,1]){part(g,.04,.04,d-.1,fr,sx*(w/2-.03),Y-.04,.05,.008);for(const z of [d/2-.08,-d/2+.3])part(g,.04,Y-.04,.04,fr,sx*(w/2-.03),0,z,.006);part(g,.04,Y-.09,.04,fr,sx*(w/2-.03),.05,-d/2+.12,.006);cyl(g,.05,.03,mat(0x2b2c2f,.6),sx*(w/2-.03)+sx*.035,.05,-d/2+.12,{axis:'x',seg:16});}
     const n=Math.round((d-bl)/.06);for(let i=0;i<n;i++)part(g,w-.08,.02,.045,sl,0,Y,d/2-.05-i*.06,.004);
     const q=new THREE.Group();q.position.set(0,Y,-d/2+bl);q.rotation.x=.7;g.add(q);for(let i=0;i<Math.round(bl/.06);i++)part(q,w-.08,.02,.045,sl,0,0,-.03-i*.06,.004);
   },
   // Grill: a bowl and a dome lid, a handle, three legs, wheels, a lower shelf.
-  grill(g,{w,d,h,color}){const m=color==='steel'?finish('steel'):mat(COLORS[color][1],.3,.3),dk=mat(0x1b1c1e,.6),r=Math.min(w,d)/2-.02,Y=h-r*.95;
+  grill(g,{w,d,h,color}){const m=color==='steel'?finish('steel'):mat(hexOf(color),.3,.3),dk=mat(0x1b1c1e,.6),r=Math.min(w,d)/2-.02,Y=h-r*.95;
     const b=new THREE.Mesh(new THREE.SphereGeometry(r,32,16,0,Math.PI*2,Math.PI/2,Math.PI/2),m);b.position.y=Y;b.castShadow=true;g.add(b);
     const l=new THREE.Mesh(new THREE.SphereGeometry(r*1.01,32,16,0,Math.PI*2,0,Math.PI/2.2),m);l.scale.y=.85;l.position.y=Y;l.castShadow=true;g.add(l);
     part(g,.16,.025,.03,dk,0,Y+r*.82,0,.01);for(let i=0;i<3;i++){const a=i*Math.PI*2/3+Math.PI/2;rod(g,[Math.cos(a)*r*.5,Y-r*.5,Math.sin(a)*r*.5],[Math.cos(a)*r*.95,0,Math.sin(a)*r*.95],.012,dk);}
@@ -1249,7 +1258,7 @@ const RUN_LOOK={
   // wall cabinets: carcass 2 cm shallower than the depth, ~60 cm fronts with a bar handle at the bottom
   kitchenWall(g,s,{h,M}){prism(g,s.layer[.02].body,0,h,M.body);const f=s.layer[.02].front;if(f)runDoors(g,f,s.u,s.n,{y0:0,y1:h,step:.6,handle:'bottom',front:M.front,metal:METAL()});},
 };
-function runObject(item,c){const color=item.color||c.color,col=COLORS[color][1],v=item.v||c.vars?.[0][0],h=item.h;
+function runObject(item,c){const color=item.color||c.color,col=hexOf(color),v=item.v||c.vars?.[0][0],h=item.h;
   // a counter-clockwise “room”: the wardrobe along the whole top wall (y = d/2), its front facing −y, toward the picture camera
   const w=item.w/2,d=item.d/2,geo=item.geo||runShape([[-w,-3],[w,-3],[w,d],[-w,d]],2*w+3+d,item.w,item.d);
   const M={front:mat(col,c.id==='wardrobeRun'?.55:.5),body:mat(shade(col,.82)),base:mat(shade(col,.6)),metal:mat(0x3c3e42,.4),al:mat(0xb8bcc0,.3,.6),top:TOP(item.top)};

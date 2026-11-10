@@ -5,7 +5,7 @@
 // out of it. The glass house is a second loft set in from the shoulders, narrowing upwards. Lights, the grille, seams and handles
 // are thin patches lying on the body's surface. Sizes come from the item: everything is laid out in shares of its length and height.
 import * as THREE from 'three';
-import {COLORS,CAR_COLORS} from './catalog.js';
+import {CAR_COLORS,hexOf} from './catalog.js';
 
 // y(x) through points [[x,y],…] with x ascending: a monotone cubic, so a profile never overshoots between its points
 function curve(P){const n=P.length,h=[],s=[],m=[];
@@ -42,7 +42,7 @@ const flat=(c,r,m=0,e=0)=>once(`f${c}:${r}:${m}:${e}`,()=>new THREE.MeshStandard
 const se=(t,n)=>Math.sign(t)*Math.pow(Math.abs(t),2/n);
 
 export function car(g,{w,d,h,color,v}){
-  const S=SPEC[v]||SPEC.sedan,L=d,hl=L/2,sh=h/S.H,sl=L/S.L,c=CAR_COLORS[color]?.[1]??COLORS[color]?.[1]??CAR_COLORS.navy[1];
+  const S=SPEC[v]||SPEC.sedan,L=d,hl=L/2,sh=h/S.H,sl=L/S.L,c=CAR_COLORS[color]?.[1]??hexOf(color,CAR_COLORS.navy[1]);
   const prof=P=>curve(P.map(([u,y])=>[u*hl,y*sh]).sort((a,b)=>a[0]-b[0])),top=prof(S.top),bot=prof(S.bot),gtop=prof(S.glass);
   const R=Math.min(S.R*sh,h*.25),Ra=R+S.gap*sh,tw=S.tw*w/(v==='suv'?1.98:1.85),zf=S.uf*hl,zr=S.ur*hl,af=S.af*sl,ar=S.ar*sl,W=w/2;
   const add=(geo,m,cast=true)=>{const o=new THREE.Mesh(geo,m);o.castShadow=cast;o.receiveShadow=true;g.add(o);return o;};
