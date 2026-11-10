@@ -17,6 +17,17 @@ New decisions are appended at the top of their section, old ones are not rewritt
 
 ## Decisions
 
+### D-070. A custom colour wherever there is a colour — **accepted** (2026-11-10)
+- The owner, 2026-11-09: “wherever a colour is used — predefined swatches plus the ability to set a custom one” (the idea at the top of [ideas.md](ideas.md)). Also needed by the AI build (D-063): colours from a real home rarely match a named one (a real rug was ΔE 11.7 from the nearest), and “is our model recognisably this item?” failed mostly on colour.
+- An item's `color` is a named colour or `#rrggbb`; every generator draws both (`hexOf` in `catalog.js`). The furniture panel ends its swatches with a custom colour picker; a picked colour within ΔE 3 of one of the model's swatches selects that swatch (`core/color.js`). Models that had no colour choice got one (bath, basin, bidet, water heater, TV, monitor, air conditioner; boiler, convector, humidifier and chest freezer had swatches that changed nothing). The rug takes a second colour for its border (`color2`; not set — a shade darker than the field, as before). `readPlan` accepts and checks `#rrggbb`.
+- The built-in wardrobe goes up to 2.7 m like other tall storage. Floor-to-ceiling for any ceiling needs a wall height per plan (today fixed at 2.6 m) — a separate decision.
+- Left to re-check everywhere at the end (the owner): lamps, curtains and blinds, finishes, the dashboard card — see ideas.md.
+
+### D-069. Items from parts — **accepted** (2026-11-10)
+- The AI build (D-063) describes furniture it cannot match to the catalog with simple parts (boxes, cylinders, profiles, lathes, repeats; at most 60 parts and 4 materials). The editor draws them as `model: "parts"` with the parts on the item (`core/parts.js`): merged by material like generated items, stretched to the item's size when resized, edited, moved, saved and undone like any furniture; the panel shows its own name and size. Never in the catalog picker.
+- A plan file with invalid parts is rejected with the item and the problem named; a plan that reaches the editor another way (Home Assistant, history) draws such an item as a plain box instead of failing.
+- The parts format and the AI that writes it stay in the private build service; the editor only draws the result.
+
 ### D-068. Day and night follow the sun — **accepted** (2026-11-09)
 - The owner, on the day / night button in Preview: “can it switch on its own after sunset and after sunrise?” The card already started by the sun, but a tap turned that off for good; the editor (Preview, the 3D, the “Day” button) always started by day.
 - Now both open as it is outside and turn night after sunset and day after sunrise on their own.

@@ -23,6 +23,8 @@ This is the current work list. The [decision journal](decisions.md) keeps the hi
 | Languages | Russian and nine translations; a string scanner and completeness tests | [i18n/](../editor/src/i18n/), [scanner](../editor/tools/i18n-scan.mjs); D-036 |
 | Saving | Autosave, undo/redo (survives a reload), “Version history”, the backup slot “Restore previous plan”, JSON, file validation, saving drafts; the photo separately in IndexedDB (in the HA panel — in HA, D-058) | [Report 2026-11-07](research/persistence-audit-2026-11-07.md), [history.js](../editor/src/editor/history.js), [versions.js](../editor/src/editor/versions.js); D-051 |
 
+2026-11-10: items from parts (`model: "parts"`, D-069) and a custom `#rrggbb` colour on every catalog model with a rug border colour (D-070); 322 tests pass.
+
 The catalog as of the review date: **133 entries, 129 visible**, including “Custom item”. All visible entries use their own generators; four old Kenney entries are hidden. 13 Kenney files are still included in the build. These numbers do not equal the 120 functional items of the [research](research/furniture-catalog.md): items and variants were counted differently there.
 
 ## Nearest work on the editor

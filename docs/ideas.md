@@ -2,9 +2,10 @@
 
 Reviewed 2026-11-07. This file keeps proposals and already implemented ideas with links to decisions. The current development queue is in [status.md](status.md); an idea being recorded does not mean it has been included in the nearest release.
 
-## A custom colour wherever there is a colour (owner, 2026-11-09)
+## A custom colour wherever there is a colour (owner, 2026-11-09) — catalog furniture done (D-070)
 
 Every colour choice in the editor offers the predefined swatches **and** a custom colour (`#rrggbb`, a colour picker): catalog furniture and generators (today only named colours, 2–14 per model, and some models have none — the sit/stand desk, the nightstand), curtains and blinds, rugs (two colours: the field and the border), finishes (they already have a tint). The paid AI build (D-063) needs it too: colours taken from a real home rarely match a named one — a real rug was ΔE 11.7 from the nearest named colour.
+- **Done 2026-11-10 (D-070):** every catalog model and generator, the furniture panel's custom colour, the rug's border colour, plan files. **Not yet:** curtains and blinds placed as HA devices, lamp shades, a wardrobe up to any ceiling height.
 - **Re-check everywhere afterwards** (owner): once done, go through every place where a colour is chosen or shown — the catalog, generators, curtains and blinds, rugs, lamps, finishes, the dashboard card, plan files written by the AI build — and confirm each has the swatches plus a custom colour and keeps a custom colour through saving and loading.
 
 ## From furnishing the examples (2026-11-09, D-064)
