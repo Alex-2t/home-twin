@@ -28,6 +28,16 @@ export const STRIP={top:{h:2.5,name:t('Ceiling'),tip:t('2.5 m: cove, floating ce
 export const LAMP={floor:{h:1.5,name:t('Floor lamp')},table:{h:.75,name:t('Table lamp')}};
 export const SPOTS={grid:t('Grid'),row:t('Row'),ring:t('Perimeter')};
 export const LINES={along:t('Along'),across:t('Across'),frame:t('Frame')};
+// A pendant's shade (L.shade): opal glass dome, black metal dome, glass globe, rattan bell. None set: guessed from the name, else the dome.
+export const SHADES={dome:t('Opal dome'),metal:t('Black metal'),globe:t('Glass globe'),woven:t('Rattan')};
+const SHADE_RE=[
+  ['woven',/rattan|wicker|woven|paper|bamboo|jute|ротанг|плетён|плетен|бумажн|бамбук|rotin|osier|papier|mimbre|ratán|papel|vimini|carta|wiklin|papierow|vime|藤|纸/i],
+  ['globe',/globe|sphere|ball|orb|шар|kugel|boule|globo|bola|sfera|kula|球/i],
+  ['metal',/black|metal|industrial|черн|чёрн|металл|лофт|schwarz|noir|métal|negr|metál|nero|metallo|czarn|metal|preto|黑|金属/i]];
+// A linear light's body (L.shade 'black' or 'white'): none set — black if the name says so (“Black track”), else white
+export const HOUSINGS={white:t('White'),black:t('Black')};
+export const housingOf=L=>HOUSINGS[L.shade]?L.shade:SHADE_RE[2][1].test([L.name,L.model].filter(Boolean).join(' '))?'black':'white';
+export const shadeOf=L=>SHADES[L.shade]?L.shade:SHADE_RE.find(([,r])=>r.test([L.name,L.model].filter(Boolean).join(' ')))?.[0]||'dome';
 const OPT={spots:'grid',line:'along',strip:'top',wall:'one',lamp:'floor'};
 
 // ---------- guess by name ----------
@@ -39,12 +49,16 @@ const K={
   line:re('трек|track|линия|линии|линейн|light ?line|профил|schiene|lichtlinie|rail|ligne lumineuse|lichtlijn|carril|línea de luz|binario|linea luminosa|szyn|linia świetl|trilho|linha de luz|轨道|线条灯|线形灯'),
   spots:re('спот|точечн|spot|downlight|gu10|mr16|встраив|recessed|strahler|einbau|encastr|inbouw|foco|empotr|ojo de buey|farett|incass|oczk|halogen|wpust|embutid|射灯|筒灯'),
   pendant:re('подвес|pendant|над стол|над остров|pendel|hängeleuchte|hängelampe|suspension|suspendu|hanglamp|colgante|sospensione|wisząc|zwis|pendente|吊灯'),
+  // a sconce named so: before the table lamp — “Bedside sconces” are a pair at the headboard, not a lamp on a nightstand
+  sconce:re('бра(?![а-яё])|sconce|настенн|wall ?(?:lamp|light)|wandlampe|wandleuchte|applique|wandlamp|aplique|kinkiet|lampa ścienna|arandela|壁灯'),
+  mirror:re('зеркал|mirror|vanity|spiegel|miroir|espejo|specchio|lustr|espelho|镜'),
+  desk:re('письмен|рабоч|desk|schreibtisch|bureau|escritorio|scrivania|biurk|secretária|书桌'),
   floorLamp:re('торшер|floor ?lamp|напольн|stehlampe|stehleuchte|lampadaire|staande lamp|vloerlamp|lámpara de pie|piantana|lampada da terra|lampa podłogowa|lampa stojąca|luminária de chão|abajur de pé|落地灯'),
   table:re('настольн|ночник|desk|table ?lamp|bedside|night ?light|tischlampe|tischleuchte|nachttisch|schreibtisch|nachtlicht|lampe de chevet|chevet|lampe de bureau|veilleuse|tafellamp|bureaulamp|nachtlamp|lámpara de mesa|mesita|escritorio|luz nocturna|lampada da tavolo|comodino|scrivania|abat-jour|luce notturna|lampk|biurk|nocn|abajur|luminária de mesa|cabeceira|台灯|床头灯|夜灯'),
   wall:re('бра(?![а-яё])|sconce|настен|wall|зеркал|mirror|картин|picture|wandlampe|wandleuchte|wand|spiegel|bild|applique|murale|miroir|tableau|wandlamp|muur|aplique|pared|espejo|cuadro|parete|specchio|quadro|kinkiet|ścien|lustr|obraz|arandela|parede|espelho|壁灯|镜前灯'),
-  pair:re('кроват|bed|пара|pair|двойн|bett|paar|doppel|lit|paire|double|dubbel|cama|par|doble|letto|coppia|doppi|łóżk|para|podwójn|dupl|床|双'),
+  pair:re('кроват|bed(?!room)|пара|pair|двойн|bett|paar|doppel|lit|paire|double|dubbel|cama|par|doble|letto|coppia|doppi|łóżk|para|podwójn|dupl|床|双'),
   strip:re('лент|strip|подсветк|карниз|cove|штор|curtain|ниш|niche|backlight|streifen|led-band|lichtband|leiste|indirekt|voute|vorhang|gardine|nische|ruban|bande led|indirect|corniche|rideau|ledstrip|lichtstrip|gordijn|nis|tira|cinta|cortina|nicho|striscia|indirett|tenda|nicchia|taśm|pasek|podświetl|listw|karnisz|zasłon|wnęk|fita|indiret|sanca|灯带|灯条|氛围灯'),
-  floor:re('пол(?:а|у)?(?![а-яё])|плинтус|floor|plinth|skirting|кроват|bed|ступен|stair|boden|sockel|fußleiste|stufe|treppe|bett|sol|plinthe|marche|escalier|lit|vloer|plint|trap|suelo|zócalo|escal|cama|pavimento|battiscopa|gradin|scal|letto|podłog|cokół|schod|łóżk|chão|piso|rodapé|degrau|escada|地脚|踢脚|楼梯|床底'),
+  floor:re('пол(?:а|у)?(?![а-яё])|плинтус|floor|plinth|skirting|кроват|bed(?!room)|ступен|stair|boden|sockel|fußleiste|stufe|treppe|bett|sol|plinthe|marche|escalier|lit|vloer|plint|trap|suelo|zócalo|escal|cama|pavimento|battiscopa|gradin|scal|letto|podłog|cokół|schod|łóżk|chão|piso|rodapé|degrau|escada|地脚|踢脚|楼梯|床底'),
   win:re('штор|окн|curtain|window|карниз|vorhang|gardine|fenster|rideau|fenêtre|gordijn|raam|cortina|ventana|tenda|finestra|zasłon|okn|firan|janela|窗帘|窗'),
 };
 // Form and variant from the light's name, entity and model. HA hints (kind, h in demo data) outweigh generic words.
@@ -53,6 +67,7 @@ export function guessForm(L){
   if(K.line.test(s))return pick('line');
   if(K.spots.test(s))return pick('spots');
   if(K.pendant.test(s))return pick('pendant');
+  if(K.sconce.test(s))return pick('wall',K.pair.test(s)?'pair':'one');
   if(K.floorLamp.test(s))return pick('lamp','floor');
   if(K.table.test(s))return pick('lamp','table');
   if(K.wall.test(s))return pick('wall',K.pair.test(s)?'pair':'one');
@@ -250,7 +265,7 @@ export function furnStrip(plan,cell,opt){const fs=furnOf(plan,cell,opt);if(!fs.l
 // by name: a “worktop light” in a kitchen with wall cabinets goes under them; a floor strip where there are base cabinets goes along the toe kick
 // (the owner: “it runs along the floor under the kitchen units”); without such furniture, as before, on the wall
 const KF={under:re('столешниц|рабоч|под шкаф|верхн|worktop|counter|under ?cabinet|arbeitsplatte|unterbau|oberschrank|plan de travail|sous meuble|werkblad|onderbouw|encimera|bajo mueble|piano di lavoro|sottopensile|blat|pod szafk|bancada|sob armário|橱柜|台面'),
-  plinth:re('цокол|plinth|kick|toe|sockel|socle|plint|sokkel|zócalo|zoccolo|cokół|rodapé|踢脚'),bed:re('кроват|bed|bett|lit|cama|letto|łóżk|床')};
+  plinth:re('цокол|plinth|kick|toe|sockel|socle|plint|sokkel|zócalo|zoccolo|cokół|rodapé|踢脚'),bed:re('кроват|bed(?!room)|bett|lit|cama|letto|łóżk|床')};
 export function furnGuess(plan,cell,L,opt){const s=[L.name,L.entity,L.model].filter(Boolean).join(' '),has=k=>furnOf(plan,cell,k).length>0;
   return Object.keys(KF).find(k=>KF[k].test(s)&&has(k))||(opt==='floor'&&has('plinth')?'plinth':null);}
 // guess: guess the furniture (the light is just being placed); “Ceiling” or “Floor” chosen by the user: on the wall
@@ -270,20 +285,38 @@ export function wallLayout(plan,cell,n=1,p){const es=cellEdges(cell);if(!es.leng
   if(!p&&n<=2){const bw=bedWall(plan,cell,n);if(bw)return bw;} // by a bed: at the headboard, on both sides
   let e,t;
   if(p){let best=null;for(const x of es){const [d,f]=segDist(p,x.a,x.b);if(!best||d<best.d)best={d,e:x,t:f*x.l};}e=best.e;t=best.t;}
-  else{const free=es.filter(x=>!hasWindow(plan,x));e=(free.length?free:es).reduce((a,b)=>b.l>a.l?b:a);t=e.l/2;}
-  const k=WALL.inner+.08;n=Math.max(1,Math.round(n));
-  const gap=n>1?Math.min(1.6,(e.l-.3)/(n-1)):0,half=gap*(n-1)/2,m=Math.max(.15+half,Math.min(e.l-.15-half,t));
+  // the longest stretch of a wall without a window, between its doors and openings (a sconce in the middle of the wall used to land inside
+  // a 2.4 m opening); a wall with a window — only if there is no other
+  let run=[.15,null];
+  if(!p){const free=es.filter(x=>!hasWindow(plan,x)),best=(free.length?free:es).map(x=>({x,r:freeRun(plan,x)})).reduce((a,b)=>b.r[1]-b.r[0]>a.r[1]-a.r[0]?b:a);
+    e=best.x;run=best.r;t=(run[0]+run[1])/2;}
+  const k=WALL.inner+.08,r0=run[0],r1=run[1]??e.l-.15;n=Math.max(1,Math.round(n));
+  const gap=n>1?Math.min(1.6,(r1-r0)/(n-1)):0,half=gap*(n-1)/2,m=Math.max(r0+half,Math.min(r1-half,t));
   return Array.from({length:n},(_,j)=>along(e,m-half+gap*j,k));}
+// The longest stretch [t0, t1] of edge e clear of the openings in it (15 cm around each) and of tall furniture against it at sconce
+// height (a wardrobe, shelves, wall cabinets: a sconce landed inside a built-in wardrobe), 15 cm in from the corners.
+function freeRun(plan,e){const pr=q=>(q[0]-e.a[0])*e.u[0]+(q[1]-e.a[1])*e.u[1];let fr=[[.15,e.l-.15]];
+  const block=(b0,b1)=>{fr=fr.flatMap(([f0,f1])=>b1<=f0||b0>=f1?[[f0,f1]]:[[f0,b0],[b1,f1]].filter(([x,y])=>y-x>.05));};
+  for(const o of plan.openings){const c=openingCoords(plan.rooms,o);if(!c||segDist([(c.a[0]+c.b[0])/2,(c.a[1]+c.b[1])/2],e.a,e.b)[0]>=.45)continue;
+    block(Math.min(pr(c.a),pr(c.b))-.15,Math.max(pr(c.a),pr(c.b))+.15);}
+  for(const f of plan.furniture||[]){if(byId(f.model)?.soft)continue;const z=zOf(f);if(z>HEIGHTS.wall+.15||z+f.h<HEIGHTS.wall-.15)continue;
+    const pts=rectsOf(plan,f).flat();if(!pts.some(q=>{const d=(q[0]-e.a[0])*e.n[0]+(q[1]-e.a[1])*e.n[1];return d>-.05&&d<.4;}))continue;
+    const ts=pts.map(pr);block(Math.min(...ts)-.1,Math.max(...ts)+.1);}
+  return fr.length?fr.reduce((a,b)=>b[1]-b[0]>a[1]-a[0]?b:a):[e.l/2,e.l/2];}
 // A sconce being dragged goes to the nearest wall of the room.
 export function snapWall(P,p){const s=area(P)>0?1:-1;let best=null;
   for(let i=0;i<P.length;i++){const a=P[i],b=P[(i+1)%P.length],l=len(a,b);if(l<.3)continue;const [d,f]=segDist(p,a,b);if(best&&d>=best.d)continue;
     const u=[(b[0]-a[0])/l,(b[1]-a[1])/l];best={d,e:{a,b,l,u,n:[-u[1]*s,u[0]*s]},t:Math.max(.15,Math.min(l-.15,f*l))};}
   return best?along(best.e,best.t,WALL.inner+.08):P3(p);}
 // Floor lamp: in a corner 45 cm from the walls, away from doors.
+// Corners and the middles of the walls 45 cm in, not inside furniture (the owner's check of ten homes: a floor lamp landed inside a sofa).
 export function lampSpot(plan,cell){const ring=offset(cell.poly,-.45).filter(p=>pointIn(p,cell.poly));if(!ring.length)return center(cell.poly);
   const doors=plan.openings.map(o=>o.kind==='door'&&openingCoords(plan.rooms,o)).filter(Boolean).map(o=>[(o.a[0]+o.b[0])/2,(o.a[1]+o.b[1])/2]);
   const score=p=>doors.length?Math.min(...doors.map(d=>len(d,p))):0;
-  return P3(ring.reduce((a,b)=>score(b)>score(a)+1e-6?b:a));}
+  const busy=(plan.furniture||[]).filter(f=>!byId(f.model)?.soft&&zOf(f)<1.2).flatMap(f=>rectsOf(plan,f).map(q=>offset(q,.12)));
+  const all=[...ring,...ring.map((p,i)=>{const q=ring[(i+1)%ring.length];return [(p[0]+q[0])/2,(p[1]+q[1])/2];})].filter(p=>pointIn(p,cell.poly));
+  const free=all.filter(p=>!busy.some(q=>pointIn(p,q))),pool=free.length?free:ring;
+  return P3(pool.reduce((a,b)=>score(b)>score(a)+1e-6?b:a));}
 
 // ---------- lighting that accounts for furniture (the owner: “when we position lights, take furniture into account too”) ----------
 // The cell's furniture: what stands in it (center inside; an item along walls belongs to its room) and its rectangles on the plan.
@@ -307,6 +340,18 @@ function bedWall(plan,cell,n){const f=biggest(furnIn(plan,cell,f=>BEDS.includes(
   for(const e of es){const [d,t]=segDist(back,e.a,e.b);if(!best||d<best.d)best={d,e,t:t*e.l};}if(best.d>.6)return null;
   const {e}=best,side=f.w/2+.25,proj=q=>(q[0]-e.a[0])*e.u[0]+(q[1]-e.a[1])*e.u[1],sa=proj([back[0]-ax[0]*side,back[1]-ax[1]*side]),sb=proj([back[0]+ax[0]*side,back[1]+ax[1]*side]);
   const k=WALL.inner+.08,cl=x=>Math.max(.15,Math.min(e.l-.15,x));return (n>=2?[sa,sb]:[sa]).map(x=>along(e,cl(x),k));}
+// A table lamp on furniture: by a bed — a nightstand, at a desk — the desk, else a side table, dresser or console. The light's point is
+// the bulb: the lamp's base stands on the top (scene.js draws the base 42 cm below it). None of these: null.
+const STANDS=['nightstand','sideTable','desk','deskCorner','deskStanding','dresser','dressingTable','console'];
+function standSpot(plan,cell,L){const s=[L.name,L.entity].filter(Boolean).join(' '),fs=furnIn(plan,cell,f=>STANDS.includes(f.model));if(!fs.length)return null;
+  const first=KF.bed.test(s)?['nightstand']:K.desk.test(s)?['desk','deskCorner','deskStanding']:[],rank=f=>(first.includes(f.model)?0:10)+STANDS.indexOf(f.model);
+  const f=fs.reduce((a,b)=>rank(b)<rank(a)?b:a),[ax,fz]=axes(f),small=f.w<=.7,dx=small?0:f.w/2-.2,dz=small?0:f.d/2-.15;
+  return {p:P3([f.x-ax[0]*dx-fz[0]*dz,f.y-ax[1]*dx-fz[1]*dz]),h:R3(zOf(f)+f.h+.42)};}
+// A mirror light: on the wall above a mirror or mirror cabinet, else above a washbasin or sink cabinet. None: null.
+const MIRRORS=['wallMirror','mirrorCabinet','vanity','basin','dressingTable'];
+function mirrorSpot(plan,cell){const fs=furnIn(plan,cell,f=>MIRRORS.includes(f.model));if(!fs.length)return null;
+  const f=fs.reduce((a,b)=>MIRRORS.indexOf(b.model)<MIRRORS.indexOf(a.model)?b:a),[,fz]=axes(f),hung=f.model==='wallMirror'||f.model==='mirrorCabinet';
+  return {p:[f.x-fz[0]*f.d/2,f.y-fz[1]*f.d/2],h:R3(Math.min(2.35,hung?zOf(f)+f.h+.08:1.95))};}
 // Floor lamp by a sofa or armchair: to the side, closer to the back, in a free spot inside the cell. No such furniture: null.
 function seatSpot(plan,cell){const f=biggest(furnIn(plan,cell,f=>SEATS.includes(f.model)));if(!f)return null;const [ax,fz]=axes(f);
   const others=(plan.furniture||[]).filter(g=>g!==f&&!byId(g.model)?.soft&&zOf(g)<1.2).flatMap(g=>rectsOf(plan,g));
@@ -323,8 +368,11 @@ export function placeForm(plan,L,form,opt,cell){
   else if(form==='spots'){L.h=HEIGHTS.spots;L.count=defaultSpots(F);L.points=spotsLayout(F,L.count,L.opt);}
   else if(form==='line'){L.h=HEIGHTS.line;L.segments=lineLayout(F,L.opt);}
   else if(form==='strip')stripPlace(plan,L,cell); // on furniture if the name suggests it and the furniture is there
-  else if(form==='wall'){L.h=HEIGHTS.wall;L.count=L.opt==='pair'?2:1;delete L.opt;L.points=wallLayout(plan,cell,L.count);} // a “pair” guess means two
-  else if(form==='lamp'){L.h=LAMP[L.opt]?.h??LAMP.floor.h;L.points=[seatSpot(plan,cell)||lampSpot(plan,cell)];}
+  else if(form==='wall'){L.h=HEIGHTS.wall;L.count=L.opt==='pair'?2:1;delete L.opt; // a “pair” guess means two
+    const m=L.count===1&&K.mirror.test([L.name,L.entity].filter(Boolean).join(' '))&&mirrorSpot(plan,cell);
+    if(m){L.h=m.h;L.points=wallLayout(plan,cell,1,m.p);}else L.points=wallLayout(plan,cell,L.count);}
+  else if(form==='lamp'){L.h=LAMP[L.opt]?.h??LAMP.floor.h;const st=L.opt==='table'&&standSpot(plan,cell,L);
+    if(st){L.h=st.h;L.points=[st.p];}else L.points=[seatSpot(plan,cell)||lampSpot(plan,cell)];}
   delete L.skip;delete L.with;L.room=cell.room.id;L.placed=L.points.length+L.segments.length>0;
   return L.placed;
 }

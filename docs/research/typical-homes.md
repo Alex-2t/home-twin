@@ -1,6 +1,6 @@
 # Ten typical homes — the basis for checking the catalog and the editor
 
-**Verification status as of 2026-11-07:** this is a description of the reference homes and the catalog requirements, not a ready set of test plans. The repository does not yet contain ten matching fixtures or a repeatable run against the current editor. The queue is in [status.md](../status.md); multi-floor scenarios need a separate scope decision. The external statistics below belong to the original research and were not re-verified here.
+**Verification status as of 2026-11-08:** the ten homes are now reference plans with HA data in `editor/demo/homes/` and a repeatable check in `npm test` (D-061; houses — the ground floor). The external statistics below belong to the original research and were not re-verified here.
 
 Date: 2026-11-05. The owner: “my apartment is just an example, take about 10 typical apartments as the basis that will cover 90% of needs.” The owner's apartment (`3d_floor`) remains one of the examples, not the benchmark.
 
@@ -51,4 +51,4 @@ The furniture for the ten homes now exists. What is missing is the editor itself
 
 ## How to check
 
-Each home is a sample plan with a typical layout, as was done on 2026-11-05 for the owner's apartment (D-029): whether all items were found, whether there are false “overlaps” and “blocks the door”, how 3D holds up. Apartments 1–7 can be assembled right away. Houses 8–10 — after floors.
+Done on 2026-11-08 (D-061): each home is a plan in `editor/demo/homes/`; `editor/src/core/homes.test.js` checks rooms, openings, false “overlaps” and “blocks a door”, and the wizard's auto-placement of lights, sensors and devices; each opens from the editor's start screen to see the 3D (D-062). Houses 8–10 — the ground floor until floors exist.

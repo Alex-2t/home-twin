@@ -19,6 +19,7 @@ import {liveHA} from './editor/ha-live.js';
 import {haPlanLights,mergePlanLights} from './editor/ha.js';
 import {createLook} from './editor/look.js';
 import {t} from './i18n/i18n.js';
+import {readMode,saveMode,nextMode,isNight,onModeChange} from './core/daynight.js';
 
 let models=null; // furniture models: loaded once per page for every card
 const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
@@ -54,7 +55,10 @@ export async function createCard(card,hass0,config0){
   models??=loadKenney(MODELS);await models;
   const view=createView(viewEl);
   const dark=()=>!!hass.themes?.darkMode,sunDown=()=>hass.states['sun.sun']?.state==='below_horizon';
-  let night=sunDown(),ownNight=false,themeDark=dark();
+  // day / night (D-068): auto — by the sun (night after sunset, day after sunrise), or always day, always night; the mode is shared with the
+  // editor (core/daynight.js), the button steps through them
+  let dayMode=readMode(),night=isNight(dayMode,sunDown()),themeDark=dark();
+  const showNight=()=>{const n=isNight(dayMode,sunDown());if(n===night)return false;night=n;view.setNight(n);return true;};
   view.setTheme(themeDark);view.setNight(night);
 
   // what look.js expects from the editor
@@ -62,7 +66,7 @@ export async function createCard(card,hass0,config0){
     areaName:id=>ha.areas().find(a=>a.area_id===id)?.name||id,
     sensorCtx:()=>({sensors:ha.sensors?.()||[],areas:ha.areas(),state:e=>ha.state?.(e)??null}),
     history:{save:p=>save(p)},
-    night:()=>night,toggleNight:()=>{night=!night;ownNight=true;view.setNight(night);},
+    night:()=>night,dayMode:()=>dayMode,toggleNight:()=>{dayMode=nextMode(dayMode);saveMode(dayMode);showNight();},
     themeName:()=>themeDark?'dark':'light'};
   const look=createLook(ed,box);
   const lookRoot=box.querySelector('#look')?.shadowRoot;
@@ -120,7 +124,8 @@ export async function createCard(card,hass0,config0){
     saveT=setTimeout(()=>hass.callWS({type:'home_twin/plan/save',plan:p,rev}).then(r=>{rev=mine=r.rev;},e=>console.warn('Home Twin card:',e)),700);}
   const unsubPlan=hass.connection.subscribeMessage(m=>{if(m.rev===mine&&m.rev===rev)return;rev=m.rev;setPlan(m.plan);},{type:'home_twin/plan/subscribe'});
 
-  ha.onState(()=>{live();if(!ownNight&&sunDown()!==night){night=!night;view.setNight(night);look.refresh();}});
+  ha.onState(()=>{live();if(showNight())look.refresh();});
+  onModeChange(m=>{dayMode=m;showNight();look.refresh();});
   ha.onChange(()=>{live();look.refresh();});
   look.open();setCompact(!!card.compact);
 

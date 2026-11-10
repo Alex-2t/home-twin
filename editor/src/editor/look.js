@@ -38,13 +38,15 @@ import {energyTileMarkup,sectionTilesMarkup,statsViewMarkup,statsTip} from '../l
 import {labelPoint} from '../core/geometry.js';
 import {BUILTIN,ROOM_BUILTIN,isFav,resolveLayout,layoutToSave,addable,newFav,move,placeCard,placeEntity,removeEntity,entityCard,addEntity} from '../look/layout.js';
 import {FAV_DOMAINS,favView,favCommand} from '../look/favorites.js';
+import {tipWanted} from '../core/daynight.js';
+import {dayNightTip} from './daynight-tip.js';
 
 const escape=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 // card icons: rooms by kind (core/overview.js: roomKind), lamps by shape, other sensors by class
 const ROOM_IC={bed:'bed',kids:'sofa',kitchen:'kitchen',bath:'bath',living:'sofa',hall:'door',balcony:'window',office:'device',storage:'home',room:'home'};
 const lampIcon=form=>form==='strip'?'strip':form==='line'?'cove':'bulb';
 const KIND={ceiling:'ceiling',pendant:'ceiling',spots:'ceiling',line:'ceiling'}; // the room's main light — for the power button
-const READ_IC={temperature:'thermometer',humidity:'droplet',carbon_dioxide:'eye',pm25:'wind',power:'power',energy:'power',illuminance:'sun',battery:'device'};
+const READ_IC={temperature:'thermometer',humidity:'droplet',carbon_dioxide:'eye',pm25:'wind',power:'bolt',energy:'bolt',illuminance:'sun',battery:'device'}; // power, energy: a bolt — the ⏻ “power” icon read as a switch
 // The Minimalist dark theme (minimalist-desktop, dark) — how the card looks at home (3d_floor/web/index.html)
 const DARK={'--primary-background-color':'#121212','--secondary-background-color':'#121212','--card-background-color':'#1d1d1d','--primary-text-color':'#dddddd',
   '--secondary-text-color':'#9b9b9b','--divider-color':'rgba(221,221,221,.12)','--primary-color':'#89b3f8','--color-red':'241,139,130','--color-green':'128,201,148',
@@ -565,13 +567,14 @@ export function createLook(ed,host0){
         <span class="bar-value">${live}%</span></div></div>`;}
   const lightTileOf=(l,r)=>`<button class="tile ${l.on?'on':''}" data-action="ltile-lamp" data-id="${escape(l.id)}" aria-pressed="${l.on}" aria-label="${escape(l.name)} — ${escape(r.short)}">
       <span class="tile-chip">${icon(lampIcon(l.form))}</span><span class="tile-text"><strong>${escape(l.name)}</strong><small>${l.on?t('On|entity'):t('Off|entity')}</small></span></button>`;
-  // “More in the room”: other area sensors (except service ones and those already shown as badges) and window and door sensors
+  // “More in the room”: window and door sensors and other area sensors (except service ones and those already shown as badges). They are
+  // readings, not controls: rows of icon, name and value, with no button look and no hover (the owner: “sensors must not look like buttons”)
+  const reading=(ic,name,value,on=false)=>`<div class="reading${on?' on':''}" role="listitem"><span class="reading-ic">${icon(ic)}</span><span class="reading-name">${escape(name)}</span><span class="reading-value">${escape(value)}</span></div>`;
   function extras(r){const used=new Set([r.sens.t?.entity,r.sens.h?.entity,r.sens.co2?.entity].filter(Boolean)),areas=[ed.plan.rooms.find(x=>x.id===r.id)?.area,ed.plan.rooms.find(x=>x.id===r.id)?.zone?.area].filter(Boolean),C=ed.sensorCtx();
     const reads=C.sensors.filter(s=>areas.includes(s.area)&&!used.has(s.entity)&&!s.cat&&!s.hidden&&(fitsAuto(s)||!isClimate(s))).map(s=>{const v=C.state(s.entity),m=metricOf(s);
-      return `<div class="tile"><span class="tile-chip">${icon(READ_IC[s.cls]||'device')}</span><span class="tile-text"><strong>${escape(s.name)}</strong><small>${escape(v==null?'—':m.text(v,s.unit))}</small></span></div>`;});
-    const doors=r.dev.contacts.map(c=>`<div class="tile ${c.open?'on':''}" style="--tile-accent:rgb(var(--color-yellow,197,148,75))"><span class="tile-chip">${icon(c.cls==='window'?'window':'door')}</span>
-      <span class="tile-text"><strong>${escape(c.name)}</strong><small>${escape(!c.ok?t('Device unavailable'):c.open?t('Open'):t('Closed'))}</small></span></div>`);
-    const all=[...doors,...reads];return all.length?`<div class="section-label">${escape(t('More in the room'))}</div><div class="tiles">${all.join('')}</div>`:'';}
+      return reading(READ_IC[s.cls]||'device',s.name,v==null?'—':m.text(v,s.unit));});
+    const doors=r.dev.contacts.map(c=>reading(c.cls==='window'?'window':'door',c.name,!c.ok?t('Device unavailable'):c.open?t('Open'):t('Closed'),c.open));
+    const all=[...doors,...reads];return all.length?`<div class="section-label">${escape(t('More in the room'))}</div><div class="readings" role="list">${all.join('')}</div>`:'';}
   // room screen parts (ROOM_BUILTIN): an empty one is '' (it is not visible; in the settings — “Empty now”)
   const roomParts=(r,M)=>({climate:metrics(r,M),ac:acs(r),covers:r.covers.length?`<div class="tiles">${r.covers.map(coverTile).join('')}</div>`:'',
     lights:r.lamps.length?`<div class="section-label">${escape(t('Lighting'))}</div><div class="tiles">${r.lamps.map(l=>lightTileOf(l,r)).join('')}</div>`:'',extras:extras(r)});
@@ -583,9 +586,11 @@ export function createLook(ed,host0){
   function strip(M){
     $('.room-strip').innerHTML=M.rooms.map(r=>`<button class="room-chip${cur()===r.id?' selected':''}" data-action="room" data-room="${escape(r.id)}" data-highlight="${escape(r.id)}" aria-pressed="${cur()===r.id}"
       aria-label="${escape(t('Show: {0}',r.name))}">${icon(ROOM_IC[r.kind]||'home')}<span>${escape(r.short)}</span></button>`).join('');
-    const n=ed.night?.();
+    // day / night (D-068): the icon — what is shown now, “A” in the corner — auto; the tip on hover — how auto works
+    const n=ed.night?.(),auto=ed.dayMode?.()==='auto',dn=t('Day / night')+': '+(auto?t('Auto'):n?t('Night'):t('Day'));
     $('.view-controls').innerHTML=`<button class="icon-btn" data-action="home" title="${escape(t('Whole home'))}" aria-label="${escape(t('Whole home'))}">${icon('home')}</button><div class="divider"></div>
-      <button class="icon-btn" data-action="night" title="${escape(t('Day / night'))}" aria-label="${escape(t('Day / night'))}">${icon(n?'moon':'sun')}</button>`;}
+      <button class="icon-btn${auto?' dn-auto':''}" data-action="night"${tipWanted()?'':` title="${escape(dn)}"`} aria-label="${escape(dn)}">${icon(n?'moon':'sun')}</button>`;
+    const nb=$('.view-controls [data-action=night]');dayNightTip(nb,nb.closest('.canvas-wrap')||nb.closest('.map-card'),'right');nb.addEventListener('dn-tip-off',()=>strip(M));}
   function theme(){const dark=ed.themeName?.()==='dark';host.classList.toggle('on-dark',dark);for(const [k,v] of Object.entries(DARK))dark?host.style.setProperty(k,v):host.style.removeProperty(k);}
   // level: overview — its sections; room — the “← Room ⚙” row (the gear is the room screen settings) and the room screen;
   // scene “Customize” — replaces the overview, with the “← Scene settings ⌂” row

@@ -37,21 +37,28 @@ export const FLOOR_KINDS={
   concreteDark:{label:t('Dark concrete'),pattern:'concrete',base:[108,108,106],size:3,rough:.7,group:O},
   carpetGrey:{label:t('Gray carpet'),pattern:'carpet',base:[120,122,127],size:1,rough:.96,group:O},
   carpetBlue:{label:t('Blue carpet'),pattern:'carpet',base:[72,86,112],size:1,rough:.96,group:O},
+  grass:{label:t('Lawn'),pattern:'grass',base:[86,110,64],size:2,rough:.95,group:O},
+  gravel:{label:t('Gravel'),pattern:'gravel',base:[176,168,154],size:1.2,rough:.92,group:O},
 };
 export const FLOOR_QUICK=['wood','woodLight','woodDark','herringbone','tile','stone','concrete','carpet'];
 export const FLOOR_GROUPS=[W,H,T,O].map(g=>[g,Object.keys(FLOOR_KINDS).filter(k=>FLOOR_KINDS[k].group===g)]);
 const hex=c=>'#'+c.map(v=>Math.round(v).toString(16).padStart(2,'0')).join('');
 const unhex=h=>/^#[0-9a-f]{6}$/i.test(h||'')?[1,3,5].map(i=>parseInt(h.slice(i,i+2),16)):null;
 export const floorBase=(kind,tint)=>hex(unhex(tint)||FLOOR_KINDS[kind].base);
-// Bathroom and toilet: tiles; kitchen, balcony and loggia: porcelain stoneware, but a kitchen-living room gets parquet; everything else: parquet.
+// Bathroom, toilet and laundry: tiles; garage, utility room, basement: concrete; kitchen, balcony, terrace, garden: porcelain stoneware,
+// but a kitchen-living room gets parquet; everything else: parquet.
 // The demo apartment's names match their ids (bathroom, kitchen, panorama), so we look at the id too.
 // by room name, in the ten UI languages (D-036): bathroom and toilet, living room, kitchen and balcony
 export const BATH=/ванн|санузел|с\/у|туалет|уборн|душ|bath|wc|toilet|badezimmer|^bad\b|\bbad$|dusche|salle de bain|sdb|douche|badkamer|douche|baño|aseo|ducha|bagno|doccia|łazienk|toalet|prysznic|banheiro|casa de banho|lavabo|chuveiro|卫生间|浴室|厕所|洗手间/;
 export const floorGuess=room=>{
   const s=`${room?.name||''} ${room?.id||''}`.toLowerCase();
   if(BATH.test(s))return 'tile';
+  // a garage, utility or boiler room, a basement, a shed: concrete; a laundry room: tiles (the homes check: these had parquet)
+  if(/гараж|котельн|подвал|сарай|мастерск|garag|garaż|utility|boiler|basement|cellar|\bshed\b|workshop|keller|hauswirtschaft|heizungsraum|schuppen|werkstatt|chaufferie|sótano|scantinato|piwnica|kotłownia|porão|车库|地下室/.test(s))return 'concrete';
+  if(/прачечн|постироч|laundry|waschküche|buanderie|wasruimte|lavadero|lavanderia|pralni|lavandaria|洗衣/.test(s))return 'tile';
   if(/гостин|living|зал|wohnzimmer|salon|séjour|woonkamer|sala|soggiorno|salotto|pokój dzienny|客厅/.test(s))return 'wood';
-  if(/кухн|kitchen|балкон|лодж|террас|balcon|panorama|küche|balkon|terrasse|loggia|cuisine|keuken|terras|cocina|balcón|terraza|cucina|balcone|terrazzo|kuchni|taras|cozinha|varanda|sacada|terraço|厨房|阳台/.test(s))return 'stone';
+  if(/газон|лужайк|(?<![а-яё])двор(?![а-яё])|lawn|backyard|\byard\b|rasen|pelouse|gazon|césped|prato|trawnik|gramado|relvado|草坪/.test(s))return 'grass';
+  if(/кухн|kitchen|балкон|лодж|террас|веранд|патио|(?<![а-яё])сад(?![а-яё])|terrace|patio|porch|\bdeck\b|garden|garten|jardin|jardín|giardino|tuin|ogród|jardim|balcon|panorama|küche|balkon|terrasse|loggia|cuisine|keuken|terras|cocina|balcón|terraza|cucina|balcone|terrazzo|kuchni|taras|cozinha|varanda|sacada|terraço|厨房|阳台/.test(s))return 'stone';
   return 'wood';
 };
 export const floorKind=room=>FLOOR_KINDS[room?.floor]?room.floor:floorGuess(room);
@@ -134,6 +141,25 @@ function carpet(base=[155,149,139]){
   for(let i=0;i<140000;i++){g.fillStyle=r()<.5?'rgba(255,250,240,.07)':'rgba(45,40,35,.08)';g.fillRect(r()*N,r()*N,1,1);}
   return c;
 }
+// Lawn: mown grass — soft lighter and darker patches (drawn shifted by the width too, no seam) and thousands of short blades leaning
+// every way in greens from olive to fresh, a few dry ones.
+function grass(base=[86,110,64]){
+  const c=canvas(),g=c.getContext('2d'),r=rng(41);g.fillStyle=rgb(base);g.fillRect(0,0,N,N);
+  for(let i=0;i<60;i++){const x=r()*N,y=r()*N,rad=80+r()*240,l=r()<.5,a=.04+r()*.06;
+    for(const dx of [-N,0,N])for(const dy of [-N,0,N]){const gr=g.createRadialGradient(x+dx,y+dy,0,x+dx,y+dy,rad);gr.addColorStop(0,l?`rgba(170,190,120,${a})`:`rgba(40,55,30,${a})`);gr.addColorStop(1,'rgba(0,0,0,0)');g.fillStyle=gr;g.fillRect(x+dx-rad,y+dy-rad,rad*2,rad*2);}}
+  g.lineCap='round';
+  for(let i=0;i<22000;i++){const x=r()*N,y=r()*N,a=r()*Math.PI*2,L=4+r()*7,k=.75+r()*.6,dry=r()<.04;
+    g.strokeStyle=dry?`rgba(196,180,120,.5)`:rgb([base[0]*(.85+r()*.3),base[1],base[2]*(.8+r()*.4)],k,.55);g.lineWidth=1+r()*1.2;
+    for(const dx of x<12?[0,N]:x>N-12?[0,-N]:[0])for(const dy of y<12?[0,N]:y>N-12?[0,-N]:[0]){g.beginPath();g.moveTo(x+dx,y+dy);g.lineTo(x+dx+Math.cos(a)*L,y+dy+Math.sin(a)*L);g.stroke();}}
+  return c;}
+// Gravel: small rounded stones of warm grays, packed, with shadows under them.
+function gravel(base=[176,168,154]){
+  const c=canvas(),g=c.getContext('2d'),r=rng(43);g.fillStyle=rgb(base,.82);g.fillRect(0,0,N,N);
+  for(let i=0;i<9000;i++){const x=r()*N,y=r()*N,rx=3+r()*5,ry=rx*(.6+r()*.4),a=r()*Math.PI,k=.8+r()*.4;
+    for(const dx of x<10?[0,N]:x>N-10?[0,-N]:[0])for(const dy of y<10?[0,N]:y>N-10?[0,-N]:[0]){
+      g.fillStyle='rgba(40,36,30,.25)';g.beginPath();g.ellipse(x+dx+1.2,y+dy+1.6,rx,ry,a,0,Math.PI*2);g.fill();
+      g.fillStyle=rgb(base,k);g.beginPath();g.ellipse(x+dx,y+dy,rx,ry,a,0,Math.PI*2);g.fill();}}
+  return c;}
 // Marble: slabs with soft clouds and thin veins (also drawn shifted by the width, so there is no seam at the repeat).
 function marble(base,cols,rows,seed){const c=tiles(base,cols,rows,seed,{blots:6,grout:`rgba(${base.map(v=>v*.7|0).join(',')},.35)`}),g=c.getContext('2d'),r=rng(seed+100);
   for(let i=0;i<14;i++){let x=r()*N,y=r()*N,a=r()*Math.PI*2;const pts=[[x,y]];for(let k=0;k<40;k++){a+=(r()-.5)*.6;x+=Math.cos(a)*14;y+=Math.sin(a)*14;pts.push([x,y]);}
@@ -147,7 +173,7 @@ function checker(base,alt,cols,seed){const c=canvas(),g=c.getContext('2d'),r=rng
 // Draw a covering: a custom color (tint) replaces the base one; the tile joint is derived from the color.
 function drawFloor(kind,tint){const K=FLOOR_KINDS[kind],base=unhex(tint)||K.base,grout=`rgba(${base.map(v=>v*.62|0).join(',')},.55)`;
   switch(K.pattern){
-    case 'planks':return wood(base,K.seed);case 'herringbone':return herringbone(base);case 'concrete':return concrete(base);case 'carpet':return carpet(base);
+    case 'planks':return wood(base,K.seed);case 'herringbone':return herringbone(base);case 'concrete':return concrete(base);case 'carpet':return carpet(base);case 'grass':return grass(base);case 'gravel':return gravel(base);
     case 'marble':return marble(base,K.cols,K.rows,K.seed);case 'checker':return checker(base,K.alt,K.cols,K.seed);
     default:return tiles(base,K.cols,K.rows,K.seed,{blots:K.blots||0,grout});}}
 const texCache=new Map(),swCache=new Map(),drawn=new Map();
@@ -174,7 +200,7 @@ export function floorUV(geometry,polygon,size){
 // battens), concrete; w×h is the tile size (m), joint is the joint (m), panel means tiles only up to this height, paint above.
 // The user picks the room's finish (room.wall, room.wallTint) and, optionally, one for a single edge (room.wf[i] = {k, tint});
 // if nothing is picked, it goes by name (wallGuess): bathroom and toilet get white tiles up to the ceiling (the owner), everything else warm white.
-const WP=t('Paint'),WT=t('Tile'),WB=t('Brick'),WW=t('Wood'),WO=t('Other');
+const WP=t('Paint'),WPL=t('Plaster'),WWP=t('Wallpaper'),WT=t('Tile'),WB=t('Brick'),WW=t('Wood'),WO=t('Other');
 export const WALL_KINDS={
   paintWarm:{label:t('Warm white'),pattern:'paint',base:[240,236,229],group:WP},
   paintWhite:{label:t('White'),pattern:'paint',base:[247,247,245],group:WP},
@@ -188,6 +214,14 @@ export const WALL_KINDS={
   paintNavy:{label:t('Navy|surface'),pattern:'paint',base:[64,78,100],group:WP},
   paintTerra:{label:t('Terracotta'),pattern:'paint',base:[190,122,94],group:WP},
   paintGraphite:{label:t('Graphite'),pattern:'paint',base:[88,90,94],group:WP},
+  // textures (D-062: the examples looked flat with paint alone): trowelled and lime plaster, wallpapers, classic and fluted panels, marble, zellige
+  plaster:{label:t('Venetian plaster'),pattern:'plaster',base:[208,198,184],group:WPL},
+  plasterLime:{label:t('Limewash'),pattern:'limewash',base:[222,214,200],group:WPL},
+  plasterClay:{label:t('Clay plaster'),pattern:'limewash',base:[188,158,130],group:WPL},
+  plasterCharcoal:{label:t('Charcoal plaster'),pattern:'plaster',base:[86,84,82],group:WPL},
+  wallpaperStripe:{label:t('Striped wallpaper'),pattern:'stripes',base:[206,198,182],w:.1,group:WWP},
+  wallpaperDeco:{label:t('Art deco wallpaper'),pattern:'deco',base:[52,70,64],w:.26,h:.26,group:WWP},
+  wallpaperLinen:{label:t('Linen wallpaper'),pattern:'linen',base:[214,206,192],group:WWP},
   tileWhite:{label:t('White tile 60×30'),pattern:'grid',base:[238,238,234],w:.6,h:.3,joint:.002,group:WT},
   tileSquare:{label:t('White tile 20×20'),pattern:'grid',base:[240,240,236],w:.2,h:.2,joint:.002,group:WT},
   tileSubway:{label:t('Subway tile'),pattern:'bond',base:[242,242,238],w:.15,h:.075,joint:.002,group:WT},
@@ -195,6 +229,10 @@ export const WALL_KINDS={
   tileGrey:{label:t('Gray tile 60×30'),pattern:'grid',base:[170,170,168],w:.6,h:.3,joint:.002,group:WT},
   tileStone:{label:t('Porcelain 120×60'),pattern:'grid',base:[196,188,176],w:1.2,h:.6,joint:.002,group:WT},
   tilePanel:{label:t('Tile up to 1.2 m'),pattern:'bond',base:[242,242,238],w:.15,h:.075,joint:.002,panel:1.2,group:WT},
+  zellige:{label:t('Zellige tile'),pattern:'zellige',base:[110,140,134],w:.1,h:.1,joint:.002,group:WT},
+  zelligeWhite:{label:t('White zellige'),pattern:'zellige',base:[236,232,222],w:.1,h:.1,joint:.002,group:WT},
+  marble:{label:t('Marble'),pattern:'marble',base:[232,229,224],w:1.2,h:2.4,group:WT},
+  marbleGreen:{label:t('Green marble'),pattern:'marble',base:[66,92,80],w:1.2,h:2.4,group:WT},
   brickWhite:{label:t('White brick'),pattern:'brick',base:[230,226,218],w:.25,h:.075,joint:.01,group:WB},
   brickRed:{label:t('Red brick'),pattern:'brick',base:[164,86,64],w:.25,h:.075,joint:.01,group:WB},
   brickGrey:{label:t('Gray brick'),pattern:'brick',base:[140,136,130],w:.25,h:.075,joint:.01,group:WB},
@@ -202,11 +240,14 @@ export const WALL_KINDS={
   slatsWalnut:{label:t('Walnut slats'),pattern:'slats',base:[118,86,62],w:.04,joint:.012,group:WW},
   slatsBlack:{label:t('Black slats'),pattern:'slats',base:[46,46,48],w:.04,joint:.012,group:WW},
   panelsWood:{label:t('Wood panels'),pattern:'slats',base:[198,164,124],w:.16,joint:.003,group:WW},
+  panelsClassic:{label:t('Classic panels'),pattern:'boiserie',base:[232,228,220],w:.9,h:.95,group:WW}, // w — panel width, h — the dado rail
+  flutedWhite:{label:t('Fluted panels'),pattern:'fluted',base:[232,228,220],w:.045,group:WW},
+  flutedOak:{label:t('Fluted oak'),pattern:'fluted',base:[176,140,102],w:.045,group:WW},
   concrete:{label:t('Concrete'),pattern:'concrete',base:[176,174,170],group:WO},
   microcement:{label:t('Microcement'),pattern:'concrete',base:[212,206,198],group:WO},
 };
 export const WALL_QUICK=['paintWarm','paintWhite','paintGrey','paintGreige','paintSage','tileWhite','brickWhite','slatsOak'];
-export const WALL_GROUPS=[WP,WT,WB,WW,WO].map(g=>[g,Object.keys(WALL_KINDS).filter(k=>WALL_KINDS[k].group===g)]);
+export const WALL_GROUPS=[WP,WPL,WWP,WT,WB,WW,WO].map(g=>[g,Object.keys(WALL_KINDS).filter(k=>WALL_KINDS[k].group===g)]);
 export const wallGuess=room=>BATH.test(`${room?.name||''} ${room?.id||''}`.toLowerCase())?'tileWhite':'paintWarm';
 // the finish of the room and of edge i: {k, tint, own: the edge has its own setting}
 export const roomWall=room=>({k:WALL_KINDS[room?.wall]?room.wall:wallGuess(room),tint:WALL_KINDS[room?.wall]?room.wallTint:null});
@@ -223,10 +264,21 @@ export function wallSwatch(k,tint){const key=k+'|'+(tint||'');if(wsCache.has(key
     if(K.panel){g.fillStyle=rgb(WALL_KINDS.paintWarm.base);g.fillRect(0,0,48,16);}}
   else if(K.pattern==='slats'){const w=K.w*px,j=Math.max(1,K.joint*px);g.fillStyle=rgb(base,.35);g.fillRect(0,0,48,48);for(let x=0;x<48;x+=w+j){g.fillStyle=rgb(base,.9+r()*.18);g.fillRect(x,0,w,48);}}
   else if(K.pattern==='concrete'){for(let i=0;i<300;i++){g.fillStyle=r()<.5?'rgba(255,255,255,.08)':'rgba(40,40,38,.08)';g.fillRect(r()*48,r()*48,2,2);}}
+  else if(K.pattern==='plaster'||K.pattern==='limewash'||K.pattern==='linen'){for(let i=0;i<40;i++){const x=r()*48,y=r()*48,R=6+r()*14,gr=g.createRadialGradient(x,y,0,x,y,R);
+      gr.addColorStop(0,r()<.5?'rgba(255,255,255,.12)':'rgba(30,25,20,.10)');gr.addColorStop(1,'rgba(0,0,0,0)');g.fillStyle=gr;g.fillRect(0,0,48,48);}
+    if(K.pattern==='linen')for(let i=0;i<48;i+=2){g.fillStyle='rgba(0,0,0,.05)';g.fillRect(i,0,1,48);g.fillRect(0,i,48,1);}}
+  else if(K.pattern==='stripes'){const w=K.w*px;for(let x=w;x<48;x+=2*w){g.fillStyle=rgb(base,.86);g.fillRect(x,0,w,48);}}
+  else if(K.pattern==='deco'){const w=K.w*px*1.6;g.strokeStyle='rgb(194,158,97)';g.lineWidth=1;g.beginPath();
+    for(let x=-48;x<96;x+=w){g.moveTo(x,0);g.lineTo(x+48,48);g.moveTo(x+48,0);g.lineTo(x,48);}g.stroke();}
+  else if(K.pattern==='boiserie'){g.strokeStyle=rgb(base,.78);g.lineWidth=1.5;g.strokeRect(6,4,36,22);g.strokeRect(6,32,36,13);g.fillStyle=rgb(base,.86);g.fillRect(0,28,48,2);}
+  else if(K.pattern==='fluted'){const w=Math.max(3,K.w*px);for(let x=0;x<48;x+=w){const gr=g.createLinearGradient(x,0,x+w,0);gr.addColorStop(0,rgb(base,.62));gr.addColorStop(.5,rgb(base,1.06));gr.addColorStop(1,rgb(base,.62));g.fillStyle=gr;g.fillRect(x,0,w,48);}}
+  else if(K.pattern==='marble'){const dark=base[0]+base[1]+base[2]<300;g.strokeStyle=dark?'rgba(255,255,255,.35)':'rgba(60,55,50,.3)';g.lineWidth=1;
+    for(let i=0;i<4;i++){g.beginPath();g.moveTo(r()*48,0);g.bezierCurveTo(r()*48,16,r()*48,32,r()*48,48);g.stroke();}}
+  else if(K.pattern==='zellige'){const w=K.w*px;for(let y=0;y<48;y+=w)for(let x=0;x<48;x+=w){g.fillStyle=rgb(base,.82+r()*.34);g.fillRect(x+.5,y+.5,w-1,w-1);}}
   const u=c.toDataURL();wsCache.set(key,u);return u;}
 // The edge map: top-down, 2 cm per pixel; each room edge gets a strip 30 cm inward (ends cut along the corner bisector)
 // holding the finish number. In the shader a wall reads the number 9 cm in front of its face. The numbers index a table: color, pattern, sizes.
-const FIN_PAT={paint:0,grid:1,bond:2,slats:3,concrete:4,brick:5};
+const FIN_PAT={paint:0,grid:1,bond:2,slats:3,concrete:4,brick:5,plaster:6,limewash:7,stripes:8,deco:9,boiserie:10,fluted:11,marble:12,zellige:13,linen:14};
 export function bakeFinish(rooms,{px=.02,D=.3}={}){
   const list=rooms.filter(r=>!r.solid&&r.polygon?.length>2);if(!list.length)return null;
   const pts=list.flatMap(r=>r.polygon),x0=Math.min(...pts.map(p=>p[0]))-.5,y0=Math.min(...pts.map(p=>p[1]))-.5,x1=Math.max(...pts.map(p=>p[0]))+.5,y1=Math.max(...pts.map(p=>p[1]))+.5;
@@ -253,6 +305,7 @@ uniform sampler2D htFin,htFinTab;uniform vec4 htFinBox;
 float htHash(vec2 c){return fract(sin(dot(c,vec2(127.1,311.7)))*43758.5453);}
 float htNoise(vec2 p){vec2 i=floor(p),f=fract(p);f=f*f*(3.0-2.0*f);return mix(mix(htHash(i),htHash(i+vec2(1.,0.)),f.x),mix(htHash(i+vec2(0.,1.)),htHash(i+vec2(1.,1.)),f.x),f.y);}
 vec3 htLin(vec3 c){return pow(c,vec3(2.2));}
+float htFbm(vec2 p){return 0.5*htNoise(p)+0.3*htNoise(p*2.03+7.1)+0.2*htNoise(p*4.11+3.7);}
 void htFinish(inout vec4 dc){
   vec3 n=normalize(htNrm);if(abs(n.y)>0.5)return;
   vec2 pl=vec2(htPos.x,-htPos.z),np=normalize(vec2(n.x,-n.z)),uv=(pl+np*0.09-htFinBox.xy)*htFinBox.zw;
@@ -262,13 +315,39 @@ void htFinish(inout vec4 dc){
   float pat=floor(A.a*255.0+0.5);vec3 col=htLin(A.rgb);
   float u=dot(pl,vec2(-np.y,np.x)),v=htPos.y,tw=max(0.01,B.r*2.55),th=max(0.01,B.g*2.55),panel=B.b*2.55,jt=B.a*0.255,aa=max(fwidth(u),fwidth(v))+1e-4;
   if(panel>0.0&&v>panel){dc.rgb=htLin(vec3(0.941,0.925,0.898));return;}
-  if(pat>0.5&&pat<2.5||pat>4.5){float row=floor(v/th),uu=u+((pat>1.5&&mod(row,2.0)>0.5)?tw*0.5:0.0),cx=floor(uu/tw);
+  float P=pat;bool brick=abs(P-5.0)<0.5,zel=abs(P-13.0)<0.5;
+  if((P>0.5&&P<2.5)||brick||zel){float row=floor(v/th),uu=u+((P>1.5&&!zel&&mod(row,2.0)>0.5)?tw*0.5:0.0),cx=floor(uu/tw);
     vec2 f=vec2(uu-cx*tw,v-row*th);float j=min(min(f.x,tw-f.x),min(f.y,th-f.y)),m=1.0-smoothstep(jt*0.5-aa,jt*0.5+aa,j);
-    vec3 tc=col*(1.0+(htHash(vec2(cx,row))-0.5)*(pat>4.5?0.22:0.05));if(pat>4.5)tc*=0.9+0.18*htNoise(vec2(u,v)*60.0);
-    col=mix(tc,pat>4.5?htLin(vec3(0.68,0.66,0.62)):col*0.74,m);}
-  else if(pat>2.5&&pat<3.5){float per=tw+jt,cx=floor(u/per),f=u-cx*per,g=smoothstep(tw-aa,tw+aa,f)*(1.0-smoothstep(per-aa,per,f));
+    vec3 tc=col*(1.0+(htHash(vec2(cx,row))-0.5)*(brick?0.22:zel?0.34:0.05));if(brick)tc*=0.9+0.18*htNoise(vec2(u,v)*60.0);
+    if(zel)tc*=0.86+0.18*htNoise(f/tw*2.2+vec2(cx,row)*3.1)+0.1*smoothstep(0.0,0.35*tw,j); // handmade glaze: uneven, lighter in the middle
+    col=mix(tc,brick?htLin(vec3(0.68,0.66,0.62)):col*(zel?0.84:0.74),m);}
+  else if(abs(P-3.0)<0.5){float per=tw+jt,cx=floor(u/per),f=u-cx*per,g=smoothstep(tw-aa,tw+aa,f)*(1.0-smoothstep(per-aa,per,f));
     col=mix(col*(0.92+0.16*htHash(vec2(cx,3.0))),col*0.3,g);}
-  else if(pat>3.5&&pat<4.5)col*=(0.9+0.2*htNoise(vec2(u,v)*2.5))*(0.96+0.08*htNoise(vec2(u,v)*28.0));
+  else if(abs(P-4.0)<0.5)col*=(0.9+0.2*htNoise(vec2(u,v)*2.5))*(0.96+0.08*htNoise(vec2(u,v)*28.0));
+  // Venetian plaster: soft clouds and diagonal trowel strokes
+  else if(abs(P-6.0)<0.5){float c=htFbm(vec2(u,v)*1.3),k=htNoise(vec2(u*2.6+v*1.1,v*7.0-u*1.7));col*=0.84+0.26*c+0.08*(k-0.5);}
+  // limewash, clay: brushed clouds, a faint vertical brush
+  else if(abs(P-7.0)<0.5)col*=0.9+0.15*htFbm(vec2(u*0.8,v*1.3))+0.05*(htNoise(vec2(u*16.0,v*2.2))-0.5);
+  // striped wallpaper: two tones and a fine line between them
+  else if(abs(P-8.0)<0.5){float f=mod(u,tw*2.0);col*=mix(1.0,0.86,smoothstep(tw-aa,tw+aa,f)*(1.0-smoothstep(2.0*tw-aa,2.0*tw,f)));
+    col=mix(col,col*0.72,(1.0-smoothstep(0.0015,0.0015+aa,abs(f-tw)))*0.6);}
+  // art deco wallpaper: a brass lattice of diamonds with a dot in each
+  else if(abs(P-9.0)<0.5){vec2 g=fract(vec2(u/tw,v/th))-0.5;float a2=aa/tw,l=1.0-smoothstep(0.008,0.008+a2*1.5,abs(abs(g.x)+abs(g.y)-0.5)),d=1.0-smoothstep(0.03,0.03+a2*1.5,length(g));
+    col=mix(col,htLin(vec3(0.74,0.61,0.39)),max(l,d)*0.7);}
+  // classic panels (boiserie): framed panels below and above a dado rail, a skirting; the frames lit from above
+  else if(abs(P-10.0)<0.5){float dado=th,cx=floor(u/tw),fx=u-cx*tw;bool lo=v<dado;
+    float y0=lo?0.16:dado+0.14,y1=lo?dado-0.1:2.38,x0=0.09,x1=tw-0.09,dx=min(fx-x0,x1-fx),dy=min(v-y0,y1-v),d=min(dx,dy);
+    float e=step(0.0,d)*(1.0-smoothstep(0.016,0.016+aa,d)),lit=(dy<dx)?((v-y0)<(y1-v)?0.84:1.08):((fx-x0)<(x1-fx)?1.06:0.88);
+    col*=mix(1.0,lit,e);float r=abs(v-dado);col*=mix(1.0,1.07,1.0-smoothstep(0.02,0.02+aa,r));col*=mix(1.0,0.84,1.0-smoothstep(0.0025,0.0025+aa,abs(r-0.022)));
+    col*=mix(1.0,0.9,1.0-smoothstep(0.1,0.1+aa,v));}
+  // fluted panels: rounded flutes with a groove between them
+  else if(abs(P-11.0)<0.5){float f=fract(u/tw);col*=0.8+0.28*sin(3.14159*f);col*=mix(1.0,0.62,1.0-smoothstep(0.0,0.08+aa/tw,min(f,1.0-f)));}
+  // marble: veins over a cloudy ground, slabs with fine seams; on a dark marble the veins are light
+  else if(abs(P-12.0)<0.5){vec2 q=vec2(u,v);float n=htFbm(q*1.2),v1=1.0-smoothstep(0.0,0.05,abs(sin((q.x*0.9+q.y*1.6+n*4.5)*1.9))),v2=1.0-smoothstep(0.0,0.025,abs(sin((q.x*2.2-q.y*0.8+n*6.0)*2.6)));
+    float lum=dot(col,vec3(0.3,0.6,0.1));vec3 vc=lum<0.15?min(col*3.5+0.1,vec3(1.0)):col*0.55;col*=0.95+0.08*n;col=mix(col,vc,v1*0.5+v2*0.3);
+    float sx=mod(u,tw),sy=mod(v,th);col=mix(col,col*0.8,(1.0-smoothstep(0.0,0.0015+aa,min(min(sx,tw-sx),min(sy,th-sy))))*0.5);}
+  // linen wallpaper: a fine weave, it fades out when seen from far (no shimmer)
+  else if(abs(P-14.0)<0.5){float fade=1.0-smoothstep(0.002,0.01,aa);col*=0.95+fade*(0.05*htNoise(vec2(u*180.0,v*6.0))+0.05*htNoise(vec2(u*6.0,v*180.0))-0.05)+0.05*(htFbm(vec2(u,v)*2.0)-0.5);}
   dc.rgb=col;}
 `;
 

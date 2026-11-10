@@ -14,7 +14,8 @@ const KINDS=[
   ['kitchen',/кухн|kitchen|küche|cuisine|cocina|cucina|keuken|kuchni|cozinha|厨房/],
   ['living',/гостин|living|зал|wohnzimmer|salon|séjour|woonkamer|sala|soggiorno|salotto|pokój dzienny|客厅/],
   ['hall',/коридор|прихож|холл|hall|corridor|flur|diele|entrée|couloir|pasillo|recibidor|corridoio|ingresso|\bgang\b|korytarz|przedpok|corredor|走廊|玄关/],
-  ['balcony',/балкон|лодж|террас|balcon|balkon|loggia|terras|varanda|sacada|panorama|阳台/],
+  // a balcony and the like outdoors: a terrace, patio, garden, porch (the icon; devices.js: which door a contact is on)
+  ['balcony',/балкон|лодж|террас|веранд|патио|(?<![а-яё])сад(?![а-яё])|balcon|balkon|loggia|terra[scz]|patio|garden|garten|jardin|jardín|giardino|tuin|ogród|jardim|\bdeck\b|porch|veranda|varanda|sacada|panorama|阳台|露台|花园/],
   ['office',/кабинет|office|study|büro|arbeitszimmer|bureau|despacho|oficina|studio|kantoor|gabinet|escritório|书房/],
   ['storage',/кладов|гардероб|storage|pantry|closet|abstell|cellier|despensa|ripostiglio|berging|spiżarn|储藏/],
 ];

@@ -102,3 +102,11 @@ test('moving the second toward the third: the neighbors stay on the wall, the fr
   const saved=layoutSensors(JSON.parse(JSON.stringify(P)),ctx());
   for(const s of saved){assert.equal(s.i,byId(s.id).i);assert.deepEqual(s.c,byId(s.id).c);}
 });
+
+test('a neighbor’s wardrobe behind the partition does not take the wall (homes check, D-061)',()=>{
+  // a narrow room: the long walls are windows, the west one a door — only the east wall is left; behind it, in the next room, a wardrobe
+  const room={id:'a',polygon:[[0,0],[3,0],[3,1.2],[0,1.2]]},win=(a,b)=>({a,b,bottom:.85,top:2.4,kind:'window'});
+  const ctx={openings:[win([.15,0],[2.85,0]),win([.15,1.2],[2.85,1.2]),{a:[0,.2],b:[0,1],bottom:0,top:2.1,kind:'door'}],
+    furniture:[{id:'w',model:'wardrobe',x:3.4,y:.6,rot:90,w:.6,d:.6,h:2.2}],lights:[],taken:[]};
+  const sp=wallSpot(room,ctx,.6);assert.ok(sp,'a spot on the east wall');assert.equal(sp.i,1);
+});

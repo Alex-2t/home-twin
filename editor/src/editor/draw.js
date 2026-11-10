@@ -1,7 +1,7 @@
 // The plan drawing: dotted background, plan photo (underlay), rooms, walls in section with openings, windows, doors, furniture, lights.
 // Colors come from the theme (CSS variables) so the plan matches the light and dark look. Handles of the selection are drawn by the mode.
 import {t,num} from '../i18n/i18n.js';
-import {area,labelPoint,openingCoords,pointIn} from '../core/geometry.js';
+import {area,labelPoint,openingCoords,openingOut,pointIn} from '../core/geometry.js';
 import {outline,footRects,isRound} from '../core/layout.js';
 import {isRun,runGeo} from '../core/runs.js';
 import {zOf,nameOf} from '../core/catalog.js';
@@ -19,11 +19,7 @@ export const FONT='Inter, -apple-system, BlinkMacSystemFont, "SF Pro Text", "Seg
 export function readPalette(){const s=getComputedStyle(document.documentElement);for(const k of VARS)pal[k.replace('-','_')]=s.getPropertyValue('--'+k).trim();pal.dark=document.documentElement.dataset.theme==='dark';}
 export const alpha=(hex,a)=>{const h=hex.replace('#','');if(h.length<6)return hex;const n=parseInt(h.slice(0,6),16);return `rgba(${n>>16},${n>>8&255},${n&255},${a})`;};
 
-// Outward from the opening's room: the one of the two normals that does not face into the room.
-export function outward(rooms,o){
-  const r=rooms.find(r=>r.id===o.at?.room);const dx=o.b[0]-o.a[0],dy=o.b[1]-o.a[1],l=Math.hypot(dx,dy)||1,n=[dy/l,-dx/l];
-  const m=[(o.a[0]+o.b[0])/2-n[0]*.12,(o.a[1]+o.b[1])/2-n[1]*.12];return r&&!pointIn(m,r.polygon)?[-n[0],-n[1]]:n;
-}
+export const outward=openingOut; // outward from the opening's room (geometry.js)
 
 export function drawPlan(ed){
   const {v,plan,sel}=ed,{ctx}=v,mode=ed.mode.id;

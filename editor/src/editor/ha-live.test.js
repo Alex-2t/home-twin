@@ -166,3 +166,9 @@ test('plan photo in HA: no connection — kept in the browser, sent on the next 
   const ha3=photoHA();ha3.never=false;const stale=memPhotos();await stale.put(SRC);stale.place(AT);
   P=hassPhotos(()=>ha3.hass,{local:stale,mark:memMark()});assert.equal(await P.load(),null);await P.flush();assert.equal(ha3.photo,null);
 });
+
+test('the sun from sun.sun (D-068)',()=>{
+  const {h}=fakeHass(),ha=liveHA(h);assert.equal(ha.sunDown(),false);
+  h.states['sun.sun']={...h.states['sun.sun'],state:'below_horizon'};assert.equal(liveHA(h).sunDown(),true);
+  assert.equal(liveHA({states:{}}).sunDown(),false,'no sun.sun — day');
+});

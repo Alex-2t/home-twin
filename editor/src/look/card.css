@@ -1069,6 +1069,22 @@ button.mini-tile:hover:not(:disabled){background:color-mix(in srgb,var(--ink) 5%
 /* Long names (air conditioner · mode, connectivity devices) — a wider name column, a shorter bar. */
 .stats-lamps.wide .stats-lamp{grid-template-columns:minmax(0,1.75fr) minmax(0,.65fr) auto}
 
+/* Day / night (D-068): “A” in the corner of the button — auto; the tip on hover — how auto works, with “Don't show again” (daynight-tip.js). */
+.icon-btn.dn-auto{position:relative}
+.icon-btn.dn-auto::after{content:"A";position:absolute;right:3px;bottom:2px;font-size:8px;font-weight:700;line-height:1;opacity:.8}
+.dn-tip{position:absolute;z-index:20;pointer-events:auto;width:max-content;max-width:240px;padding:10px 12px 8px;border-radius:12px;background:var(--ink);color:var(--card);box-shadow:0 8px 24px #0003;font-size:12px;line-height:1.4}
+.dn-tip p{margin:0 0 6px}
+.dn-tip button{background:none;padding:2px 0;font-size:11.5px;font-weight:500;color:inherit;opacity:.72;text-decoration:underline;text-underline-offset:3px}
+.dn-tip button:hover{opacity:1}
+/* “More in the room”: sensors are readings, not controls (the owner: “sensors must not look like buttons and have a hover”) —
+   rows of icon, name and value under thin dividers, no card, no hover, no pointer; an open window or door is amber. */
+.readings{display:flex;flex-direction:column}
+.reading{display:flex;align-items:center;gap:11px;min-height:40px;padding:9px 2px;cursor:default}
+.reading+.reading{border-top:1px solid var(--line)}
+.reading-ic{display:grid;place-items:center;flex-shrink:0;color:var(--muted)}.reading-ic svg{width:17px;height:17px}
+.reading-name{flex:1;min-width:0;font-size:13px;line-height:1.3;overflow-wrap:anywhere}
+.reading-value{flex-shrink:0;max-width:45%;font-size:13px;font-weight:500;font-variant-numeric:tabular-nums;text-align:right;color:var(--ink)}
+.reading.on .reading-ic,.reading.on .reading-value{color:var(--amber)}
 /* ── Room panel in the demo: Minimalist cards from a dashboard snapshot (demo-cards.js) ──
    Sizes and colors were measured from the home's cards: light tile 68 px, icon circle 42 px,
    name 14/700, state 12/700; mini-graph — header 40, figure 25 px/300, chart 63 px;

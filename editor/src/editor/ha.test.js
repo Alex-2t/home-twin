@@ -21,3 +21,12 @@ test('demo valve-as-cover: closes with a cover command, state closed', async () 
   await ha.call('cover','close_cover',{entity_id:'cover.water_valve'});
   assert.equal(ha.entity('cover.water_valve').state,'closed');
 });
+
+test('day and night follow the sun: the demo by its weather profile, no weather — always day (D-068)',()=>{
+  const p={low:3,high:11,sunrise:'07:05',sunset:'16:40',hours:Array(24).fill('cloudy')},at=(h,m=0)=>{const d=new Date(2026,10,9,h,m);return +d;};
+  const ha=mockHA({...base(),weather:p});
+  assert.equal(ha.sunDown(at(12)),false,'noon');assert.equal(ha.sunDown(at(16,39)),false,'a minute before sunset');
+  assert.equal(ha.sunDown(at(16,41)),true,'after sunset');assert.equal(ha.sunDown(at(3)),true,'the small hours');
+  assert.equal(ha.sunDown(at(7,6)),false,'after sunrise');
+  assert.equal(mockHA(base()).sunDown(),false);
+});

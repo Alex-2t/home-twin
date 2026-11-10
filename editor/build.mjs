@@ -1,8 +1,11 @@
-// Builds the editor into a single file dist/index.html. node build.mjs [--serve]
+// Builds the editor into a single file dist/index.html. node build.mjs [--serve] [--demo=<module>]
 // The demo apartment is embedded into src/gen/ (in .gitignore): demo/own.mjs is the owner's apartment, local only (.gitignore), and it
-// is used if the file exists; otherwise demo/typical.mjs, the typical three-room apartment from the repository. --demo=typical forces the latter.
+// is used if the file exists; otherwise demo/typical.mjs, the typical three-room apartment from the repository. --demo=<name> takes
+// demo/<name>.mjs instead (--demo=typical, --demo=homes/studio). The ten typical homes (demo/homes.mjs, D-030) go in too: the start
+// screen's examples (D-062).
 import fs from 'node:fs';
 import * as esbuild from 'esbuild';
+import {execFile} from 'node:child_process';
 
 fs.mkdirSync('src/gen',{recursive:true});fs.mkdirSync('dist',{recursive:true});
 
@@ -11,10 +14,19 @@ const models=Object.fromEntries(fs.readdirSync('assets/kenney').filter(f=>f.ends
 fs.writeFileSync('src/gen/models.gen.js','export const MODELS='+JSON.stringify(models)+';\n');
 
 // Demo (D-033 sensors, D-048 devices, D-049 favorites, “Statistics”, weather) — in the apartment module, shared parts in demo/kit.mjs
-const demoName=process.argv.includes('--demo=typical')||!fs.existsSync('demo/own.mjs')?'typical':'own';
-const {HA,DEMO,DEMO_UNDERLAY}=await (await import(`./demo/${demoName}.mjs`)).default();
-fs.writeFileSync('src/gen/demo.gen.js',`export const HA=${JSON.stringify(HA)};\nexport const DEMO=${JSON.stringify(DEMO)};\nexport const DEMO_UNDERLAY=${JSON.stringify(DEMO_UNDERLAY)};\n`);
-console.log('demo:',demoName);
+const demoArg=process.argv.find(a=>a.startsWith('--demo='));
+const demoName=demoArg?.slice(7)||(fs.existsSync('demo/own.mjs')?'own':'typical');
+async function genDemo(){
+  const {HA,DEMO,DEMO_UNDERLAY}=await (await import(`./demo/${demoName}.mjs`)).default();
+  fs.writeFileSync('src/gen/demo.gen.js',`export const DEMO_NAME=${JSON.stringify(demoName)};\nexport const HA=${JSON.stringify(HA)};\nexport const DEMO=${JSON.stringify(DEMO)};\nexport const DEMO_UNDERLAY=${JSON.stringify(DEMO_UNDERLAY)};\n`);
+  console.log('demo:',demoName);
+  const {HOMES}=await import('./demo/homes.mjs');
+  // a home whose module fails to load (being written) is left out with a warning, the build goes on
+  const examples=(await Promise.all(HOMES.map(async h=>{try{const d=await h.load();return {id:h.id,HA:d.HA,DEMO:d.DEMO};}catch(e){console.warn('example left out:',h.id,'—',e.message.split('\n')[0]);return null;}}))).filter(Boolean);
+  fs.writeFileSync('src/gen/examples.gen.js','export const EXAMPLES='+JSON.stringify(examples)+';\n');}
+await genDemo();
+// --gen-demo: only the demo files (the dev server runs it in a fresh process when demo/ changes: imported modules are cached)
+if(process.argv.includes('--gen-demo'))process.exit(0);
 
 // styles and the shell are read on every build: with --serve they can be edited without a restart (styles used to be read once at
 // startup, and a rebuild after a code edit overwrote the new styles with the old ones)
@@ -28,7 +40,8 @@ const write=r=>{const out=html(r.outputFiles[0].text);fs.writeFileSync('dist/ind
 const PANEL='../custom_components/home_twin/frontend/panel.js';
 function shellGen(){const src=fs.readFileSync('src/shell.html','utf8'),m=src.match(/<body([^>]*)>([\s\S]*?)<script type="module">/);
   const body=[...m[1].matchAll(/([\w-]+)="([^"]*)"/g)].map(x=>[x[1],x[2]]);
-  fs.writeFileSync('src/gen/shell.gen.js',`export const SHELL=${JSON.stringify(m[2])};\nexport const BODY=${JSON.stringify(body)};\nexport const STYLES=${JSON.stringify(fs.readFileSync('src/styles.css','utf8'))};\n`);}
+  // inline scripts of the page (the example cover) do not run in the panel: left out
+  fs.writeFileSync('src/gen/shell.gen.js',`export const SHELL=${JSON.stringify(m[2].replace(/<script>[\s\S]*?<\/script>\n?/g,''))};\nexport const BODY=${JSON.stringify(body)};\nexport const STYLES=${JSON.stringify(fs.readFileSync('src/styles.css','utf8'))};\n`);}
 shellGen();fs.mkdirSync('../custom_components/home_twin/frontend',{recursive:true});
 const panelOpts={...opts,entryPoints:['src/ha-panel.js'],outfile:PANEL,write:true};
 const panelDone=()=>console.log('panel.js',(fs.statSync(PANEL).size/1024).toFixed(0),'KB');
@@ -45,4 +58,7 @@ if(process.argv.includes('--serve')){
   for(const o of cardOpts)await (await esbuild.context(o)).watch();
   // watch the folder, not the files: editors save by replacing the file, and a watch on the old file then goes silent on macOS
   let t=0;fs.watch('src',(_e,f)=>{if(!['styles.css','shell.html'].includes(String(f)))return;clearTimeout(t);t=setTimeout(()=>{shellGen();ctx.rebuild().catch(()=>{});},80);});
+  // the demo homes (demo/): regenerated in a child process, esbuild then sees src/gen/ change and rebuilds
+  let dt=0;fs.watch('demo',{recursive:true},(_e,f)=>{if(!String(f).endsWith('.mjs'))return;clearTimeout(dt);dt=setTimeout(()=>{
+    execFile(process.execPath,['build.mjs','--gen-demo',...(demoArg?[demoArg]:[])],(e,out,err)=>{process.stdout.write(out);process.stderr.write(err);});},250);});
 }else{write(await esbuild.build(opts));await esbuild.build(panelOpts);panelDone();for(const o of cardOpts)await esbuild.build(o);}

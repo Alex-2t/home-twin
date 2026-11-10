@@ -60,6 +60,7 @@ export function liveHA(initial){
     onState:f=>{ssubs.add(f);return ()=>ssubs.delete(f);},
     onChange:f=>{subs.add(f);return ()=>subs.delete(f);},
     history:e=>{let c=hist.get(e);if(!c){c={at:0,data:[],busy:false};hist.set(e,c);}if(!c.busy&&Date.now()-c.at>5*60e3)loadHistory(e,c);return c.data;},
+    sunDown:()=>hass.states['sun.sun']?.state==='below_horizon',
     weather:()=>{const e=weatherEntity();if(!e)return null;watchForecast(e);const s=hass.states[e],A=s.attributes,sun=hass.states['sun.sun']?.attributes||{};
       return {entity:e,condition:s.state,temperature:A.temperature??null,feels:A.apparent_temperature??null,hourly:forecast.get(e)||[],
         sunrise:Date.parse(sun.next_rising)||null,sunset:Date.parse(sun.next_setting)||null};},

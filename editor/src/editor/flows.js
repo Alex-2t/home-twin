@@ -1,5 +1,5 @@
 // Start screen, the “upload plan → align → trace” wizard, the “⋯” menu.
-import {t,num} from '../i18n/i18n.js';
+import {t,N,num} from '../i18n/i18n.js';
 import {emptyPlan,rotatePlan,scalePlan} from '../core/plan.js';
 import {$,el,esc} from './ui.js';
 import {icon} from './icons.js';
@@ -10,17 +10,81 @@ import {tiltOf,fitPhoto} from './underlay.js';
 import {readPlan} from '../core/plan-file.js';
 import {idb} from './underlay.js';
 import {axisCursor} from './drag-gesture.js';
+import {routeHash} from './route.js';
 
 const UPLOAD_WIDTH_M=12; // until the scale is set, the plan image is assumed to be 12 m wide — a typical apartment
+// The start screen's examples (D-062): three designer interiors first, the ten typical homes (demo/homes.mjs, D-030), and “Demo home” — the build's own demo apartment
+// when it is not one of them. note — said under the name (houses: only the ground floor is drawn, the editor is single-floor)
+const EXAMPLE={demo:{name:N('Demo home'),kind:'flat'},studio:{name:N('Studio'),kind:'flat'},'one-bed':{name:N('One room + kitchen'),kind:'flat'},
+  'euro-two':{name:N('Open kitchen + bedroom'),kind:'flat'},'old-two':{name:N('Two rooms, older block'),kind:'flat'},family:{name:N('Family, three rooms'),kind:'flat'},
+  large:{name:N('Large, two bathrooms'),kind:'flat'},altbau:{name:N('Period apartment'),kind:'flat'},
+  loft:{name:N('Loft'),kind:'style'},minimal:{name:N('Minimalist'),kind:'style'},japandi:{name:N('Japandi'),kind:'style'},
+  townhouse:{name:N('Townhouse'),kind:'house',note:N('ground floor')},bungalow:{name:N('Bungalow'),kind:'house'},house:{name:N('Detached house'),kind:'house',note:N('ground floor')}};
+const OUTDOOR=/балкон|лодж|террас|сад|balcon|terra|patio|garden|porch/i; // not counted in the example's area
+// a small outline of the rooms for an example's card (north up)
+function planThumb(plan){const P=plan.rooms.map(r=>r.polygon),xs=P.flat().map(p=>p[0]),ys=P.flat().map(p=>p[1]),x0=Math.min(...xs),y1=Math.max(...ys);
+  const w=Math.max(...xs)-x0,h=y1-Math.min(...ys),d=q=>'M'+q.map(([x,y])=>(x-x0).toFixed(2)+' '+(y1-y).toFixed(2)).join('L')+'Z';
+  return `<svg viewBox="-.4 -.4 ${(w+.8).toFixed(2)} ${(h+.8).toFixed(2)}" aria-hidden="true">${P.map(q=>`<path d="${d(q)}"/>`).join('')}</svg>`;}
 
-export function createFlows(ed,{demo,demoUnderlay}){
+// router — the address (route.js, D-066): hashRouter in the standalone editor, haRouter in the HA panel; absent — the address is not used
+export function createFlows(ed,{examples=[],example=null,router=null}){
   const f={};
+  const EX='home-twin-editor:example',COVER='home-twin-editor:loading';
+  // an example in the address opens right away (also after the reload for its HA data); until then the plan saved last time is not built
+  // in 3D (ed.hold, app.js) — it would only flash before the example
+  const r0=router?.read()||null;
+  ed.hold=!!(r0?.ex&&r0.ex===example);
+  // ---------- loading: the cover from shell.html is up until the editor has started and the plan is drawn ----------
+  // Opening an example shows its card from the start screen — over a reload too: the card goes to sessionStorage, shell.html puts it up at the first paint
+  // While it is up the 3D draws nothing (the GPU is left to the page: the bar does not stutter); before it goes, the new home's shaders
+  // compile in parallel (scene.js: warm), so its first frame does not freeze the page either.
+  const cover=$('loading'),frame=()=>new Promise(r=>requestAnimationFrame(r));
+  if(!cover.hidden)ed.view.pause?.();
+  const coverUp=card=>{cover.querySelector('.loading-ex').innerHTML=card;cover.dataset.ex='';delete cover.dataset.boot;cover.classList.remove('out');cover.hidden=false;ed.view.pause?.();};
+  const coverDown=async()=>{ed.hold=false;try{sessionStorage.removeItem(COVER);}catch{}delete cover.dataset.boot;if(cover.hidden){ed.view.resume?.();return;}
+    await frame();await frame(); // the 3D is built in the next frame (ed.update)
+    await Promise.race([ed.view.warm?.().catch(()=>{}),new Promise(r=>setTimeout(r,4000))]);
+    ed.view.resume?.();await frame();await frame(); // drawn
+    cover.classList.add('out');setTimeout(()=>{cover.hidden=true;cover.classList.remove('out');},260);};
   // ---------- start screen ----------
+  // the first call is the start of the editor: the page in the address opens instead, if there is one
+  let started=false;
   f.showStart=({canContinue})=>{
-    const box=$('start');box.hidden=false;
-    box.querySelector('[data-a=continue]').hidden=!canContinue;syncPrev();
+    if(!started){started=true;go(r0,{canContinue}).finally(()=>{quiet--;writeRoute(false);});return;}
+    startScreen(canContinue);
   };
-  const hideStart=()=>{$('start').hidden=true;};f.hideStart=hideStart;
+  const startScreen=canContinue=>{coverDown();const box=$('start');box.hidden=false;box.querySelector('[data-a=continue]').hidden=!canContinue;syncPrev();f.syncRoute();};
+  const hideStart=()=>{$('start').hidden=true;f.syncRoute();};f.hideStart=hideStart;
+
+  // ---------- the address (route.js, D-066) ----------
+  // Pages: the start screen (null), a mode or Preview of your plan, of an example. Another page — a new step in the history (Back returns
+  // to it); the same page whose plan stopped being an example (its rooms were edited) — the step is corrected. While the address is being
+  // applied (the start, Back / Forward) nothing is written: quiet.
+  const PAGE={rooms:'plan',furniture:'furniture',lights:'lights',devices:'devices',sensors:'sensors'},MODE=Object.fromEntries(Object.entries(PAGE).map(([m,p])=>[p,m]));
+  let quiet=1,queued=false,shown=routeHash(r0),leaving=false;
+  const routeNow=()=>$('start').hidden?{ex:exampleOf(ed.plan)?.id||null,page:ed.look?.()?'preview':PAGE[ed.mode.id]||'plan'}:null;
+  const pageOf=h=>h.replace(/^#\/example\/[\w-]+/,'#')||'start';
+  function writeRoute(push=null){queued=false;if(!router||quiet||leaving)return;const now=routeNow(),h=routeHash(now);if(h===shown)return;
+    router.write(now,push??pageOf(h)!==pageOf(shown));shown=h;}
+  // several changes in one go (a mode button: leave Preview, switch the mode) — one step
+  f.syncRoute=()=>{if(router&&!queued){queued=true;queueMicrotask(()=>writeRoute());}};
+  const setPage=p=>{if(p==='preview')ed.setLook(true);else{ed.setLook(false);ed.setMode(MODE[p]);}};
+  // another example than the one whose HA data are loaded: the page reloads with it (main.js reads the address)
+  // (the address already names it; under its card from the start screen)
+  const reloadWith=x=>{leaving=true;const card=$('start').querySelector(`.ex[data-ex="${x.id}"]`)?.innerHTML;
+    if(card){coverUp(card);try{sessionStorage.setItem(COVER,JSON.stringify({card}));}catch{}}
+    try{localStorage.setItem(EX,x.id);}catch{}requestAnimationFrame(()=>requestAnimationFrame(()=>location.reload()));};
+  // the address → the page: at the start, after Back / Forward, a typed or followed link
+  async function go(r,{canContinue=true}={}){
+    const x=r?.ex?examples.find(e=>e.id===r.ex):null;
+    if(!r||r.ex&&!x||!r.ex&&!canContinue){ed.hold=false;startScreen(canContinue);return;}
+    if(x&&exampleOf(ed.plan)!==x){if(x.id!==example){reloadWith(x);return;}await openExample(x,r.page);return;}
+    // your plan's page while an example is open (Back from it): your plan comes back from the backup slot
+    if(!x&&isDemo(ed.plan)&&readPrev()?.plan)await swapPrev();
+    if(ed.hold){ed.hold=false;ed.update();} // the example in the address is the plan already open (a reload): it stays as it is
+    $('start').hidden=true;setPage(r.page);coverDown();}
+  // an address from outside: once its page is open, the address is written as it is now (a wrong one is cleaned, a refused mode corrected)
+  router?.listen(r=>{if(routeHash(r)===shown&&r)return;shown=undefined;quiet++;go(r).finally(()=>{quiet--;writeRoute(false);});});
   $('start').querySelector('[data-a=continue]').onclick=hideStart;
   // Plan image: from the start screen — a new plan and the wizard; from the panel — only replace the plan photo.
   let fresh=false;
@@ -44,21 +108,42 @@ export function createFlows(ed,{demo,demoUnderlay}){
   };
   // a step without a button: it ends by itself once the rectangle is drawn
   const scratchStep=()=>{ed.setTool('rect');ed.step(DRAW_RECT,[],ed.aim.photo);};
-  // without a demo apartment (in HA) there is no button
-  $('start').querySelector('[data-a=demo]').hidden=!demo;
-  $('start').querySelector('[data-a=demo]').onclick=async()=>{
-    const kept=await keepPrev();hideStart();ed.banner();ed.setPlan(structuredClone(demo),{fit:false});ed.setMode('rooms');ed.setTool('select');
-    if(demoUnderlay){await ed.underlay.set(demoUnderlay.src,{place:()=>ed.underlay.match(...demoUnderlay.match)});ed.underlay.opacity=.5;ed.underlay.save();}else await ed.underlay.clear();ed.amend();ed.mode.refresh?.();ed.fit();
-    // the demo is most often opened “just to look” — say right away that your own plan is safe
-    if(kept)ed.banner(t('Demo home is open. Your plan is saved.'),[[t('Restore my plan'),()=>{ed.banner();swapPrev();}],[t('Got it'),()=>ed.banner(),true]]);
-  };
+  // ---------- examples (D-062): two groups, apartments and houses; a click opens the home with its demo HA data ----------
+  // Each example has its own lights, sensors and devices: another one than the loaded one — the page reloads with it (main.js) and opens it
+  {const box=$('start').querySelector('.examples');box.hidden=!examples.length;
+    for(const x of examples){const info=EXAMPLE[x.id]||{name:x.id,kind:'flat'};
+      const m2=x.plan.rooms.filter(r=>!OUTDOOR.test(r.name+' '+r.id)).reduce((s,r)=>s+Math.abs(area(r.polygon)),0);
+      const b=el(`<button class="ex glass" data-ex="${esc(x.id)}">${planThumb(x.plan)}<b></b><span></span></button>`);
+      b.querySelector('b').textContent=t(info.name);b.querySelector('span').textContent=num(m2,0)+t(' m²')+(info.note?' · '+t(info.note):'');
+      b.onclick=()=>{coverUp(b.innerHTML);if(x.id===example){openExample(x);return;}
+        // another example's HA data: its address, then the page reloads with it
+        const r={ex:x.id,page:'preview'};router?.write(r,true);shown=routeHash(r);reloadWith(x);};
+      box.querySelector(`.ex-list[data-kind=${info.kind}]`).append(b);}
+    box.querySelectorAll('.ex-group').forEach(g=>g.hidden=!g.querySelector('.ex'));}
+  // “← Examples” by the file menu while an example is open: back to the start screen, at the examples
+  const back=$('to-examples');back.onclick=()=>{f.showStart({canContinue:true});$('start').querySelector('.examples').scrollIntoView({block:'center'});};
+  f.syncExample=()=>{back.hidden=!examples.length||!exampleOf(ed.plan);f.syncRoute();};
+  // page — where it opens: Preview (the finished home first; “Plan” and the other modes are a click away) or the page in the address
+  async function openExample(x,page='preview'){quiet++;try{
+    const kept=await keepPrev();hideStart();ed.banner();const plan=structuredClone(x.plan),name=t(EXAMPLE[x.id]?.name||x.id);plan.name??=name;
+    ed.hold=false;ed.setPlan(plan,{fit:false});ed.setMode('rooms');ed.setTool('select');
+    const u=x.underlay;if(u){await ed.underlay.set(u.src,{place:()=>ed.underlay.match(...u.match)});ed.underlay.opacity=.5;ed.underlay.save();}else await ed.underlay.clear();
+    ed.amend();ed.mode.refresh?.();ed.fit();
+    setPage(page);
+    // an example is most often opened “just to look” — say right away that your own plan is safe
+    // shown in “Preview” too: the example opens in it
+    if(kept)ed.banner(t('“{0}” is open. Your plan is saved.',name),[[t('Restore my plan'),()=>{ed.banner();swapPrev();}],[t('Got it'),()=>ed.banner(),true]],null,{look:true});
+  }finally{quiet--;f.syncRoute();coverDown();}}
 
   // ---------- previous plan: a new plan does not erase the old one (start screen, “Open from file…”) ----------
   // Before replacement the plan and photo go into the backup slot; “Restore previous plan” (the ⌂ menu, start screen) swaps them —
-  // it can be swapped back too. An empty plan and an untouched demo are not saved: nothing to lose, and the real plan in the slot would be overwritten.
+  // it can be swapped back too. An empty plan and an untouched example are not saved: nothing to lose, and the real plan in the slot would be overwritten.
   const PREV='home-twin-editor:prev',same=(a,b)=>JSON.stringify(a)===JSON.stringify(b);
   const readPrev=()=>{try{return JSON.parse(localStorage.getItem(PREV)||'null');}catch{return null;}};
-  const isDemo=p=>!!demo&&same(p.rooms.map(r=>r.polygon),demo.rooms.map(r=>r.polygon))&&same(p.furniture||[],demo.furniture||[]);
+  // a plan is an example while its rooms are those of an example: playing with one (furniture, lights) is not your work, so it never
+  // takes the backup slot from your own plan; the rooms redrawn — it has become yours
+  const roomsKey=p=>JSON.stringify(p.rooms.map(r=>r.polygon)),exKeys=examples.map(x=>roomsKey(x.plan));
+  const exampleOf=p=>examples[exKeys.indexOf(roomsKey(p))]||null,isDemo=p=>!!exampleOf(p);
   const worth=()=>(ed.plan.rooms.length>0||ed.underlay.ready)&&!isDemo(ed.plan);
   const photoOf=u=>u.ready?{a:[...u.a],b:[...u.b],opacity:u.opacity,visible:u.visible}:null;
   // into the slot goes what is current; false — nothing to save or it failed (then the slot is left alone)
@@ -72,7 +157,8 @@ export function createFlows(ed,{demo,demoUnderlay}){
     if(worth())await putPrev(cur.plan,cur.photo,cur.src);else{localStorage.removeItem(PREV);await idb('del','prev-underlay').catch(()=>{});}
     if(src)await ed.underlay.set(src,{place:()=>Object.assign(ed.underlay,{a:prev.photo.a,b:prev.photo.b,opacity:prev.photo.opacity,visible:prev.photo.visible})});
     else await ed.underlay.clear();
-    hideStart();ed.banner();ed.setTool?.('select');ed.setPlan(prev.plan);f.resume();syncPrev();}
+    // your plan comes back where you worked on it, not in “Preview” (an example opens in it)
+    hideStart();ed.banner();ed.setLook?.(false);ed.setTool?.('select');ed.setPlan(prev.plan);f.resume();syncPrev();}
   f.swapPrev=swapPrev;f.hasPrev=()=>!!readPrev()?.plan;
   $('start').querySelector('[data-a=prev]').onclick=()=>swapPrev();
   // the mode and wizard step — as this plan had last time (at startup and after “Restore previous plan”)

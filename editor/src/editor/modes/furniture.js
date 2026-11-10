@@ -1,7 +1,7 @@
 // The “Furniture” mode: the catalog in the panel, dragging onto the plan, snapping back-to-wall, rotation, sizes.
 import {t} from '../../i18n/i18n.js';
 import {axisCursor} from '../drag-gesture.js';
-import {CATALOG,CATEGORIES,COLORS,TOP,byId,zOf,colorsOf,nameOf,lArms} from '../../core/catalog.js';
+import {CATALOG,CATEGORIES,colorOf,TOP,TOPS,byId,zOf,colorsOf,nameOf,lArms} from '../../core/catalog.js';
 import {GRID,axes,corners,localXY,snapToWall,inFoot,stackOf} from '../../core/layout.js';
 import {WALL,pointIn} from '../../core/geometry.js';
 import {isRun,runGeo,runAt,runSet,runStops,ring,faceOf,ringProject,syncRun,RUN_MIN} from '../../core/runs.js';
@@ -201,7 +201,7 @@ export function furnitureMode(ed){
       for(const g of stack){if(g===f&&c.id==='custom'){seg.append(own);continue;}const b=el(`<button class="chip ${g===f?'on':''}">${esc(nameOf(g))}</button>`);
         b.onclick=()=>{if(g!==f){more=false;ed.select('furn',g.id);}};seg.append(b);}
       line.prepend(seg);if(own.parentNode===line)own.remove();}if(c.kind==='gen'&&c.color)line.appendChild(el('<span class="sep"></span>'));
-    if(c.kind==='gen'&&c.color)for(const k of colorsOf(c)){const [n,hex]=COLORS[k];const b=el(`<button class="sw ${k===f.color?'on':''}" title="${n}" style="background:#${hex.toString(16).padStart(6,'0')}"></button>`);b.onclick=()=>{f.color=k;ed.commit();};line.appendChild(b);}
+    if(c.kind==='gen'&&c.color)for(const k of colorsOf(c)){const [n,hex]=colorOf(c,k);const b=el(`<button class="sw ${k===f.color?'on':''}" title="${n}" style="background:#${hex.toString(16).padStart(6,'0')}"></button>`);b.onclick=()=>{f.color=k;ed.commit();};line.appendChild(b);}
     const rot=el(`<button class="ib" title="${t('Rotate 90° (R)')}">${icon('rotate',15)}</button>`);rot.onclick=()=>{f.rot=(f.rot+90)%360;ed.commit();};
     const del=el(`<button class="ib bad" title="${t('Remove (Delete)')}">${icon('trash',15)}</button>`);del.onclick=()=>{plan().furniture=plan().furniture.filter(x=>x!==f);sel().furn=null;ed.commit();};
     if(!isRun(f))line.append(el('<span class="sep"></span>'),rot);
@@ -215,6 +215,11 @@ export function furnitureMode(ed){
         if(to&&typeof to==='object'){for(const q of ['w','h'])if(to[q])f[q]=to[q];if(to.d){dd=to.d-f.d;}if(to.z!=null){if(Math.abs(to.z-(c.lift??0))<.001)delete f.z;else f.z=to.z;}}
         if(dd){const [,fz]=axes(f);f.d=+(f.d+dd).toFixed(3);f.x=+(f.x+fz[0]*dd/2).toFixed(4);f.y=+(f.y+fz[1]*dd/2).toFixed(4);}
         f.v=k;ed.commit();};vl.appendChild(b);}lines.push(vl);}
+    // the worktop: one for the whole kitchen — every unit with a worktop in this room gets it
+    if(c.tops){const tl=el(`<div class="line opts"><small>${t('Worktop')}</small></div>`),cur=TOPS[f.top]?f.top:'stone',room=roomAt(plan(),[f.x,f.y]);
+      for(const [k,[n,hex]] of Object.entries(TOPS)){const b=el(`<button class="sw ${k===cur?'on':''}" title="${esc(n)}" style="background:#${hex.toString(16).padStart(6,'0')}"></button>`);
+        b.onclick=()=>{if(k===cur)return;for(const g of plan().furniture)if(byId(g.model)?.tops&&(g===f||room&&roomAt(plan(),[g.x,g.y])===room)){if(k==='stone')delete g.top;else g.top=k;}ed.commit();};tl.appendChild(b);}
+      lines.push(tl);}
     if(c.kind==='gen'){const mb=el(`<button class="ib ${more?'on':''}" title="${t('Exact size')}">${icon('more',15)}</button>`);mb.onclick=()=>{more=!more;ctxPanel();};line.append(mb);
       if(more){const ml=el(`<div class="line more"></div>`);
         for(const [k,l,i] of [['w',t('W'),0],['d',t('D'),1],['h',t('H'),2]]){const lab=el(`<label>${l}<input type="number" step="5" value="${cm(f[k])}"></label>`),x=lab.querySelector('input');

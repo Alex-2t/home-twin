@@ -117,6 +117,12 @@ export function attachOpening(rooms,o){
   if(!best)return null;
   const {score,...at}=best;return {...o,at};
 }
+// Outward from the opening's room: the one of the two normals that does not face into it (which side a door's leaf is on).
+// The probe goes past the middle of the wall, where the opening sits: at a fixed 12 cm a door in the middle of a 25 cm balcony wall
+// probed inside the wall itself, and its side came from the order of its ends
+export function openingOut(rooms,o){
+  const r=rooms.find(r=>r.id===o.at?.room),dx=o.b[0]-o.a[0],dy=o.b[1]-o.a[1],l=Math.hypot(dx,dy)||1,n=[dy/l,-dx/l],k=Math.max(.12,Math.abs(o.at?.d||0)+.06);
+  return r&&!pointIn([(o.a[0]+o.b[0])/2-n[0]*k,(o.a[1]+o.b[1])/2-n[1]*k],r.polygon)?[-n[0],-n[1]]:n;}
 export function openingCoords(rooms,o){
   const r=rooms.find(r=>r.id===o.at.room);if(!r)return null;
   const p=r.polygon,a=p[o.at.edge%p.length],b=p[(o.at.edge+1)%p.length];

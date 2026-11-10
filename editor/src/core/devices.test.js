@@ -1,7 +1,7 @@
 import {test} from 'node:test';
 import assert from 'node:assert/strict';
 import {deviceKind,coverModel,isWaterValve,autoPlace,placeOn,unplace,recOf,liveScene,acView,coverView,moveTo} from './devices.js';
-import {emptyPlan} from './plan.js';
+import {emptyPlan,migrate} from './plan.js';
 
 // a 4×3 kitchen: a window in the north wall (edge 2 runs east to west), a door in the south wall
 const plan=()=>({...emptyPlan(),rooms:[{id:'k',name:'Kitchen',area:'kitchen',polygon:[[0,0],[4,0],[4,3],[0,3]]}],
@@ -88,4 +88,21 @@ test('a thermostat (heating only) is not an air conditioner and not in the model
     assert.equal(deviceKind({domain:'cover',...c}),null,JSON.stringify(c));
   const p=plan(),gate={entity:'cover.gate',name:'Gate',area:'kitchen',domain:'cover',cls:'gate'};
   assert.equal(autoPlace(p,[heat,split,gate],e=>E[e]||null),1);assert.equal(recOf(p,'climate.floor'),null);assert.equal(recOf(p,'cover.gate'),null);
+});
+
+test('a terrace, garden or garage door contact finds its door; a central thermostat gets no split on the wall (homes check, D-061)',()=>{
+  // a kitchen with a door into the hallway and one out; a garage with a wide gate and a side door
+  const p=migrate({rooms:[{id:'k',name:'Kitchen',area:'kitchen',polygon:[[0,0],[4,0],[4,3],[0,3]]},{id:'h',name:'Hallway',area:'hall',polygon:[[4.1,0],[6,0],[6,3],[4.1,3]]},
+      {id:'g',name:'Garage',area:'garage',polygon:[[6.1,0],[12,0],[12,3],[6.1,3]]}],
+    openings:[{kind:'door',a:[4.05,1],b:[4.05,1.8]},{kind:'door',a:[1,3],b:[1.9,3]},{kind:'door',a:[7,0],b:[9.4,0]},{kind:'door',a:[12,1],b:[12,1.9]}]});
+  const ids=p.openings.map(o=>o.id),devs=[{entity:'binary_sensor.terrace_door',name:'Terrace door',area:'kitchen',domain:'binary_sensor',cls:'door'},
+    {entity:'binary_sensor.garage',name:'Garage door',area:'garage',domain:'binary_sensor',cls:'garage_door'},
+    {entity:'climate.ecobee',name:'Ecobee Thermostat',area:'hall',domain:'climate'}];
+  const ent=e=>e==='climate.ecobee'?{state:'heat_cool',attributes:{hvac_modes:['off','heat','cool','heat_cool']}}:null;
+  assert.equal(deviceKind(devs[2],ent(devs[2].entity)),'ac');
+  autoPlace(p,devs,ent);
+  assert.equal(recOf(p,'binary_sensor.terrace_door')?.opening,ids[1],'the kitchen’s only door out');
+  assert.equal(recOf(p,'binary_sensor.garage')?.opening,ids[2],'the wide gate');
+  assert.ok(!recOf(p,'climate.ecobee'),'a central thermostat: nothing hung on the wall');
+  assert.ok(!p.furniture.some(f=>f.model==='aircon'));
 });

@@ -8,10 +8,12 @@ Current state and remaining tasks are in [status.md](../docs/status.md). The doc
 ```
 npm install
 npm run build          # → dist/index.html, a single file
-npm run dev            # rebuilds on every change and serves http://localhost:8766/
+npm run dev            # rebuilds on every change (the demo homes in demo/ too) and serves http://localhost:8766/
 npm test               # core tests (node --test)
 ```
-The demo apartment (the start screen of the standalone editor; not included in the HA dashboard) is a module in `demo/`: `typical.mjs` is an invented typical three-room apartment from the repository, `own.mjs` is the owner's apartment from the neighboring `3d_floor`, local only (`.gitignore`); the build uses `own.mjs` if it exists, and `node build.mjs --demo=typical` picks the typical one explicitly. Everything shared by the demo (sensors, devices, statistics, weather) is in `demo/kit.mjs`. Build output goes to `src/gen/` and `dist/` (both in `.gitignore`).
+The demo apartment (the start screen of the standalone editor; not included in the HA dashboard) is a module in `demo/`: `typical.mjs` is an invented typical three-room apartment from the repository, `own.mjs` is the owner's apartment from the neighboring `3d_floor`, local only (`.gitignore`); the build uses `own.mjs` if it exists, and `node build.mjs --demo=typical` picks the typical one explicitly (any module in `demo/` works: `--demo=homes/studio`). Everything shared by the demo (sensors, devices, statistics, weather) is in `demo/kit.mjs`. Build output goes to `src/gen/` and `dist/` (both in `.gitignore`).
+
+The ten typical homes (D-030, [typical-homes.md](../docs/research/typical-homes.md)) are reference plans with their own HA data: the list is `demo/homes.mjs`, the modules are in `demo/homes/` (home 5 is `typical.mjs`); houses are the ground floor for now. `src/core/homes.test.js` (part of `npm test`) runs each through the editor's own code: rooms, openings and walls, furniture conflicts, then the wizard's steps — areas, “Auto-place” lights, suggested sensors, devices. With three designer interiors (loft, minimalist, Japandi) they are the start screen's examples (D-062): a click opens the home with its own HA data; each is finished in a style (`demo/kit.mjs`: STYLES, or the module's own `STYLE` and room finishes) and furnished like a designer interior, every light placed (D-064).
 
 ## Saving and files
 
@@ -32,6 +34,7 @@ src/core/            core — no UI, will move into HA later
   fixtures.js        what kind of light it is (lamp shape), guessing by name, default position
   catalog.js         furniture catalog (data)
   furniture3d.js     furniture in 3D from dimensions and Kenney models
+  car3d.js           procedural sedan and SUV: separate glazing, LED lamps, body seams and detailed wheels
   scene.js           3D view: walls, floor, furniture, lights, room mask
   surfaces.js        floor by room type (textures in code), shading at walls and corners (D-028)
   card/              card lighting — a copy from 3d_floor (lighting.js, room-light-mask.js)

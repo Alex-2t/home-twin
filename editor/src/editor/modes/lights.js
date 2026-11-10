@@ -5,7 +5,7 @@ import {t,num} from '../../i18n/i18n.js';
 import {dist2,segDist,pointIn,WALL} from '../../core/geometry.js';
 import {GRID,snapLightPoint,stripOnWall} from '../../core/layout.js';
 import {roomAt,roomById,zoneParts} from '../../core/plan.js';
-import {FORMS,formFor,lineForm,guessForm,lampCell,placeForm,relayout,autoPlace,snapWall,keepIn,clampRay,STRIP,SPOTS,LINES,FORM_ORDER,
+import {FORMS,formFor,lineForm,guessForm,lampCell,placeForm,relayout,autoPlace,snapWall,keepIn,clampRay,STRIP,SPOTS,LINES,SHADES,shadeOf,HOUSINGS,housingOf,FORM_ORDER,
   stripContour,stripRuns,stripSegs,stripAt,stripProject,stripCut,stripFill,stripMove,stripSnaps,stripOnEdge,stripLayout,FURN_STRIP,furnOpts,furnGuess} from '../../core/fixtures.js';
 import {$,el,esc,section,parseLen,tip,tipHide} from '../ui.js';
 import {icon} from '../icons.js';
@@ -361,8 +361,13 @@ export function lightsMode(ed){
       const set=k=>{L.count=k;if(cell)relayout(plan(),L,cell);delete L.auto;ed.commit();blink(L.id);};a.disabled=n<=1;b.disabled=n>=max;a.onclick=()=>set(n-1);b.onclick=()=>set(n+1);return s;};
     if(f==='ceiling')opts.append(el(`<small>${t('Count')}</small>`),count(L.points.length,6)); // several shades on one switch
     else if(f==='spots')opts.append(el(`<small>${t('Count')}</small>`),count(L.points.length,40),...chips(SPOTS,L.opt));
-    else if(f==='pendant')opts.append(el(`<small>${t('Count')}</small>`),count(L.points.length,8));
-    else if(f==='line')opts.append(...chips(LINES,L.opt));
+    else if(f==='pendant'){ // how many, and the shade: it changes only the look, the points stay
+      const cur=shadeOf(L),shade=Object.entries(SHADES).map(([k,name])=>{const b=el(`<button class="chip ${cur===k?'on':''}">${esc(name)}</button>`);
+        b.onclick=()=>{if(cur===k)return;L.shade=k;ed.commit();blink(L.id);};return b;});
+      opts.append(el(`<small>${t('Count')}</small>`),count(L.points.length,8),...shade);}
+    else if(f==='line'){const cur=housingOf(L),body=Object.entries(HOUSINGS).map(([k,name])=>{const b=el(`<button class="chip ${cur===k?'on':''}">${esc(name)}</button>`);
+        b.onclick=()=>{if(cur===k)return;L.shade=k;ed.commit();blink(L.id);};return b;}); // the body color: only the look
+      opts.append(...chips(LINES,L.opt),el('<span class="sep"></span>'),...body);}
     else if(f==='strip')opts.append(...chips({...STRIP,...Object.fromEntries((cell?furnOpts(plan(),cell):[]).map(k=>[k,FURN_STRIP[k]]))},L.opt)); // on furniture — if it is in the room
     else if(f==='wall'){ // wall light — how many and at what height from the floor (in cm)
       const hi=el(`<label class="num" title="${t('Height above floor')}">${t('Height')}<input inputmode="decimal" value="${Math.round(L.h*100)}"><small>${t('cm')}</small></label>`),inp=hi.querySelector('input');

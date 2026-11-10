@@ -1,6 +1,6 @@
 // Placement rules for furniture and lights: snapping to walls, overlap checks. No three.js.
 import {t} from '../i18n/i18n.js';
-import {WALL,openingCoords,pointIn,centroid} from './geometry.js';
+import {WALL,openingCoords,openingOut,pointIn,centroid} from './geometry.js';
 import {roomEdges,roomAt,uniqueName,SWING} from './plan.js';
 import {byId,zOf,lArms,nameOf} from './catalog.js';
 import {isRun,runGeo} from './runs.js';
@@ -90,8 +90,7 @@ export function furnitureConflicts(plan){
   // The door zone: on the side the leaf opens to, as deep as the door width (the leaf sweeps it); on the other side and for an opening
   // without a door, 30 cm. Something hung above the top of the door (an air conditioner over the door) does not block it.
   const doors=plan.openings.map(o=>openingCoords(plan.rooms,o)).filter(o=>o&&o.kind==='door').map(o=>{
-    const dx=o.b[0]-o.a[0],dy=o.b[1]-o.a[1],l=Math.hypot(dx,dy)||1,r=plan.rooms.find(r=>r.id===o.at?.room);let n=[dy/l,-dx/l];
-    if(r&&!pointIn([(o.a[0]+o.b[0])/2-n[0]*.12,(o.a[1]+o.b[1])/2-n[1]*.12],r.polygon))n=[-n[0],-n[1]]; // n points out of the opening's room (like outward in draw.js)
+    const l=Math.hypot(o.b[0]-o.a[0],o.b[1]-o.a[1])||1,n=openingOut(plan.rooms,o); // n points out of the opening's room
     const leaf=!(o.leaf===false||o.swing==null&&l>1.15),inn=SWING[o.swing||0].out?n:[-n[0],-n[1]],f=leaf?Math.min(l,1)+.05:.3,b=.3;
     return {top:o.top??2.1,poly:[[o.a[0]+inn[0]*f,o.a[1]+inn[1]*f],[o.b[0]+inn[0]*f,o.b[1]+inn[1]*f],[o.b[0]-inn[0]*b,o.b[1]-inn[1]*b],[o.a[0]-inn[0]*b,o.a[1]-inn[1]*b]]};});
   F.forEach((f,i)=>{

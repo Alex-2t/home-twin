@@ -4,11 +4,11 @@ import * as THREE from 'three';
 import {OrbitControls} from 'three/addons/controls/OrbitControls.js';
 import {RoomEnvironment} from 'three/addons/environments/RoomEnvironment.js';
 import {WALL,pointIn} from './geometry.js';
-import {formFor,lineForm} from './fixtures.js';
+import {formFor,lineForm,shadeOf,housingOf} from './fixtures.js';
 import {makeObject} from './furniture3d.js';
 import {createAirflow} from './airflow.js';
 import {createRoomGlow} from './room-glow.js';
-import {zOf} from './catalog.js';
+import {zOf,byId} from './catalog.js';
 import {LABEL,itemH} from './sensors.js';
 import {RectAreaLightUniformsLib} from 'three/addons/lights/RectAreaLightUniformsLib.js';
 // Lighting is a copy of the card code from 3d_floor (card/), D-006.
@@ -28,10 +28,21 @@ const slabMat=new THREE.MeshStandardMaterial({color:0xb7b1a7,roughness:.9});
 // the camera: it shines from over the viewer's left shoulder (SUN.turn), so visible walls are lit at any rotation instead of sinking into gray
 // shadow. SOFT is the shadow edge blur.
 // Day (2026-11-07, the owner: “the model is so bright that turning on a light is barely noticeable”): overall light is weaker than before
-// (sky 1.4 → 0.82, sun 1.6 → 1.15, ambient 0.6 → 0.34), lamps by day at 42% instead of 20%: a lit room is noticeably warmer than
-// its neighbors, but not yet flooded with peach.
+// (sky 1.4 → 0.82, sun 1.6 → 1.15, ambient 0.6 → 0.34). Lamps by day at 55% (D-067: their light is local now, so it no longer floods
+// the room with peach; it was 42%, before that 20%).
 const DAY={h:.82,s:1.15,e:.34},SUN={up:14,back:6.5,turn:THREE.MathUtils.degToRad(40)},SOFT=3;
-const SIDE_AO={S:0,E:1,N:2,W:3},DAY_LAMPS=.42;
+const SIDE_AO={S:0,E:1,N:2,W:3},DAY_LAMPS=.75;
+// Lamp light (D-067, the owner: “I don't like how the light works”). It used to be one point under the ceiling per lamp reaching 4.5 m in amber
+// (#ffce87): every lamp lit the whole flat evenly and turning it on tinted the walls yellow instead of lighting a place. Now:
+//  - the colour: a lamp's colour mixed halfway with white — a warm white keeps the finishes their own colour, a coloured lamp stays coloured;
+//  - pools, not a flood: pendants and spots shine down in a cone (a pool on the table, on the floor), lamps and sconces light about 2.5 m around
+//    them, a ceiling light the room; strips are about 2.5 times softer;
+//  - the fixture shows it is on: a soft halo at the shade or bulb, stronger by day (when the room light hardly shows) than at night.
+const LAMP_TINT=.5,STRIP_POWER=75,WHITE=new THREE.Color(0xffffff);
+// a cone per spot, up to CONE_MAX; a fixture with more — one wide cone in the middle (each source costs every pixel: a wall tablet with the card)
+const CONE={pendant:{power:72,angle:.8},spots:{power:60,angle:.62}},CONE_MAX=2;
+const NEAR={lamp:2.6,wall:2.6,ceiling:4.5};
+const HALO={day:.85,night:.5,size:{pendant:.7,spots:.34,ceiling:.9,wall:.55,lamp:.62,table:.6}};
 const glassMat=new THREE.MeshStandardMaterial({color:0xcfe6f2,roughness:.05,transparent:true,opacity:.22,depthWrite:false,side:THREE.DoubleSide});
 const OUT={S:new THREE.Vector3(0,0,1),E:new THREE.Vector3(1,0,0),N:new THREE.Vector3(0,0,-1),W:new THREE.Vector3(-1,0,0)};
 
@@ -47,6 +58,7 @@ function prism(mp,bottom,top){
 }
 
 export function createView(host){
+  let dirty=2;const redraw=()=>{dirty=2;}; // frames on demand (see loop): 2 — this frame and the next
   const motion=globalThis.matchMedia?.('(prefers-reduced-motion: reduce)'),reducedMotion=()=>!!motion?.matches;
   const DEG0=THREE.MathUtils.degToRad;
   RectAreaLightUniformsLib.init();
@@ -123,7 +135,7 @@ export function createView(host){
     const ao=bakeAO(plan2d,rush?{px:.08}:{});
     if(ao){AOU.htAoA.value.dispose();AOU.htAoB.value.dispose();AOU.htAoA.value=ao.A;AOU.htAoB.value=ao.B;AOU.htAoBox.value.copy(ao.box);}
     aoMs=performance.now()-t0;
-    if(rush)aoTimer=setTimeout(()=>{aoAt=0;if(model)bakeShade(plan2d);},200);
+    if(rush)aoTimer=setTimeout(()=>{aoAt=0;if(model){bakeShade(plan2d);redraw();}},200);
   }
   // the sun is over the viewer's left shoulder; reposition only when the camera has been rotated
   function placeSun(d){if(sunDir.dot(d)>.9999)return;sunDir.copy(d);const c=Math.cos(SUN.turn),s=Math.sin(SUN.turn);
@@ -161,6 +173,7 @@ export function createView(host){
     });
     scene.add(model);
     bakeShade(plan2d);bakeWalls(rooms);for(const o of labels.values())if(o.sp)o.side=sideOfLabel(o.sp);
+    for(const m of fixtures.children)if(m.userData.probe)m.userData.side=fixtureSide(m,...m.userData.probe); // the lights may come before the walls
     const box=new THREE.Box3().setFromObject(model),c=box.getCenter(new THREE.Vector3());
     sunAt.copy(c);sun.target.position.copy(c);sunDir.set(0,0,0);
     const r=Math.max(box.max.x-box.min.x,box.max.z-box.min.z)*.75+2;
@@ -176,11 +189,11 @@ export function createView(host){
   function setFurniture(items,selected){
     const keep=new Set();
     for(const it of items){
-      const key=[it.model,it.w,it.d,it.h,it.color,it.v,it.mx,it.z,it.geo?.key,it.open?.toFixed(2)].join('|');let o=objs.get(it.id);
+      const key=[it.model,it.w,it.d,it.h,it.color,it.top,it.v,it.mx,it.z,it.geo?.key,it.open?.toFixed(2)].join('|');let o=objs.get(it.id);
       if(!o||o.userData.key!==key){if(o){furn.remove(o);o.traverse(m=>m.isMesh&&m.geometry.dispose());}o=makeObject(it);o.userData.key=key;objs.set(it.id,o);furn.add(o);}
       // a built-in wardrobe (it.geo) is built directly in plan coordinates; it hides piece by piece, each wall has its own
       if(it.geo){o.position.set(0,0,0);o.rotation.y=0;o.userData.tall=false;}
-      else{o.position.set(it.x,0,-it.y);o.rotation.y=THREE.MathUtils.degToRad(it.rot);o.userData.tall=zOf(it)+it.h>1.5;}keep.add(it.id);
+      else{o.position.set(it.x,0,-it.y);o.rotation.y=THREE.MathUtils.degToRad(it.rot);o.userData.tall=zOf(it)+it.h>1.5&&!byId(it.model)?.free;}keep.add(it.id);
     }
     for(const [id,o] of objs)if(!keep.has(id)){furn.remove(o);objs.delete(id);}
   }
@@ -190,73 +203,114 @@ export function createView(host){
   // Lamp body by shape (fixtures.js): only the diffuser glows (glass, shade); cord, stand and mounts have no emissive.
   // A lamp that is part of another fixture (L.with) shines from that fixture's position and draws no body: the host owns it.
   const darkMat=new THREE.MeshStandardMaterial({color:0x3b3b3f,roughness:.5,metalness:.35}),bodyMat=new THREE.MeshStandardMaterial({color:0xe9e2d4,roughness:.45});
+  // pendant shades that do not glow: black metal (the inside too), rattan (a woven bell with darker ribs)
+  const shellMat=new THREE.MeshStandardMaterial({color:0x232427,roughness:.42,metalness:.45,side:THREE.DoubleSide}),
+    rattanMat=new THREE.MeshStandardMaterial({color:0xb48c5c,roughness:.92,side:THREE.DoubleSide}),rattanRib=new THREE.MeshStandardMaterial({color:0x8a6741,roughness:.9});
+  const SHARED=new Set([darkMat,bodyMat,shellMat,rattanMat,rattanRib]);
   const cyl=(rt,rb,h,s=24,open=false)=>new THREE.CylinderGeometry(rt,rb,h,s,1,open);
   const lathe=pts=>new THREE.LatheGeometry(pts.map(([r,y])=>new THREE.Vector2(r,y)),36);
   const UP=new THREE.Vector3(0,1,0);
   // wall for a sconce: the nearest side of the room, n points from the wall into the room (the sconce sits 8 cm from it)
-  function wallDir(poly,p){let best=null;const s=poly.reduce((a,q,i)=>{const b=poly[(i+1)%poly.length];return a+q[0]*b[1]-b[0]*q[1];},0)>0?1:-1;
+  function wallDir(poly,p){return wallNear(poly,p)?.n||[0,1];}
+  function wallNear(poly,p){let best=null;const s=poly.reduce((a,q,i)=>{const b=poly[(i+1)%poly.length];return a+q[0]*b[1]-b[0]*q[1];},0)>0?1:-1;
     for(let i=0;i<poly.length;i++){const a=poly[i],b=poly[(i+1)%poly.length],l=Math.hypot(b[0]-a[0],b[1]-a[1]);if(l<1e-6)continue;const u=[(b[0]-a[0])/l,(b[1]-a[1])/l];
       const t=Math.max(0,Math.min(l,(p[0]-a[0])*u[0]+(p[1]-a[1])*u[1])),d=Math.hypot(a[0]+u[0]*t-p[0],a[1]+u[1]*t-p[1]);if(!best||d<best.d)best={d,n:[-u[1]*s,u[0]*s]};}
-    return best?.n||[0,1];}
+    return best;}
+  // A strip or a wall light on an exterior wall hides together with that facade when it faces the camera (like a sensor label):
+  // otherwise it hangs in the air across the room. The facade side: probe 12 cm into the nearest wall at the fixture's height.
+  function fixtureSide(m,poly,h){if(!plan2dNow)return null;const p=[m.position.x,-m.position.z],w=wallNear(poly,p);if(!w||w.d>.35)return null;
+    const q=[p[0]-w.n[0]*(w.d+.12),p[1]-w.n[1]*(w.d+.12)];for(const sd of plan2dNow.sides){const b=sd.bands.find(b=>b.bottom<=h&&b.top>h);if(b&&inMP(q,b.mp))return sd.id;}return null;}
   function fixtureMeshes(L,form,mat,poly){const out=[],at=(g,p,y,m=mat)=>{const o=new THREE.Mesh(g,m);o.position.set(p[0],y,-p[1]);out.push(o);return o;};
-    if(lineForm(form))for(const [a,b] of L.segments){const w=form==='line'?.05:.03,o=at(new THREE.BoxGeometry(Math.hypot(b[0]-a[0],b[1]-a[1]),.018,w),[(a[0]+b[0])/2,(a[1]+b[1])/2],L.h);o.rotation.y=Math.atan2(b[1]-a[1],b[0]-a[0]);}
+    // a linear light or track: a white body that glows, or (housingOf: black) a black rail with a narrow diffuser under it;
+    // a strip: a thin aluminium profile that only shows when it glows (off, a white bar read as a beam across the room)
+    if(lineForm(form))for(const [a,b] of L.segments){const len=Math.hypot(b[0]-a[0],b[1]-a[1]),mid=[(a[0]+b[0])/2,(a[1]+b[1])/2],ry=Math.atan2(b[1]-a[1],b[0]-a[0]);
+      if(form==='line'&&housingOf(L)==='black'){at(new THREE.BoxGeometry(len,.035,.045),mid,L.h+.012,shellMat).rotation.y=ry;at(new THREE.BoxGeometry(len-.02,.006,.026),mid,L.h-.008).rotation.y=ry;}
+      else{const w=form==='line'?.05:.02,o=at(new THREE.BoxGeometry(len,form==='line'?.018:.012,w),mid,L.h);o.rotation.y=ry;}}
     else for(const p of L.points){
       if(form==='spots'){at(cyl(.045,.045,.012,16),p,L.h);at(cyl(.052,.052,.006,20),p,L.h+.009,darkMat);}
-      // pendant: an opal glass dome, a dark cap, a cord to the ceiling and a canopy on the ceiling
-      else if(form==='pendant'){at(lathe([[.03,.085],[.065,.075],[.115,.04],[.155,-.02],[.172,-.08],[.168,-.085]]),p,L.h);at(new THREE.SphereGeometry(.035,16,12),p,L.h-.02);
-        at(cyl(.034,.04,.03,20),p,L.h+.095,darkMat);const c=WALL.height-L.h-.11;at(cyl(.004,.004,c,6),p,L.h+.11+c/2,darkMat);at(cyl(.05,.055,.02,24),p,WALL.height-.01,darkMat);}
+      // pendant (fixtures.js: shadeOf): an opal glass dome; a black metal dome with a glowing diffuser under it; an opal glass globe;
+      // a rattan bell with the bulb seen through its open bottom. All: a dark cap, a cord to the ceiling and a canopy on the ceiling.
+      else if(form==='pendant'){const sh=shadeOf(L);
+        if(sh==='metal'){at(lathe([[.03,.1],[.06,.092],[.13,.035],[.185,-.055],[.195,-.075],[.19,-.078]]),p,L.h,shellMat);
+          const d=at(new THREE.CircleGeometry(.17,32),p,L.h-.06);d.rotation.x=Math.PI/2;at(new THREE.SphereGeometry(.04,16,12),p,L.h-.02);}
+        else if(sh==='globe'){at(new THREE.SphereGeometry(.15,32,22),p,L.h-.04);}
+        else if(sh==='woven'){at(lathe([[.035,.1],[.09,.09],[.17,.03],[.225,-.06],[.235,-.1],[.228,-.104]]),p,L.h,rattanMat);
+          for(const y of [.05,-.005,-.06])at(new THREE.TorusGeometry(y>.03?.12:y>-.03?.19:.228,.004,6,40),p,L.h+y,rattanRib).rotation.x=Math.PI/2;
+          at(new THREE.SphereGeometry(.05,16,12),p,L.h-.03);}
+        else{at(lathe([[.03,.085],[.065,.075],[.115,.04],[.155,-.02],[.172,-.08],[.168,-.085]]),p,L.h);at(new THREE.SphereGeometry(.035,16,12),p,L.h-.02);}
+        const top=sh==='globe'?.12:sh==='metal'?.11:sh==='woven'?.11:.095;
+        at(cyl(.034,.04,.03,20),p,L.h+top,darkMat);const c=WALL.height-L.h-top-.015;at(cyl(.004,.004,c,6),p,L.h+top+.015+c/2,darkMat);at(cyl(.05,.055,.02,24),p,WALL.height-.01,darkMat);}
       // sconce: a wall plate, a bracket, a shade flaring upwards
       else if(form==='wall'){const n=poly?wallDir(poly,p):[0,1],w=[p[0]-n[0]*.08,p[1]-n[1]*.08],d3=new THREE.Vector3(n[0],0,-n[1]);
         const pl=at(new THREE.BoxGeometry(.09,.15,.016),[w[0]+n[0]*.008,w[1]+n[1]*.008],L.h,darkMat);pl.rotation.y=Math.atan2(n[0],-n[1]);
         const arm=at(cyl(.008,.008,.07,8),[w[0]+n[0]*.045,w[1]+n[1]*.045],L.h-.045,darkMat);arm.quaternion.setFromUnitVectors(UP,d3);
         at(cyl(.008,.008,.05,8),p,L.h-.05,darkMat);at(cyl(.075,.05,.13,28,true),p,L.h+.02);at(new THREE.SphereGeometry(.028,14,10),p,L.h);}
       // floor and table lamp: an open shade with a bulb inside; a floor lamp has a stand and a disc base, a table lamp a ceramic base
-      else if(form==='lamp'){const tall=L.h>1.1;at(cyl(tall?.12:.085,tall?.17:.125,tall?.26:.17,36,true),p,L.h);at(new THREE.SphereGeometry(tall?.04:.03,14,10),p,L.h-.03);
+      else if(form==='lamp'){const tall=L.opt?L.opt==='floor':L.h>1.1; // a table lamp on a desk stands at 1.17 m: still a table lampat(cyl(tall?.12:.085,tall?.17:.125,tall?.26:.17,36,true),p,L.h);at(new THREE.SphereGeometry(tall?.04:.03,14,10),p,L.h-.03);
         if(tall){const pole=L.h-.12;at(cyl(.011,.011,pole,10),p,L.h-.12-pole/2,darkMat);at(cyl(.13,.14,.025,32),p,.0125,darkMat);}
         else at(lathe([[0,-.42],[.06,-.42],[.075,-.38],[.08,-.3],[.06,-.2],[.025,-.13],[.02,-.09],[0,-.09]]),p,L.h,bodyMat);}
       // chandelier / ceiling light: a plate with a soft dome
       else at(lathe([[0,-.04],[.11,-.035],[.18,-.018],[.205,.005],[.205,.025],[0,.025]]),p,L.h);}
     return out;}
   // point light brightness by shape: spots and chandeliers light the whole room, sconces and table lamps light around themselves
-  const POWER={ceiling:36,spots:42,pendant:30,wall:16,lamp:22};
+  const POWER={ceiling:36,spots:42,pendant:30,wall:26,lamp:35}; // wall and lamp: a near reach (D-067), so stronger than they were (16, 22)
   // A fixed set of light sources (D-011). The number of sources is part of the shader key: a new source recompiles every material,
   // a 0.5–1.5 s freeze (the owner: “I drag the strip and it lags terribly”: a strip segment kept appearing and disappearing). So sources
   // are never removed: extra ones fade to zero and stay in the scene, new ones are taken from a reserve. The reserve grows with headroom, so the next
   // strip segment or a new lamp no longer recompiles shaders. A lamp keeps its own objects (key “lamp:index”): the room
   // mask bound to the objects stays correct even while dragging.
-  const pool={PointLight:[],RectAreaLight:[]},SPARE={PointLight:2,RectAreaLight:3};
+  const pool={PointLight:[],RectAreaLight:[],SpotLight:[]},SPARE={PointLight:2,RectAreaLight:3,SpotLight:2};
   function adopt(list){const all=Object.values(pool).flat(),out=new Array(list.length),need={};all.forEach(l=>{l.userData.used=false;});
     const take=(i,P,pick)=>{const l=P.find(x=>!x.userData.used&&pick(x));if(l){l.userData.used=true;out[i]=l;}return !!l;};
     list.forEach(({fresh,key},i)=>take(i,pool[fresh.type],x=>x.userData.key===key));
     list.forEach(({fresh},i)=>{if(!out[i]&&!take(i,pool[fresh.type],()=>true))need[fresh.type]=(need[fresh.type]||0)+1;});
     for(const [type,n] of Object.entries(need))for(let k=0;k<n+SPARE[type];k++){
-      const l=type==='PointLight'?new THREE.PointLight(0xffffff,0):new THREE.RectAreaLight(0xffffff,0,1,.03);pool[type].push(l);scene.add(l);}
+      const l=type==='PointLight'?new THREE.PointLight(0xffffff,0):type==='SpotLight'?new THREE.SpotLight(0xffffff,0):new THREE.RectAreaLight(0xffffff,0,1,.03);
+      pool[type].push(l);scene.add(l);if(l.isSpotLight)scene.add(l.target);}
     list.forEach(({fresh},i)=>{if(!out[i])take(i,pool[fresh.type],()=>true);});
     list.forEach(({fresh,key},i)=>{const l=out[i];l.color.copy(fresh.color);l.position.copy(fresh.position);l.quaternion.copy(fresh.quaternion);
-      if(fresh.isPointLight){l.distance=fresh.distance;l.decay=fresh.decay;}else{l.width=fresh.width;l.height=fresh.height;}
+      if(fresh.isPointLight||fresh.isSpotLight){l.distance=fresh.distance;l.decay=fresh.decay;}else{l.width=fresh.width;l.height=fresh.height;}
+      if(fresh.isSpotLight){l.angle=fresh.angle;l.penumbra=fresh.penumbra;l.target.position.copy(fresh.target.position);l.target.updateMatrixWorld();}
       l.intensity=0;l.userData={...fresh.userData,key,used:true};});
     for(const l of all)if(!l.userData.used){l.intensity=0;l.userData.fullIntensity=0;}
     return out;}
+  // The sources of a lamp with a point form (D-067): pendants and spots — cones straight down, the rest — a point with a near reach
+  function pointLights(form,positions,tint,table){
+    const c=CONE[form];
+    if(c){let pts=positions,k=1,angle=c.angle;if(pts.length>CONE_MAX){const m=pts.reduce((a,p)=>a.map((v,i)=>v+p[i]/pts.length),[0,0,0]);pts=[m];k=Math.sqrt(positions.length);angle=Math.min(1.1,angle*1.5);}
+      return pts.map(p=>{const l=new THREE.SpotLight(tint,0,6,angle,.85,2);l.position.fromArray(p);l.target.position.set(p[0],0,p[2]);l.userData.fullIntensity=c.power*k;return l;});}
+    const m=positions.reduce((a,p)=>a.map((v,i)=>v+p[i]/positions.length),[0,0,0]),l=new THREE.PointLight(tint,0,NEAR[form]??NEAR.lamp,2);
+    l.position.fromArray(m);l.userData.fullIntensity=POWER[form]*(table?.55:1);return [l];}
+  // a soft glow at the shade or bulb while the lamp is on (applyLevel sets how strong): faces the camera, hidden behind walls, not clickable
+  let haloTex=null;
+  function halo(tint,at,size,more){haloTex??=(()=>{const c=document.createElement('canvas');c.width=c.height=128;const g=c.getContext('2d'),r=g.createRadialGradient(64,64,0,64,64,64);
+      r.addColorStop(0,'rgba(255,255,255,1)');r.addColorStop(.22,'rgba(255,255,255,.5)');r.addColorStop(.55,'rgba(255,255,255,.12)');r.addColorStop(1,'rgba(255,255,255,0)');
+      g.fillStyle=r;g.fillRect(0,0,128,128);const t=new THREE.CanvasTexture(c);t.colorSpace=THREE.SRGBColorSpace;return t;})();
+    const m=new THREE.Sprite(new THREE.SpriteMaterial({map:haloTex,color:tint,transparent:true,opacity:0,depthWrite:false,blending:THREE.AdditiveBlending,toneMapped:false}));
+    m.position.fromArray(at);m.scale.set(size,size,1);m.visible=false;m.raycast=()=>{};m.renderOrder=5;more?.(m);fixtures.add(m);return m;}
   function setLights(list,rooms){
     const was=new Map(devs.map(d=>[d.L.id,d.solo]));
-    for(const d of devs){d.meshes.forEach(m=>{fixtures.remove(m);m.geometry.dispose();if(m.material!==darkMat&&m.material!==bodyMat)m.material.dispose();});}
+    for(const d of devs){d.meshes.forEach(m=>{fixtures.remove(m);m.geometry.dispose();if(!SHARED.has(m.material))m.material.dispose();});
+      d.halos.forEach(h=>{fixtures.remove(h);h.material.dispose();});}
     devs=[];
     for(const L0 of list){
       const host=L0.with&&list.find(x=>x.id===L0.with),L=host?{...host,id:L0.id,on:L0.on,color:L0.color}:L0;
       const r=rooms.find(r=>r.id===L.room);if(!r)continue;
       const room={id:r.id,polygon:r.polygon,center:centroid(r.polygon)},form=formFor(L);
-      const mat=new THREE.MeshStandardMaterial({color:0xf4f1ea,emissive:0x000000,roughness:.4,side:THREE.DoubleSide});
+      const mat=new THREE.MeshStandardMaterial({color:form==='strip'?0xb4b7ba:0xf4f1ea,emissive:0x000000,roughness:.4,metalness:form==='strip'?.3:0,side:THREE.DoubleSide});
       const meshes=fixtureMeshes(L,form,mat,r.polygon);
-      meshes.forEach(m=>{if(host)m.visible=false;fixtures.add(m);});fixtures.updateMatrixWorld(true);
+      meshes.forEach(m=>{if(host)m.userData.off=true;else if(form==='strip'||form==='wall'){m.userData.probe=[r.polygon,Math.min(L.h,2.5)];m.userData.side=fixtureSide(m,...m.userData.probe);}m.visible=!host;fixtures.add(m);});fixtures.updateMatrixWorld(true);
       const glow=meshes.filter(m=>m.material===mat),point=!lineForm(form);
       const lift=form==='pendant'?-.12:0;
-      const device={id:L.id,kind:point?'ceiling':(L.h>=1.8?'cove':'strip'),color:L.color,down:form==='line',
-        positions:point?L.points.map(p=>[p[0],L.h+lift,-p[1]]):[],...(L.h<.5?{intensity:90}:{})};
+      const tint='#'+new THREE.Color(L.color||'#ffce87').lerp(WHITE,LAMP_TINT).getHexString();
+      const device={id:L.id,kind:point?'ceiling':(L.h>=1.8?'cove':'strip'),color:tint,down:form==='line',
+        positions:point?L.points.map(p=>[p[0],L.h+lift,-p[1]]):[],...(point?{}:{intensity:L.h<.5?STRIP_POWER/2:STRIP_POWER})};
       // for a strip, light comes from segments of 30 cm or more (a short step in a corner glows but gets no source of its own: each costs ms per frame)
       const lit=point?glow:(()=>{const g=glow.filter(m=>(m.geometry.parameters?.width??1)>=.3);return g.length?g:glow.slice(0,1);})();
-      const lights=buildDeviceLights(device,lit,room);
-      if(point)lights.forEach(l=>{l.userData.fullIntensity=POWER[form]*(form==='lamp'&&L.h<1.1?.55:1);});
-      devs.push({L:L0,src:L,form,device,lights,meshes,glow,room,on:L.on,blink:null,solo:was.get(L0.id)??soloOf({L:L0,room})});
+      const table=form==='lamp'&&(L.opt?L.opt!=='floor':L.h<1.1),lights=point?pointLights(form,device.positions,tint,table):buildDeviceLights(device,lit,room);
+      const halos=point&&!host?L.points.map(q=>halo(tint,[q[0],L.h+(form==='pendant'?-.06:form==='spots'||form==='ceiling'?-.03:0),-q[1]],HALO.size[table?'table':form]??.6,m=>{
+        if(form==='wall'){m.userData.probe=[r.polygon,Math.min(L.h,2.5)];m.userData.side=fixtureSide(m,...m.userData.probe);}})):[];
+      devs.push({L:L0,src:L,form,device,lights,meshes,glow,halos,room,on:L.on,blink:null,solo:was.get(L0.id)??soloOf({L:L0,room})});
     }
     // fresh sources are only a calculation: the scene gets objects from the fixed set
     const fresh=devs.flatMap(d=>d.lights.map((l,j)=>({fresh:l,key:d.L.id+':'+j}))),got=adopt(fresh);let k=0;
@@ -287,12 +341,15 @@ export function createView(host){
     // by day a lamp is weaker (DAY_LAMPS, 42%): on top of the sun full brightness burns the room into peach; with a lamp selected (the scene
     // darkens, amb → 0) it is back to full strength
     const day=night?1:DAY_LAMPS+(1-DAY_LAMPS)*(1-amb);if(b*day!==1)for(const l of d.lights)l.intensity*=b*day;
-    if(b!==1)for(const m of new Set(d.glow.map(g=>g.material)))if(m.emissive)m.emissiveIntensity*=b;}
+    if(b!==1)for(const m of new Set(d.glow.map(g=>g.material)))if(m.emissive)m.emissiveIntensity*=b;
+    // the halo: by day stronger (the room light hardly shows), at night and with the scene darkened — the night one
+    const ho=(lit||sh)&&level>0?Math.min(1,level*b)*(night?HALO.night:HALO.night+(HALO.day-HALO.night)*amb):0;
+    for(const h of d.halos){h.material.opacity=ho;h.visible=ho>.01;}}
   function setLightOn(id,on){const d=devs.find(d=>d.L.id===id);if(d){d.on=on;d.blink=null;applyLevel(d);inkSens();}}
   // light only in room roomId (null means everywhere), and with ids only for these lamps and in a dark scene: they fade out and in smoothly, over 0.45 s
   function setSolo(roomId,ids=null){const key=roomId==null?'':roomId+'|'+(ids||[]).join(',');if(key===soloKey)return;soloKey=key;
     soloRoom=roomId??null;soloIds=roomId!=null&&ids?.length?ids:null;if(soloRaf)return;let t=performance.now();
-    const step=()=>{const now=performance.now(),dk=reducedMotion()?1:(now-t)/450;t=now;let moving=false;
+    const step=()=>{redraw();const now=performance.now(),dk=reducedMotion()?1:(now-t)/450;t=now;let moving=false;
       for(const d of devs){const g=soloOf(d);if(d.solo===g)continue;d.solo=g>d.solo?Math.min(g,d.solo+dk):Math.max(g,d.solo-dk);applyLevel(d);moving=true;}
       const ga=soloIds?0:1;if(amb!==ga){amb=ga>amb?Math.min(ga,amb+dk):Math.max(ga,amb-dk);applyAmb();for(const d of devs)if(soloIds?.includes(d.L.id))applyLevel(d);moving=true;}
       soloRaf=moving?requestAnimationFrame(step):0;};
@@ -328,7 +385,7 @@ export function createView(host){
     if(!shineRaf)shineRaf=requestAnimationFrame(tickShine);}
   function unshine(id,quiet){const sh=shines.get(id);if(!sh)return;for(const p of sh.parts){fx.remove(p.o);p.o.material.dispose();p.o.geometry?.dispose?.();}shines.delete(id);
     if(quiet)return;const d=devs.find(d=>d.L.id===id);if(d)applyLevel(d);}
-  function tickShine(){shineRaf=0;const now=performance.now();
+  function tickShine(){shineRaf=0;redraw();const now=performance.now();
     for(const [id,sh] of shines){const t=(now-sh.t0)/SHINE;if(t>=1||reducedMotion()){unshine(id);continue;}
       // breath and echo: 0 → 1 → 0 over the first half, 0 → 0.45 → 0 over the second
       const e=t<.5?swell(t/.5):.45*swell((t-.5)/.5);sh.e=e;sh.m=1+.6*e;sh.col.copy(sh.base).lerp(sh.hot,Math.min(1,e*.8));
@@ -341,7 +398,9 @@ export function createView(host){
   let night=false;
   // Scene background: dark at night and in the dark theme, light otherwise (D-018).
   // Overall light: day or night; with a lamp selected (amb → 0) even darker than night, background is the night one
-  const NIGHT={h:.48,s:.30,e:.12},FOCUS={h:.2,s:.08,e:.05};
+  // night (D-067): cool and dim — moonlight — so the warm pools of the lamps stand out; it was .48/.30/.12 in the day's colours
+  const NIGHT={h:.32,s:.18,e:.06},FOCUS={h:.2,s:.08,e:.05};
+  const SKY={day:[0xf6f6ff,0xb39f88,0xfff4e6],night:[0xb4c3e0,0x4a4540,0xc9d6f0]}; // sky, ground, sun
   // Background: center, edges, platform (color, density), grid lines (color, density). With a lamp selected, towards FOCUS.
   const BG=Object.fromEntries(Object.entries({light:['#f8f9fb','#dce2e9','#ffffff',.8,'#6f7b8c',.14,.45],dark:['#1d222c','#0a0c10','#2b313d',.75,'#9aabc8',.07,.75],
     night:['#142034','#05070c','#1b2438',.7,'#7d93bd',.06,.75],focus:['#10141e','#040509','#161b26',.6,'#7d93bd',.04,.7]})
@@ -351,7 +410,9 @@ export function createView(host){
     U.cIn.value.lerpColors(a.i,b.i,t);U.cOut.value.lerpColors(a.o,b.o,t);renderer.setClearColor(U.cOut.value,1);
     S.cG.value.lerpColors(a.g,b.g,t);S.cL.value.lerpColors(a.l,b.l,t);S.aG.value=a.ag+(b.ag-a.ag)*t;S.aL.value=a.al+(b.al-a.al)*t;S.aC.value=a.ac+(b.ac-a.ac)*t;}
   bg();
-  function applyAmb(){const b=night?NIGHT:DAY,x=(f,k)=>FOCUS[k]+(b[k]-FOCUS[k])*amb;hemi.intensity=x(b,'h');sun.intensity=x(b,'s');scene.environmentIntensity=x(b,'e');bg();for(const d of devs)applyLevel(d);inkSens();}
+  function applyAmb(){const b=night?NIGHT:DAY,x=(f,k)=>FOCUS[k]+(b[k]-FOCUS[k])*amb;hemi.intensity=x(b,'h');sun.intensity=x(b,'s');scene.environmentIntensity=x(b,'e');
+    const [sky,ground,sunC]=SKY[night?'night':'day'];hemi.color.setHex(sky);hemi.groundColor.setHex(ground);sun.color.setHex(sunC);
+    bg();for(const d of devs)applyLevel(d);inkSens();}
   function setNight(n){night=n;applyAmb();}
   // ---------- readings on walls (D-033) ----------
   // A label is “paint” on the wall, with no backing: a canvas with a transparent background on a plane 6 mm in front of the face. As in 3d_floor,
@@ -448,9 +509,11 @@ export function createView(host){
     for(const [id,g] of glows)g.target=want.has(id)?1:0;glowPulse=pulse&&want.size?performance.now():null;}
   let glowT=performance.now();
   function stepGlow(){const now=performance.now(),dt=Math.min(.1,(now-glowT)/1000);glowT=now;
-    const pulse=glowPulse!=null&&now-glowPulse<1500?(now-glowPulse)/1500:null;if(pulse===null)glowPulse=null;
-    for(const g of glows.values()){const d=g.target-g.amount;if(Math.abs(d)>.001)g.amount+=Math.sign(d)*Math.min(Math.abs(d),reducedMotion()?1:dt*6);else g.amount=g.target;
-      g.glow.set(g.amount,pulse===null?1:1+1.1*Math.abs(Math.sin(pulse*Math.PI*3))*(1-pulse));}}
+    const pulse=glowPulse!=null&&now-glowPulse<1500?(now-glowPulse)/1500:null;if(pulse===null)glowPulse=null;let moving=pulse!==null;
+    for(const g of glows.values()){const d=g.target-g.amount;if(Math.abs(d)>.001){g.amount+=Math.sign(d)*Math.min(Math.abs(d),reducedMotion()?1:dt*6);moving=true;}else if(g.amount!==g.target){g.amount=g.target;moving=true;}
+      else if(pulse===null)continue;
+      g.glow.set(g.amount,pulse===null?1:1+1.1*Math.abs(Math.sin(pulse*Math.PI*3))*(1-pulse));}
+    return moving;}
   function bestView(poly){
     const xs=poly.map(q=>q[0]),ys=poly.map(q=>q[1]),x0=Math.min(...xs)+.15,x1=Math.max(...xs)-.15,y0=Math.min(...ys)+.15,y1=Math.max(...ys)-.15,pts=[];
     for(let i=0;i<6;i++)for(let j=0;j<6;j++){const q=[x0+(x1-x0)*(i+.5)/6,y0+(y1-y0)*(j+.5)/6];if(pointIn(q,poly))pts.push(new THREE.Vector3(q[0],.05,-q[1]));}
@@ -485,10 +548,10 @@ export function createView(host){
   }
   // Camera flight, as in the 3d_floor card (room-camera.js): smooth acceleration and deceleration (smootherstep); a long rotation
   // lifts the camera slightly above the apartment; duration 0.7 s + 0.1 s per radian of rotation.
-  function stepTween(){if(!tween)return;const q=reducedMotion()?1:Math.min(1,(performance.now()-tween.t0)/tween.dur),e=q*q*q*(q*(q*6-15)+10),{from:a,to:b}=tween,L=(x,y)=>x+(y-x)*e;
+  function stepTween(){if(!tween)return false;const q=reducedMotion()?1:Math.min(1,(performance.now()-tween.t0)/tween.dur),e=q*q*q*(q*(q*6-15)+10),{from:a,to:b}=tween,L=(x,y)=>x+(y-x)*e;
     const lift=Math.sin(Math.PI*e)*Math.min(.16,Math.abs(tween.turn||0)*.07);
     controls.target.lerpVectors(a.t,b.t,e);camera.position.setFromSphericalCoords(L(a.r,b.r),Math.max(.02,L(a.phi,b.phi)-lift),L(a.theta,b.theta)).add(controls.target);camera.lookAt(controls.target);
-    camera.userData.fit=[L(a.fit[0],b.fit[0]),L(a.fit[1],b.fit[1])];resize();if(q>=1)tween=null;}
+    camera.userData.fit=[L(a.fit[0],b.fit[0]),L(a.fit[1],b.fit[1])];resize();if(q>=1)tween=null;return true;}
   controls.addEventListener('start',()=>{tween=null;});
   // “How to rotate” demo (view-demo.js): rotate the camera around the target by angle a; it does not count as rotated by hand.
   // While a smooth transition to the home view is running, no (false): the demo will not disrupt it.
@@ -514,17 +577,22 @@ export function createView(host){
       m.userData.side=sideOfLabel({c:[(c.a[0]+c.b[0])/2,(c.a[1]+c.b[1])/2],n:c.n,y:c.bottom>.3?c.bottom-.15:c.top+.15});} // side comes from the wall under the window or above the door
     for(const [id,m] of opens)if(!keep.has(id)){doorGrp.remove(m);m.geometry.dispose();m.material.dispose();m.children[0]?.geometry.dispose();opens.delete(id);}}
   let lastT=performance.now();
-  function tickDevices(){const now=performance.now(),dt=(now-lastT)/1000;lastT=now;for(const a of airs.values())a.tick(dt);
+  function tickDevices(){const now=performance.now(),dt=(now-lastT)/1000;lastT=now;let moving=false;for(const a of airs.values())if(a.group.visible){a.tick(dt);moving=true;}
     const k=reducedMotion()?.45:.38+.14*Math.sin(now/520);
-    for(const m of opens.values()){m.material.opacity=k;const sd=m.userData.side;m.visible=!sd||sides.find(s=>s.id===sd)?.grp.visible!==false;}}
+    for(const m of opens.values()){m.material.opacity=k;const sd=m.userData.side;m.visible=!sd||sides.find(s=>s.id===sd)?.grp.visible!==false;}
+    return moving||opens.size>0&&!reducedMotion();} // airflow and open windows breathing are animations: frames while they last
   // A panel can float over the 3D view: the model fits into the free part and sits in its center (camera frame offset).
   let insetL=0,insetR=0,insetB=0;
   function resize(){
     const w=host.clientWidth||1,h=host.clientHeight||1,aspect=w/h,[fw,fh]=camera.userData.fit||[8,5],m=1.08,L=Math.min(insetL,w*.5),R=Math.min(insetR,w*.5),free=(w-L-R)/w;
     const B=Math.min(insetB,h*.6),freeV=(h-B)/h;
     const hw=Math.max(fw*m/free,fh*m*aspect/freeV),hh=hw/aspect,off=(L-R)*hw/w,offY=B*hh/h;
-    Object.assign(camera,{left:-hw-off,right:hw-off,top:hh-offY,bottom:-hh-offY,zoom:1});camera.updateProjectionMatrix();renderer.setSize(w,h);backdrop.material.uniforms.asp.value=aspect;
+    Object.assign(camera,{left:-hw-off,right:hw-off,top:hh-offY,bottom:-hh-offY,zoom:1});camera.updateProjectionMatrix();renderer.setSize(w,h);redraw();backdrop.material.uniforms.asp.value=aspect;
+    // read mid-change (the panes swap twice in one go: leave Preview, then 3D large again) the size can be a passing one, and the observer
+    // sees no change by the next frame: look once more then
+    if(!sizeCheck)sizeCheck=requestAnimationFrame(()=>{sizeCheck=0;if((host.clientWidth||1)!==w||(host.clientHeight||1)!==h)resize();});
   }
+  let sizeCheck=0;
   // Panels cover L pixels on the left, R on the right and B at the bottom (the bottom one is Preview's on a narrow screen): the model fits into
   // the middle of the free part.
   const setInsets=(l,r=0,b=0)=>{if(Math.abs(l-insetL)<1&&Math.abs(r-insetR)<1&&Math.abs(b-insetB)<1)return;insetL=l;insetR=r;insetB=b;resize();};
@@ -532,15 +600,37 @@ export function createView(host){
   // pause() — the view is out of sight (the dashboard card scrolled away or another page): no frames until resume().
   // dispose() — gone for good (the card was removed): the GPU context and everything listening are let go
   let paused=false,raf=0,gone=false;
-  const pause=()=>{paused=true;cancelAnimationFrame(raf);raf=0;},resume=()=>{if(!paused||gone)return;paused=false;if(!raf)raf=requestAnimationFrame(loop);};
+  const pause=()=>{paused=true;cancelAnimationFrame(raf);raf=0;},resume=()=>{if(!paused||gone)return;paused=false;redraw();if(!raf)raf=requestAnimationFrame(loop);};
+  // Frames on demand: a still home is not redrawn. Drawn 60–120 times a second for nothing, the scene kept the GPU busy — the page
+  // stuttered (the loading bar too), so did the whole computer, and a wall tablet with the HA card ran hot. A frame is drawn when the camera
+  // has moved, something animates (a fly, damping, airflow, an open window breathing, a room glow, a lamp's shine, solo) or the view was
+  // changed: every function the view returns marks it (below), its own timers and animations call redraw().
+  const camWas=new Float64Array(12);let drawnAt=0;
+  // against the last drawn frame, with a tolerance: damping ends in endless tiny steps that change no pixel
+  function camMoved(){const c=camera,p=c.position,q=c.quaternion,v=[p.x,p.y,p.z,q.x,q.y,q.z,q.w,c.left,c.right,c.top,c.bottom,c.zoom];
+    let ch=false;for(let i=0;i<12;i++)if(Math.abs(v[i]-camWas[i])>(i>2&&i<7?1e-6:1e-4)){ch=true;break;}
+    if(ch)camWas.set(v);return ch;}
+  // shaders of the current scene compiled in parallel, off the page's thread (KHR_parallel_shader_compile): the first frame does not freeze the page
+  const warm=()=>renderer.compileAsync?renderer.compileAsync(scene,camera):Promise.resolve();
   const dispose=()=>{if(gone)return;gone=true;pause();sizes.disconnect();motion?.removeEventListener('change',onMotion);controls.dispose();
     renderer.dispose();renderer.forceContextLoss();renderer.domElement.remove();};
-  function loop(){if(paused){raf=0;return;}stepTween();controls.update();tickDevices();stepGlow();camera.getWorldDirection(dir);dir.y=0;dir.normalize();placeSun(dir);
+  function loop(){if(paused){raf=0;return;}
+    // all of them step every frame; slow ambient motion (airflow, an open window breathing) is drawn at ~24 fps — smooth for it, and the
+    // whole scene is not redrawn at the display's 60–120 Hz just for that
+    const now=performance.now(),fast=[stepTween(),controls.update(),stepGlow(),camMoved()].some(Boolean),calm=tickDevices();
+    if(fast||calm&&now-drawnAt>=41)dirty=Math.max(dirty,1);
+    if(dirty<=0){raf=requestAnimationFrame(loop);return;}dirty--;drawnAt=now;
+    camera.getWorldDirection(dir);dir.y=0;dir.normalize();placeSun(dir);
     for(const s of sides){s.grp.visible=s.out.dot(dir)>-.25;AOU.htAoVis.value.setComponent(SIDE_AO[s.id],s.grp.visible?1:0);}
     for(const o of labels.values())o.mesh.visible=!o.side||sides.find(s=>s.id===o.side)?.grp.visible!==false;
+    for(const m of fixtures.children)if(m.userData.side&&!m.userData.off)m.visible=sides.find(s=>s.id===m.userData.side)?.grp.visible!==false;
     // Tall furniture with its back to the camera hides like a facade: otherwise a wardrobe by an exterior wall blocks the room.
     const faces=t=>-(Math.sin(t)*dir.x+Math.cos(t)*dir.z)>-.5;
     for(const o of furn.children){if(o.userData.tall)o.visible=faces(o.rotation.y);for(const q of o.userData.parts||[])q.visible=faces(q.userData.ry);}renderer.render(scene,camera);raf=requestAnimationFrame(loop);}
   loop();
-  return {renderer,scene,pause,resume,dispose,setInsets,setTheme,setSensors,homeCam:()=>[+Math.sin(home.theta).toFixed(4),+(-Math.cos(home.theta)).toFixed(4)],home:goHome,getView,setHome,onMoved:f=>{onMoved=f;},moved:()=>userMoved,spin,setClimate,setContacts,flyTo,setOutline,setGlow,reframe:()=>{framed=false;setMoved(false);tween=null;},focus,set,setFurniture,setLights,applyMask,setLightOn,setLightLevel,shine,setSolo,setNight,lightCount:()=>devs.reduce((s,d)=>s+d.lights.length,0),aoMs:()=>aoMs,ao:AOU,lights:{hemi,sun},select,camera,controls};
+  const api={renderer,scene,pause,resume,dispose,warm,redraw,setInsets,setTheme,setSensors,homeCam:()=>[+Math.sin(home.theta).toFixed(4),+(-Math.cos(home.theta)).toFixed(4)],home:goHome,getView,setHome,onMoved:f=>{onMoved=f;},moved:()=>userMoved,spin,setClimate,setContacts,flyTo,setOutline,setGlow,reframe:()=>{framed=false;setMoved(false);tween=null;},focus,set,setFurniture,setLights,applyMask,setLightOn,setLightLevel,shine,setSolo,setNight,lightCount:()=>devs.reduce((s,d)=>s+d.lights.length,0),aoMs:()=>aoMs,ao:AOU,lights:{hemi,sun},select,camera,controls};
+  // a change through the view — a frame; reading it is not one
+  const READ=new Set(['pause','resume','dispose','warm','redraw','homeCam','getView','onMoved','moved','lightCount','aoMs']);
+  for(const [k,f] of Object.entries(api))if(typeof f==='function'&&!READ.has(k))api[k]=(...a)=>{const r=f(...a);redraw();return r;};
+  return api;
 }

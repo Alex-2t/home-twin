@@ -1,6 +1,12 @@
 <!doctype html><html lang="ru" data-theme="light"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Home Twin — editor</title>
-<style>/*STYLES*/</style></head><body data-mode="rooms" data-main="plan">
+<style>/*STYLES*/</style>
+<!-- the theme before the first paint (as app.js: themeName) -->
+<script>try{const th=JSON.parse(localStorage.getItem('home-twin-editor:ui')||'{}').theme||'auto';document.documentElement.dataset.theme=th==='dark'||th==='auto'&&matchMedia('(prefers-color-scheme: dark)').matches?'dark':'light';}catch{}</script></head><body data-mode="rooms" data-main="plan">
+<!-- Loading (flows.js): covers the page until the editor is up and the plan is drawn, so its bare markup is never seen. Opening an example
+     shows that example's card from the start screen. After a reload for the example's own HA data, this script puts the card up at the first paint. -->
+<div id="loading" class="loading" translate="no" data-boot><div class="loading-card"><div class="loading-ex"><span class="logo big"><svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 21v-8a1 1 0 0 0-1-1h-4a1 1 0 0 0-1 1v8"/><path d="M3 10a2 2 0 0 1 .709-1.528l7-5.999a2 2 0 0 1 2.582 0l7 5.999A2 2 0 0 1 21 10v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/></svg></span></div><i class="loading-bar"></i></div></div>
+<script>try{const o=JSON.parse(sessionStorage.getItem('home-twin-editor:loading')||'null'),e=document.getElementById('loading');if(o){e.querySelector('.loading-ex').innerHTML=o.card;e.dataset.ex='';}}catch{}</script>
 <!-- Full-screen canvas; all controls float on top (D-017, D-018). Icons <i data-ic> are filled in by icons.js. -->
 <main id="work" class="work">
   <section id="pane-plan" class="pane plan-pane">
@@ -28,6 +34,7 @@
 
   <div id="brand" class="fl brand glass">
     <button id="brand-btn" class="brand-btn" title="My home — file"><span class="logo"><i data-ic="house" data-s="15"></i></span><i data-ic="down" data-s="14"></i></button>
+    <button id="to-examples" class="brand-back" title="Back to the examples" hidden><i data-ic="left" data-s="15"></i>Examples</button>
     <div id="file-menu" class="menu glass" hidden>
       <div class="menu-head"><b id="plan-name">My home</b><small>Saves automatically in this browser</small></div><hr>
       <button data-a="new"><i data-ic="file"></i>New plan…</button>
@@ -98,7 +105,12 @@
     <div class="choices">
       <button class="choice glass" data-a="upload"><span class="ci"><i data-ic="image" data-s="20"></i></span><b>Upload a plan</b><span>A photo or scan — trace rooms over it.</span></button>
       <button class="choice glass" data-a="scratch"><span class="ci"><i data-ic="pen" data-s="20"></i></span><b>Draw from scratch</b><span>A rectangle you split into rooms.</span></button>
-      <button class="choice glass" data-a="demo"><span class="ci"><i data-ic="sparkles" data-s="20"></i></span><b>Demo home</b><span>A ready-made example: rooms, furniture, lights.</span></button>
+    </div>
+    <div class="examples" hidden>
+      <div class="ex-title">Or open an example</div>
+      <div class="ex-group"><span class="ex-kind">Designer interiors</span><div class="ex-list" data-kind="style"></div></div>
+      <div class="ex-group"><span class="ex-kind">Apartments</span><div class="ex-list" data-kind="flat"></div></div>
+      <div class="ex-group"><span class="ex-kind">Houses</span><div class="ex-list" data-kind="house"></div></div>
     </div>
     <button class="start-prev" data-a="prev" hidden>Restore previous plan</button>
   </div>

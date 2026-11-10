@@ -36,10 +36,10 @@ export function readPlan(text){
       check(Number.isFinite(a.s0)&&Number.isFinite(a.s1));numbers(a,['d']);
     }else check(point(o.a)&&point(o.b));
   }
-  for(const f of p.furniture||[]){check(str(f.id)&&str(f.model));check(['x','y','w','d','h'].every(k=>Number.isFinite(f[k])));numbers(f,['rot','z']);}
+  for(const f of p.furniture||[]){check(str(f.id)&&str(f.model));check(['x','y','w','d','h'].every(k=>Number.isFinite(f[k])));numbers(f,['rot','z']);optional(f,'top',str);}
   for(const l of p.lights||[]){
     check(str(l.id));optional(l,'points',points);optional(l,'segments',x=>Array.isArray(x)&&x.every(s=>points(s)&&s.length===2));
-    numbers(l,['h','count']);optional(l,'room',str);optional(l,'name',x=>typeof x==='string');
+    numbers(l,['h','count']);optional(l,'room',str);optional(l,'shade',str);optional(l,'name',x=>typeof x==='string');
     if(l.was!=null){check(obj(l.was)&&typeof l.was.s==='string');const snap=JSON.parse(l.was.s);check(Array.isArray(snap)&&snap.every(x=>Array.isArray(x)&&x.length===2&&typeof x[0]==='string'));}
   }
   for(const s of p.sensors||[]){check(str(s.id)&&str(s.entity)&&str(s.room));optional(s,'at',point);numbers(s,['k']);optional(s,'label',x=>typeof x==='string');optional(s,'c',x=>typeof x==='string'&&/^#[0-9a-f]{6}$/i.test(x));}

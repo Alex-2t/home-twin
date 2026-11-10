@@ -32,6 +32,8 @@
 //                 sunrise, sunset} or null (no weather in HA). In HA: the first weather.* entity — state (sunny, cloudy…),
 //                 temperature, apparent_temperature; hourly — the weather/subscribe_forecast subscription (type: hourly); sunrise and
 //                 sunset — next_rising and next_setting of sun.sun; time in ms. Changes — onState;
+//   sunDown()   — the sun is below the horizon (in HA — sun.sun below_horizon; the demo — by the weather profile's sunrise and sunset;
+//                 no data — false, day). Day and night in 3D follow it (D-068);
 //   statistics(ids, {start, end, period, types}) — long-term statistics (in HA — callWS recorder/statistics_during_period;
 //                 period: hour | day | month, types: mean / min / max / change, time in ms; HA converts energy to kWh itself —
 //                 units: {energy: 'kWh'}) → Promise {id: [{start, end, mean?, min?, max?, change?}]}. HA keeps them for numeric
@@ -95,6 +97,7 @@ export function mockHA({areas,lights,switches=[],sensors=[],states={},areaSensor
       const amp={temperature:.6,humidity:3.5,carbon_dioxide:180,pm25:3}[cls]??Math.abs(v)*.05;let h=0;for(const c of e)h=(h*31+c.charCodeAt(0))>>>0;
       const out=[];for(let i=0;i<36;i++){const x=i/35;out.push(+(v+amp*(Math.sin(x*3.1+h%7)*.7+Math.sin(x*9.7+h%13)*.3)*(1-x)).toFixed(2));}out[35]=v;return out;},
     weather:()=>weather?demoWeather(weather):null,
+    sunDown:(now=Date.now())=>{if(!weather)return false;const w=demoWeather(weather,now);return w.sunrise<w.sunset;}, // night: the next sunrise comes before the next sunset
     statistics:(ids,o)=>Promise.resolve(demoStatistics(sensors,e=>states[e]??null,ids,o,{since:Date.now()-(stats.since??400)*864e5})),
     stateHistory:(ids,o)=>Promise.resolve(demoStateHistory(ids,o,{outages:stats.outages,restart:stats.restart!=null?Date.now()-stats.restart*864e5:null,
       state:e=>entities[e]?.state||(/^(light|switch)\./.test(e)?lamp(e)?.state:null)||(states[e]!=null?String(states[e]):null)})),

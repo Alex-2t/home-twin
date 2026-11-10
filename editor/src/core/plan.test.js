@@ -1,6 +1,6 @@
 import {test} from 'node:test';
 import assert from 'node:assert/strict';
-import {validate,buildPlan2d,openingCoords,wallsAt,area,labelPoint,pointIn as inside,segDist as sdist} from './geometry.js';
+import {validate,buildPlan2d,openingCoords,openingOut,wallsAt,area,labelPoint,pointIn as inside,segDist as sdist} from './geometry.js';
 import {migrate,linkedEdges,moveEdges,snapshot,setEdgeLength,addRoom,wallInfo,setWallThickness,setWallOpen,settleRoom,rotatePlan,cutChord,splitRoom,addCorner,mergeRooms,scalePlan,wallAt,absorbRoom,closeOuterOpen,zoneParts,setZone,moveZone,zoneFromEdge,addOpening,setOpeningWidth,openingGap,turnDoor,addRoom as add2} from './plan.js';
 import {snapToWall,furnitureConflicts,setRoomArea,autoPlaceLights,footRects,stackOf,snapLightPoint} from './layout.js';
 import {sideWall,roomWall,bakeFinish,WALL_KINDS} from './surfaces.js';
@@ -297,4 +297,14 @@ test('a light near the room center: pulled to the center within 12 px on screen,
   const near=snapLightPoint(p,L,[1.5+.2,2],{tol:8/200}); // zoomed in (200 px/m): 12 px = 6 cm
   assert.notDeepEqual(near.p,c,'zoomed in: stays where it was put');
   assert.deepEqual(snapLightPoint(p,L,[1.5+.3,2],{tol:8/20}).p.map(v=>+v.toFixed(2)),[1.8,2],'beyond 25 cm: not pulled even when zoomed out');
+});
+
+test('a door in the middle of a thick wall opens to the side its room is on, whatever the order of its ends (homes check, D-061)',()=>{
+  // living room and balcony 25 cm apart: the door sits 12.5 cm from the living room's edge
+  for(const ends of [[[.9,-.125],[1.6,-.125]],[[1.6,-.125],[.9,-.125]]]){
+    const p=migrate({rooms:[{id:'liv',name:'Living room',polygon:[[0,0],[4,0],[4,4],[0,4]]},{id:'bal',name:'Balcony',polygon:[[0,-1.25],[4,-1.25],[4,-.25],[0,-.25]]}],
+      openings:[{kind:'door',a:ends[0],b:ends[1]}],furniture:[{id:'c',model:'patioChair',x:1.2,y:-.75,rot:0,w:.56,d:.58,h:.82}]});
+    const o=p.openings[0];assert.equal(o.at.room,'liv');
+    const n=openingOut(p.rooms,openingCoords(p.rooms,o));assert.ok(n[1]<0,'outward points to the balcony');
+    assert.equal(furnitureConflicts(p).size,0,'the chair on the balcony is not in the leaf’s way');}
 });

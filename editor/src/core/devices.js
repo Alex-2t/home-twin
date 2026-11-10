@@ -25,6 +25,10 @@ export function deviceKind(d,x){
   return d.domain==='binary_sensor'&&CONTACT.has(d.cls)?'contact':null;}
 // which of these are placed in the model (a thermostat has no model)
 export const PLACEABLE=new Set(['ac','cover','contact']);
+// The thermostat of a central system (ecobee, Nest: heat, cool, heat_cool) cools, yet it has no unit on a wall: auto-place does not hang
+// a split air conditioner for it (it can still be placed by hand)
+const THERMO=/термостат|thermostat|thermostaat|termostat|ecobee|\bnest\b|温控/i;
+export const isCentral=d=>d.domain==='climate'&&THERMO.test(d.name||'')&&!AC_NAME.test(d.name||'');
 // The cover model: roller blinds, venetian blinds, shutters are “Roller blind”; curtains are “Curtains”. Gates, a wicket gate, a garage door, a damper,
 // a window motor and an awning are not window covers: null. No class: go by the name.
 const BLINDS=/рулон|жалюз|ставн|blind|venetian|roller|shade|shutter|jalousie|rollo|store|volet|persiana|estor|tapparella|veneziana|rolgordijn|jaloezie|rolet|żaluzj|卷帘|百叶/i;
@@ -87,6 +91,7 @@ const rightOf=W=>{const m=[(W.c.a[0]+W.c.b[0])/2,(W.c.a[1]+W.c.b[1])/2];return m
 const coverNear=(plan,W,model,used)=>plan.furniture.find(f=>f.model===model&&!used.has(f.id)&&inRoom(f,W.r)&&
   (()=>{const t=(f.x-W.e.a[0])*W.e.u[0]+(f.y-W.e.a[1])*W.e.u[1],o=(f.x-W.e.a[0])*W.e.n[0]+(f.y-W.e.a[1])*W.e.n[1];return o<.5&&t>W.s0-.3&&t<W.s1+.3;})());
 
+const GARAGE=/гараж|garag|garaż|车库/i;
 const ENTRY=/входн|парадн|front|entrance|entry|main door|haustür|eingang|entrée|porte d'entrée|entrada|puerta principal|ingresso|porta d'ingresso|voordeur|wejści|入户|大门|前门|正门/i;
 // A contact sensor: an opening of the right kind in the room of its area. If there are several, go by the name: “front/entrance” means the exterior door,
 // “balcony” means the balcony door; otherwise only when there is just one.
@@ -94,9 +99,13 @@ function contactOpening(plan,d,r,taken){
   const kind=d.cls==='window'?'window':d.cls==='opening'?null:'door';
   const cand=plan.openings.filter(o=>(!kind||o.kind===kind)&&!taken.has(o.id)&&openingRooms(plan,o).includes(r));
   if(cand.length<=1)return cand[0]||null;
-  const name=d.name||'';
-  if(ENTRY.test(name)){const out=cand.filter(o=>{const R=plan.rooms.find(x=>x.id===o.at.room);try{return !wallInfo(plan,R,o.at.edge).interior;}catch{return false;}});if(out.length===1)return out[0];}
-  if(roomKind(name)==='balcony'){const b=cand.filter(o=>openingRooms(plan,o).some(x=>x!==r&&roomKind(x.name,x.area,x.id)==='balcony'));if(b.length===1)return b[0];}
+  const name=d.name||'',outer=cand.filter(o=>{const R=plan.rooms.find(x=>x.id===o.at.room);try{return !wallInfo(plan,R,o.at.edge).interior;}catch{return false;}});
+  if(ENTRY.test(name)&&outer.length===1)return outer[0];
+  // a garage door: the widest door out (the garage's other doors lead into the house or the garden)
+  if(d.cls==='garage_door'||GARAGE.test(name)){if(outer.length)return outer.reduce((a,b)=>Math.abs(b.at.s1-b.at.s0)>Math.abs(a.at.s1-a.at.s0)?b:a);}
+  // a balcony, terrace, patio or garden door: the door into that room; such a room is not drawn — the room's only door out
+  if(roomKind(name)==='balcony'){const b=cand.filter(o=>openingRooms(plan,o).some(x=>x!==r&&roomKind(x.name,x.area,x.id)==='balcony'));if(b.length===1)return b[0];
+    if(!b.length&&outer.length===1)return outer[0];}
   return null;
 }
 
@@ -108,7 +117,7 @@ export function autoPlace(plan,devs,ent=()=>null){plan.devices??=[];let n=0;cons
   const usedF=new Set(plan.devices.map(x=>x.furn).filter(Boolean)),usedO=new Set(plan.devices.map(x=>x.opening).filter(Boolean));
   const add=(d,rec)=>{plan.devices=plan.devices.filter(x=>x.entity!==d.entity);plan.devices.push({id:newId(plan,'d'),entity:d.entity,...rec});n++;};
   const todo=devs.filter(d=>PLACEABLE.has(kind(d))&&!recOf(plan,d.entity));
-  for(const d of todo.filter(d=>kind(d)==='ac')){const r=roomOfArea(plan,d.area);if(!r)continue;
+  for(const d of todo.filter(d=>kind(d)==='ac'&&!isCentral(d))){const r=roomOfArea(plan,d.area);if(!r)continue;
     const f=plan.furniture.find(f=>f.model==='aircon'&&!usedF.has(f.id)&&inRoom(f,r));
     if(f){usedF.add(f.id);add(d,{furn:f.id});continue;}
     const sp=acSpot(plan,r);if(!sp)continue;const it=itemAt(plan,'aircon',sp.e,sp.t);plan.furniture.push(it);usedF.add(it.id);add(d,{furn:it.id,made:true});}

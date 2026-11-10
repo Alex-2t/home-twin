@@ -4,14 +4,13 @@ The goal is to earn money. The direction is a 3D-twin builder and paid services 
 
 ## Free and paid
 
-2026-11-08: the direction is D-052 (the core is open and free; people pay for the service, the cloud and content); this is not an approved price list and not a description of a released package. The standalone editor works; the integration, the card and Pro are not shipped yet. Current readiness is in [status.md](status.md).
+2026-11-08: the direction is D-052 (the core is open and free; people pay for the service, the cloud and content), refined by D-063 (the paid product is the AI build of the user's home); this is not an approved price list and not a description of a released package. The standalone editor works; the integration, the card and Pro are not shipped yet. Current readiness is in [status.md](status.md).
 
 | Direction | Contents and open points |
 |---|---|
 | Free HA package — open, in the catalog (D-052) | Plan and placement editor, card, devices, statistics — everything that already exists. The funnel. License — GPL-3.0 (O-004) |
 | Turnkey home model — the main income now | A service from a plan and photo; the Fiverr offer is described below |
-| Cloud — credits or subscription | AI plan draft from a photo (O-007) on our own server, renders later. Server and prices undecided |
-| Paid content | Packs of quality furniture and models, custom furniture from a photo — from our server by key, outside the open code |
+| AI builds your home — the paid product (D-063) | One-time purchase per home: from photos of the plan and rooms our harness on our server builds walls, surfaces and every item of furniture, even ones no set has. No free generation, no credits, no money-back guarantee, no shared catalog. Price undecided |
 | “Support” key | Optional: early access, priority in replies; no locks on the free part. The former “Pro — a key to features” (D-001) is replaced |
 
 Climate on walls is already implemented in the editor (D-033/D-034). Its earlier mention in the Pro column does not determine whether the future package is paid. Static curtains, an air conditioner and a robot in the catalog do not mean these devices are ready to control.

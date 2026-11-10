@@ -95,11 +95,13 @@ export function wallSpot(room,ctx,W,at,band=[LABEL.y-itemH(1)/2-LABEL.pad,LABEL.
   const alts=[];
   for(const S of sides){let best=null;
     // a stretch along the edge [t0, t1] that is occupied within the label band
-    const blocks=[],near=(q,lim)=>{const d=(q[0]-S.a[0])*S.n[0]+(q[1]-S.a[1])*S.n[1];return d>-.3&&d<lim;},tOf=q=>(q[0]-S.a[0])*S.u[0]+(q[1]-S.a[1])*S.u[1];
+    const blocks=[],near=(q,lim,back=.3)=>{const d=(q[0]-S.a[0])*S.n[0]+(q[1]-S.a[1])*S.n[1];return d>-back&&d<lim;},tOf=q=>(q[0]-S.a[0])*S.u[0]+(q[1]-S.a[1])*S.u[1];
     for(const o of ctx.openings||[])if(near(o.a,.3)&&near(o.b,.3)&&o.top>y0&&o.bottom<y1){const t=[tOf(o.a),tOf(o.b)].sort((x,y)=>x-y);blocks.push([t[0]-.15,t[1]+.15]);}
     for(const f of ctx.furniture||[]){const z=zOf(f);if(z+f.h<=y0||z>=y1)continue;
       const r=f.rot*Math.PI/180,c=Math.cos(r),sn=Math.sin(r),cs=[[-1,-1],[1,-1],[1,1],[-1,1]].map(([x,y])=>[f.x+x*f.w/2*c-y*f.d/2*sn,f.y+x*f.w/2*sn+y*f.d/2*c]);
-      if(!cs.some(q=>near(q,.35)))continue;const t=cs.map(tOf);blocks.push([Math.min(...t)-.1,Math.max(...t)+.1]);}
+      // furniture only on this side of the wall: the neighbor's wardrobe behind a 10 cm partition does not take this wall
+      // (an opening sits in the middle of the wall, so for openings 30 cm behind the face still count)
+      if(!cs.some(q=>near(q,.35,.05)))continue;const t=cs.map(tOf);blocks.push([Math.min(...t)-.1,Math.max(...t)+.1]);}
     for(const L of ctx.lights||[])if(formFor(L)==='wall'&&L.h>y0-.2&&L.h<y1+.2)for(const p of L.points||[])if(near(p,.35)){const t=tOf(p);blocks.push([t-.3,t+.3]);}
     for(const k of ctx.taken||[])if(k.i===S.i)blocks.push([k.t0-.1,k.t1+.1]);
     let free=[[.2,S.L-.2]];

@@ -66,6 +66,8 @@ input[type=range],input[type=checkbox]{accent-color:var(--acc)}
 .fl{position:absolute;z-index:15}
 .brand{left:12px;top:12px;z-index:22;padding:4px;display:flex}
 .brand-btn{height:36px;padding:0 6px 0 3px;gap:4px}.brand-btn>.ic:last-child{color:var(--mut)}
+/* an example is open (D-062): back to the list of examples, next to the file menu */
+.brand-back{height:36px;padding:0 12px 0 8px;gap:4px;margin-left:2px;border-left:1px solid var(--line);border-radius:0 12px 12px 0;color:var(--mut);font-size:13px}.brand-back:hover{color:var(--tx)}.brand-back[hidden]{display:none}
 .menu-head{display:flex;flex-direction:column;padding:6px 10px 2px}.menu-head b{font-weight:600;font-size:14px}.menu-head small{color:var(--mut);font-size:11.5px}
 .modes{top:12px;display:flex;gap:2px;padding:5px}
 .modes button{height:34px;padding:0 13px}.modes button.on{background:var(--inv);color:var(--inv-tx)}
@@ -270,15 +272,44 @@ body[data-main="3d"]:not([data-mode=lights]) .tools{display:none}
 .keys-box{width:min(540px,92vw);padding:14px 20px 20px;background:var(--panel-solid);border-radius:18px;box-shadow:var(--sh-lg)}
 .keys-head{display:flex;align-items:center;justify-content:space-between;font-size:15px}
 .keys dl{display:grid;grid-template-columns:auto 1fr;gap:8px 16px;margin:12px 0 0}.keys dt{font-weight:600;white-space:nowrap}.keys dd{margin:0;color:var(--mut)}
-.start{position:fixed;inset:0;z-index:50;display:grid;place-items:center;background:color-mix(in srgb,var(--cv) 82%,transparent);-webkit-backdrop-filter:blur(10px);backdrop-filter:blur(10px)}
-.start-box{width:min(780px,92vw);text-align:center}.start h1{font-size:30px;letter-spacing:-.02em;margin:0 0 8px}.start p{color:var(--mut);margin:0 0 26px;font-size:15px}
-.choices{display:grid;grid-template-columns:repeat(3,1fr);gap:12px}.choices:has(>[hidden]){grid-template-columns:repeat(2,1fr)}
+.start{position:fixed;inset:0;z-index:50;display:grid;place-items:safe center;overflow:auto;background:color-mix(in srgb,var(--cv) 82%,transparent);-webkit-backdrop-filter:blur(10px);backdrop-filter:blur(10px)}
+.start-box{width:min(780px,92vw);text-align:center}.start h1{font-size:30px;letter-spacing:-.02em;margin:0 0 8px}.start p{color:var(--mut);margin:0 0 16px;font-size:15px}
+.choices{display:grid;grid-template-columns:repeat(2,1fr);gap:12px}
+.choices .choice{display:grid;grid-template-columns:auto 1fr;column-gap:14px;row-gap:2px;align-items:center;padding:14px 16px}.choices .choice .ci{grid-row:span 2;margin:0}
+/* the start screen's examples (D-062): apartments and houses, cards with a small outline of the rooms */
+.examples{margin-top:14px;text-align:left}.examples[hidden],.ex-group[hidden]{display:none}
+.ex-title{color:var(--mut);font-size:13px;font-weight:600;margin:0 0 4px;text-align:center}
+.ex-kind{display:block;color:var(--mut);font-size:11.5px;margin:6px 2px 4px}
+.ex-list{display:grid;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:8px}
+.ex{display:flex;flex-direction:column;align-items:flex-start;gap:1px;text-align:left;height:auto;padding:8px 11px;border-radius:12px;white-space:normal;font-weight:400}
+.ex svg{width:100%;height:28px;margin-bottom:6px}.ex path{fill:color-mix(in srgb,var(--acc) 13%,transparent);stroke:color-mix(in srgb,var(--acc) 70%,var(--tx));stroke-width:1;vector-effect:non-scaling-stroke;stroke-linejoin:round}
+.ex b{font-size:12.5px;font-weight:600;line-height:1.3}.ex span{color:var(--mut);font-size:11.5px;line-height:1.3}
+.ex:hover{background:var(--panel-solid);border-color:var(--acc)}.ex:hover path{fill:color-mix(in srgb,var(--acc) 22%,transparent)}
+@media (max-width:640px){.choices{grid-template-columns:1fr}.ex-list{grid-template-columns:repeat(2,1fr)}.start{padding:24px 0}}
 .choice{display:flex;flex-direction:column;gap:6px;align-items:flex-start;text-align:left;height:auto;padding:18px;border-radius:18px;white-space:normal;font-weight:400}
 .choice:hover{background:var(--panel-solid);border-color:var(--acc)}.choice b{font-size:15px;font-weight:600}.choice span{color:var(--mut);line-height:1.45}
 .choice .ci{width:38px;height:38px;border-radius:11px;display:grid;place-items:center;background:var(--acc2);color:var(--acc);margin-bottom:6px}
 .choice.continue{width:100%;margin-bottom:12px;flex-direction:row;align-items:center;justify-content:center;gap:12px;border-color:var(--acc);padding:14px}
 .choice.continue .ic{color:var(--acc)}
 .start-prev{margin-top:16px;background:none;border:0;color:var(--mut);font-size:13px;text-decoration:underline;text-underline-offset:3px;cursor:pointer}.start-prev:hover{color:var(--tx)}.start-prev[hidden]{display:none}
+/* Day / night (D-068): “A” in the corner of the 3D window's button — auto; the tip on hover — how auto works (daynight-tip.js) */
+#daynight-pip.auto{position:relative}#daynight-pip.auto::after{content:'A';position:absolute;right:3px;bottom:2px;font-size:8px;font-weight:700;line-height:1}
+.dn-tip{position:absolute;z-index:46;pointer-events:auto;width:max-content;max-width:250px;padding:10px 12px 8px;border-radius:12px;background:var(--inv);color:var(--inv-tx);box-shadow:var(--sh-lg);font-size:12.5px;line-height:1.4}
+.dn-tip p{margin:0 0 6px}.dn-tip button{height:auto;min-width:0;padding:2px 0;font-size:12px;font-weight:500;color:inherit;opacity:.7;text-decoration:underline;text-underline-offset:3px}
+.dn-tip button:hover{opacity:1;background:none}
+/* Loading (flows.js): over the page until the editor is up and the plan is drawn; opening an example — its start-screen card, enlarged */
+.loading{position:fixed;inset:0;z-index:60;display:grid;place-items:center;background:var(--cv);transition:opacity .25s ease}.loading.out{opacity:0;pointer-events:none}
+.loading[data-boot]{animation:loading-giveup 0s 15s forwards}@keyframes loading-giveup{to{visibility:hidden}} /* the editor failed to start: give way */
+.loading-card{width:132px}.loading .logo.big{margin:0 auto}
+.loading[data-ex] .loading-card{width:232px;padding:14px 16px 16px;border-radius:var(--r);background:var(--panel-solid);border:1px solid var(--line);box-shadow:var(--sh)}
+.loading-ex{display:flex;flex-direction:column;gap:1px}.loading-ex svg{width:100%;height:96px;margin-bottom:10px}.loading-ex .logo svg{width:26px;height:26px;margin:0}
+.loading-ex path{fill:color-mix(in srgb,var(--acc) 13%,transparent);stroke:color-mix(in srgb,var(--acc) 70%,var(--tx));stroke-width:1.25;vector-effect:non-scaling-stroke;stroke-linejoin:round}
+.loading-ex .logo path{fill:none;stroke:currentColor;stroke-width:1.8;vector-effect:none}
+.loading-ex b{font-size:14px;font-weight:600;line-height:1.3}.loading-ex span{color:var(--mut);font-size:12px;line-height:1.3}
+.loading-bar{position:relative;display:block;height:3px;margin-top:18px;border-radius:2px;background:var(--chip);overflow:hidden}.loading[data-ex] .loading-bar{margin-top:12px}
+.loading-bar::after{content:'';position:absolute;top:0;bottom:0;left:0;width:38%;border-radius:inherit;background:var(--acc);animation:loading-bar 1.15s ease-in-out infinite}
+@keyframes loading-bar{from{transform:translateX(-100%)}to{transform:translateX(265%)}}
+@media (prefers-reduced-motion:reduce){.loading-bar::after{animation-duration:2.6s}.loading{transition:none}}
 @media (max-width:1100px){:root{--side:256px;--pip-w:280px;--pip-h:190px}.saved{display:none}}
 
 /* test panel (localhost only): save the state and return to a step */
@@ -336,11 +367,12 @@ body[data-main="3d"]:not([data-mode=lights]) .tools{display:none}
 
 /* Wizard (D-042, D-043): the card at the bottom. On top — the path strip with step states; below — the step phrase and the buttons —
    a short phrase sits on one line with the buttons, a long one wraps them below. The full text — via “?”. */
-.banner.wizard-card{display:flex;flex-wrap:wrap;align-items:center;gap:8px 10px;width:min(680px,calc(100vw - 24px));max-width:calc(100vw - 24px);padding:12px 14px;background:var(--panel-solid);color:var(--tx);border:1px solid var(--line2);box-shadow:var(--sh);font-size:13px;--inv-tx:var(--tx);--inv:var(--panel-solid)}
+.banner.wizard-card{display:flex;flex-wrap:wrap;align-items:center;gap:8px 10px;width:min(var(--wiz-w,680px),calc(100vw - 24px));max-width:calc(100vw - 24px);padding:12px 14px;background:var(--panel-solid);color:var(--tx);border:1px solid var(--line2);box-shadow:var(--sh);font-size:13px;--inv-tx:var(--tx);--inv:var(--panel-solid)}
 .banner.wizard-card .path{flex-basis:100%;min-width:0;margin:0 0 -2px;color:var(--mut);font-size:12px}
 .banner.wizard-card .path .dot{height:20px;min-height:0;padding:0}.banner.wizard-card .path-name{flex:1;min-width:0;opacity:1}
 .banner .path .dot.later{color:var(--warn);box-shadow:inset 0 0 0 1.5px var(--warn);opacity:1}
 .banner.wizard-card .path .wizard-exit{flex:none;margin-left:8px;height:24px;min-height:0;padding:0 4px;font-size:12px}.banner.wizard-card .wizard-exit .ic{display:none}
+.banner.wizard-card.tight .wizard-exit span{display:none}.banner.wizard-card.tight .wizard-exit .ic{display:block} /* squeezed into the lane: “Exit setup” as a cross, as on a phone */
 .banner.wizard-card.glide{transition:none}
 /* The wizard card is inverted, like the strip hints: dark in the light theme, light in the dark theme (D-043) — the main landmark
    is not confused with the toolbars. Inside — the colors of the opposite theme, so text, buttons and dots stay readable. */
@@ -397,7 +429,7 @@ html[data-theme=dark] .banner.wizard-card{--panel-solid:#eceef3;--line:rgba(17,1
 .ctx .line.opts label.num{gap:5px;padding:0 0 0 6px;color:var(--mut);font-size:12px}.ctx .line.opts label.num input{width:46px;height:26px;padding:0 6px;border-radius:8px;background:var(--chip);color:var(--tx);text-align:center;font-variant-numeric:tabular-nums}.ctx .line.opts label.num small{padding:0}
 
 /* “Preview” (D-047, D-049): the panel is the home card from 3d_floor in Shadow DOM (look.js, look/card.css); the editor tools are hidden */
-body[data-look=on] :is(#side,#dock,#banner,#pill,#topr,#pip-show,#divider,.spot){display:none!important}
+body[data-look=on] :is(#side,#dock,#banner:not(.in-look),#pill,#topr,#pip-show,#divider,.spot,.dev){display:none!important} /* .dev: the test panel covered the view buttons (day / night) */
 
 /* “Devices” (D-048, modes/devices.js) */
 .row.device{gap:8px}.row.device .dev-ic{width:24px;height:24px;border-radius:7px;display:grid;place-items:center;flex:none;background:var(--chip);color:var(--mut)}

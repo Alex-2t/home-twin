@@ -31,6 +31,8 @@ import {planWalls,planFurniture,planSpots} from '../core/plan-scene.js';
 import {createPath} from './wizard-path.js';
 import {stepReadyToFinish,areaOnPlan,lampWaits} from './wizard-state.js';
 import {LANGS,getLang} from '../i18n/i18n.js';
+import {readMode,saveMode,nextMode,isNight,tipWanted,onModeChange} from '../core/daynight.js';
+import {dayNightTip} from './daynight-tip.js';
 
 // A mouse wheel steps by 120 (wheelDelta), a trackpad — in small fractions and often with deltaX.
 const isMouseWheel=e=>e.deltaX===0&&e.wheelDeltaY!==undefined&&e.wheelDeltaY!==0&&e.wheelDeltaY%120===0;
@@ -55,13 +57,13 @@ export function createApp({haLights,ha,photos}){
     button.classList.toggle('ready-to-finish',!!ready);
   }
   // a wizard step (has “Exit setup”) — the path strip at the top of the card
-  // o.id — a stable hint key, o.short — a short instruction; the full text is available via the help button.
+  // o.id — a stable hint key, o.short — a short instruction; the full text is available via the help button. o.look — shown in “Preview” too.
   const show=(text,buttons,aim,o={})=>{
     const wizard=!!(text&&buttons?.some(x=>x.exit||x.path)),phase=wizard?path.cur():null;
     if(phase)path.enter(phase);
     // The id does not depend on the text, the counter or the language: the first edit does not restart the tutorial.
     const key=text&&ed.plan.id+'|'+(o.id||phase||text.split('<small>')[0]),bn=$('banner');
-    banner(text,buttons);bn.classList.toggle('wizard-card',wizard);bn.classList.remove('short','has-path');
+    banner(text,buttons);bn.classList.toggle('wizard-card',wizard);bn.classList.toggle('in-look',!!o.look);bn.classList.remove('short','has-path');
     document.body.dataset.wizard=phase||'';
     if(wizard){const message=bn.querySelector(':scope>span'),full=message.innerHTML,pe=path.el();
       if(pe)bn.prepend(pe);message.className='wizard-message';
@@ -89,7 +91,7 @@ export function createApp({haLights,ha,photos}){
   ed.backBtn=()=>{const b=[t('Back'),()=>path.back()];b.back=true;return b;};
   ed.wizBtns=bs=>{bs=(bs||[]).filter(b=>!b.exit&&!b.back);return [...(path.canBack()?[ed.backBtn()]:[]),ed.exitBtn(),...bs];};
   ed.step=(text,buttons,aim,{exit=true,...o}={})=>{step=text?{mode:ed.mode,text,buttons:exit?ed.wizBtns(buttons):buttons||[],aim,o}:null;ed.banner();ed.applySide?.();};ed.stepNow=()=>step;
-  ed.banner=(text,buttons,aim)=>text?show(text,buttons,aim):step&&step.mode===ed.mode?show(step.text,step.buttons,step.aim,step.o):show();
+  ed.banner=(text,buttons,aim,o)=>text?show(text,buttons,aim,o):step&&step.mode===ed.mode?show(step.text,step.buttons,step.aim,step.o):show();
   coach.onCalm=()=>{};
   const motion=matchMedia('(prefers-reduced-motion: reduce)');ed.reducedMotion=()=>motion.matches;
   motion.addEventListener('change',()=>ed.draw());
@@ -172,7 +174,7 @@ export function createApp({haLights,ha,photos}){
   ed.sensorCtx=()=>({sensors:ha.sensors?.()||[],areas:ha.areas(),state:e=>ha.state?.(e)??null});
   ed.sensorSpots=()=>planSpots(ed.plan,ed.sensorCtx(),{moving:ed.drag?.S?.id,cam:ed.view.homeCam?.()});
   ha.onState?.(()=>ed.update());
-  ed.update=()=>{syncRuns(ed.plan);syncFurnStrips(ed.plan);ed.syncSave?.(); // a strip on furniture moves with it, also while dragging
+  ed.update=()=>{syncRuns(ed.plan);syncFurnStrips(ed.plan);ed.syncSave?.();ed.flows?.syncExample?.(); // a strip on furniture moves with it, also while dragging
     ed.spots=ed.sensorSpots();
     ed.errors=validate(ed.plan.rooms);ed.conflicts=furnitureConflicts(ed.plan);
     if(ed.errors.length||!ed.plan.rooms.length){ed.walls2d=null;if(keys.walls!=='empty')keys.walls='';}
@@ -180,7 +182,8 @@ export function createApp({haLights,ha,photos}){
     badge.hidden=!L.length;badge.textContent=`${done}/${L.length}`;badge.classList.toggle('done',done===L.length);
     ed.draw();ed.status();ed.applySide?.();
     if(pending)return;pending=true;
-    requestAnimationFrame(()=>{pending=false;
+    // ed.hold: an example is about to replace this plan (flows.js) — it is not built in 3D for nothing
+    requestAnimationFrame(()=>{pending=false;if(ed.hold)return;
       const plan=ed.plan;
       // the own home view from the plan (another plan, undo) — into 3D; the sensor labels are placed for it — recompute
       {const vk=JSON.stringify(plan.view||null);if(vk!==keys.view){keys.view=vk;ed.view.setHome?.(plan.view);requestAnimationFrame(()=>ed.update());}}
@@ -403,14 +406,26 @@ export function createApp({haLights,ha,photos}){
     put($('pill'),pinL,W-R,floatL,Math.min(W-R-12,pipL),true);
     // the step hint — at its area (coach.js), no area — at the bottom above the toolbar (at the top it covered the wall
     // menu); the problems badge — above the hint, if it is at the bottom
-    coach.env??={home:(w,h)=>{const W=work.clientWidth,R=pipMode()==='dock'?W*ui.view/100+5:0,open=!side.classList.contains('closed'),
-        pinL=ui.pinned&&open?side.offsetWidth:0,floatL=open?side.offsetLeft+side.offsetWidth+12:12,pipL=pipMode()==='win'?W-12-pw-10:W;
-        const right=Math.min(W-R-12,pipL),left=right-floatL>=w?floatL:12,edge=right-left>=w?right:W-R-12;
-        const c=Math.max(left+w/2,Math.min(edge-w/2,(left+edge)/2));return {x:Math.round(c-w/2),y:Math.max(110,$('dock').offsetTop-8-h)};},
+    // lane — between the open side panel and the 3D window: there the card covers neither. Too narrow for it (a tablet held upright
+    // with the catalog open) — the card goes right of the panel and above the 3D window (wide); narrower still — over the panel, as before
+    const lane=()=>{const W=work.clientWidth,R=pipMode()==='dock'?W*ui.view/100+5:0,open=!side.classList.contains('closed'),win=pipMode()==='win',
+        floatL=open?side.offsetLeft+side.offsetWidth+12:12,pipL=win?W-12-pw-10:W,pip=win?panes[ui.main==='3d'?'plan':'3d'].getBoundingClientRect():null;
+      return {W,R,floatL,right:Math.min(W-R-12,pipL),wide:W-R-12,pipT:pip?pip.top-work.getBoundingClientRect().top:null};};
+    const WIZ_MIN=440;
+    coach.env??={home:(w,h)=>{const {W,R,floatL,right,wide,pipT}=lane();let y=Math.max(110,$('dock').offsetTop-8-h),left,edge;
+        if(right-floatL>=w){left=floatL;edge=right;}
+        else if(wide-floatL>=w&&floatL>12&&pipT!=null){left=floatL;edge=wide;y=Math.max(110,Math.min(y,pipT-8-h));}
+        else{left=12;edge=right-left>=w?right:W-R-12;}
+        const c=Math.max(left+w/2,Math.min(edge-w/2,(left+edge)/2));return {x:Math.round(c-w/2),y};},
       free:()=>{const W=work.clientWidth,R=pipMode()==='dock'?W*ui.view/100+5:0;
         return {l:12,r:W-R-12,t:Math.max(...['modes','brand','topr'].map(id=>$(id).offsetTop+$(id).offsetHeight))+10,b:$('dock').offsetTop-8};},
       avoid:()=>[...['side','ctx','pill','dock'].map(id=>{const e=$(id);return e.hidden||e.classList.contains('closed')&&id!=='side'?null:e.getBoundingClientRect();}),
         pipMode()==='win'&&ui.main!=='3d'?panes['3d'].getBoundingClientRect():pipMode()==='win'?panes.plan.getBoundingClientRect():null,document.querySelector('.dev')?.getBoundingClientRect()]};
+    // the wizard card's width (D-043: at 1024 px with the catalog open it covered the catalog's bottom): 680 px if the lane has them,
+    // else as wide as the lane (from 440 px; the buttons wrap below), else as wide as the room right of the panel (lifted above the 3D window)
+    {const g=lane(),lane1=g.right-g.floatL,wide=g.wide-g.floatL,b=$('banner');
+      const fit=lane1>=680?680:lane1>=WIZ_MIN?lane1:g.floatL>12&&g.pipT!=null&&wide>=WIZ_MIN?Math.min(680,wide):680;
+      b.style.setProperty('--wiz-w',fit+'px');b.classList.toggle('tight',fit<560);}
     coach.place();placeCtx();
     const bn=$('banner');$('pill').style.bottom=(70+(bn.hidden||!coach.bottom()?0:bn.offsetHeight+8))+'px';
   }
@@ -621,7 +636,7 @@ export function createApp({haLights,ha,photos}){
     look=v;document.body.dataset.look=v?'on':'';
     document.querySelectorAll('.modes [data-mode]').forEach(b=>b.classList.toggle('on',!v&&b.dataset.mode===ed.mode.id));$('look-btn').classList.toggle('on',v);
     if(v)lookUI.open();else lookUI.close();
-    layout();insets3d();placeFloats();if(v){requestAnimationFrame(()=>{insets3d();placeFloats();});ed.view.home();}ed.draw();};
+    layout();insets3d();placeFloats();if(v){requestAnimationFrame(()=>{insets3d();placeFloats();});ed.view.home();}ed.draw();ed.flows?.syncRoute?.();};
   $('look-btn').onclick=()=>ed.setLook(!look);
   $('hand').onclick=()=>ed.toggleTool('hand');$('rotate-plan').onclick=()=>ed.toggleTool('rotate');$('fit').onclick=$('zoom').onclick=()=>ed.fit();$('help').onclick=ed.showKeys;
   const zoomBy=k=>{ed.v.zoomAt(ed.v.w/2,ed.v.h/2,k);ed.v.fitted=false;ed.draw();};
@@ -683,11 +698,19 @@ export function createApp({haLights,ha,photos}){
   ed.wizard={get:id=>ui.wiz?.[id]||null,set:(id,v)=>{const w={...(ui.wiz||{})};delete w[id];if(v)w[id]=v;const ks=Object.keys(w);for(const k of ks.slice(0,Math.max(0,ks.length-10)))delete w[k];ui.wiz=w;saveUI();}};
   $('wall-each').onchange=e=>{ui.wallEach=e.target.checked;saveUI();ed.mode.refresh?.();ed.draw();};
   for(const [id,k] of [['wall-outer','outer'],['wall-inner','inner']])$(id).onchange=e=>{ed.plan.wall={...ed.plan.wall,[k]:+e.target.value};ed.commit();};
-  let night=false;
-  const setNight=n=>{night=n;ed.view.setNight(n);
-    $('daynight').innerHTML=icon(n?'moon':'sun')+`<span>${n?t('Night'):t('Day')}</span>`;$('daynight-pip').innerHTML=icon(n?'moon':'sun',15);
-    for(const id of ['daynight','daynight-pip'])$(id).classList.toggle('on',n);};
-  $('daynight').onclick=$('daynight-pip').onclick=e=>{e.stopPropagation();setNight(!night);};
-  ed.night=()=>night;ed.toggleNight=()=>setNight(!night);
+  // Day / night (D-068): auto — by the sun (it opens as it is outside, turns night after sunset and day after sunrise), or always day,
+  // always night (core/daynight.js). The button steps auto → day → night; the label says the mode, the icon what is shown now.
+  // The sun: ha.sunDown (sun.sun in HA, the weather profile in the demo), checked on HA changes and once a minute (the demo has no sun events)
+  let night=null,dayMode=readMode();
+  const dnButtons=()=>{const label=dayMode==='auto'?t('Auto'):night?t('Night'):t('Day'),title=t('Day / night')+': '+label;
+    $('daynight').innerHTML=icon(night?'moon':'sun')+`<span>${label}</span>`;$('daynight-pip').innerHTML=icon(night?'moon':'sun',15);
+    for(const id of ['daynight','daynight-pip']){const b=$(id);b.classList.toggle('on',night);b.classList.toggle('auto',dayMode==='auto');b.title=tipWanted()?'':title;b.setAttribute('aria-label',title);}};
+  const showNight=(force=false)=>{const n=isNight(dayMode,ha.sunDown?.());if(n===night&&!force)return;night=n;ed.view.setNight(n);dnButtons();if(look)lookUI.refresh();};
+  ed.night=()=>night;ed.dayMode=()=>dayMode;
+  ed.toggleNight=()=>{dayMode=nextMode(dayMode);saveMode(dayMode);showNight(true);};
+  $('daynight').onclick=$('daynight-pip').onclick=e=>{e.stopPropagation();ed.toggleNight();};
+  dayNightTip($('daynight'),document.body,'above');dayNightTip($('daynight-pip'),document.body,'below');
+  addEventListener('daynight-tip-off',dnButtons); // dismissed here or in Preview: the buttons get their title back
+  showNight(true);ha.onState?.(()=>showNight());setInterval(()=>showNight(),60e3);onModeChange(m=>{dayMode=m;showNight(true);});
   return ed;
 }

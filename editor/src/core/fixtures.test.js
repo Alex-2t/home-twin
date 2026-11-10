@@ -159,3 +159,23 @@ test('lighting with furniture: ceiling light and pendants above the table, spots
   p=mk([{id:'s',model:'loungeSofa',w:2.1,d:.95,h:.8,rot:180,x:2.5,y:.05+.475}]);c=cellOf(p);L=lamp();
   placeForm(p,L,'lamp','floor',c);const q=L.points[0];assert.ok(Math.abs(Math.abs(q[0]-2.5)-(1.05+.28))<.02&&q[1]<1,'floor lamp at the sofa edge');
 });
+
+test('auto-place by the furniture: sconces by name, a table lamp on a nightstand, a mirror light above the mirror, clear of doors (homes check, D-061)',()=>{
+  assert.deepEqual(guessForm({name:'Bedside sconces',kind:'point',h:1.6}),{form:'wall',opt:'pair'},'a sconce by name, not a table lamp');
+  const p=flat(),cell=lampCell(p,{area:'bedroom'});
+  p.furniture.push({id:'n',model:'nightstand',x:3.78,y:1.5,rot:270,w:.5,d:.4,h:.5},{id:'m',model:'wallMirror',x:1,y:.015,rot:180,w:.6,d:.03,h:.9});
+  const T={id:'t',name:'Bedside lamp',kind:'point',area:'bedroom'};assert.ok(placeForm(p,T,'lamp','table',cell));
+  assert.ok(Math.abs(T.points[0][0]-3.78)<.01&&Math.abs(T.points[0][1]-1.5)<.01,'on the nightstand');assert.equal(T.h,.92,'its base on the top');
+  const M={id:'m1',name:'Mirror light',kind:'point',area:'bedroom'};assert.ok(placeForm(p,M,'wall','one',cell));
+  assert.ok(Math.abs(M.points[0][0]-1)<.01&&M.points[0][1]<.2,'on the wall above the mirror');assert.equal(M.h,2.08);
+  // a 0.8 m door in the middle of the long wall without a window: the sconce goes to a clear wall
+  const q=flat();q.openings.push(...migrate({rooms:q.rooms,openings:[{kind:'door',a:[1.6,0],b:[2.4,0]}]}).openings);
+  const [s]=wallLayout(q,lampCell(q,{area:'bedroom'}),1);assert.ok(!(s[1]<.2&&Math.abs(s[0]-2)<.55),'not in the doorway');assert.ok(s[0]>3.8,'on the wall with the longest clear stretch');
+  // a wardrobe along that wall: the sconce goes beside it, not into it
+  q.furniture.push({id:'w',model:'wardrobe',x:3.7,y:1.6,rot:270,w:2,d:.6,h:2.2});
+  const [s2]=wallLayout(q,lampCell(q,{area:'bedroom'}),1);assert.ok(!(s2[0]>3.3&&s2[1]>.5&&s2[1]<2.7),'not inside the wardrobe');
+  // the floor lamp's corner is taken by a sofa: another spot, not inside the sofa
+  const r=flat(),c=lampCell(r,{area:'bedroom'}),was=lampSpot(r,c);
+  r.furniture.push({id:'s',model:'loungeSofa',x:was[0]-.3,y:was[1]-.2,rot:0,w:1.6,d:.9,h:.85});
+  const now=lampSpot(r,c),[sx,sy]=[r.furniture[0].x,r.furniture[0].y];assert.ok(!(Math.abs(now[0]-sx)<.8+.12&&Math.abs(now[1]-sy)<.45+.12),'outside the sofa');
+});

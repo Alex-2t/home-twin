@@ -1,7 +1,8 @@
 // Editor startup — shared by the standalone app (main.js: demo data, plan in the browser) and the Home Assistant panel
 // (ha-app.js: real HA, plan in HA). The language is already set (i18n/boot.js), the shell markup is in the document.
 //   ha     — the HA layer (editor/ha.js: mockHA or ha-live.js)
-//   demo, demoUnderlay — the demo apartment from the start screen; absent — no “Demo home” button
+//   examples — the start screen's examples [{id, plan, underlay}] and example — the one whose HA data are loaded (D-062); absent (in HA) — none
+//   router — the address: the page that is open (editor/route.js, D-066); absent — not used
 //   plans  — where else the plan is stored: {load(local) → Promise<{plan, rev}>, save(plan)}; absent — browser only
 //   photos — where the plan photo is kept (underlay.js: browserPhotos — the default, ha-live.js: hassPhotos)
 //   onApp(ed) — right after the editor is created, before the first plan
@@ -14,12 +15,12 @@ import {translateDom} from './i18n/i18n.js';
 import {loadKenney,thumbnails} from './core/furniture3d.js';
 import {MODELS} from './gen/models.gen.js';
 
-export async function boot({ha,demo=null,demoUnderlay=null,plans=null,photos=undefined,onApp=null,dev=false}){
+export async function boot({ha,examples=[],example=null,router=null,plans=null,photos=undefined,onApp=null,dev=false}){
   const haLights=()=>haPlanLights(ha);
   translateDom(document.body); // static markup — in the user's language
   const ed=createApp({haLights,ha,photos});
   onApp?.(ed);
-  const flows=createFlows(ed,{demo,demoUnderlay});
+  const flows=createFlows(ed,{examples,example,router});
   ed.flows=flows;
   await loadKenney(MODELS);
   ed.thumbs=thumbnails();
