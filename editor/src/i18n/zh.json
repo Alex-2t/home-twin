@@ -1409,5 +1409,7 @@
  "Looking…": "正在查看…",
  "Making: {0}": "正在制作：{0}",
  "{0, plural, one {# piece} other {# pieces}}": "{0, plural, other {# 件家具}}",
- "Turn the home any way you like. Click where something is wrong and write what to change.": "随意旋转你的家。点击有问题的位置，写下要修改的内容。"
+ "Turn the home any way you like. Click where something is wrong and write what to change.": "随意旋转你的家。点击有问题的位置，写下要修改的内容。",
+ "Glass|railing": "玻璃",
+ "Glass panes on a low kerb instead of a parapet": "低矮底座上的玻璃板，代替矮墙"
 }

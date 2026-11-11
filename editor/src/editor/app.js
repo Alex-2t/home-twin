@@ -177,7 +177,7 @@ export function createApp({haLights,ha,photos}){
   ed.update=()=>{syncRuns(ed.plan);syncFurnStrips(ed.plan);ed.syncSave?.();ed.flows?.syncExample?.(); // a strip on furniture moves with it, also while dragging
     ed.spots=ed.sensorSpots();
     ed.errors=validate(ed.plan.rooms);ed.conflicts=furnitureConflicts(ed.plan);
-    if(ed.errors.length||!ed.plan.rooms.length){ed.walls2d=ed.rails2d=null;if(keys.walls!=='empty')keys.walls='';}
+    if(ed.errors.length||!ed.plan.rooms.length){ed.walls2d=ed.rails2d=ed.glass2d=null;if(keys.walls!=='empty')keys.walls='';}
     const L=ed.plan.lights.filter(l=>!ed.lampWaits(l)),done=L.filter(l=>l.placed&&!l.draft||l.skip).length,badge=$('lights-badge');
     badge.hidden=!L.length;badge.textContent=`${done}/${L.length}`;badge.classList.toggle('done',done===L.length);
     ed.draw();ed.status();ed.applySide?.();
@@ -199,7 +199,7 @@ export function createApp({haLights,ha,photos}){
         const wk=JSON.stringify([plan.rooms,plan.openings,plan.wall]);
         if(wk!==keys.walls){keys.walls=wk;const t0=performance.now();
           try{const {g,ops,hidden}=planWalls(plan);ed.hidden=hidden;ed.view.set(g,plan.rooms,ops,ed.sel.room);keys.mask='';
-            ed.walls2d=wallsAt(g);ed.rails2d=g.rails;ed.draw();
+            ed.walls2d=wallsAt(g);ed.rails2d=g.rails;ed.glass2d=g.glassRails;ed.draw();
             last={ms:performance.now()-t0,fail:null};if(ed.debug)console.log('3D',last.ms.toFixed(0),'ms');}
           catch(err){last={fail:String(err.message||err).slice(0,80)};}}
       }

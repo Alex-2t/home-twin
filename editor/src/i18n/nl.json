@@ -1409,5 +1409,7 @@
  "Looking…": "We kijken…",
  "Making: {0}": "Bezig met: {0}",
  "{0, plural, one {# piece} other {# pieces}}": "{0, plural, one {# meubelstuk} other {# meubelstukken}}",
- "Turn the home any way you like. Click where something is wrong and write what to change.": "Draai het huis zoals je wilt. Klik waar iets niet klopt en schrijf wat er anders moet."
+ "Turn the home any way you like. Click where something is wrong and write what to change.": "Draai het huis zoals je wilt. Klik waar iets niet klopt en schrijf wat er anders moet.",
+ "Glass|railing": "Glas",
+ "Glass panes on a low kerb instead of a parapet": "Glazen panelen op een lage rand in plaats van een borstwering"
 }

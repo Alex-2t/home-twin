@@ -6,6 +6,8 @@ import pc from 'polygon-clipping';
 export const WALL={inner:.05,outer:.25,height:2.6};
 // A railing in place of a wall at a room edge (room.rail[i] = its height): an open balcony, a terrace. The usual height, m.
 export const RAIL=1.1;
+// A glass railing (room.railGlass: every railing of that room, D-075): a low kerb along the edge, a pane of glass standing on it.
+export const KERB=.06;
 
 // ---------- small math ----------
 export const dist2=(a,b)=>(a[0]-b[0])**2+(a[1]-b[1])**2;
@@ -169,12 +171,21 @@ function openCut(rooms,r,i,outer){
 }
 // A railing at edge i: the strip from the room's inner face out through the wall. Along the edge it reaches across the corner
 // where the next edge has a railing too (the balcony's outer corner), and stops at the inner face of a wall that goes on.
-function railStrip(r,i,outer){
+// A, B — its ends on the edge line; n — outward; it spans from `inside` in to `out` out.
+function railFrame(r,i,outer){
   const p=r.polygon,N=p.length,a=p[i],b=p[(i+1)%N],dx=b[0]-a[0],dy=b[1]-a[1],l=Math.hypot(dx,dy);if(l<.05)return null;
   const u=[dx/l,dy/l],s=area(p)>0?1:-1,n=[u[1]*s,-u[0]*s],e=WALL.inner,out=edgeThickness(r,i,outer)-e+.01;
   const ext=j=>r.rail?.[j]>0?edgeThickness(r,j,outer)+.01:-e,x0=ext((i-1+N)%N),x1=ext((i+1)%N);
-  const A=[a[0]-u[0]*x0,a[1]-u[1]*x0],B=[b[0]+u[0]*x1,b[1]+u[1]*x1];
-  return poly([[A[0]-n[0]*(e+.01),A[1]-n[1]*(e+.01)],[B[0]-n[0]*(e+.01),B[1]-n[1]*(e+.01)],[B[0]+n[0]*out,B[1]+n[1]*out],[A[0]+n[0]*out,A[1]+n[1]*out]]);
+  return {A:[a[0]-u[0]*x0,a[1]-u[1]*x0],B:[b[0]+u[0]*x1,b[1]+u[1]*x1],n,inside:e+.01,out};
+}
+function railStrip(r,i,outer){
+  const f=railFrame(r,i,outer);if(!f)return null;const {A,B,n,inside,out}=f;
+  return poly([[A[0]-n[0]*inside,A[1]-n[1]*inside],[B[0]-n[0]*inside,B[1]-n[1]*inside],[B[0]+n[0]*out,B[1]+n[1]*out],[A[0]+n[0]*out,A[1]+n[1]*out]]);
+}
+// A glass railing's pane: along the middle of its strip, from the kerb up to the railing's height.
+function railPane(r,i,outer,h){
+  const f=railFrame(r,i,outer);if(!f)return null;const {A,B,n,inside,out}=f,c=(out-inside)/2;
+  return {a:[A[0]+n[0]*c,A[1]+n[1]*c],b:[B[0]+n[0]*c,B[1]+n[1]*c],bottom:KERB,top:Math.min(h,WALL.height)};
 }
 function buildRaw(rooms,openings,{outer=OUTER}={}){
   // room.solid is a shaft, column or boxing: not cut out of the walls, it stays a solid mass at full height
@@ -184,7 +195,11 @@ function buildRaw(rooms,openings,{outer=OUTER}={}){
   const cuts=rooms.flatMap(r=>(r.wt||[]).map((t,i)=>t===0?openCut(rooms,r,i,outer):null)).filter(Boolean);
   if(cuts.length)walls=pc.difference(walls,...cuts);
   // Railings: the wall at those edges becomes a parapet as high as the railing — its own solid, under no facade, never hidden.
-  const railBy=new Map();for(const r of rooms)(r.rail||[]).forEach((h,i)=>{if(!(h>0))return;const q=railStrip(r,i,outer);if(q){const k=Math.min(h,WALL.height);if(!railBy.has(k))railBy.set(k,[]);railBy.get(k).push(q);}});
+  // A glass railing: the wall goes down to a kerb, and a pane stands on it (glassRails; scene.js draws the glass and a handrail).
+  const railBy=new Map(),glassRails=[];
+  for(const r of rooms)(r.rail||[]).forEach((h,i)=>{if(!(h>0))return;const q=railStrip(r,i,outer);if(!q)return;
+    const k=r.railGlass?KERB:Math.min(h,WALL.height);if(!railBy.has(k))railBy.set(k,[]);railBy.get(k).push(q);
+    if(r.railGlass){const pane=railPane(r,i,outer,h);if(pane)glassRails.push(pane);}});
   const rails=[];
   if(railBy.size&&walls.length){const all=[...railBy.values()].flat();
     for(const [h,qs] of railBy){const mp=solid(pc.intersection(walls,pc.union(...qs)));if(mp.length)rails.push({mp,bottom:0,top:h,last:true});}
@@ -211,7 +226,7 @@ function buildRaw(rooms,openings,{outer=OUTER}={}){
   const bands=base=>{const out=[];for(let i=0;i<hs.length-1;i++){const [a,b]=[hs[i],hs[i+1]];
     const cut=ops.filter(o=>o.bottom<=a+1e-6&&o.top>=b-1e-6).map(o=>o.poly);
     out.push({mp:cut.length&&base.length?pc.difference(base,...cut):base,bottom:a,top:b,last:i===hs.length-2});}return out;};
-  return {footprint,interior:bands(interior),sides:sides.map(s=>({...s,bands:bands(s.shape)})),rails,openingSide};
+  return {footprint,interior:bands(interior),sides:sides.map(s=>({...s,bands:bands(s.shape)})),rails,glassRails,openingSide};
 }
 // Where a face points: the nearest of the four cardinal directions (x is east, y is north).
 const sideOf=([x,y])=>Math.abs(x)>Math.abs(y)+1e-9?(x>0?'E':'W'):(y>0?'N':'S');

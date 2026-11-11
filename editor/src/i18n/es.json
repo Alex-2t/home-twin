@@ -1409,5 +1409,7 @@
  "Looking…": "Mirando…",
  "Making: {0}": "Haciendo: {0}",
  "{0, plural, one {# piece} other {# pieces}}": "{0, plural, one {# mueble} other {# muebles}}",
- "Turn the home any way you like. Click where something is wrong and write what to change.": "Gira la casa como quieras. Haz clic donde algo esté mal y escribe qué cambiar."
+ "Turn the home any way you like. Click where something is wrong and write what to change.": "Gira la casa como quieras. Haz clic donde algo esté mal y escribe qué cambiar.",
+ "Glass|railing": "De vidrio",
+ "Glass panes on a low kerb instead of a parapet": "Paneles de vidrio sobre un bordillo bajo en lugar de un antepecho"
 }

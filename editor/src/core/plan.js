@@ -129,7 +129,7 @@ export function setWallOpen(plan,info,open){
 // A railing instead of the exterior wall (an open balcony, a terrace) or the wall back: h — the railing's height, 0 — a wall.
 // Every edge on this side of the wall's line (info.A) changes with it.
 export function setRail(plan,info,h){
-  for(const [r,j] of info.A){r.rail||=r.polygon.map(()=>null);while(r.rail.length<r.polygon.length)r.rail.push(null);r.rail[j]=h>0?+h.toFixed(2):null;if(r.rail.every(x=>!x))delete r.rail;}
+  for(const [r,j] of info.A){r.rail||=r.polygon.map(()=>null);while(r.rail.length<r.polygon.length)r.rail.push(null);r.rail[j]=h>0?+h.toFixed(2):null;if(r.rail.every(x=>!x)){delete r.rail;delete r.railGlass;}}
 }
 // An exterior edge without a wall (the old “Remove wall” did this to exterior walls, or the neighbor across was deleted):
 // the wall comes back, since “no wall” exists only between rooms (D-021). Returns how many edges were closed.
@@ -195,7 +195,8 @@ export function splitRoom(plan,room,p1,p2){
   const before=cloneRooms(plan),[big,small]=aA>=aB?[A,B]:[B,A],hasWt=!!room.wt;
   room.polygon=big.pts;if(hasWt)room.wt=big.ws;if(room.wf)room.wf=big.fs;if(room.rail)room.rail=big.rs;
   const nr=addRoom(plan,small.pts);if(hasWt)nr.wt=small.ws;if(room.wf&&small.fs.some(x=>x))nr.wf=small.fs;if(room.rail&&small.rs.some(x=>x))nr.rail=small.rs;
-  if(room.rail?.every(x=>!x))delete room.rail;
+  if(room.railGlass&&nr.rail)nr.railGlass=true; // glass railings stay glass on both parts (D-075)
+  if(room.rail?.every(x=>!x)){delete room.rail;delete room.railGlass;}
   for(const k of ['wall','wallTint','floor','floorTint'])if(room[k]!=null)nr[k]=room[k]; // the new part gets the same finish
   if(room.wt?.every(x=>x==null))delete room.wt;if(nr.wt?.every(x=>x==null))delete nr.wt;
   const gap=Math.max(0,wallDefaults(plan).inner-2*WALL.inner);
@@ -235,6 +236,7 @@ export function mergeRooms(plan,info){
   // a door in the removed wall disappears
   plan.openings=plan.openings.filter(o=>{const c=openingCoords(before,o);if(!c)return true;const m=[(c.a[0]+c.b[0])/2,(c.a[1]+c.b[1])/2];return !pointIn(m,band);});
   keep.polygon=pts;if(wt.some(x=>x!=null))keep.wt=wt;else delete keep.wt;if(wf.some(x=>x))keep.wf=wf;else delete keep.wf;if(rail.some(x=>x))keep.rail=rail;else delete keep.rail;
+  if(keep.rail&&(A.railGlass||B.railGlass))keep.railGlass=true;else delete keep.railGlass;
   plan.rooms=plan.rooms.filter(r=>r!==gone);
   for(const o of plan.openings)if(o.at?.room===gone.id)o.at={...o.at,room:keep.id};
   reattachOpenings(plan,before);

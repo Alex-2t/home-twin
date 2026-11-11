@@ -1,7 +1,7 @@
-// Railings in place of exterior walls (D-071): an open balcony or terrace — and glazed doors.
+// Railings in place of exterior walls (D-071): an open balcony or terrace — and glazed doors; glass railings (D-075).
 import {test} from 'node:test';
 import assert from 'node:assert/strict';
-import {buildPlan2d,wallsAt,area,pointIn,RAIL} from './geometry.js';
+import {buildPlan2d,wallsAt,area,pointIn,RAIL,KERB} from './geometry.js';
 import {insertVertex,splitRoom,setRail,wallInfo,emptyPlan} from './plan.js';
 import {readPlan} from './plan-file.js';
 
@@ -45,4 +45,26 @@ test('the plan file keeps railings and glazed doors, and refuses bad ones',()=>{
   const back=readPlan(JSON.stringify(p));assert.deepEqual(back.rooms[1].rail,[null,RAIL,RAIL,RAIL]);assert.equal(back.openings[0].glass,true);
   assert.throws(()=>readPlan(JSON.stringify({...p,rooms:[p.rooms[0],{...p.rooms[1],rail:['high']}]})));
   assert.throws(()=>readPlan(JSON.stringify({...p,openings:[{...p.openings[0],glass:'yes'}]})));
+});
+
+test('a glass railing: the wall there goes down to a kerb, and a pane stands along the middle of the strip as high as the railing',()=>{
+  const p=home();p.rooms[1].railGlass=true;
+  const g=buildPlan2d(p.rooms,[]);
+  assert.equal(g.rails.length,1);assert.equal(g.rails[0].top,KERB);
+  assert.ok(inMP([2.5,8.1],g.rails[0].mp),'the kerb fills the strip, so no gap in the floor');
+  assert.equal(g.glassRails.length,3);
+  const far=g.glassRails.find(x=>Math.abs(x.a[1]-x.b[1])<1e-6&&x.a[1]>8);
+  assert.ok(far&&far.a[1]>8&&far.a[1]<8.3,'the far pane stands in the wall strip, outside the room');
+  assert.equal(far.top,RAIL);assert.equal(far.bottom,KERB);
+  assert.equal(buildPlan2d(home().rooms,[]).glassRails.length,0,'a parapet has no glass');
+});
+
+test('glass railings: kept by the plan file, stay glass when the room is split, go with the last railing',()=>{
+  const p=home();p.rooms[1].railGlass=true;
+  assert.equal(readPlan(JSON.stringify(p)).rooms[1].railGlass,true);
+  assert.throws(()=>readPlan(JSON.stringify({...p,rooms:[p.rooms[0],{...p.rooms[1],railGlass:'yes'}]})));
+  const q=home();q.rooms[1].railGlass=true;const b=q.rooms[1];splitRoom(q,b,[2.5,6.3],[2.5,8]);
+  assert.ok(q.rooms.filter(r=>r.rail).every(r=>r.railGlass),'both parts keep glass');
+  const s=home([null,null,RAIL,null]);s.rooms[1].railGlass=true;setRail(s,wallInfo(s,s.rooms[1],2),0);
+  assert.equal(s.rooms[1].railGlass,undefined);
 });

@@ -50,6 +50,8 @@ export function drawPlan(ed){
   // railings (an open balcony, a terrace): the low parapet, paler than the walls in section
   if(ed.rails2d?.length){ctx.beginPath();for(const b of ed.rails2d)for(const poly of b.mp)for(const ring of poly)ring.forEach((p,i)=>{const [X,Y]=v.S(p);i?ctx.lineTo(X,Y):ctx.moveTo(X,Y);});
     ctx.fillStyle=alpha(pal.wall,.3);ctx.fill('evenodd');ctx.strokeStyle=pal.wall;ctx.lineWidth=1;ctx.stroke();}
+  // a glass railing (D-075): its pane, drawn like a window's glass
+  if(ed.glass2d?.length){ctx.strokeStyle=pal.win;ctx.lineWidth=2;ctx.beginPath();for(const g of ed.glass2d){ctx.moveTo(...v.S(g.a));ctx.lineTo(...v.S(g.b));}ctx.stroke();}
   // no wall (kitchen-living room) — the room border is dashed
   ctx.strokeStyle=pal.label2;ctx.lineWidth=1;ctx.setLineDash([5,4]);
   for(const r of plan.rooms)(r.wt||[]).forEach((t,i)=>{if(t!==0)return;ctx.beginPath();ctx.moveTo(...v.S(r.polygon[i]));ctx.lineTo(...v.S(r.polygon[(i+1)%r.polygon.length]));ctx.stroke();});

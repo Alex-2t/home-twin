@@ -17,6 +17,12 @@ New decisions are appended at the top of their section, old ones are not rewritt
 
 ## Decisions
 
+### D-075. A glass railing — **accepted** (2026-11-11)
+- The owner on an AI-built home: the balcony came out with solid parapets, while the video shows a frameless glass balustrade.
+- A room's railings (D-071) can be **glass**: `room.railGlass: true` — every railing of that room, which is how balconies are built (per edge was left for later; the editor would carry a second per-edge list through every corner edit). In 3D the wall at a railing edge goes down to a 6 cm kerb, and a pane of glass stands on it along the middle of the wall's strip, up to the railing's height, with a slim steel handrail on top; on the plan the pane is drawn like a window's glass. The wall menu of a railing has “Glass” (for the room's railings); the flag survives splitting and merging rooms and goes with the last railing.
+- The AI build sets it when the room call saw a glass balustrade on that balcony (the call now names what closes each open side: glass balustrade, metal railing, solid parapet or wall). Which edges are railings stays the drawing's.
+- Not yet: a metal railing of bars, glass on some edges and a parapet on others.
+
 ### D-074. The AI build shows its work as it goes, and asks only at the finished home — **accepted** (2026-11-11)
 - The owner after the first build through D-073 (a real listing): a build on its way must show on the start screen too; “Reading your plan” stood still for minutes, so the page seemed stuck — change the words as it goes, say which room is being worked on, add a progress bar; no check of the plan after the walls, only the whole home at the end; at the furniture stage something that moves besides one spinner; at the end straight into the finished home with the tool in hand and a pulsing hint.
 - **Why it stood still:** the plan step is one model call of about three minutes, most of it thinking, and each room's call takes three to four; the page showed only steps started and ended. Now the service follows the calls as they stream and reports what each has found so far (the build's status `live`): the plan's rooms and doors and windows as they are written, each room's furniture as it is listed, the pieces being compared with our model or made from parts, the rooms being checked.

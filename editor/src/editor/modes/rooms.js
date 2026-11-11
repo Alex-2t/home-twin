@@ -516,11 +516,14 @@ m.closeHint=()=>{if(draft?.click){draft=null;ed.draw();return true;}return close
       // an outer wall has no “Remove wall”: no wall is possible only between rooms (D-021); it can be a railing (D-071) — an open balcony, a terrace
       const rail=el(`<button class="soft" title="${W.rail?t('Put the wall back'):t('An open balcony or terrace edge')}">${W.rail?t('Restore wall'):t('Railing')}</button>`);
       rail.onclick=()=>{const w=selWall();if(!w)return;setRail(plan(),w,w.rail?0:RAIL);ed.commit();};
+      // a railing is a parapet, or glass on a kerb — for all the room's railings at once (D-075)
+      const glass=el(`<label class="tg" title="${t('Glass panes on a low kerb instead of a parapet')}"><span>${t('Glass|railing')}</span><input type="checkbox" ${W.room.railGlass?'checked':''}><i></i></label>`);
+      glass.querySelector('input').onchange=e=>{const w=selWall();if(!w)return;if(e.target.checked)w.room.railGlass=true;else delete w.room.railGlass;ed.commit();};
       // place a window or a door at the click point; no room (a corner, a neighbouring opening) — the button is disabled
       const put=k=>{const b=el(`<button class="soft">${k==='door'?t('Door'):t('Window')}</button>`);if(!ops.can(W,k)){b.disabled=true;b.title=t('Doesn\'t fit here');}
         else if(wiz?.at==='open')b.classList.add('opening-action');b.onclick=()=>ops.add(selWall(),k);return b;};
       const guided=wiz?.at==='open';
-      line.append(...(W.open?[tog,...(W.interior?[mg]:[])]:guided?[put('window'),put('door')]:W.rail?[L,rail]:[L,...(W.interior?[put('door'),put('window'),tog]:[put('window'),put('door'),rail])]));
+      line.append(...(W.open?[tog,...(W.interior?[mg]:[])]:guided?[put('window'),put('door')]:W.rail?[L,glass,rail]:[L,...(W.interior?[put('door'),put('window'),tog]:[put('window'),put('door'),rail])]));
       const extra=guided?el(`<details class="ctx-extra"><summary>${t('Finishes and dimensions')}</summary></details>`):null;
       if(extra){const measurements=el('<div class="line"></div>');measurements.append(L);if(W.interior)measurements.append(tog);extra.append(measurements);lines.push(extra);}
       if(each()&&!W.open){const mb=el(`<button class="ib ${thickMore?'on':''}" title="${t('This wall\'s thickness')}">${icon('more',15)}</button>`);mb.onclick=()=>{thickMore=!thickMore;m.refresh();};line.append(mb);

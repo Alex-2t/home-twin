@@ -28,6 +28,7 @@ export function readPlan(text){
     optional(r,'wt',x=>Array.isArray(x)&&x.every(v=>v==null||Number.isFinite(v)));
     optional(r,'wf',x=>Array.isArray(x)&&x.every(v=>v==null||obj(v)));
     optional(r,'rail',x=>Array.isArray(x)&&x.every(v=>v==null||Number.isFinite(v)&&v>=0)); // a railing's height per edge (geometry.js RAIL)
+    optional(r,'railGlass',x=>x===true); // its railings are glass (D-075)
     if(r.zone!=null){check(obj(r.zone)&&point(r.zone.a)&&point(r.zone.b));optional(r.zone,'area',str);}
     optional(r,'panel',panel); // the room screen layout
   }

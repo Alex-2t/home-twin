@@ -45,6 +45,7 @@ const CONE={pendant:{power:72,angle:.8},spots:{power:60,angle:.62}},CONE_MAX=2;
 const NEAR={lamp:2.6,wall:2.6,ceiling:4.5};
 const HALO={day:.85,night:.5,size:{pendant:.7,spots:.34,ceiling:.9,wall:.55,lamp:.62,table:.6}};
 const glassMat=new THREE.MeshStandardMaterial({color:0xcfe6f2,roughness:.05,transparent:true,opacity:.22,depthWrite:false,side:THREE.DoubleSide});
+const railMat=new THREE.MeshStandardMaterial({color:0xb9bec4,roughness:.3,metalness:.7}); // a glass railing's handrail
 const OUT={S:new THREE.Vector3(0,0,1),E:new THREE.Vector3(1,0,0),N:new THREE.Vector3(0,0,-1),W:new THREE.Vector3(-1,0,0)};
 
 const toShapes=mp=>mp.map(([outer,...holes])=>{
@@ -164,6 +165,10 @@ export function createView(host){
     add(prism(plan2d.footprint,-.22,0),[slabMat,slabMat],model);
     for(const b of plan2d.interior){const m=add(prism(b.mp,b.bottom,b.top),[b.last?capMat:wallMat,wallMat],model);if(m)occluders.push(m);}
     for(const b of plan2d.rails||[])add(prism(b.mp,b.bottom,b.top),[capMat,facadeMat],model); // a balcony's or terrace's railing: low, never hidden
+    // a glass railing: the pane on its kerb and a slim steel handrail on top (D-075)
+    for(const g of plan2d.glassRails||[]){const l=Math.hypot(g.b[0]-g.a[0],g.b[1]-g.a[1]),ang=Math.atan2(g.b[1]-g.a[1],g.b[0]-g.a[0]),mid=[(g.a[0]+g.b[0])/2,(g.a[1]+g.b[1])/2];
+      const pane=add(new THREE.BoxGeometry(l,g.top-g.bottom-.03,.012),glassMat,model);pane.position.set(mid[0],(g.bottom+g.top-.03)/2,-mid[1]);pane.rotation.y=ang;pane.castShadow=false;
+      const top=add(new THREE.BoxGeometry(l,.03,.045),railMat,model);top.position.set(mid[0],g.top-.015,-mid[1]);top.rotation.y=ang;}
     const sideGroup={};
     for(const s of plan2d.sides){const grp=new THREE.Group();model.add(grp);sides.push({id:s.id,grp,out:OUT[s.id]});sideGroup[s.id]=grp;
       for(const b of s.bands)add(prism(b.mp,b.bottom,b.top),[b.last?capMat:facadeMat,facadeMat],grp);}
