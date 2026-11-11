@@ -55,8 +55,9 @@ export function createFlows(ed,{examples=[],example=null,router=null}){
   };
   const startScreen=canContinue=>{coverDown();const box=$('start');box.hidden=false;box.querySelector('[data-a=continue]').hidden=!canContinue;syncPrev();f.syncRoute();};
   const hideStart=()=>{$('start').hidden=true;f.syncRoute();};f.hideStart=hideStart;
-  // The AI build (D-073, ai-build.js): offered only where its service answers (main.js)
-  f.offerAi=open=>{const b=$('start').querySelector('[data-a=ai]');b.hidden=false;b.onclick=()=>{hideStart();open();};};
+  // The AI build (D-073, D-074, ai-build.js): offered only where its service answers (main.js); the card is the AI build's own
+  // (aiStartCard: a build on its way shows there)
+  f.offerAi=setup=>{const b=$('start').querySelector('[data-a=ai]');b.hidden=false;setup(b);};
 
   // ---------- the address (route.js, D-066) ----------
   // Pages: the start screen (null), a mode or Preview of your plan, of an example. Another page — a new step in the history (Back returns

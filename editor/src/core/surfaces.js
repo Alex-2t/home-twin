@@ -49,7 +49,7 @@ export const floorBase=(kind,tint)=>hex(unhex(tint)||FLOOR_KINDS[kind].base);
 // but a kitchen-living room gets parquet; everything else: parquet.
 // The demo apartment's names match their ids (bathroom, kitchen, panorama), so we look at the id too.
 // by room name, in the ten UI languages (D-036): bathroom and toilet, living room, kitchen and balcony
-export const BATH=/ванн|санузел|с\/у|туалет|уборн|душ|bath|wc|toilet|badezimmer|^bad\b|\bbad$|dusche|salle de bain|sdb|douche|badkamer|douche|baño|aseo|ducha|bagno|doccia|łazienk|toalet|prysznic|banheiro|casa de banho|lavabo|chuveiro|卫生间|浴室|厕所|洗手间/;
+export const BATH=/ванн|санузел|с\/у|туалет|уборн|душ|bath|shower|en-?suite|wc|toilet|badezimmer|^bad\b|\bbad$|dusche|salle de bain|sdb|douche|badkamer|douche|baño|aseo|ducha|bagno|doccia|łazienk|toalet|prysznic|banheiro|casa de banho|lavabo|chuveiro|卫生间|浴室|厕所|洗手间/;
 export const floorGuess=room=>{
   const s=`${room?.name||''} ${room?.id||''}`.toLowerCase();
   if(BATH.test(s))return 'tile';

@@ -1,7 +1,8 @@
-// The AI build's review (D-073): the plan as read (①) or the whole home (②) alone, full screen, with a panel to answer.
-// The owner looks around, puts numbered pins where something is wrong and says what, adds a word for the whole home, and
-// answers: all right, or send the changes. Dragging moves the view with either tool; a click with the pin tool puts a pin.
-// Nothing moves the view but the owner. The editor underneath only draws (ed.setBare): its own clicks and keys stay out.
+// The AI build's review (D-073, D-074): the finished home alone, full screen, in 3D or on the plan, with a panel to answer.
+// It opens with the pin in hand and a hint: the owner turns the home, puts numbered pins where something is wrong and says
+// what, adds a word for the whole home, and answers: all right, or send the changes. Dragging moves the view with either
+// tool; a click with the pin tool puts a pin. Nothing moves the view but the owner. The editor underneath only draws
+// (ed.setBare): its own clicks and keys stay out.
 import {t} from '../i18n/i18n.js';
 import {el, esc} from './ui.js';
 import {icon} from './icons.js';
@@ -13,13 +14,12 @@ const NARROW = 720;
 const CLICK_PX = 5;
 
 /**
- * at — 'plan' | 'final'; host — where the review's panels go; photo — the plan photo to compare with (①);
- * notes — {pins, text}, changed in place; onChange(notes) after each change; onBack() — back to the progress;
- * onSend(notes) → a promise: the answer is on its way (all right when there are no changes).
+ * host — where the review's panels go; photo — the plan photo to compare with; notes — {pins, text}, changed in place;
+ * onChange(notes) after each change; onBack() — back to the progress; onSend(notes) → a promise: the answer is on its way
+ * (all right when there are no changes).
  */
-export function openReview(ed, {at, host, photo = null, notes, onChange, onBack, onSend}) {
-  const isPlan = at === 'plan';
-  let view = isPlan ? 'plan' : '3d';
+export function openReview(ed, {host, photo = null, notes, onChange, onBack, onSend}) {
+  let view = '3d';
   let tool = 'pin';
   let active = null;
   let hovered = null;
@@ -29,30 +29,35 @@ export function openReview(ed, {at, host, photo = null, notes, onChange, onBack,
   let closed = false;
   let raf = 0;
 
-  const box = el(`<div class="aib-review" data-at="${at}">
+  const box = el(`<div class="aib-review">
     <div class="aib-bar glass">
       <button class="ib" data-act="back" title="${esc(t('Back to the build'))}">${icon('left', 17)}</button>
       <span class="logo">${icon('sparkles', 14)}</span>
-      <span class="aib-bar-text"><small>${esc(isPlan ? t('Step 1 of 2') : t('Step 2 of 2'))}</small><b>${esc(isPlan ? t('Check the plan') : t('Check your home'))}</b></span>
+      <span class="aib-bar-text"><b>${esc(t('Check your home'))}</b></span>
     </div>
     <div class="aib-tools glass">
       <button class="ib" data-tool="look" title="${esc(t('Look around (V)'))}">${icon('pointer', 17)}</button>
       <button class="ib" data-tool="pin" title="${esc(t('Pin: click where something is wrong (P)'))}">${icon('mapPin', 17)}</button>
       <span class="sep"></span>
-      ${isPlan ? '' : `<div class="seg aib-views"><button data-view="3d">3D</button><button data-view="plan">${esc(t('Plan'))}</button></div>`}
+      <div class="seg aib-views"><button data-view="3d">3D</button><button data-view="plan">${esc(t('Plan'))}</button></div>
       <button class="ib" data-act="fit" title="${esc(t('Whole home'))}">${icon('fit', 17)}</button>
+    </div>
+    <div class="aib-hint glass" role="status">
+      <span class="aib-hint-ic">${icon('mapPin', 16)}</span>
+      <span>${esc(t('Turn the home any way you like. Click where something is wrong and write what to change.'))}</span>
+      <button class="ib" data-act="hint-close" title="${esc(t('Close'))}">${icon('x', 14)}</button>
     </div>
     <aside class="aib-panel glass">
       <header>
-        <b>${esc(isPlan ? t('Is the plan right?') : t('Your home is ready'))}</b>
+        <b>${esc(t('Your home is ready'))}</b>
         <button class="ib" data-act="collapse" title="${esc(t('Collapse'))}">${icon('down', 16)}</button>
       </header>
       <div class="aib-panel-body">
-        <p class="aib-lead">${esc(isPlan ? t('Compare it with your plan. Pin what is wrong and say what.') : t('Look around in 3D. Pin what is wrong and say what.'))}</p>
+        <p class="aib-lead">${esc(t('Look around in 3D. Pin what is wrong and say what.'))}</p>
         ${photo ? `<button class="aib-photo" data-act="photo"><img src="${photo}" alt=""><span>${icon('image', 14)}${esc(t('Your plan, side by side'))}</span></button>` : ''}
         <ol class="aib-notes"></ol>
         <p class="aib-empty">${icon('mapPin', 15)}<span>${esc(t('Click where something is wrong to put a pin.'))}</span></p>
-        <textarea class="aib-general" rows="2" placeholder="${esc(isPlan ? t('Anything else? For example: there is no wall between the kitchen and the living room') : t('Anything else? For example: the floors are light oak'))}"></textarea>
+        <textarea class="aib-general" rows="2" placeholder="${esc(t('Anything else? For example: the floors are light oak'))}"></textarea>
       </div>
       <footer>
         <small class="aib-after"></small>
@@ -75,6 +80,7 @@ export function openReview(ed, {at, host, photo = null, notes, onChange, onBack,
   const popText = pop.querySelector('textarea');
   const general = box.querySelector('.aib-general');
   general.value = notes.text;
+  const hint = box.querySelector('.aib-hint');
   const pinLayer = el(`<div class="aib-pins"></div>`);
   const panes = {plan: document.getElementById('pane-plan'), '3d': document.getElementById('pane-3d')};
 
@@ -92,6 +98,12 @@ export function openReview(ed, {at, host, photo = null, notes, onChange, onBack,
     const tools = box.querySelector('.aib-tools');
     const ins = insets();
     tools.style.left = narrow() ? '' : `${(ins.left + innerWidth - ins.right) / 2}px`;
+  }
+
+  // The hint and the pin tool's pulse: until the first pin, or until the owner closes it.
+  function hideHint() {
+    hint.hidden = true;
+    box.querySelector('[data-tool=pin]').classList.remove('aib-pulse');
   }
 
   function fit() {
@@ -128,6 +140,7 @@ export function openReview(ed, {at, host, photo = null, notes, onChange, onBack,
   // ---------- pins ----------
 
   function addPin(hit) {
+    hideHint();
     notes.pins.push(newPin(ed.plan, hit));
     setActive(notes.pins.length - 1);
     changed();
@@ -200,9 +213,17 @@ export function openReview(ed, {at, host, photo = null, notes, onChange, onBack,
     }
   }
 
+  // The hint points at the pin tool, wherever the tools have moved (a phone: under them, styles.css).
+  function placeHint() {
+    if (hint.hidden || narrow()) return;
+    const button = box.querySelector('[data-tool=pin]').getBoundingClientRect();
+    hint.style.left = `${(button.left + button.width / 2).toFixed(0)}px`;
+  }
+
   function loop() {
     if (closed) return;
     place();
+    placeHint();
     raf = requestAnimationFrame(loop);
   }
 
@@ -237,16 +258,10 @@ export function openReview(ed, {at, host, photo = null, notes, onChange, onBack,
       ? `<i class="spin"></i>${esc(t('Sending…'))}`
       : count
         ? esc(t('Send {0, plural, one {# change} other {# changes}}', count))
-        : esc(isPlan ? t('All right, go on') : t('All right, finish'));
+        : esc(t('All right, finish'));
     const after = box.querySelector('.aib-after');
     if (after.classList.contains('err')) return;
-    after.textContent = count
-      ? isPlan
-        ? t('We fix the plan and show it again.')
-        : t('We change your home and show it again.')
-      : isPlan
-        ? t('Next, the furniture. We show you the home when it is ready.')
-        : t('It opens in the editor: everything stays changeable.');
+    after.textContent = count ? t('We change your home and show it again.') : t('It opens in the editor: everything stays changeable.');
   }
 
   function changed() {
@@ -297,6 +312,7 @@ export function openReview(ed, {at, host, photo = null, notes, onChange, onBack,
     if (target.dataset.view) return setView(target.dataset.view);
     const act = target.dataset.act;
     if (act === 'back') return onBack();
+    if (act === 'hint-close') return hideHint();
     if (act === 'fit') return fit();
     if (act === 'photo') return togglePhoto();
     if (act === 'collapse') return toggleCollapsed();
@@ -440,6 +456,8 @@ export function openReview(ed, {at, host, photo = null, notes, onChange, onBack,
   }
 
   setTool(tool);
+  if (notes.pins.length) hideHint();
+  else box.querySelector('[data-tool=pin]').classList.add('aib-pulse');
   setView(view);
   renderPins();
   renderNotes();

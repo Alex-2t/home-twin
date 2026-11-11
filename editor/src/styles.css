@@ -453,7 +453,7 @@ body[data-look=on] :is(#side,#dock,#banner:not(.in-look),#pill,#topr,#pip-show,#
 .ver-prev{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-top:12px;padding-top:12px;border-top:1px solid var(--line);color:var(--mut);font-size:12px}
 .ver-prev[hidden]{display:none}.ver-prev button{height:30px;padding:0 12px;flex:none}
 @media (max-width:640px){.ver-body{grid-template-columns:1fr}.ver-view{order:-1}.ver-big{min-height:180px}.ver-list{max-height:34vh}.ver-prev{flex-direction:column;align-items:stretch}}
-/* The AI build (D-072, D-073; editor/ai-build.js, ai-review.js): its own pages — the upload and the progress — over the editor,
+/* The AI build (D-072, D-073, D-074; editor/ai-build.js, ai-review.js): its own pages — the upload and the progress — over the editor,
    and the review: one view alone (body[data-bare], the editor's tools hidden), a bar, tools, the answer panel and pins.
    Every class and state here starts with aib- or st-: the editor has short global classes (.ask, .todo) that take over plain ones. */
 .choice.magic{width:100%;margin-bottom:12px;display:grid;grid-template-columns:auto 1fr auto;column-gap:14px;row-gap:2px;align-items:center;padding:16px 18px;
@@ -461,6 +461,13 @@ body[data-look=on] :is(#side,#dock,#banner:not(.in-look),#pill,#topr,#pip-show,#
 .choice.magic .ci{grid-row:span 2;margin:0;color:#fff;background:linear-gradient(135deg,#6366f1,#a855f7 55%,#f59e0b)}
 .choice.magic>.ic:last-child{grid-column:3;grid-row:1/span 2;color:var(--acc)}
 .choice.magic:hover{background:linear-gradient(var(--panel-solid),var(--panel-solid)) padding-box,linear-gradient(135deg,#6366f1,#a855f7 55%,#f59e0b) border-box;box-shadow:0 12px 32px rgba(99,102,241,.22)}
+/* the card while a build is on its way: its stage, time left and a bar; ready — the home's picture */
+.choice.magic.aib-following{margin-bottom:6px}
+.choice.magic .aib-start-badge{overflow:hidden}.aib-start-badge img{width:100%;height:100%;object-fit:cover}
+.aib-start-spin{width:18px;height:18px;border-radius:50%;border:2.5px solid rgba(255,255,255,.95);border-right-color:transparent;animation:aib-spin .8s linear infinite}
+.aib-start-meter{grid-column:2;display:block;height:4px;margin-top:8px;border-radius:2px;background:var(--chip);overflow:hidden}
+.aib-start-meter>i{display:block;height:100%;width:0;border-radius:2px;background:linear-gradient(90deg,#6366f1,#a855f7);transition:width .6s ease-out}
+.aib-start-new{display:block;margin:0 auto 12px;height:28px;padding:0 10px;background:none;border:0;color:var(--mut);font-size:12.5px}.aib-start-new:hover{color:var(--acc);background:none}
 body[data-bare] :is(#side,#dock,#banner,#pill,#topr,#pip-show,#divider,#brand,#modes,#ctx,.spot,.dev,.pane .view-tools,.pane-tag,.pane-empty,.pip-grip,.pip-cover){display:none!important}
 body[data-bare] .pane.main{left:0!important;right:0!important}
 body.aib-pinning :is(#pane-plan,#pane-3d) canvas{cursor:crosshair!important}
@@ -474,6 +481,7 @@ body.aib-pinning :is(#pane-plan,#pane-3d) canvas{cursor:crosshair!important}
   background:radial-gradient(1100px 460px at 50% -12%,color-mix(in srgb,var(--acc) 11%,transparent),transparent 72%),var(--cv)}
 .aib-head{display:flex;align-items:center;gap:10px;min-height:60px;padding-block:8px;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px))}
 .aib-head b{font-size:15px;font-weight:600}.aib-eta{margin-left:auto;color:var(--mut);font-variant-numeric:tabular-nums}.aib-eta:empty+.aib-exit{margin-left:auto}
+.aib-meter.aib-overall{flex:none;height:3px;border-radius:0;margin-bottom:14px}.aib-overall>i{background:linear-gradient(90deg,#6366f1,#a855f7);transition:width .8s ease-out}
 .aib-upload{width:min(720px,calc(100% - 32px));margin:12px auto 48px}
 .aib-upload h1{font-size:32px;line-height:1.15;letter-spacing:-.022em;margin:0 0 10px;text-wrap:balance}
 .aib-lead{color:var(--mut);font-size:15px;line-height:1.5;margin:0 0 22px;max-width:560px}
@@ -498,7 +506,7 @@ button.aib-big{height:46px;padding:0 22px;border-radius:12px;font-size:15px;box-
 .aib-meter{display:block;height:4px;border-radius:2px;background:var(--chip);overflow:hidden}.aib-meter>i{display:block;height:100%;width:0;background:var(--acc);transition:width .2s}
 .aib-progress{flex:1;width:min(1040px,calc(100% - 32px));margin:4px auto 24px;display:grid;grid-template-columns:300px minmax(0,1fr);gap:24px;align-items:start}
 .aib-steps{position:sticky;top:12px;list-style:none;margin:0;padding:10px 18px;border-radius:18px;background:var(--panel);border:1px solid var(--line);box-shadow:var(--sh)}
-.aib-step{position:relative;display:grid;grid-template-columns:28px minmax(0,1fr) auto;gap:12px;align-items:start;padding:10px 0}
+.aib-step{position:relative;display:grid;grid-template-columns:28px minmax(0,1fr);gap:12px;align-items:start;padding:10px 0}
 .aib-step:not(:last-child)::after{content:'';position:absolute;left:13px;top:42px;bottom:-8px;width:2px;border-radius:1px;background:var(--line2)}
 .aib-step.st-done:not(:last-child)::after{background:var(--acc)}
 .aib-dot{width:28px;height:28px;border-radius:50%;display:grid;place-items:center;font-size:12px;font-weight:600;color:var(--mut);background:var(--panel-solid);box-shadow:inset 0 0 0 1.5px var(--line2)}
@@ -506,9 +514,14 @@ button.aib-big{height:46px;padding:0 22px;border-radius:12px;font-size:15px;box-
 .aib-step.st-running .aib-dot{color:var(--acc);box-shadow:inset 0 0 0 1.5px var(--acc)}
 .aib-step.st-ask .aib-dot{color:var(--acc);background:var(--acc2);box-shadow:inset 0 0 0 1.5px var(--acc);animation:aib-ring 1.6s ease-out infinite}
 @keyframes aib-ring{0%{box-shadow:inset 0 0 0 1.5px var(--acc),0 0 0 0 color-mix(in srgb,var(--acc) 45%,transparent)}100%{box-shadow:inset 0 0 0 1.5px var(--acc),0 0 0 10px transparent}}
-.aib-step-text{display:flex;flex-direction:column;gap:2px;padding-top:4px}.aib-step-text b{font-size:14px;font-weight:600}.aib-step.st-todo .aib-step-text b{color:var(--mut)}
+.aib-step-text{display:flex;flex-direction:column;gap:2px;padding-top:4px;min-width:0}.aib-step-text b{font-size:14px;font-weight:600}.aib-step.st-todo .aib-step-text b{color:var(--mut)}
+.aib-step-head{display:flex;flex-wrap:wrap;align-items:baseline;justify-content:space-between;gap:2px 10px}
 .aib-step-text small{color:var(--mut);font-size:12.5px;line-height:1.35}
-.aib-step em{font-style:normal;font-size:12px;font-weight:600;color:var(--acc);white-space:nowrap;padding-top:6px;font-variant-numeric:tabular-nums}
+.aib-step em{font-style:normal;font-size:12px;font-weight:600;color:var(--acc);white-space:nowrap;font-variant-numeric:tabular-nums}
+/* a running stage: what it works on now (a new line comes in softly) and how far it is */
+.aib-step-live{margin-top:5px;font-size:12.5px;line-height:1.35;color:var(--tx);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.aib-swap{animation:aib-swap .45s ease-out}@keyframes aib-swap{from{opacity:0;transform:translateY(4px)}}
+.aib-meter.aib-step-bar{height:3px;margin-top:7px}.aib-step-bar>i{transition:width 1.8s linear}
 .aib-live{display:flex;flex-direction:column;gap:18px;min-width:0}.aib-cta:empty{display:none}
 .aib-card{display:grid;grid-template-columns:auto minmax(0,1fr) auto;align-items:center;gap:16px;padding:14px;border-radius:18px;background:var(--panel-solid);border:1px solid var(--line);box-shadow:var(--sh)}
 .aib-card.asking{border-color:var(--acc);box-shadow:0 0 0 4px var(--acc2),var(--sh)}.aib-card.bad{border-color:var(--bad)}
@@ -518,12 +531,25 @@ button.aib-big{height:46px;padding:0 22px;border-radius:12px;font-size:15px;box-
 .aib-card-ic{width:44px;height:44px;border-radius:13px;display:grid;place-items:center;background:var(--acc2);color:var(--acc)}.aib-card.bad .aib-card-ic{background:var(--warn-bg);color:var(--bad)}
 .aib-card-text{display:flex;flex-direction:column;gap:3px}.aib-card-text b{font-size:16px;font-weight:600}.aib-card-text small{color:var(--mut);font-size:13px;line-height:1.4}
 .aib-card button.primary{height:40px;padding:0 18px;border-radius:11px}
-.aib-reading{display:flex;flex-direction:column;gap:10px;color:var(--mut)}.aib-reading>span{display:flex;align-items:center;gap:8px}
+.aib-reading{display:flex;flex-direction:column;gap:10px;color:var(--mut)}
+.aib-reading-line{display:flex;align-items:center;gap:8px;color:var(--tx)}.aib-reading-line .spin{color:var(--acc)}
+.aib-tags{display:flex;flex-wrap:wrap;gap:6px}.aib-tags:empty{display:none}
+.aib-tag{display:inline-flex;align-items:center;gap:5px;height:26px;padding:0 10px 0 8px;border-radius:13px;background:var(--panel-solid);border:1px solid var(--line);color:var(--tx);font-size:12.5px;animation:aib-pop .3s ease-out}
+.aib-tag .ic{color:var(--acc)}.aib-tag-count{color:var(--mut);padding-left:10px}
+@keyframes aib-pop{from{opacity:0;transform:scale(.92)}}
+.aib-plan-read{grid-template-columns:auto minmax(0,1fr) auto;padding:10px 14px 10px 10px}.aib-plan-read .aib-card-thumb{width:84px;height:58px}.aib-plan-read .aib-card-text b{font-size:14.5px}
+.aib-done{width:26px;height:26px;border-radius:50%;display:grid;place-items:center;background:var(--acc);color:var(--acc-tx)}
+/* the furniture being matched with our models or made from parts */
+.aib-making h3,.aib-found h3{display:flex;align-items:baseline;gap:10px}.aib-making h3 span{color:var(--acc);font-size:12px;font-variant-numeric:tabular-nums}
+.aib-chips{display:flex;flex-wrap:wrap;gap:8px}
+.aib-chip{display:inline-flex;align-items:center;gap:7px;max-width:100%;height:34px;padding:0 12px 0 9px;border-radius:17px;background:var(--panel-solid);border:1px solid var(--line);animation:aib-pop .3s ease-out}
+.aib-chip b{font-size:13px;font-weight:500;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.aib-chip small{color:var(--mut);font-size:12px;white-space:nowrap}
+.aib-chip-state{display:grid;color:var(--acc)}.aib-chip[data-state=busy]{border-color:color-mix(in srgb,var(--acc) 45%,var(--line))}
 .aib-scan{position:relative;border-radius:16px;overflow:hidden;background:#fff;border:1px solid var(--line)}
 .aib-scan img{display:block;width:100%;max-height:340px;object-fit:contain}
 .aib-scan i{position:absolute;left:0;right:0;top:-70px;height:70px;background:linear-gradient(to bottom,transparent,color-mix(in srgb,var(--acc) 30%,transparent),transparent);animation:aib-scan 2.6s ease-in-out infinite alternate}
 @keyframes aib-scan{to{top:100%}}
-.aib-found h3{margin:0 0 10px;font-size:13px;font-weight:600;color:var(--mut)}
+.aib-found h3,.aib-making h3{margin:0 0 10px;font-size:13px;font-weight:600;color:var(--mut)}
 .aib-rooms{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:12px}
 .aib-room{margin:0;display:flex;flex-direction:column;gap:6px;min-width:0}
 .aib-frame{display:block;aspect-ratio:3/2;border-radius:12px;overflow:hidden;background:linear-gradient(100deg,var(--chip) 30%,var(--hov) 50%,var(--chip) 70%) 0 0/300% 100%;animation:aib-shimmer 1.6s linear infinite}
@@ -532,6 +558,7 @@ button.aib-big{height:46px;padding:0 22px;border-radius:12px;font-size:15px;box-
 @keyframes aib-shimmer{to{background-position:-150% 0}}@keyframes aib-in{from{opacity:0}}
 .aib-room figcaption{display:flex;align-items:center;gap:6px;font-size:13px}.aib-room-name{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .aib-room-state{display:grid;color:var(--acc)}.aib-room[data-state=todo] .aib-room-name{color:var(--mut)}
+.aib-room-line{margin-top:-3px;color:var(--mut);font-size:12px;line-height:1.35;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;min-height:1.35em}
 .aib-foot{display:flex;flex-wrap:wrap;justify-content:center;align-items:center;gap:8px 12px;padding-block:12px 20px;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));color:var(--mut);font-size:13px;text-align:center}
 @media (max-width:820px){.aib-progress{grid-template-columns:minmax(0,1fr)}.aib-steps{position:static}
   .aib-live{display:contents}.aib-cta{order:-1}.aib-reading,.aib-found{order:1}} /* a phone: what to do first, then the stages, then the rooms */
@@ -544,6 +571,14 @@ button.aib-big{height:46px;padding:0 22px;border-radius:12px;font-size:15px;box-
 .aib-bar-text{display:flex;flex-direction:column;line-height:1.2;min-width:0}.aib-bar-text small{color:var(--mut);font-size:11.5px}.aib-bar-text b{font-size:14px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .aib-tools{position:fixed;bottom:16px;left:calc((100vw - 372px)/2);transform:translateX(-50%);transition:left .2s;z-index:40;display:flex;align-items:center;gap:2px;padding:5px;border-radius:14px}
 .aib-tools .ib{width:36px;height:36px}.aib-tools .seg button{height:28px}
+.aib-tools .ib.aib-pulse{animation:aib-pulse 1.5s ease-out infinite}
+@keyframes aib-pulse{0%{box-shadow:0 0 0 0 color-mix(in srgb,var(--acc) 55%,transparent)}100%{box-shadow:0 0 0 12px transparent}}
+/* the hint above the tools: what to do, until the first pin */
+.aib-hint{position:fixed;bottom:76px;left:50%;transform:translateX(-50%);z-index:41;display:flex;align-items:center;gap:10px;width:max-content;max-width:min(440px,calc(100vw - 32px));
+  padding:10px 8px 10px 12px;border-radius:14px;font-size:13.5px;line-height:1.4;box-shadow:var(--sh-lg);animation:coach-in .3s ease-out,coach-ring 1.8s ease-out .4s 3}
+.aib-hint::after{content:'';position:absolute;left:50%;bottom:-6px;width:12px;height:12px;margin-left:-6px;background:inherit;transform:rotate(45deg);border-radius:0 0 3px 0}
+.aib-hint-ic{flex:none;width:28px;height:28px;border-radius:9px;display:grid;place-items:center;background:var(--acc);color:var(--acc-tx)}
+.aib-hint .ib{width:28px;height:28px;min-width:28px;color:var(--mut)}
 .aib-panel{position:fixed;top:12px;right:12px;bottom:12px;width:340px;z-index:40;display:flex;flex-direction:column;padding:14px 16px 16px;border-radius:18px}
 .aib-panel header{display:flex;align-items:center;gap:8px}.aib-panel header b{flex:1;font-size:16px;font-weight:600}
 .aib-panel-body{flex:1;min-height:0;overflow:auto;display:flex;flex-direction:column;gap:12px;margin:8px -6px 0;padding:0 6px 4px;scrollbar-width:thin}
@@ -578,6 +613,8 @@ button.aib-big{height:46px;padding:0 22px;border-radius:12px;font-size:15px;box-
 @media (max-width:720px){
   .aib-bar{max-width:calc(100vw - 140px)}
   .aib-tools{top:12px;right:12px;bottom:auto;left:auto;transform:none}
+  .aib-hint{top:64px;right:12px;bottom:auto;left:auto!important;transform:none}.aib-hint::after{display:none}
   .aib-panel{top:auto;left:8px;right:8px;bottom:8px;width:auto;max-height:46vh;padding:12px 14px}.aib-panel.collapsed{bottom:8px}.aib-photo{height:64px}
   .aib-photo-big{left:8px;right:8px;width:auto;top:64px;bottom:48vh}}
-@media (prefers-reduced-motion:reduce){.aib .spin{animation-duration:2.4s}.aib-scan i,.aib-frame{animation:none}.aib-step.st-ask .aib-dot{animation:none}}
+@media (prefers-reduced-motion:reduce){.aib .spin,.aib-start-spin{animation-duration:2.4s}.aib-scan i,.aib-frame{animation:none}.aib-step.st-ask .aib-dot{animation:none}
+  .aib-swap,.aib-tag,.aib-chip,.aib-hint{animation:none}.aib-tools .ib.aib-pulse{animation:none;box-shadow:0 0 0 2px var(--acc)}}

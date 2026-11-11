@@ -34,6 +34,7 @@ test('room climate: a sensor on this room’s wall comes first, otherwise the be
 test('room kind from name and id; home temperature range; room power button',()=>{
   assert.equal(roomKind('Kids bedroom'),'kids');assert.equal(roomKind('Kitchen-living room'),'kitchen');assert.equal(roomKind('WC'),'bath');
   assert.equal(roomKind('','bathroom'),'bath');assert.equal(roomKind('Living room'),'living');assert.equal(roomKind('Pantry'),'storage');assert.equal(roomKind('Room'),'room');
+  assert.equal(roomKind('En-suite'),'bath');assert.equal(roomKind('en-suite shower room'),'bath');assert.equal(roomKind('Ensuite'),'bath');
   const o=overview(plan(),ctx);assert.deepEqual(homeRange(o),[21.46,23]);assert.equal(homeRange([]),null);
   assert.deepEqual(roomPower([{id:'a',on:true},{id:'b',on:false}]),{on:false,ids:['a','b']});
   assert.deepEqual(roomPower([{id:'a',on:false}]),{on:true,ids:['a']});
