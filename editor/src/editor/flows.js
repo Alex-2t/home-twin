@@ -55,6 +55,8 @@ export function createFlows(ed,{examples=[],example=null,router=null}){
   };
   const startScreen=canContinue=>{coverDown();const box=$('start');box.hidden=false;box.querySelector('[data-a=continue]').hidden=!canContinue;syncPrev();f.syncRoute();};
   const hideStart=()=>{$('start').hidden=true;f.syncRoute();};f.hideStart=hideStart;
+  // The AI build (D-073, ai-build.js): offered only where its service answers (main.js)
+  f.offerAi=open=>{const b=$('start').querySelector('[data-a=ai]');b.hidden=false;b.onclick=()=>{hideStart();open();};};
 
   // ---------- the address (route.js, D-066) ----------
   // Pages: the start screen (null), a mode or Preview of your plan, of an example. Another page — a new step in the history (Back returns
@@ -151,6 +153,7 @@ export function createFlows(ed,{examples=[],example=null,router=null}){
     try{localStorage.setItem(PREV,JSON.stringify({plan,photo}));}catch{return false;}
     await (photo?idb('put','prev-underlay',src):idb('del','prev-underlay')).catch(()=>{});return true;}
   async function keepPrev(){const ok=worth()&&await putPrev(ed.plan,photoOf(ed.underlay),ed.underlay.src);syncPrev();return ok;}
+  f.keepPrev=keepPrev; // a new home from the AI build replaces the plan open now (ai-build.js)
   function syncPrev(){const on=!!readPrev()?.plan;document.querySelectorAll('[data-a=prev]').forEach(b=>b.hidden=!on);}
   async function swapPrev(){const prev=readPrev();if(!prev?.plan)return;
     const src=prev.photo?await idb('get','prev-underlay').catch(()=>null):null,cur={plan:ed.plan,photo:photoOf(ed.underlay),src:ed.underlay.src};

@@ -45,6 +45,7 @@ src/editor/          editor UI
   icons.js           Lucide icons
   underlay.js        underlay (image in IndexedDB, position in localStorage)
   flows.js           start screen, “upload a plan” wizard, file and settings menus
+  ai-build.js        the AI build's pages: upload, progress; ai-review.js — the review with pins; ai-pins.js — what a pin is on (D-073)
   history.js         edit history and autosave
   ha.js              interface to HA and the demo (mockHA); ha-live.js — the same interface on a real hass (D-053)
   history.js, versions.js, versions-panel.js, idb.js  undo (survives reload), version history, IndexedDB storage (D-051)
@@ -129,7 +130,7 @@ assets/lucide-LICENSE.txt  icon license (ISC)
 - **Dragging a wall** moves it together with the neighbors — those on the other side of this wall, facing it (not through a narrow room between them). The halves of a wall after a “Corner” move separately.
 - **A click on the number** of the selected room — enter the side length.
 - **Lengths** in all fields are in centimeters (a comma is allowed).
-- **Thickness:** two shared ones — in settings (“Exterior walls”, “Interior walls”), stored in the plan (`plan.wall`). The thickness of an individual wall — “⋯ → Per-wall thickness” (off by default); then the wall menu gets a “⋯” with the thickness and a handle on the edge. An interior wall is the gap between rooms, growing in both directions from the axis; an exterior one is `room.wt[i]` on the room's side (0 — no wall). Thicknesses in the plan are always visible in 3D. **AI build screen** (D-072): `?build=<id>` follows a build of the service that serves the page (`editor/ai-build.js`): its stages, the plan and the home as they come, and its two questions — the plan as read, the finished home — answered by hand edits or in words. **Railing** (D-071): the wall menu of an exterior wall → “Railing”: a 1.1 m parapet instead of the wall (`room.rail[i]`), for an open balcony or terrace; a door's “⋯” → “Glass” (`opening.glass`) puts glass in it.
+- **Thickness:** two shared ones — in settings (“Exterior walls”, “Interior walls”), stored in the plan (`plan.wall`). The thickness of an individual wall — “⋯ → Per-wall thickness” (off by default); then the wall menu gets a “⋯” with the thickness and a handle on the edge. An interior wall is the gap between rooms, growing in both directions from the axis; an exterior one is `room.wt[i]` on the room's side (0 — no wall). Thicknesses in the plan are always visible in 3D. **AI build** (D-072, D-073): where the build service answers, the start screen offers “Build with AI” — an upload page, a progress page (stages, rooms from the video, time left; a card when there is something to check) and a review of the plan, then of the home, alone on screen with numbered pins and words (`editor/ai-build.js`, `ai-review.js`, `ai-pins.js`); `?build=<id>` opens a build's progress. **Railing** (D-071): the wall menu of an exterior wall → “Railing”: a 1.1 m parapet instead of the wall (`room.rail[i]`), for an open balcony or terrace; a door's “⋯” → “Glass” (`opening.glass`) puts glass in it.
 - **A new room** flush against a neighbor retreats to the partition by itself; a side almost on the line of a neighboring one (within 30 cm) snaps level, “Undo” leaves the step.
 
 ## Lights (D-025)

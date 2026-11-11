@@ -193,6 +193,7 @@ export function createView(host){
     for(const it of items){
       const key=[it.model,it.w,it.d,it.h,it.color,it.color2,it.top,it.v,it.mx,it.z,it.geo?.key,it.open?.toFixed(2),partsKey(it.parts)].join('|');let o=objs.get(it.id);
       if(!o||o.userData.key!==key){if(o){furn.remove(o);o.traverse(m=>m.isMesh&&m.geometry.dispose());}o=makeObject(it);o.userData.key=key;objs.set(it.id,o);furn.add(o);}
+      o.userData.id=it.id; // pick() names the item under the pointer
       // a built-in wardrobe (it.geo) is built directly in plan coordinates; it hides piece by piece, each wall has its own
       if(it.geo){o.position.set(0,0,0);o.rotation.y=0;o.userData.tall=false;}
       else{o.position.set(it.x,0,-it.y);o.rotation.y=THREE.MathUtils.degToRad(it.rot);o.userData.tall=zOf(it)+it.h>1.5&&!byId(it.model)?.free;}keep.add(it.id);
@@ -630,9 +631,32 @@ export function createView(host){
     const faces=t=>-(Math.sin(t)*dir.x+Math.cos(t)*dir.z)>-.5;
     for(const o of furn.children){if(o.userData.tall)o.visible=faces(o.rotation.y);for(const q of o.userData.parts||[])q.visible=faces(q.userData.ry);}renderer.render(scene,camera);raf=requestAnimationFrame(loop);}
   loop();
-  const api={renderer,scene,pause,resume,dispose,warm,redraw,setInsets,setTheme,setSensors,homeCam:()=>[+Math.sin(home.theta).toFixed(4),+(-Math.cos(home.theta)).toFixed(4)],home:goHome,getView,setHome,onMoved:f=>{onMoved=f;},moved:()=>userMoved,spin,setClimate,setContacts,flyTo,setOutline,setGlow,reframe:()=>{framed=false;setMoved(false);tween=null;},focus,set,setFurniture,setLights,applyMask,setLightOn,setLightLevel,shine,setSolo,setNight,lightCount:()=>devs.reduce((s,d)=>s+d.lights.length,0),aoMs:()=>aoMs,ao:AOU,lights:{hemi,sun},select,camera,controls};
+  // The spot under the pointer (the AI build's pins, ai-review.js): where on the plan and how high, the furniture item hit, and a
+  // point a little back towards the camera — inside the room even when the hit is on its wall. Hidden facades are seen through.
+  // → {p: [x, y], z, inside: [x, y], item: id | null} or null (nothing there)
+  const pickRay=new THREE.Raycaster(),pickAt=new THREE.Vector2();
+  function pick(clientX,clientY){
+    const box=renderer.domElement.getBoundingClientRect();
+    pickAt.set((clientX-box.left)/box.width*2-1,-((clientY-box.top)/box.height)*2+1);
+    pickRay.setFromCamera(pickAt,camera);
+    const shown=o=>{for(let q=o;q;q=q.parent)if(!q.visible)return false;return true;};
+    const hit=pickRay.intersectObjects(scene.children,true).find(h=>h.object.isMesh&&shown(h.object));
+    if(!hit)return null;
+    let item=null;
+    for(let q=hit.object;q;q=q.parent)if(q.parent===furn){item=q.userData.id??null;break;}
+    const back=hit.point.clone().addScaledVector(pickRay.ray.direction,-.12);
+    const r3=v=>+v.toFixed(3);
+    return {p:[r3(hit.point.x),r3(-hit.point.z)],z:r3(Math.max(0,hit.point.y)),inside:[r3(back.x),r3(-back.z)],item};
+  }
+  // A spot of the plan at height z, in pixels of the view (for pins drawn over it).
+  const projected=new THREE.Vector3();
+  function project([x,y],z=0){
+    projected.set(x,z,-y).project(camera);
+    return [(projected.x+1)/2*(host.clientWidth||1),(1-projected.y)/2*(host.clientHeight||1)];
+  }
+  const api={renderer,scene,pause,resume,dispose,warm,redraw,setInsets,setTheme,setSensors,homeCam:()=>[+Math.sin(home.theta).toFixed(4),+(-Math.cos(home.theta)).toFixed(4)],home:goHome,getView,setHome,onMoved:f=>{onMoved=f;},moved:()=>userMoved,spin,setClimate,setContacts,flyTo,setOutline,setGlow,reframe:()=>{framed=false;setMoved(false);tween=null;},focus,set,setFurniture,setLights,applyMask,setLightOn,setLightLevel,shine,setSolo,setNight,lightCount:()=>devs.reduce((s,d)=>s+d.lights.length,0),aoMs:()=>aoMs,ao:AOU,lights:{hemi,sun},select,camera,controls,pick,project};
   // a change through the view — a frame; reading it is not one
-  const READ=new Set(['pause','resume','dispose','warm','redraw','homeCam','getView','onMoved','moved','lightCount','aoMs']);
+  const READ=new Set(['pause','resume','dispose','warm','redraw','homeCam','getView','onMoved','moved','lightCount','aoMs','pick','project']);
   for(const [k,f] of Object.entries(api))if(typeof f==='function'&&!READ.has(k))api[k]=(...a)=>{const r=f(...a);redraw();return r;};
   return api;
 }

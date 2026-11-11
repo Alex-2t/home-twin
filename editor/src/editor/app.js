@@ -322,8 +322,11 @@ export function createApp({haLights,ha,photos}){
   // “Side by side” — only on a wide screen; on a narrow one the second view stays a small window.
   // “Preview” (D-047, look.js): 3D full screen, the home panel on the right; no plan and no small window, the ui layout does not change
   let look=false;const lookUI=createLook(ed,work);
-  const pipMode=()=>look?'off':ui.pip==='dock'&&(work.clientWidth||innerWidth)<1100?'win':ui.pip;
-  ed.role=id=>look?(id==='3d'?'main':'off'):id===ui.main?'main':pipMode();
+  // “Bare” (the AI build's review, ai-review.js): one view alone, 'plan' or '3d', full screen, without the editor's tools; the
+  // review's own panel covers bareRight pixels on the right (bareBottom at the bottom on a phone). The ui layout does not change.
+  let bare=null,bareRight=0,bareBottom=0;
+  const pipMode=()=>look||bare?'off':ui.pip==='dock'&&(work.clientWidth||innerWidth)<1100?'win':ui.pip;
+  ed.role=id=>bare?(id===bare?'main':'off'):look?(id==='3d'?'main':'off'):id===ui.main?'main':pipMode();
   const big=r=>r==='main'||r==='dock';
   let pw=0,ph=0,planRole=null,planSaved=null,roleFit=null;
   function layout(){
@@ -468,7 +471,7 @@ export function createApp({haLights,ha,photos}){
   ed.sideHead=(t,c='')=>{side.querySelector('.t').textContent=t;side.querySelector('.c').textContent=c;};
   $('side-head').onclick=$('side-chev').onclick=()=>ed.toggleSide();
   const floatingOpen=()=>!ui.pinned&&!side.classList.contains('closed');
-  function insets3d(){if(look){const i=lookUI.insets();ed.view.setInsets(0,i.right,i.bottom);return;}ed.view.setInsets(ui.main==='3d'&&floatingOpen()?side.offsetWidth+24:0,0);}
+  function insets3d(){if(bare){ed.view.setInsets(0,bareRight,bareBottom);return;}if(look){const i=lookUI.insets();ed.view.setInsets(0,i.right,i.bottom);return;}ed.view.setInsets(ui.main==='3d'&&floatingOpen()?side.offsetWidth+24:0,0);}
   // The whole plan (or only points — “zoom to the room”) — into the part of the screen not covered by panels.
   // o.card — fit taking the step hint into account: there is no room for it beside the area — leave room at the bottom; o.pad — margins
   ed.fit=(points,o={})=>{
@@ -630,6 +633,10 @@ export function createApp({haLights,ha,photos}){
   document.querySelectorAll('.modes [data-mode]').forEach(b=>b.onclick=()=>{ed.setLook(false);ed.setMode(b.dataset.mode);});
   // “Preview”: entering — 3D to the home view (as on the card); leaving — the mode we were in. An unsaved lights edit
   // in a room — a question first, as when switching modes.
+  ed.bare=()=>bare;
+  ed.setBare=(view,{right=0,bottom=0}={})=>{bare=view||null;bareRight=right;bareBottom=bottom;if(bare)document.body.dataset.bare=bare;else delete document.body.dataset.bare; // styles.css: body[data-bare] hides the tools
+    if(bare){ed.setLook(false);ed.cancelDrag?.();ed.sel={};ed.hover=null;ed.furnHover=null;}
+    layout();insets3d();ed.draw();};
   ed.look=()=>look;
   ed.setLook=v=>{v=!!v;if(v===look)return;
     if(v){if(ed.modes.lights.guardLeave?.(()=>ed.setLook(true)))return;ed.cancelDrag?.();if(ed.tool!=='select')ed.setTool('select');ed.sel={};ed.mode.refresh?.();}
