@@ -172,7 +172,7 @@ export function stripContour(plan,cell,opt){const P=dedupe(cell.poly),n=P.length
   for(let i=0;i<n;i++)S.push(S[i]+len(C[i],C[(i+1)%n]));
   const per=S[n],doors=[],chords=[],onCh=q=>cell.ch&&segDist(q,cell.ch[0],cell.ch[1])[0]<1e-3;
   // the wall between rooms was removed (kitchen-living room, open passage): the strip has nothing to hold on to, same as at a zone boundary
-  const R=cell.room?.polygon||[],wt=cell.room?.wt||[],open=(a,b)=>R.some((p,j)=>wt[j]===0&&segDist(a,p,R[(j+1)%R.length])[0]<1e-3&&segDist(b,p,R[(j+1)%R.length])[0]<1e-3);
+  const R=cell.room?.polygon||[],wt=cell.room?.wt||[],open=(a,b)=>R.some((p,j)=>(wt[j]===0||cell.room?.rail?.[j]>0)&&segDist(a,p,R[(j+1)%R.length])[0]<1e-3&&segDist(b,p,R[(j+1)%R.length])[0]<1e-3);
   for(let i=0;i<n;i++){const a=P[i],b=P[(i+1)%n],c0=C[i],c1=C[(i+1)%n],l=S[i+1]-S[i];if(l<1e-6)continue;
     if(onCh(a)&&onCh(b)||open(a,b)){chords.push([S[i],S[i+1]]);continue;}
     const u=[(c1[0]-c0[0])/l,(c1[1]-c0[1])/l],t=q=>(q[0]-c0[0])*u[0]+(q[1]-c0[1])*u[1];

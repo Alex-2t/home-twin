@@ -27,7 +27,7 @@ Found by the homes check and by the agents who built the plans; not done yet:
 - **Doors:** double doors (now one leaf as wide as both, or no leaf from 1.15 m); a door from a file in the middle of a thin wall attaches to one of the two rooms by rounding — a side or swing in the file would make it exact.
 - **A sensor label on a glazed balcony:** when glazing takes every wall, the label could sit on the parapet below it.
 - **Catalog:** a ceiling fan with a light (common in US homes; in HA both a fan and a light), an upholstered bench, a tankless water heater, a piano, a wallbox, base-cabinet fillers of 15–30 cm.
-- **Houses:** floors, ceiling height per room, a terrace or garden without walls, a staircase as structure (typical-homes.md, “What the editor needs”).
+- **Houses:** floors, ceiling height per room, a garden without walls or with a low fence (a terrace has a railing since D-071), a staircase as structure (typical-homes.md, “What the editor needs”).
 - **Styles in the editor** (D-062, D-064 — every example now has its own concept and palette): the examples are finished by a style that finds the accents from the furniture (headboard wall, media wall, backsplash). The same could be a button for your own home: “Style: scandi / warm / classic / modern / green”, one click, then adjust.
 - **The default walls and the light in 3D:** light wall colors read as white, every room the same; a quieter default wall and a little less exposure would help every home, not only the examples — a change of the look, at the owner's word.
 

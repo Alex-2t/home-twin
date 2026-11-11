@@ -27,11 +27,12 @@ export function readPlan(text){
     check(points(r.polygon)&&r.polygon.length>=3);optional(r,'name',x=>typeof x==='string');optional(r,'area',str);
     optional(r,'wt',x=>Array.isArray(x)&&x.every(v=>v==null||Number.isFinite(v)));
     optional(r,'wf',x=>Array.isArray(x)&&x.every(v=>v==null||obj(v)));
+    optional(r,'rail',x=>Array.isArray(x)&&x.every(v=>v==null||Number.isFinite(v)&&v>=0)); // a railing's height per edge (geometry.js RAIL)
     if(r.zone!=null){check(obj(r.zone)&&point(r.zone.a)&&point(r.zone.b));optional(r.zone,'area',str);}
     optional(r,'panel',panel); // the room screen layout
   }
   for(const o of p.openings||[]){
-    check(o.kind==='door'||o.kind==='window');numbers(o,['bottom','top','swing']);
+    check(o.kind==='door'||o.kind==='window');numbers(o,['bottom','top','swing']);optional(o,'glass',x=>typeof x==='boolean'); // a glazed door
     if(o.at!=null){const a=o.at,r=p.rooms.find(r=>r.id===a.room);
       check(obj(a)&&r&&Number.isInteger(a.edge)&&a.edge>=0&&a.edge<r.polygon.length);
       check(Number.isFinite(a.s0)&&Number.isFinite(a.s1));numbers(a,['d']);

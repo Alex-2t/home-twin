@@ -163,10 +163,11 @@ export function createView(host){
     }
     add(prism(plan2d.footprint,-.22,0),[slabMat,slabMat],model);
     for(const b of plan2d.interior){const m=add(prism(b.mp,b.bottom,b.top),[b.last?capMat:wallMat,wallMat],model);if(m)occluders.push(m);}
+    for(const b of plan2d.rails||[])add(prism(b.mp,b.bottom,b.top),[capMat,facadeMat],model); // a balcony's or terrace's railing: low, never hidden
     const sideGroup={};
     for(const s of plan2d.sides){const grp=new THREE.Group();model.add(grp);sides.push({id:s.id,grp,out:OUT[s.id]});sideGroup[s.id]=grp;
       for(const b of s.bands)add(prism(b.mp,b.bottom,b.top),[b.last?capMat:facadeMat,facadeMat],grp);}
-    openings.forEach((o,i)=>{if(o.kind!=='window')return;
+    openings.forEach((o,i)=>{if(o.kind!=='window'&&!o.glass)return; // windows and glazed doors
       const [ax,ay]=o.a,[bx,by]=o.b,l=Math.hypot(bx-ax,by-ay);
       // Glass hides together with its facade side.
       const m=add(new THREE.PlaneGeometry(l,o.top-o.bottom),glassMat,sideGroup[plan2d.openingSide[i]]??model);m.castShadow=false;

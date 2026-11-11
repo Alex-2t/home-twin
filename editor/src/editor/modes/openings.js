@@ -85,7 +85,7 @@ export function openingsTool(ed){
   // Panel of the selected opening
   T.ctx=()=>{const o=selected();if(!o)return null;const g=geo(o);if(!g)return null;
     const door=o.kind==='door',leaf=door&&o.leaf!==false;
-    const line=el(`<div class="line"><b>${door?leaf?t('Door'):t('Opening'):t('Window')}</b></div>`),lines=[line];
+    const line=el(`<div class="line"><b>${door?o.glass?t('Glass door'):leaf?t('Door'):t('Opening'):t('Window')}</b></div>`),lines=[line];
     const w=el(`<button class="soft" title="${t('Enter width')}">${t('{0} cm',cm(g.L))}</button>`);
     w.onclick=()=>{const [X,Y]=v().S(at(g,g.L/2,(g.d0+g.d1)/2));ed.ask(X,Y,t('Width, cm'),cm(g.L),{type:'len',ok:m=>{setOpeningWidth(plan(),o,m);ed.commit();}});};
     line.append(w);
@@ -93,8 +93,10 @@ export function openingsTool(ed){
     if(door){const mb=el(`<button class="ib ${more?'on':''}" title="${t('More')}">${icon('more',15)}</button>`);mb.onclick=()=>{more=!more;ed.mode.refresh?.();};line.append(mb);}
     const del=el(`<button class="ib bad" title="${t('Remove (Delete)')}">${icon('trash',15)}</button>`);del.onclick=()=>T.del();line.append(del);
     if(!door)lines.push(windowLine(o));
-    if(door&&more){const ml=el(`<div class="line more"><label class="tg"><span>${t('No door')}</span><input type="checkbox" ${leaf?'':'checked'}><i></i></label></div>`);
-      ml.querySelector('input').onchange=e=>{if(e.target.checked)o.leaf=false;else delete o.leaf;if(o.swing==null)o.swing=0;ed.commit();};lines.push(ml);}
+    if(door&&more){const ml=el(`<div class="line more"><label class="tg"><span>${t('No door')}</span><input type="checkbox" data-k="leaf" ${leaf?'':'checked'}><i></i></label>
+        <label class="tg" title="${t('A balcony or terrace door: glass in 3D')}"><span>${t('Glass')}</span><input type="checkbox" data-k="glass" ${o.glass?'checked':''}><i></i></label></div>`);
+      ml.querySelector('[data-k=leaf]').onchange=e=>{if(e.target.checked)o.leaf=false;else delete o.leaf;if(o.swing==null)o.swing=0;ed.commit();};
+      ml.querySelector('[data-k=glass]').onchange=e=>{if(e.target.checked)o.glass=true;else delete o.glass;ed.commit();};lines.push(ml);}
     return lines;};
   // Window: regular (85 cm sill) or panoramic — from the floor almost to the ceiling; height above the floor and window height — as numbers.
   // Panoramic is one that starts at the floor (up to 10 cm): this way the switch tells the truth even after a manual edit.

@@ -1306,5 +1306,10 @@
  "Wooden headboard": "木质床头",
  "Worktop": "台面",
  "Zellige tile": "摩洛哥手工砖",
- "“{0}” is open. Your plan is saved.": "已打开示例“{0}”。您的平面图已保存。"
+ "“{0}” is open. Your plan is saved.": "已打开示例“{0}”。您的平面图已保存。",
+ "Railing": "栏杆",
+ "An open balcony or terrace edge": "开放式阳台或露台",
+ "Glass": "玻璃",
+ "Glass door": "玻璃门",
+ "A balcony or terrace door: glass in 3D": "阳台或露台门：3D 中显示玻璃"
 }

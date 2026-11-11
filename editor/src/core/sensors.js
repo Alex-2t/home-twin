@@ -81,7 +81,7 @@ export function wallSpot(room,ctx,W,at,band=[LABEL.y-itemH(1)/2-LABEL.pad,LABEL.
   const P=room.polygon,N=P.length,s=area(P)>0?1:-1,y0=band[0]-.05,y1=band[1]+.05;
   const side=i=>{const a=P[i],b=P[(i+1)%N],L=Math.hypot(b[0]-a[0],b[1]-a[1]),u=[(b[0]-a[0])/L,(b[1]-a[1])/L];return {i,a,b,L,u,n:[-u[1]*s,u[0]*s]};};
   const spot=(S,t,w)=>({i:S.i,u:S.u,n:S.n,t,w,L:S.L,scale:w/W,c:[S.a[0]+S.u[0]*t+S.n[0]*WALL.inner,S.a[1]+S.u[1]*t+S.n[1]*WALL.inner]});
-  const sides=[];for(let i=0;i<N;i++){if(room.wt?.[i]===0)continue;const S=side(i);if(S.L>=.6)sides.push(S);}
+  const sides=[];for(let i=0;i<N;i++){if(room.wt?.[i]===0||room.rail?.[i]>0)continue;const S=side(i);if(S.L>=.6)sides.push(S);}
   if(!sides.length)return null;
   if(at){
     // the edge nearest to the point; if a hand-placed label is already there, the nearest free spot on this wall; no room there:

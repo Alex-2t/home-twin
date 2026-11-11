@@ -2,11 +2,11 @@
 // Wall: a click opens the menu (length, add a corner, remove the wall); a separate wall's thickness — only if enabled in the settings.
 import {t} from '../../i18n/i18n.js';
 import {axisCursor} from '../drag-gesture.js';
-import {area,dist2,segDist,pointIn,offsetVar,WALL} from '../../core/geometry.js';
+import {area,dist2,segDist,pointIn,offsetVar,WALL,RAIL} from '../../core/geometry.js';
 import {floorColor} from '../../core/scene.js';
 import {FLOOR_KINDS,FLOOR_QUICK,FLOOR_GROUPS,floorKind,floorSwatch,floorBase,WALL_KINDS,WALL_QUICK,WALL_GROUPS,roomWall,sideWall,wallSwatch,wallBase} from '../../core/surfaces.js';
 import {GRID} from '../../core/layout.js';
-import {addRoom,removeRoom,insertVertex,removeVertex,linkedEdges,moveEdges,setEdgeLength,snapshot,roomById,wallInfo,setWallThickness,setWallOpen,settleRoom,cutChord,splitPolygon,splitRoom,mergeRooms,wallAt,absorbRoom,zoneParts,moveZone,zoneFromEdge} from '../../core/plan.js';
+import {addRoom,removeRoom,insertVertex,removeVertex,linkedEdges,moveEdges,setEdgeLength,snapshot,roomById,wallInfo,setWallThickness,setWallOpen,setRail,settleRoom,cutChord,splitPolygon,splitRoom,mergeRooms,wallAt,absorbRoom,zoneParts,moveZone,zoneFromEdge} from '../../core/plan.js';
 import {setRoomArea} from '../../core/layout.js';
 import {$,el,esc,fmtArea,popover,panelPop,closePop,popClosedAt} from '../ui.js';
 import {icon} from '../icons.js';
@@ -503,7 +503,7 @@ m.closeHint=()=>{if(draft?.click){draft=null;ed.draw();return true;}return close
     // the selected wall menu: length (click to type it), remove the wall; thickness — under “⋯”, only if enabled in the settings
     const W=selWall();
     if(W){
-      const line=el(`<div class="line"><b title="${W.open?t('No wall, separate rooms'):''}">${W.open?t('Room boundary'):W.interior?t('Wall'):t('Exterior wall')}</b></div>`),lines=[line];
+      const line=el(`<div class="line"><b title="${W.open?t('No wall, separate rooms'):''}">${W.open?t('Room boundary'):W.interior?t('Wall'):W.rail?t('Railing'):t('Exterior wall')}</b></div>`),lines=[line];
       const whole=Math.abs(len(W.a,W.b)-len(W.ea,W.eb))<.01;
       const L=whole?el(`<button class="soft" title="${t('Enter length')}">${t('{0} cm',cm(len(W.a,W.b)))}</button>`):el(`<small title="${t('Segment length')}">${t('{0} cm',cm(len(W.a,W.b)))}</small>`);
       L.onclick=()=>{const [X,Y]=v().S([(W.a[0]+W.b[0])/2,(W.a[1]+W.b[1])/2]);ed.ask(X,Y,t('Length, cm'),cm(len(W.a,W.b)),{type:'len',ok:m=>{const w=selWall();if(w){setEdgeLength(plan(),w.room,w.i,m);ed.commit();}}});};
@@ -513,19 +513,21 @@ m.closeHint=()=>{if(draft?.click){draft=null;ed.draw();return true;}return close
         setWallOpen(plan(),w,!w.open);ed.commit();};
       // an old border without a wall (the former “Remove wall” did this) — it can be removed completely
       const mg=el(`<button class="soft" title="${t('Merges the two rooms')}">${t('Remove boundary')}</button>`);mg.onclick=()=>{const w=selWall();if(w)removeInnerWall(w);};
-      // an outer wall has no “Remove wall”: no wall is possible only between rooms (D-021)
+      // an outer wall has no “Remove wall”: no wall is possible only between rooms (D-021); it can be a railing (D-071) — an open balcony, a terrace
+      const rail=el(`<button class="soft" title="${W.rail?t('Put the wall back'):t('An open balcony or terrace edge')}">${W.rail?t('Restore wall'):t('Railing')}</button>`);
+      rail.onclick=()=>{const w=selWall();if(!w)return;setRail(plan(),w,w.rail?0:RAIL);ed.commit();};
       // place a window or a door at the click point; no room (a corner, a neighbouring opening) — the button is disabled
       const put=k=>{const b=el(`<button class="soft">${k==='door'?t('Door'):t('Window')}</button>`);if(!ops.can(W,k)){b.disabled=true;b.title=t('Doesn\'t fit here');}
         else if(wiz?.at==='open')b.classList.add('opening-action');b.onclick=()=>ops.add(selWall(),k);return b;};
       const guided=wiz?.at==='open';
-      line.append(...(W.open?[tog,...(W.interior?[mg]:[])]:guided?[put('window'),put('door')]:[L,...(W.interior?[put('door'),put('window'),tog]:[put('window'),put('door')])]));
+      line.append(...(W.open?[tog,...(W.interior?[mg]:[])]:guided?[put('window'),put('door')]:W.rail?[L,rail]:[L,...(W.interior?[put('door'),put('window'),tog]:[put('window'),put('door'),rail])]));
       const extra=guided?el(`<details class="ctx-extra"><summary>${t('Finishes and dimensions')}</summary></details>`):null;
       if(extra){const measurements=el('<div class="line"></div>');measurements.append(L);if(W.interior)measurements.append(tog);extra.append(measurements);lines.push(extra);}
       if(each()&&!W.open){const mb=el(`<button class="ib ${thickMore?'on':''}" title="${t('This wall\'s thickness')}">${icon('more',15)}</button>`);mb.onclick=()=>{thickMore=!thickMore;m.refresh();};line.append(mb);
         if(thickMore){const ml=el(`<div class="line more"><label>${t('Thickness')}<input type="number" step="1" min="${W.interior?10:8}" max="${W.interior?54:100}" value="${cm(W.t)}"></label><small>${t('cm')}</small></div>`),x=ml.querySelector('input');
           x.onkeydown=e=>{e.stopPropagation();if(e.key==='Enter')x.blur();};x.onchange=()=>{const w=selWall();if(w){setWallThickness(plan(),w,(+x.value||0)/100);ed.commit();}};lines.push(ml);}}
-      // the side finish: for an outer wall — from inside, for a wall between rooms — each side has its own (an accent wall)
-      if(!W.open){const owner='wallsel:'+W.room.id+':'+W.i,others=[...new Set((W.B||[]).map(([rb])=>rb))].filter(rb=>!rb.solid);
+      // the side finish: for an outer wall — from inside, for a wall between rooms — each side has its own (an accent wall); a railing has none
+      if(!W.open&&!W.rail){const owner='wallsel:'+W.room.id+':'+W.i,others=[...new Set((W.B||[]).map(([rb])=>rb))].filter(rb=>!rb.solid);
         const finishes=[];if(!W.room.solid)finishes.push(...finRow(()=>sideState(W.room,[W.i],others.length?t('“{0}” side',W.room.name):t('Wall finish')),owner));
         for(const rb of others){const js=W.B.filter(([x])=>x===rb).map(([,j])=>j);finishes.push(...finRow(()=>sideState(rb,js,t('“{0}” side',rb.name)),owner));}
         if(extra)extra.append(...finishes);else lines.push(...finishes);

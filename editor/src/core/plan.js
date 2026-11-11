@@ -41,13 +41,15 @@ export function removeRoom(plan,id){
 export function reattachOpenings(plan,beforeRooms){
   plan.openings=plan.openings.map(o=>{const c=openingCoords(beforeRooms,o);return c?attachOpening(plan.rooms,c)||o:o;});
 }
-// Edge thicknesses (room.wt) and edge finishes (room.wf) follow the corners: a new edge inherits the one it was split from; removing a corner keeps the previous one.
+// Edge thicknesses (room.wt), edge finishes (room.wf) and railings (room.rail) follow the corners: a new edge inherits the one it
+// was split from; removing a corner keeps the previous one.
+export const EDGE_KEYS=['wt','wf','rail'];
 export function insertVertex(plan,room,i,p){
-  const before=cloneRooms(plan);room.polygon.splice(i+1,0,p);if(room.wt)room.wt.splice(i+1,0,room.wt[i]??null);if(room.wf)room.wf.splice(i+1,0,room.wf[i]??null);reattachOpenings(plan,before);return i+1;
+  const before=cloneRooms(plan);room.polygon.splice(i+1,0,p);for(const k of EDGE_KEYS)if(room[k])room[k].splice(i+1,0,room[k][i]??null);reattachOpenings(plan,before);return i+1;
 }
 export function removeVertex(plan,room,i){
   if(room.polygon.length<=3)return false;
-  const before=cloneRooms(plan);room.polygon.splice(i,1);if(room.wt)room.wt.splice(i,1);if(room.wf)room.wf.splice(i,1);reattachOpenings(plan,before);return true;
+  const before=cloneRooms(plan);room.polygon.splice(i,1);for(const k of EDGE_KEYS)if(room[k])room[k].splice(i,1);reattachOpenings(plan,before);return true;
 }
 
 // One wall is the adjacent edges of the same room on one line (a redundant corner mid-wall) plus the parallel edges of neighbors
@@ -109,7 +111,7 @@ export function wallInfo(plan,room,i){
     if(facing&&off>-.02&&off<=LINK+.01){B.push([r,j]);gap=gap==null?Math.max(0,off):Math.min(gap,Math.max(0,off));}
     else if(!facing&&Math.abs(off)<=.02)A.push([r,j]);}
   const {outer}=wallDefaults(plan),interior=B.length>0;
-  return {room,i,a,b,u,n,A,B,interior,gap:gap??0,open:room.wt?.[i]===0,
+  return {room,i,a,b,u,n,A,B,interior,gap:gap??0,open:room.wt?.[i]===0,rail:room.rail?.[i]>0?room.rail[i]:0,
     t:interior?(gap??0)+2*WALL.inner:edgeThickness(room,i,outer)};
 }
 const setWt=(r,j,v)=>{r.wt||=r.polygon.map(()=>null);while(r.wt.length<r.polygon.length)r.wt.push(null);r.wt[j]=v;if(r.wt.every(x=>x==null))delete r.wt;};
@@ -123,6 +125,11 @@ export function setWallThickness(plan,info,t,orig=snapshot(plan)){
 export function setWallOpen(plan,info,open){
   const {outer}=wallDefaults(plan);
   for(const [r,j] of [...info.A,...info.B])setWt(r,j,open?0:(info.interior?null:(info.t!==outer?info.t:null)));
+}
+// A railing instead of the exterior wall (an open balcony, a terrace) or the wall back: h — the railing's height, 0 — a wall.
+// Every edge on this side of the wall's line (info.A) changes with it.
+export function setRail(plan,info,h){
+  for(const [r,j] of info.A){r.rail||=r.polygon.map(()=>null);while(r.rail.length<r.polygon.length)r.rail.push(null);r.rail[j]=h>0?+h.toFixed(2):null;if(r.rail.every(x=>!x))delete r.rail;}
 }
 // An exterior edge without a wall (the old “Remove wall” did this to exterior walls, or the neighbor across was deleted):
 // the wall comes back, since “no wall” exists only between rooms (D-021). Returns how many edges were closed.
@@ -170,12 +177,12 @@ export function cutChord(room,c,dir){
   return [[R(c[0]+dir[0]*t0),R(c[1]+dir[1]*t0)],[R(c[0]+dir[0]*t1),R(c[1]+dir[1]*t1)]];
 }
 // Split an outline (and edge thicknesses) along p1–p2 into two parts. The parts follow the traversal order; the last edge of each is the split.
-export function splitPolygon(polygon,wt,p1,p2,wf){
-  const P=polygon.map(v=>[...v]),W=wt?[...wt]:null,F=wf?[...wf]:null,same=(a,b)=>Math.hypot(a[0]-b[0],a[1]-b[1])<1e-4;
+export function splitPolygon(polygon,wt,p1,p2,wf,rail){
+  const P=polygon.map(v=>[...v]),W=wt?[...wt]:null,F=wf?[...wf]:null,R=rail?[...rail]:null,same=(a,b)=>Math.hypot(a[0]-b[0],a[1]-b[1])<1e-4;
   const put=p=>{let k=P.findIndex(q=>same(q,p));if(k>=0)return;
-    for(let i=0;i<P.length;i++){if(segDist(p,P[i],P[(i+1)%P.length])[0]<1e-5){P.splice(i+1,0,p);W?.splice(i+1,0,W[i]??null);F?.splice(i+1,0,F[i]??null);return;}}};
+    for(let i=0;i<P.length;i++){if(segDist(p,P[i],P[(i+1)%P.length])[0]<1e-5){P.splice(i+1,0,p);W?.splice(i+1,0,W[i]??null);F?.splice(i+1,0,F[i]??null);R?.splice(i+1,0,R[i]??null);return;}}};
   put(p1);put(p2);const i1=P.findIndex(q=>same(q,p1)),i2=P.findIndex(q=>same(q,p2));if(i1<0||i2<0||i1===i2)return null;
-  const walk=(from,to)=>{const pts=[],ws=[],fs=[];for(let k=from;;k=(k+1)%P.length){pts.push(P[k]);ws.push(k===to?null:W?W[k]??null:null);fs.push(k===to?null:F?F[k]??null:null);if(k===to)break;}return {pts,ws,fs};};
+  const walk=(from,to)=>{const pts=[],ws=[],fs=[],rs=[];for(let k=from;;k=(k+1)%P.length){pts.push(P[k]);ws.push(k===to?null:W?W[k]??null:null);fs.push(k===to?null:F?F[k]??null:null);rs.push(k===to?null:R?R[k]??null:null);if(k===to)break;}return {pts,ws,fs,rs};};
   const A=walk(i1,i2),B=walk(i2,i1);
   if(A.pts.length<3||B.pts.length<3)return null;return [A,B];
 }
@@ -183,11 +190,12 @@ const outN=(room,i)=>{const p=room.polygon,a=p[i],b=p[(i+1)%p.length],l=Math.hyp
 // Split a room: two rooms flush along the split (with the default partition between them). The larger part stays this room
 // (name, HA area); the smaller one is new. Openings and lights go to the part they are in.
 export function splitRoom(plan,room,p1,p2){
-  const parts=splitPolygon(room.polygon,room.wt,p1,p2,room.wf);if(!parts)return null;
+  const parts=splitPolygon(room.polygon,room.wt,p1,p2,room.wf,room.rail);if(!parts)return null;
   const [A,B]=parts,aA=Math.abs(area(A.pts)),aB=Math.abs(area(B.pts));if(aA<.01-1e-8||aB<.01-1e-8)return null;
   const before=cloneRooms(plan),[big,small]=aA>=aB?[A,B]:[B,A],hasWt=!!room.wt;
-  room.polygon=big.pts;if(hasWt)room.wt=big.ws;if(room.wf)room.wf=big.fs;
-  const nr=addRoom(plan,small.pts);if(hasWt)nr.wt=small.ws;if(room.wf&&small.fs.some(x=>x))nr.wf=small.fs;
+  room.polygon=big.pts;if(hasWt)room.wt=big.ws;if(room.wf)room.wf=big.fs;if(room.rail)room.rail=big.rs;
+  const nr=addRoom(plan,small.pts);if(hasWt)nr.wt=small.ws;if(room.wf&&small.fs.some(x=>x))nr.wf=small.fs;if(room.rail&&small.rs.some(x=>x))nr.rail=small.rs;
+  if(room.rail?.every(x=>!x))delete room.rail;
   for(const k of ['wall','wallTint','floor','floorTint'])if(room[k]!=null)nr[k]=room[k]; // the new part gets the same finish
   if(room.wt?.every(x=>x==null))delete room.wt;if(nr.wt?.every(x=>x==null))delete nr.wt;
   const gap=Math.max(0,wallDefaults(plan).inner-2*WALL.inner);
@@ -219,14 +227,14 @@ export function mergeRooms(plan,info){
     const cr=(p1[0]-p0[0])*(p2[1]-p1[1])-(p1[1]-p0[1])*(p2[0]-p1[0]);if(Math.abs(cr)<1e-6){pts.splice(i,1);changed=true;break;}}}
   if(area(pts)<0)pts.reverse();
   // edge thicknesses come from the edges of the old rooms that the new edges lie on
-  const src=[A,B].flatMap(r=>r.polygon.map((c,j)=>({c,e:r.polygon[(j+1)%r.polygon.length],t:r.wt?.[j]??null,f:r.wf?.[j]??null})));
+  const src=[A,B].flatMap(r=>r.polygon.map((c,j)=>({c,e:r.polygon[(j+1)%r.polygon.length],t:r.wt?.[j]??null,f:r.wf?.[j]??null,h:r.rail?.[j]??null})));
   const srcOf=(p,i)=>{const q=pts[(i+1)%pts.length];return src.find(x=>segDist(p,x.c,x.e)[0]<1e-3&&segDist(q,x.c,x.e)[0]<1e-3);};
-  const wt=pts.map((p,i)=>srcOf(p,i)?.t??null),wf=pts.map((p,i)=>srcOf(p,i)?.f??null);
+  const wt=pts.map((p,i)=>srcOf(p,i)?.t??null),wf=pts.map((p,i)=>srcOf(p,i)?.f??null),rail=pts.map((p,i)=>srcOf(p,i)?.h??null);
   const [keep,gone]=Math.abs(area(A.polygon))>=Math.abs(area(B.polygon))?[A,B]:[B,A];
   const before=cloneRooms(plan);
   // a door in the removed wall disappears
   plan.openings=plan.openings.filter(o=>{const c=openingCoords(before,o);if(!c)return true;const m=[(c.a[0]+c.b[0])/2,(c.a[1]+c.b[1])/2];return !pointIn(m,band);});
-  keep.polygon=pts;if(wt.some(x=>x!=null))keep.wt=wt;else delete keep.wt;if(wf.some(x=>x))keep.wf=wf;else delete keep.wf;
+  keep.polygon=pts;if(wt.some(x=>x!=null))keep.wt=wt;else delete keep.wt;if(wf.some(x=>x))keep.wf=wf;else delete keep.wf;if(rail.some(x=>x))keep.rail=rail;else delete keep.rail;
   plan.rooms=plan.rooms.filter(r=>r!==gone);
   for(const o of plan.openings)if(o.at?.room===gone.id)o.at={...o.at,room:keep.id};
   reattachOpenings(plan,before);

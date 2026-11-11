@@ -67,7 +67,7 @@ const inRoom=(f,r)=>pointIn([f.x,f.y],r.polygon);
 // A free upper wall for an air conditioner: the longest stretch with no windows or doors reaching the ceiling, no tall furniture and no other
 // air conditioners. → {e, t}: the edge and the middle of the stretch, or null.
 function acSpot(plan,r){let best=null;
-  for(let i=0;i<r.polygon.length;i++){if(r.wt?.[i]===0)continue;const e=edge(r,i);if(e.L<1)continue;
+  for(let i=0;i<r.polygon.length;i++){if(r.wt?.[i]===0||r.rail?.[i]>0)continue;const e=edge(r,i);if(e.L<1)continue;
     const along=q=>(q[0]-e.a[0])*e.u[0]+(q[1]-e.a[1])*e.u[1],off=q=>(q[0]-e.a[0])*e.n[0]+(q[1]-e.a[1])*e.n[1],blocks=[];
     for(const o of plan.openings){const c=openingCoords(plan.rooms,o);if(!c||c.top<2.1)continue;if(Math.abs(off(c.a))>.45||Math.abs(off(c.b))>.45)continue;
       const s=[along(c.a),along(c.b)].sort((x,y)=>x-y);blocks.push([s[0]-.15,s[1]+.15]);}

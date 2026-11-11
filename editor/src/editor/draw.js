@@ -47,19 +47,24 @@ export function drawPlan(ed){
     const see=ed.path?.cur?.()==='open'&&ed.underlay.ready&&ed.underlay.visible;
     ctx.fillStyle=pal.wall;ctx.globalAlpha=see?.5:1;ctx.fill('evenodd');ctx.globalAlpha=1;
     if(see){ctx.save();ctx.clip('evenodd');ed.underlay.draw(v,!pal.dark);ctx.restore();}}
+  // railings (an open balcony, a terrace): the low parapet, paler than the walls in section
+  if(ed.rails2d?.length){ctx.beginPath();for(const b of ed.rails2d)for(const poly of b.mp)for(const ring of poly)ring.forEach((p,i)=>{const [X,Y]=v.S(p);i?ctx.lineTo(X,Y):ctx.moveTo(X,Y);});
+    ctx.fillStyle=alpha(pal.wall,.3);ctx.fill('evenodd');ctx.strokeStyle=pal.wall;ctx.lineWidth=1;ctx.stroke();}
   // no wall (kitchen-living room) — the room border is dashed
   ctx.strokeStyle=pal.label2;ctx.lineWidth=1;ctx.setLineDash([5,4]);
   for(const r of plan.rooms)(r.wt||[]).forEach((t,i)=>{if(t!==0)return;ctx.beginPath();ctx.moveTo(...v.S(r.polygon[i]));ctx.lineTo(...v.S(r.polygon[(i+1)%r.polygon.length]));ctx.stroke();});
   ctx.setLineDash([]);
   // windows — two thin lines across the opening; doors — a leaf with the swing arc
   for(const o0 of plan.openings){const o=openingCoords(plan.rooms,o0);if(!o)continue;const n=outward(plan.rooms,o);
-    if(o.kind==='door'){const L=Math.hypot(o.b[0]-o.a[0],o.b[1]-o.a[1]);
+    // glass across the opening: a window, or a glazed door (with its leaf, if it has one)
+    const glass=()=>{ctx.strokeStyle=pal.win;ctx.lineWidth=1.5;for(const k of [.04,.12,.2]){if(k===.12&&v.sc<60)continue;ctx.beginPath();ctx.moveTo(...v.S([o.a[0]+n[0]*k,o.a[1]+n[1]*k]));ctx.lineTo(...v.S([o.b[0]+n[0]*k,o.b[1]+n[1]*k]));ctx.stroke();}};
+    if(o.kind==='door'){const L=Math.hypot(o.b[0]-o.a[0],o.b[1]-o.a[1]);if(o.glass)glass();
       // an opening without a door — just a hole in the wall; in old plans wide “doors” (over 1.15 m) are openings too
       if(o.leaf===false||o.swing==null&&L>1.15)continue;
       const sw=SWING[o.swing||0],a=sw.hinge?o.b:o.a,u=sw.hinge?[(o.a[0]-o.b[0])/L,(o.a[1]-o.b[1])/L]:[(o.b[0]-o.a[0])/L,(o.b[1]-o.a[1])/L],inn=sw.out?n:[-n[0],-n[1]];
       ctx.strokeStyle=pal.door;ctx.lineWidth=1.2;ctx.beginPath();ctx.moveTo(...v.S(a));ctx.lineTo(...v.S([a[0]+inn[0]*L,a[1]+inn[1]*L]));ctx.stroke();
       ctx.setLineDash([3,3]);ctx.beginPath();for(let i=0;i<=16;i++){const t=i/16*Math.PI/2,p=[a[0]+(u[0]*Math.cos(t)+inn[0]*Math.sin(t))*L,a[1]+(u[1]*Math.cos(t)+inn[1]*Math.sin(t))*L];const [X,Y]=v.S(p);i?ctx.lineTo(X,Y):ctx.moveTo(X,Y);}ctx.stroke();ctx.setLineDash([]);}
-    else{ctx.strokeStyle=pal.win;ctx.lineWidth=1.5;for(const k of [.04,.12,.2]){if(k===.12&&v.sc<60)continue;ctx.beginPath();ctx.moveTo(...v.S([o.a[0]+n[0]*k,o.a[1]+n[1]*k]));ctx.lineTo(...v.S([o.b[0]+n[0]*k,o.b[1]+n[1]*k]));ctx.stroke();}}}
+    else glass();}
   // furniture: brighter in its own mode
   ctx.globalAlpha=mode==='furniture'?1:.6;ctx.lineJoin='round';
   const flat=f=>byId(f.model)?.soft&&f.h<.05?0:1; // a rug — below, the furniture on top of it
