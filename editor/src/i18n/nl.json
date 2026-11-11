@@ -1411,5 +1411,20 @@
  "{0, plural, one {# piece} other {# pieces}}": "{0, plural, one {# meubelstuk} other {# meubelstukken}}",
  "Turn the home any way you like. Click where something is wrong and write what to change.": "Draai het huis zoals je wilt. Klik waar iets niet klopt en schrijf wat er anders moet.",
  "Glass|railing": "Glas",
- "Glass panes on a low kerb instead of a parapet": "Glazen panelen op een lage rand in plaats van een borstwering"
+ "Glass panes on a low kerb instead of a parapet": "Glazen panelen op een lage rand in plaats van een borstwering",
+ "Not understood": "Niet begrepen",
+ "Did not fit there": "Paste daar niet",
+ "Would block a door or a wall": "Zou een deur of muur blokkeren",
+ "Nothing changed": "Niets veranderd",
+ "No model for it yet: a plain box": "Nog geen model: een eenvoudig blok",
+ "Outside the home": "Buiten de woning",
+ "Last time: {0}": "Vorige keer: {0}",
+ "Add a photo or a screenshot (or drop or paste it here)": "Foto of screenshot toevoegen (of hierheen slepen of plakken)",
+ "Remove the photo": "Foto verwijderen",
+ "Only pictures can be added.": "Alleen afbeeldingen kunnen worden toegevoegd.",
+ "Up to {0} photos for one pin.": "Hoogstens {0} foto's per speld.",
+ "Could not add the photo: {0}": "Foto kon niet worden toegevoegd: {0}",
+ "{0, plural, one {# photo} other {# photos}}": "{0, plural, one {# foto} other {# foto's}}",
+ "All {0} changes are made.": "Alle {0} wijzigingen zijn gedaan.",
+ "{0} of {1} changes are made. The rest are pinned again: a photo helps.": "{0} van {1} wijzigingen gedaan. De rest is opnieuw gemarkeerd: een foto helpt."
 }

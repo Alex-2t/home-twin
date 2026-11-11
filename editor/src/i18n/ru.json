@@ -1411,5 +1411,20 @@
  "{0, plural, one {# piece} other {# pieces}}": "{0, plural, one {# предмет} few {# предмета} many {# предметов} other {# предмета}}",
  "Turn the home any way you like. Click where something is wrong and write what to change.": "Крутите дом как угодно. Нажмите там, где что-то не так, и напишите, что поменять.",
  "Glass|railing": "Стеклянные",
- "Glass panes on a low kerb instead of a parapet": "Стекло на низком бортике вместо парапета"
+ "Glass panes on a low kerb instead of a parapet": "Стекло на низком бортике вместо парапета",
+ "Not understood": "Не понял",
+ "Did not fit there": "Не поместилось там",
+ "Would block a door or a wall": "Перекрыло бы дверь или стену",
+ "Nothing changed": "Ничего не изменилось",
+ "No model for it yet: a plain box": "Модели пока нет: простой блок",
+ "Outside the home": "Вне квартиры",
+ "Last time: {0}": "В прошлый раз: {0}",
+ "Add a photo or a screenshot (or drop or paste it here)": "Добавить фото или скриншот (можно перетащить или вставить)",
+ "Remove the photo": "Убрать фото",
+ "Only pictures can be added.": "Можно добавить только картинки.",
+ "Up to {0} photos for one pin.": "Не больше {0} фото на метку.",
+ "Could not add the photo: {0}": "Не удалось добавить фото: {0}",
+ "{0, plural, one {# photo} other {# photos}}": "{0, plural, one {# фото} few {# фото} many {# фото} other {# фото}}",
+ "All {0} changes are made.": "Все правки ({0}) сделаны.",
+ "{0} of {1} changes are made. The rest are pinned again: a photo helps.": "Сделано {0} из {1}. Остальные снова отмечены — фото поможет."
 }

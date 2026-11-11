@@ -17,6 +17,13 @@ New decisions are appended at the top of their section, old ones are not rewritt
 
 ## Decisions
 
+### D-076. A pin carries what the owner saw and their photos; pins that did not work out come back — **accepted** (2026-11-11)
+- The owner after their first round of pins: "you did it all badly" — the sofa was not turned, "four chairs on each side of the table" became a box. Are the pins read right, with where to look?
+- **What a pin carries:** where it is and what it is on (as before), and now **what the owner was looking at** — when a pin is put, the view (3D or the plan) is kept with the spot ringed and goes to the service with it — and **photos or screenshots** the owner adds: the picture button in the pin's bubble, or a file dropped on the bubble, on the pin's row, or anywhere while a pin is open, or pasted into its words. Up to four per pin; they are made smaller before they go; a pin with photos and no words stays as a draft. Photos are uploaded as they are added (`POST …/pin-photo`) and the pin keeps their names, so a reload keeps them.
+- **The last round:** the service now looks whether each pin's change landed and says why when it did not (the change was not understood, it did not fit there, it would block a door or a wall, nothing changed, no model for it yet). The review opens with "12 of 14 changes are made. The rest are pinned again: a photo helps." — the pins that did not work out are back where they were, with their words and pictures and a line "Last time: …"; the owner can add a photo, say it again or delete them.
+- The service side (private): the pin is ringed on the drawing the model checks and its pictures go with it; what the owner asks to move or turn is no longer overruled by what the video seemed to show; the model can say "faces the window", how many pieces, "another one like this", "this is something else".
+- Refines D-073 (what a pin is) and D-074 (the review).
+
 ### D-075. A glass railing — **accepted** (2026-11-11)
 - The owner on an AI-built home: the balcony came out with solid parapets, while the video shows a frameless glass balustrade.
 - A room's railings (D-071) can be **glass**: `room.railGlass: true` — every railing of that room, which is how balconies are built (per edge was left for later; the editor would carry a second per-edge list through every corner edit). In 3D the wall at a railing edge goes down to a 6 cm kerb, and a pane of glass stands on it along the middle of the wall's strip, up to the railing's height, with a slim steel handrail on top; on the plan the pane is drawn like a window's glass. The wall menu of a railing has “Glass” (for the room's railings); the flag survives splitting and merging rooms and goes with the last railing.

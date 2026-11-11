@@ -11,6 +11,8 @@
 //   GET  <api>/api/builds/<id>                    the status: steps, rooms, what the calls found so far (live), time left
 //   GET  <api>/api/builds/<id>/plan | home        the plan as read; the home
 //   GET  <api>/api/builds/<id>/photo | shot | frame/<room>   the plan photo; the home in 3D; a frame of a room
+//   POST <api>/api/builds/<id>/pin-photo?kind=view|photo   a pin's picture (its bytes) → {file}
+//   GET  <api>/api/builds/<id>/owner/<file>       a pin's picture
 //   POST <api>/api/builds/<id>/answer             {at: 'final', action: 'confirm' | 'correct', text?, pins?}
 //   POST <api>/api/builds/<id>/resume             start a stopped build again
 import {t, N} from '../i18n/i18n.js';
@@ -21,7 +23,7 @@ import {emptyPlan} from '../core/plan.js';
 import {roomKind} from '../core/overview.js';
 import {byId} from '../core/catalog.js';
 import {openReview} from './ai-review.js';
-import {changeCount, pinsToSend} from './ai-pins.js';
+import {changeCount, pinsToSend, pinsToRetry} from './ai-pins.js';
 
 const POLL_MS = 2000;
 const START_POLL_MS = 3000;
@@ -299,6 +301,24 @@ export function openAiBuild(ed, {api = '', id = null, flows = ed.flows} = {}) {
       localStorage.removeItem(notesKey());
     } catch {}
   }
+  // The pins of the service's last round that did not work out come back once, as pins to look at again.
+  const retriedKey = () => `${NOTES}${buildId}:retried`;
+  function notesWithRetries() {
+    const notes = loadNotes();
+    const round = status?.lastRound?.round;
+    if (!round) return notes;
+    let retried = 0;
+    try {
+      retried = Number(localStorage.getItem(retriedKey()) || 0);
+    } catch {}
+    if (retried >= round) return notes;
+    notes.pins.push(...pinsToRetry(status.lastRound));
+    saveNotes(notes);
+    try {
+      localStorage.setItem(retriedKey(), String(round));
+    } catch {}
+    return notes;
+  }
 
   // ---------- talking to the service ----------
 
@@ -306,6 +326,18 @@ export function openAiBuild(ed, {api = '', id = null, flows = ed.flows} = {}) {
     const res = await fetch(base() + path, {cache: 'no-store'});
     if (!res.ok) throw new Error((await res.json().catch(() => ({}))).error || res.statusText);
     return res.json();
+  }
+
+  // A pin's picture to the service → its name there.
+  async function uploadPicture(blob, kind) {
+    const res = await fetch(`${base()}/pin-photo?kind=${kind}`, {
+      method: 'POST',
+      headers: {'content-type': blob.type || 'application/octet-stream'},
+      body: blob,
+    });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(data.error || res.statusText);
+    return data.file;
   }
 
   async function post(path, body) {
@@ -858,10 +890,13 @@ export function openAiBuild(ed, {api = '', id = null, flows = ed.flows} = {}) {
     review = openReview(ed, {
       host: root,
       photo: status.has?.photo ? `${base()}/photo` : null,
-      notes: loadNotes(),
+      notes: notesWithRetries(),
       onChange: saveNotes,
       onBack: showProgress,
       onSend: answer,
+      upload: uploadPicture,
+      pictureUrl: file => `${base()}/owner/${encodeURIComponent(file)}`,
+      lastRound: status?.lastRound || null,
     });
   }
 

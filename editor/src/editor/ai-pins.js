@@ -1,10 +1,13 @@
-// The AI build's pins (D-073): the owner marks spots where something is wrong, on the plan or on the home in 3D, and says
-// what. This is what a spot is — its room and the item there — and what goes to the service. Data only; the screen is
-// ai-review.js.
+// The AI build's pins (D-073, D-076): the owner marks spots where something is wrong, on the plan or on the home in 3D, and
+// says what. This is what a spot is — its room and the item there, what the owner was looking at (view) and the photos they
+// added — and what goes to the service. A pin that did not work out last time comes back with why. Data only; the screen
+// is ai-review.js.
 import {pointIn, segDist} from '../core/geometry.js';
 
 // A pin on an exterior wall seen from outside lands outside its room: the nearest room within this many metres counts.
 const NEAR_ROOM = 0.6;
+/** Photos the owner may add to one pin (the service keeps as many: the harness's owner-notes.ts). */
+export const MAX_PIN_PHOTOS = 4;
 
 /** The room a spot is in, else the nearest one within `near` metres; null outside the home. */
 export function roomAt(plan, p, near = NEAR_ROOM) {
@@ -42,6 +45,8 @@ export function newPin(plan, hit) {
     item: item?.id || null,
     itemName: item?.name || null,
     text: '',
+    view: null,
+    photos: [],
   };
 }
 
@@ -60,6 +65,31 @@ export function pinsToSend(pins) {
       ...(pin.room ? {room: pin.room, roomName: pin.roomName} : {}),
       ...(pin.item ? {item: pin.item, itemName: pin.itemName} : {}),
       text: pin.text.trim(),
+      ...(pin.view ? {view: pin.view} : {}),
+      ...(pin.photos?.length ? {photos: pin.photos.slice(0, MAX_PIN_PHOTOS)} : {}),
+    }));
+}
+
+/**
+ * The pins of the last round that did not work out, as pins again (the service's status lastRound): where they were, the
+ * owner's words and pictures, and why (`retry`: the service's reason codes, harness owner-result.ts). The owner can add a
+ * photo or say it again, or delete them.
+ */
+export function pinsToRetry(lastRound) {
+  return (lastRound?.pins || [])
+    .filter(pin => pin.made !== 'yes')
+    .map(pin => ({
+      x: pin.x,
+      y: pin.y,
+      ...(pin.z != null ? {z: pin.z} : {}),
+      room: pin.room || null,
+      roomName: pin.roomName || null,
+      item: pin.item || null,
+      itemName: pin.itemName || null,
+      text: pin.text,
+      view: pin.view || null,
+      photos: pin.photos || [],
+      retry: {made: pin.made, codes: [...new Set((pin.why || []).map(w => w.code))]},
     }));
 }
 

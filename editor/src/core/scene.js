@@ -653,15 +653,18 @@ export function createView(host){
     const r3=v=>+v.toFixed(3);
     return {p:[r3(hit.point.x),r3(-hit.point.z)],z:r3(Math.max(0,hit.point.y)),inside:[r3(back.x),r3(-back.z)],item};
   }
+  // The view as it is now, drawn once more and handed over at once: a WebGL canvas keeps its picture only until the frame
+  // ends, so the caller copies it straight away (the AI build's pins keep what the owner was looking at, ai-review.js).
+  function snapshot(){renderer.render(scene,camera);return renderer.domElement;}
   // A spot of the plan at height z, in pixels of the view (for pins drawn over it).
   const projected=new THREE.Vector3();
   function project([x,y],z=0){
     projected.set(x,z,-y).project(camera);
     return [(projected.x+1)/2*(host.clientWidth||1),(1-projected.y)/2*(host.clientHeight||1)];
   }
-  const api={renderer,scene,pause,resume,dispose,warm,redraw,setInsets,setTheme,setSensors,homeCam:()=>[+Math.sin(home.theta).toFixed(4),+(-Math.cos(home.theta)).toFixed(4)],home:goHome,getView,setHome,onMoved:f=>{onMoved=f;},moved:()=>userMoved,spin,setClimate,setContacts,flyTo,setOutline,setGlow,reframe:()=>{framed=false;setMoved(false);tween=null;},focus,set,setFurniture,setLights,applyMask,setLightOn,setLightLevel,shine,setSolo,setNight,lightCount:()=>devs.reduce((s,d)=>s+d.lights.length,0),aoMs:()=>aoMs,ao:AOU,lights:{hemi,sun},select,camera,controls,pick,project};
+  const api={renderer,scene,pause,resume,dispose,warm,redraw,setInsets,setTheme,setSensors,homeCam:()=>[+Math.sin(home.theta).toFixed(4),+(-Math.cos(home.theta)).toFixed(4)],home:goHome,getView,setHome,onMoved:f=>{onMoved=f;},moved:()=>userMoved,spin,setClimate,setContacts,flyTo,setOutline,setGlow,reframe:()=>{framed=false;setMoved(false);tween=null;},focus,set,setFurniture,setLights,applyMask,setLightOn,setLightLevel,shine,setSolo,setNight,lightCount:()=>devs.reduce((s,d)=>s+d.lights.length,0),aoMs:()=>aoMs,ao:AOU,lights:{hemi,sun},select,camera,controls,pick,project,snapshot};
   // a change through the view — a frame; reading it is not one
-  const READ=new Set(['pause','resume','dispose','warm','redraw','homeCam','getView','onMoved','moved','lightCount','aoMs','pick','project']);
+  const READ=new Set(['pause','resume','dispose','warm','redraw','homeCam','getView','onMoved','moved','lightCount','aoMs','pick','project','snapshot']);
   for(const [k,f] of Object.entries(api))if(typeof f==='function'&&!READ.has(k))api[k]=(...a)=>{const r=f(...a);redraw();return r;};
   return api;
 }

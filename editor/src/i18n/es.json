@@ -1411,5 +1411,20 @@
  "{0, plural, one {# piece} other {# pieces}}": "{0, plural, one {# mueble} other {# muebles}}",
  "Turn the home any way you like. Click where something is wrong and write what to change.": "Gira la casa como quieras. Haz clic donde algo esté mal y escribe qué cambiar.",
  "Glass|railing": "De vidrio",
- "Glass panes on a low kerb instead of a parapet": "Paneles de vidrio sobre un bordillo bajo en lugar de un antepecho"
+ "Glass panes on a low kerb instead of a parapet": "Paneles de vidrio sobre un bordillo bajo en lugar de un antepecho",
+ "Not understood": "No se entendió",
+ "Did not fit there": "No cabía ahí",
+ "Would block a door or a wall": "Bloquearía una puerta o una pared",
+ "Nothing changed": "Nada cambió",
+ "No model for it yet: a plain box": "Aún no hay modelo: un bloque simple",
+ "Outside the home": "Fuera de la vivienda",
+ "Last time: {0}": "La última vez: {0}",
+ "Add a photo or a screenshot (or drop or paste it here)": "Añadir una foto o captura (o arrastrarla o pegarla aquí)",
+ "Remove the photo": "Quitar la foto",
+ "Only pictures can be added.": "Solo se pueden añadir imágenes.",
+ "Up to {0} photos for one pin.": "Hasta {0} fotos por marca.",
+ "Could not add the photo: {0}": "No se pudo añadir la foto: {0}",
+ "{0, plural, one {# photo} other {# photos}}": "{0, plural, one {# foto} other {# fotos}}",
+ "All {0} changes are made.": "Los {0} cambios están hechos.",
+ "{0} of {1} changes are made. The rest are pinned again: a photo helps.": "{0} de {1} cambios hechos. Los demás vuelven a estar marcados: una foto ayuda."
 }

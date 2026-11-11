@@ -1411,5 +1411,20 @@
  "{0, plural, one {# piece} other {# pieces}}": "{0, plural, one {# arredo} other {# arredi}}",
  "Turn the home any way you like. Click where something is wrong and write what to change.": "Ruota la casa come preferisci. Fai clic dove qualcosa non va e scrivi cosa cambiare.",
  "Glass|railing": "In vetro",
- "Glass panes on a low kerb instead of a parapet": "Pannelli di vetro su un cordolo basso al posto del parapetto"
+ "Glass panes on a low kerb instead of a parapet": "Pannelli di vetro su un cordolo basso al posto del parapetto",
+ "Not understood": "Non capito",
+ "Did not fit there": "Non ci stava",
+ "Would block a door or a wall": "Bloccherebbe una porta o un muro",
+ "Nothing changed": "Nulla è cambiato",
+ "No model for it yet: a plain box": "Ancora nessun modello: un semplice blocco",
+ "Outside the home": "Fuori dalla casa",
+ "Last time: {0}": "L'ultima volta: {0}",
+ "Add a photo or a screenshot (or drop or paste it here)": "Aggiungi una foto o uno screenshot (o trascinalo o incollalo qui)",
+ "Remove the photo": "Rimuovi la foto",
+ "Only pictures can be added.": "Si possono aggiungere solo immagini.",
+ "Up to {0} photos for one pin.": "Al massimo {0} foto per segnaposto.",
+ "Could not add the photo: {0}": "Impossibile aggiungere la foto: {0}",
+ "{0, plural, one {# photo} other {# photos}}": "{0, plural, one {# foto} other {# foto}}",
+ "All {0} changes are made.": "Tutte le {0} modifiche sono fatte.",
+ "{0} of {1} changes are made. The rest are pinned again: a photo helps.": "{0} modifiche su {1} fatte. Le altre sono di nuovo segnate: una foto aiuta."
 }
