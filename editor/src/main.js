@@ -5,6 +5,7 @@ import {mockHA} from './editor/ha.js';
 import {DEMO_NAME,DEMO,HA,DEMO_UNDERLAY} from './gen/demo.gen.js';
 import {EXAMPLES} from './gen/examples.gen.js';
 import {hashRouter} from './editor/route.js';
+import {startBuild} from './editor/ai-build.js';
 
 // The start screen's examples (D-062): the ten typical homes, and first the build's demo apartment if it is not one of them (own.mjs).
 // Home Assistant is not connected — each example's own demo data through the same interface as the real one (editor/ha.js, ha-live.js).
@@ -16,4 +17,7 @@ try{if(picked)localStorage.setItem('home-twin-editor:example',picked);else picke
 const cur=list.find(x=>x.id===picked)||list.find(x=>x.id===(DEMO_NAME==='typical'?'family':'demo'));
 const ha=mockHA(cur.HA);
 // demo: lamp state “in HA” is the plan's lamps
-await boot({ha,examples:list.map(x=>({id:x.id,plan:x.DEMO,underlay:x.UNDERLAY||null})),example:cur.id,router,dev:true,onApp:ed=>ha._lightsFrom(()=>ed.plan.lights)});
+const ed=await boot({ha,examples:list.map(x=>({id:x.id,plan:x.DEMO,underlay:x.UNDERLAY||null})),example:cur.id,router,dev:true,onApp:ed=>ha._lightsFrom(()=>ed.plan.lights)});
+// The AI build (D-072): ?build=<id> follows a build of the service that serves this page (locally: the harness's build server).
+const build=new URLSearchParams(location.search).get('build');
+if(build)startBuild(ed,build);

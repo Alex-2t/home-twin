@@ -453,3 +453,25 @@ body[data-look=on] :is(#side,#dock,#banner:not(.in-look),#pill,#topr,#pip-show,#
 .ver-prev{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-top:12px;padding-top:12px;border-top:1px solid var(--line);color:var(--mut);font-size:12px}
 .ver-prev[hidden]{display:none}.ver-prev button{height:30px;padding:0 12px;flex:none}
 @media (max-width:640px){.ver-body{grid-template-columns:1fr}.ver-view{order:-1}.ver-big{min-height:180px}.ver-list{max-height:34vh}.ver-prev{flex-direction:column;align-items:stretch}}
+/* The AI build panel (D-072, editor/ai-build.js): the stages, the checkpoint question; collapses to its header */
+.build{position:fixed;left:max(16px,env(safe-area-inset-left,0px));bottom:84px;z-index:30;width:min(400px,calc(100vw - 32px));padding:12px 14px 14px;display:grid;gap:10px;font-size:13.5px;line-height:1.4}
+.build header{display:flex;align-items:center;gap:8px}.build header b{font-size:14px;flex:1}
+.build.collapsed>:not(header){display:none}
+.build .stages{display:flex;flex-wrap:wrap;gap:4px 12px;margin:0;padding:0;list-style:none;font-size:12px;color:var(--mut)}
+.build .stages li{display:flex;align-items:center;gap:5px}.build .stages li.done{color:var(--tx)}.build .stages li.running{color:var(--acc);font-weight:600}
+.build .stages .mark{width:14px;height:14px;display:grid;place-items:center;border-radius:50%;box-shadow:inset 0 0 0 1.5px currentColor}
+.build .stages li.done .mark{box-shadow:none;color:var(--acc)}.build .stages li.running .mark{box-shadow:none}
+.build p{margin:0}.build .muted{color:var(--mut);display:flex;align-items:center;gap:8px}.build .err{color:var(--bad)}
+.build .build-ask{display:flex;gap:10px;align-items:flex-start}
+.build .build-thumb{flex:none;width:72px;height:56px;padding:0;border-radius:8px;overflow:hidden;background:#fff;border:1px solid var(--line2);cursor:zoom-in}
+.build .build-thumb img{width:100%;height:100%;object-fit:contain;display:block}
+.build textarea{width:100%;resize:vertical;min-height:44px;padding:8px 10px;border-radius:9px;border:1px solid var(--line2);background:var(--panel-solid);color:var(--tx);font:inherit}
+.build textarea:focus{outline:none;border-color:var(--acc)}
+.build small{color:var(--mut);font-size:12px}.build small.warn{color:var(--warn)}
+.build .row{display:flex;justify-content:flex-end;align-items:center;gap:8px}.build .row button{padding:0 14px}
+.build .wait{margin-right:auto;color:var(--mut);display:flex;align-items:center;gap:7px;font-size:12.5px}
+.build .spin{width:12px;height:12px;border-radius:50%;border:2px solid currentColor;border-right-color:transparent;display:inline-block;animation:build-spin .8s linear infinite;flex:none}
+@keyframes build-spin{to{transform:rotate(360deg)}}
+@media (prefers-reduced-motion:reduce){.build .spin{animation-duration:2.4s}}
+.build-photo{position:fixed;inset:0;z-index:60;display:grid;place-items:center;padding:24px;background:color-mix(in srgb,var(--cv) 80%,transparent);-webkit-backdrop-filter:blur(8px);backdrop-filter:blur(8px);cursor:zoom-out}
+.build-photo img{max-width:100%;max-height:100%;background:#fff;border-radius:10px;box-shadow:var(--sh)}
