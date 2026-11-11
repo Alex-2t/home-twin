@@ -142,6 +142,13 @@ export function createView(host){
   // the sun is over the viewer's left shoulder; reposition only when the camera has been rotated
   function placeSun(d){if(sunDir.dot(d)>.9999)return;sunDir.copy(d);const c=Math.cos(SUN.turn),s=Math.sin(SUN.turn);
     sun.position.set(sunAt.x+(-d.x*c+d.z*s)*SUN.back,SUN.up,sunAt.z+(-d.z*c-d.x*s)*SUN.back);}
+  // The sun follows the view once the view has settled, catching up over a few frames. Moved with the camera on every frame of a
+  // turn, the shadow map was drawn from a new angle each time and shadow edges crawled and flickered along wall joints and corners.
+  // → true while it is still on its way (one more frame is wanted)
+  const sunNext=new THREE.Vector3();
+  function sunToward(d){const k=sunDir.dot(d);
+    if(sunDir.lengthSq()<.5||k>.995||k<-.3){placeSun(d);return k<=.9999;} // there, nearly there, or turned right round: at once
+    sunNext.copy(sunDir).lerp(d,.35).normalize();placeSun(sunNext);return true;}
   const aniso=Math.min(8,renderer.capabilities.getMaxAnisotropy());
   // rotated by hand: when the view really moved, not just a press: a click on the 3D window swaps the windows
   let grab=false;controls.addEventListener('start',()=>{grab=true;});controls.addEventListener('end',()=>{grab=false;});
@@ -625,10 +632,13 @@ export function createView(host){
   function loop(){if(paused){raf=0;return;}
     // all of them step every frame; slow ambient motion (airflow, an open window breathing) is drawn at ~24 fps — smooth for it, and the
     // whole scene is not redrawn at the display's 60–120 Hz just for that
-    const now=performance.now(),fast=[stepTween(),controls.update(),stepGlow(),camMoved()].some(Boolean),calm=tickDevices();
+    const now=performance.now(),tweening=stepTween(),damping=controls.update(),glowing=stepGlow(),camChanged=camMoved(),calm=tickDevices();
+    const fast=tweening||damping||glowing||camChanged;
+    // the sun stays while the view moves (by hand, damping out or flying) and comes after it once it is still
+    camera.getWorldDirection(dir);dir.y=0;dir.normalize();
+    if(!(grab||tweening||damping||camChanged)&&sunToward(dir))dirty=Math.max(dirty,1);
     if(fast||calm&&now-drawnAt>=41)dirty=Math.max(dirty,1);
     if(dirty<=0){raf=requestAnimationFrame(loop);return;}dirty--;drawnAt=now;
-    camera.getWorldDirection(dir);dir.y=0;dir.normalize();placeSun(dir);
     for(const s of sides){s.grp.visible=s.out.dot(dir)>-.25;AOU.htAoVis.value.setComponent(SIDE_AO[s.id],s.grp.visible?1:0);}
     for(const o of labels.values())o.mesh.visible=!o.side||sides.find(s=>s.id===o.side)?.grp.visible!==false;
     for(const m of fixtures.children)if(m.userData.side&&!m.userData.off)m.visible=sides.find(s=>s.id===m.userData.side)?.grp.visible!==false;

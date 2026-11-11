@@ -17,6 +17,11 @@ New decisions are appended at the top of their section, old ones are not rewritt
 
 ## Decisions
 
+### D-077. The 3D view's sun waits until the view is still — **accepted** (2026-11-11)
+- The owner: something blinks at wall joints while the home is turned.
+- The sun of the 3D view follows the camera, so every side of the home gets light (scene.js `placeSun`). It moved on every frame of a turn, every 0.8°, and each move drew the shadow map from a new angle: shadow edges crawled along wall joints and in corners.
+- Now the sun stays where it is while the view moves (by hand, while it damps out, while it flies to a room) and catches up over a few frames once the view is still. A view turned right round gets its sun at once.
+
 ### D-076. A pin carries what the owner saw and their photos; pins that did not work out come back — **accepted** (2026-11-11)
 - The owner after their first round of pins: "you did it all badly" — the sofa was not turned, "four chairs on each side of the table" became a box. Are the pins read right, with where to look?
 - **What a pin carries:** where it is and what it is on (as before), and now **what the owner was looking at** — when a pin is put, the view (3D or the plan) is kept with the spot ringed and goes to the service with it — and **photos or screenshots** the owner adds: the picture button in the pin's bubble, or a file dropped on the bubble, on the pin's row, or anywhere while a pin is open, or pasted into its words. Up to four per pin; they are made smaller before they go; a pin with photos and no words stays as a draft. Photos are uploaded as they are added (`POST …/pin-photo`) and the pin keeps their names, so a reload keeps them.
