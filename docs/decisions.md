@@ -17,6 +17,14 @@ New decisions are appended at the top of their section, old ones are not rewritt
 
 ## Decisions
 
+### D-078. The AI build in the owner's language, chips that stay, past pins faded, a dropping place and arrows — **accepted** (2026-11-11)
+- The owner after the second build through the UI: the first stage showed an empty page; Russian and English mixed; the furniture chips came and went; the drop of a photo was not to be seen; a way to draw an arrow on a screenshot; pins that were done should stay, faded, to check them.
+- **Language:** the upload sends the editor's language; the service names the home's rooms by kind with their number and the furniture by our catalog in it. The progress page names the rooms read off the plan the same way (`localRoomName`, the room kinds' names now in core/overview.js).
+- **Progress:** the plan photo shows from the start ("Your plan is next: first the video is cut into rooms"). The furniture chips are every piece in the order it was first taken up; a chip changes from a spinner to a tick in place and never leaves or moves.
+- **A pin's photos:** under its words a dropping place, "Drop a photo or a screenshot here — or click", then a small tile to add more. A pen button opens the view as it is now: drag to draw arrows (undo, cancel), "Add to the pin" adds it to the pin's photos.
+- **Past rounds:** the pins made in earlier rounds stay on the home faded, with a tick; a click shows what was asked and in which round, and "Not done? Pin it again" makes it a pin of this round. The panel lists them under "Done earlier: N". Pins that did not work out come back as before (D-076), the reason "Ended up elsewhere" in place of "Did not fit there".
+- Refines D-074 and D-076.
+
 ### D-077. The 3D view's sun waits until the view is still — **accepted** (2026-11-11)
 - The owner: something blinks at wall joints while the home is turned.
 - The sun of the 3D view follows the camera, so every side of the home gets light (scene.js `placeSun`). It moved on every frame of a turn, every 0.8°, and each move drew the shadow map from a new angle: shadow edges crawled along wall joints and in corners.

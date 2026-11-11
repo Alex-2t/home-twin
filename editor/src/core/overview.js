@@ -1,6 +1,7 @@
 // The home overview for “Preview” and the future card (D-015, D-047): per room, an icon, climate and lights. Data only.
 // Weather, scenes, air conditioners, curtains and charts will be added once they appear in the HA layer (editor/ha.js).
 import {METRICS,pickAuto} from './sensors.js';
+import {N} from '../i18n/i18n.js';
 import {formFor} from './fixtures.js';
 import {BATH} from './surfaces.js';
 import {deviceKind,acView,coverView,contactView,coverModel} from './devices.js';
@@ -20,6 +21,14 @@ const KINDS=[
   ['storage',/кладов|гардероб|storage|pantry|closet|abstell|cellier|despensa|ripostiglio|berging|spiżarn|储藏/],
 ];
 export const roomKind=(...names)=>{const s=names.filter(Boolean).join(' ').toLowerCase();return KINDS.find(([,re])=>re.test(s))?.[0]||'room';};
+// Each kind of room named in the user's language (tr = i18n t): what the AI build calls a room it found.
+export const KIND_NAME={bath:N('Bathroom'),kids:N("Kids' room"),bed:N('Bedroom'),kitchen:N('Kitchen'),living:N('Living room'),hall:N('Hallway'),
+  balcony:N('Balcony'),office:N('Office'),storage:N('Storage'),room:N('Room')};
+// A room's name read off a plan ("Bedroom 2", "Kitchen/Living Room", "En-suite") in the user's language: each part of it by its
+// kind, a number kept; a part of no known kind stays as written. The AI build (harness) names its rooms so; the progress page too.
+export function localRoomName(name,tr){
+  return String(name||'').split('/').map(part=>{const kind=roomKind(part),n=/\b(\d+)\b/.exec(part)?.[1];
+    return kind==='room'?part.trim():tr(KIND_NAME[kind])+(n?' '+n:'');}).join('/');}
 
 // Room climate: each quantity comes from the sensor the user placed on this room's wall, otherwise from the best sensor of its
 // area (like the suggestion in “Sensors”, pickAuto). No sensor or no number: no quantity.

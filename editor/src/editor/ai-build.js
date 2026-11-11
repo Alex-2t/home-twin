@@ -15,12 +15,12 @@
 //   GET  <api>/api/builds/<id>/owner/<file>       a pin's picture
 //   POST <api>/api/builds/<id>/answer             {at: 'final', action: 'confirm' | 'correct', text?, pins?}
 //   POST <api>/api/builds/<id>/resume             start a stopped build again
-import {t, N} from '../i18n/i18n.js';
+import {t, N, getLang} from '../i18n/i18n.js';
 import {el, esc} from './ui.js';
 import {icon} from './icons.js';
 import {readPlan} from '../core/plan-file.js';
 import {emptyPlan} from '../core/plan.js';
-import {roomKind} from '../core/overview.js';
+import {roomKind, KIND_NAME, localRoomName} from '../core/overview.js';
 import {byId} from '../core/catalog.js';
 import {openReview} from './ai-review.js';
 import {changeCount, pinsToSend, pinsToRetry} from './ai-pins.js';
@@ -50,20 +50,14 @@ const PLAN_PHRASES = [
   N('Working out the scale'),
 ];
 
-// A room of the video before it is matched to the plan has only a guess in English ("hallway"): its kind in the owner's language.
-const KIND_NAME = {
-  bath: N('Bathroom'),
-  kids: N("Kids' room"),
-  bed: N('Bedroom'),
-  kitchen: N('Kitchen'),
-  living: N('Living room'),
-  hall: N('Hallway'),
-  balcony: N('Balcony'),
-  office: N('Office'),
-  storage: N('Storage'),
-  room: N('Room'),
-};
-const roomName = room => room.name || t(KIND_NAME[roomKind(room.guess)]);
+// A room of the video: its name on the plan once matched (read off the plan, often in English), else its guess in English
+// ("hallway") — in the owner's language either way.
+const roomName = room =>
+  room.name
+    ? getLang() === 'en'
+      ? room.name
+      : localRoomName(room.name, t)
+    : t(KIND_NAME[roomKind(room.guess)]);
 
 // A piece of furniture as the build lists it ({type, model?, label}): our catalog's name in the owner's language when the room
 // call matched it to one, else the call's own words.
@@ -474,6 +468,8 @@ export function openAiBuild(ed, {api = '', id = null, flows = ed.flows} = {}) {
     sending.classList.remove('err');
     line.textContent = t('Uploading…');
     const form = new FormData();
+    // The language the owner reads: the build names the rooms and the furniture in it.
+    form.append('lang', getLang());
     form.append('plan', files.plan);
     for (const video of files.videos) form.append('video', video);
     const xhr = new XMLHttpRequest();
@@ -718,7 +714,10 @@ export function openAiBuild(ed, {api = '', id = null, flows = ed.flows} = {}) {
             : '';
     }
     if (mode === 'reading') {
-      setLine(box.querySelector('.aib-reading-line span'), planLine());
+      // The photo is there from the upload; the plan is read once the video is cut into rooms (it learns the rooms from it).
+      const next = !stepRunning('plan') && !status.live?.plan;
+      box.classList.toggle('aib-waiting', next);
+      setLine(box.querySelector('.aib-reading-line span'), next ? t('Your plan is next: first the video is cut into rooms') : planLine());
       const call = status.live?.plan;
       const names = call?.rooms || [];
       const tags = box.querySelector('.aib-tags');
@@ -740,36 +739,39 @@ export function openAiBuild(ed, {api = '', id = null, flows = ed.flows} = {}) {
     }
   }
 
-  // The furniture being matched with our models or made from parts, and the pieces done: while the furniture stage runs.
+  // The furniture being matched with our models or made from parts, and the pieces done: while the furniture stage runs. Each
+  // piece keeps its chip where it first came; only its state changes (chips coming and going and moving read as flicker).
   function renderMaking() {
     const box = root.querySelector('.aib-making');
     const live = status.live || {};
-    const show = stageState(status, STAGES[2]) === 'running' && (live.making?.length || live.made?.length);
+    const work =
+      live.work ||
+      [
+        ...(live.making || []).map(piece => ({...piece, state: 'busy'})),
+        ...(live.made || []).map(piece => ({...piece, state: 'done'})),
+      ];
+    const show = stageState(status, STAGES[2]) === 'running' && work.length > 0;
     box.hidden = !show;
     if (!show) return;
     box.querySelector('h3 span').textContent = live.madeCount ? t('{0} ready', live.madeCount) : '';
     const chips = box.querySelector('.aib-chips');
-    const wanted = [
-      ...live.making.map(work => ({...work, busy: true})),
-      ...live.made.filter(work => !live.making.some(w => w.room === work.room && w.id === work.id)),
-    ];
-    const keys = wanted.map(work => `${work.room}/${work.id}`);
-    for (const chip of [...chips.children]) if (!keys.includes(chip.dataset.key)) chip.remove();
-    wanted.forEach((work, i) => {
-      const key = keys[i];
+    for (const piece of work) {
+      const key = `${piece.room}/${piece.id}`;
       let chip = chips.querySelector(`[data-key="${CSS.escape(key)}"]`);
       if (!chip) {
         chip = el(`<span class="aib-chip" data-key="${esc(key)}"><i class="aib-chip-state"></i><b></b><small></small></span>`);
+        chips.append(chip);
       }
-      if (chips.children[i] !== chip) chips.insertBefore(chip, chips.children[i] || null);
-      const state = work.busy ? 'busy' : 'done';
+      const state = piece.state === 'busy' ? 'busy' : 'done';
       if (chip.dataset.state !== state) {
         chip.dataset.state = state;
-        chip.querySelector('.aib-chip-state').innerHTML = work.busy ? '<i class="spin"></i>' : icon('check', 12);
+        chip.querySelector('.aib-chip-state').innerHTML = state === 'busy' ? '<i class="spin"></i>' : icon('check', 12);
       }
-      chip.querySelector('b').textContent = pieceName(work);
-      chip.querySelector('small').textContent = roomName(roomById(work.room) || {guess: ''});
-    });
+      const name = pieceName(piece);
+      const where = roomName(roomById(piece.room) || {guess: ''});
+      if (chip.querySelector('b').textContent !== name) chip.querySelector('b').textContent = name;
+      if (chip.querySelector('small').textContent !== where) chip.querySelector('small').textContent = where;
+    }
   }
 
   // Under a room of the video: the furniture found as its call writes, then how many pieces; the pieces made there now.
@@ -897,6 +899,7 @@ export function openAiBuild(ed, {api = '', id = null, flows = ed.flows} = {}) {
       upload: uploadPicture,
       pictureUrl: file => `${base()}/owner/${encodeURIComponent(file)}`,
       lastRound: status?.lastRound || null,
+      pastRounds: status?.rounds || [],
     });
   }
 

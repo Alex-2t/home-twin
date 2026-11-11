@@ -612,8 +612,22 @@ button.aib-big{height:46px;padding:0 22px;border-radius:12px;font-size:15px;box-
 .aib-thumb .ib{position:absolute;top:2px;right:2px;width:18px;height:18px;min-width:18px;border-radius:9px;background:rgba(17,19,24,.7);color:#fff;opacity:0}
 .aib-thumb:hover .ib,.aib-thumb:focus-within .ib{opacity:1}
 .aib-photo-err{color:var(--bad);font-size:12px}
+.aib-reading.aib-waiting .aib-scan i{animation-play-state:paused;opacity:.35}.aib-reading.aib-waiting .aib-scan img{opacity:.7}
 .aib-note-photos{display:flex;align-items:center;gap:3px;align-self:center;color:var(--mut);font-size:12px}
 .aib-drop{outline:2px dashed var(--acc);outline-offset:2px}
+.aib-drop-tile{display:flex;align-items:center;justify-content:flex-start;gap:10px;width:100%;height:auto;min-height:52px;white-space:normal;padding:10px 12px;border:1.5px dashed var(--line2);border-radius:11px;background:none;color:var(--mut);font-size:12.5px;line-height:1.35;text-align:left;cursor:pointer}
+.aib-drop-tile:hover,.aib-pop.aib-drop .aib-drop-tile{border-color:var(--acc);color:var(--tx);background:var(--acc2)}.aib-drop-tile .ic{color:var(--acc);flex:none}
+.aib-thumb.aib-add{display:grid;place-items:center;border:1.5px dashed var(--line2);background:none;color:var(--mut);cursor:pointer;padding:0}.aib-thumb.aib-add:hover{border-color:var(--acc);color:var(--acc)}
+.aib-pin.past{background:var(--panel-solid);color:var(--acc);opacity:.55;box-shadow:0 0 0 2px var(--acc),0 3px 10px rgba(0,0,0,.2)}.aib-pin.past:hover,.aib-pin.past.on{opacity:1}
+.aib-past summary{cursor:pointer;color:var(--mut);font-size:12.5px;padding:6px 8px;border-radius:9px;list-style-position:inside}.aib-past summary:hover{background:var(--hov)}
+.aib-note.past{opacity:.6}.aib-note.past:hover,.aib-note.past.on{opacity:1}.aib-note.past .aib-num{background:var(--panel-solid);color:var(--acc);box-shadow:inset 0 0 0 1.5px var(--acc)}
+.aib-past-pop .aib-num{background:var(--panel-solid);color:var(--acc);box-shadow:inset 0 0 0 1.5px var(--acc)}
+.aib-past-when{margin:0;color:var(--ok,var(--mut));font-size:12px}.aib-past-text{margin:0;font-size:13.5px;line-height:1.4;overflow-wrap:anywhere}
+.aib-past-pop footer{display:flex;justify-content:space-between;gap:8px}.aib-past-pop footer .primary{margin-left:auto}
+.aib-sketch{position:fixed;inset:0;z-index:80;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:12px;padding:16px;background:rgba(8,9,12,.82)}
+.aib-sketch canvas{max-width:100%;max-height:calc(100vh - 110px);border-radius:12px;box-shadow:var(--sh-lg);cursor:crosshair;touch-action:none}
+.aib-sketch-bar{display:flex;align-items:center;gap:8px;flex-wrap:wrap;padding:8px 10px;border-radius:14px}.aib-sketch-bar>span{display:flex;align-items:center;gap:7px;margin-right:6px;color:var(--mut);font-size:13px}
+.aib-sketch-bar button{display:inline-flex;align-items:center;gap:6px}
 .aib-last{flex:none;margin:0;padding:8px 10px;border-radius:10px;background:var(--warn-bg);color:var(--tx);font-size:12.5px;line-height:1.4}.aib-last.all{background:var(--hov)}
 .aib-pins{position:absolute;inset:0;z-index:8;pointer-events:none;overflow:hidden}
 .aib-pin{position:absolute;left:0;top:0;width:28px;height:28px;min-width:0;margin-top:-28px;padding:0;border-radius:14px 14px 14px 3px;background:var(--acc);color:var(--acc-tx);

@@ -23,7 +23,7 @@ const RING = '#d6249f';
 // Why a pin did not work out last time, by the service's reason (harness tools/owner-result.ts).
 const MISSED = {
   'no-fix': N('Not understood'),
-  refused: N('Did not fit there'),
+  refused: N('Ended up elsewhere'),
   undone: N('Would block a door or a wall'),
   unchanged: N('Nothing changed'),
   box: N('No model for it yet: a plain box'),
@@ -40,8 +40,13 @@ const isPicture = file => /^image\//.test(file.type) || /\.(heic|heif)$/i.test(f
  */
 export function openReview(
   ed,
-  {host, photo = null, notes, onChange, onBack, onSend, upload = null, pictureUrl = null, lastRound = null},
+  {host, photo = null, notes, onChange, onBack, onSend, upload = null, pictureUrl = null, lastRound = null, pastRounds = []},
 ) {
+  // The pins of earlier rounds that were made: faded on the home, to see that each was done (one that was not can be pinned again).
+  const pastPins = pastRounds.flatMap(round =>
+    (round.pins || []).filter(pin => pin.made === 'yes').map(pin => ({...pin, round: round.round})),
+  );
+  let pastOpen = null;
   let view = '3d';
   let tool = 'pin';
   let active = null;
@@ -80,6 +85,7 @@ export function openReview(
         <p class="aib-last" hidden></p>
         ${photo ? `<button class="aib-photo" data-act="photo"><img src="${photo}" alt=""><span>${icon('image', 14)}${esc(t('Your plan, side by side'))}</span></button>` : ''}
         <ol class="aib-notes"></ol>
+        <details class="aib-past" hidden><summary></summary><ol class="aib-notes"></ol></details>
         <p class="aib-empty">${icon('mapPin', 15)}<span>${esc(t('Click where something is wrong to put a pin.'))}</span></p>
         <textarea class="aib-general" rows="2" placeholder="${esc(t('Anything else? For example: the floors are light oak'))}"></textarea>
       </div>
@@ -93,18 +99,29 @@ export function openReview(
       <header><span class="aib-num"></span><span class="aib-pop-target"></span></header>
       <p class="aib-retry" hidden></p>
       <textarea rows="3" placeholder="${esc(t('What is wrong here?'))}"></textarea>
-      <div class="aib-thumbs" hidden></div>
+      ${upload ? '<div class="aib-thumbs"></div><input type="file" accept="image/*" multiple hidden>' : ''}
       <small class="aib-photo-err" hidden></small>
       <footer>
         <button class="ib" data-act="pin-delete" title="${esc(t('Delete'))}">${icon('trash', 15)}</button>
-        ${upload ? `<button class="ib" data-act="pin-photo" title="${esc(t('Add a photo or a screenshot (or drop or paste it here)'))}">${icon('image', 15)}</button><input type="file" accept="image/*" multiple hidden>` : ''}
+        ${upload ? `<button class="ib" data-act="pin-sketch" title="${esc(t('A screenshot with arrows'))}">${icon('pen', 15)}</button>` : ''}
         <button class="primary" data-act="pin-done">${esc(t('Done'))}</button>
+      </footer>
+    </div>
+    <div class="aib-pop aib-past-pop glass" hidden>
+      <header><span class="aib-num">${icon('check', 13)}</span><span class="aib-pop-target"></span></header>
+      <p class="aib-past-when"></p>
+      <p class="aib-past-text"></p>
+      <div class="aib-thumbs"></div>
+      <footer>
+        <button class="soft" data-act="past-again">${esc(t('Not done? Pin it again'))}</button>
+        <button class="primary" data-act="past-close">${esc(t('Close'))}</button>
       </footer>
     </div>
   </div>`);
   host.append(box);
   const panel = box.querySelector('.aib-panel');
-  const pop = box.querySelector('.aib-pop');
+  const pop = box.querySelector('.aib-pop:not(.aib-past-pop)');
+  const pastPop = box.querySelector('.aib-past-pop');
   const popText = pop.querySelector('textarea');
   const general = box.querySelector('.aib-general');
   general.value = notes.text;
@@ -186,6 +203,10 @@ export function openReview(
   // The pin being written: its words in the bubble beside it. Left without words or photos, it goes.
   const empty = pin => !pin.text.trim() && !pin.photos?.length && !(uploading.get(pin) > 0);
   function setActive(i) {
+    if (i != null && pastOpen != null) {
+      pastOpen = null;
+      pastPop.hidden = true;
+    }
     if (active != null && active !== i && notes.pins[active] && empty(notes.pins[active])) {
       notes.pins.splice(active, 1);
       if (i != null && i > active) i--;
@@ -223,10 +244,17 @@ export function openReview(
 
   function renderThumbs() {
     const row = pop.querySelector('.aib-thumbs');
+    if (!row) return;
     const pin = active != null ? notes.pins[active] : null;
     const busy = pin ? uploading.get(pin) || 0 : 0;
-    row.hidden = !pin || (!pin.photos?.length && !busy);
-    if (row.hidden) return row.replaceChildren();
+    if (!pin) return row.replaceChildren();
+    const room = (pin.photos?.length || 0) + busy < MAX_PIN_PHOTOS;
+    // Where a photo goes, in sight: a dropping place while there is none, then a small one after the photos.
+    const tile = !pin.photos?.length && !busy
+      ? el(`<button class="aib-drop-tile" data-act="pin-photo">${icon('image', 16)}<span>${esc(t('Drop a photo or a screenshot here — or click'))}</span></button>`)
+      : room
+        ? el(`<button class="aib-thumb aib-add" data-act="pin-photo" title="${esc(t('Add a photo'))}">${icon('plus', 15)}</button>`)
+        : null;
     row.replaceChildren(
       ...pin.photos.map((name, k) => {
         const thumb = el(`<span class="aib-thumb"><a target="_blank" rel="noopener"><img alt=""></a>
@@ -236,6 +264,7 @@ export function openReview(
         return thumb;
       }),
       ...Array.from({length: busy}, () => el(`<span class="aib-thumb busy"><i class="spin"></i></span>`)),
+      ...(tile ? [tile] : []),
     );
   }
 
@@ -280,32 +309,136 @@ export function openReview(
     );
   }
 
-  // What the owner was looking at when they put the pin, the spot ringed: the view as it is now (on the plan, its canvas).
-  async function keepView(pin) {
-    if (!upload) return;
-    try {
-      const source = view === 'plan' ? ed.v.cv : ed.view.snapshot?.();
-      if (!source?.width) return;
+  // The view as it is now (on the plan, its canvas), at most VIEW_PIXELS wide, with the pin's spot ringed when given.
+  function viewCanvas(pin) {
+    const source = view === 'plan' ? ed.v.cv : ed.view.snapshot?.();
+    if (!source?.width) return null;
+    const ratio = source.width / (source.clientWidth || source.width);
+    const k = Math.min(1, VIEW_PIXELS / source.width);
+    const canvas = document.createElement('canvas');
+    canvas.width = Math.round(source.width * k);
+    canvas.height = Math.round(source.height * k);
+    const g = canvas.getContext('2d');
+    g.fillStyle = getComputedStyle(document.body).backgroundColor || '#f3f4f6';
+    g.fillRect(0, 0, canvas.width, canvas.height);
+    g.drawImage(source, 0, 0, canvas.width, canvas.height);
+    if (pin) {
       const at = view === 'plan' ? ed.v.S([pin.x, pin.y]) : ed.view.project([pin.x, pin.y], pin.z ?? 0);
-      const ratio = source.width / (source.clientWidth || source.width);
-      const k = Math.min(1, VIEW_PIXELS / source.width);
-      const canvas = document.createElement('canvas');
-      canvas.width = Math.round(source.width * k);
-      canvas.height = Math.round(source.height * k);
-      const g = canvas.getContext('2d');
-      g.fillStyle = getComputedStyle(document.body).backgroundColor || '#f3f4f6';
-      g.fillRect(0, 0, canvas.width, canvas.height);
-      g.drawImage(source, 0, 0, canvas.width, canvas.height);
-      const x = at[0] * ratio * k;
-      const y = at[1] * ratio * k;
       const radius = Math.max(16, canvas.width / 60);
       for (const [colour, width] of [['#fff', 7], [RING, 4]]) {
         g.beginPath();
-        g.arc(x, y, radius, 0, Math.PI * 2);
+        g.arc(at[0] * ratio * k, at[1] * ratio * k, radius, 0, Math.PI * 2);
         g.strokeStyle = colour;
         g.lineWidth = width;
         g.stroke();
       }
+    }
+    return canvas;
+  }
+
+  // A screenshot with arrows: the view as it is now; the owner drags from where to where (as many arrows as they like), and it is
+  // added to the pin's photos.
+  function openSketch(pin) {
+    const shot = viewCanvas(null);
+    if (!shot || !upload) return;
+    const overlay = el(`<div class="aib-sketch">
+      <div class="aib-sketch-bar glass">
+        <span>${icon('pen', 15)}${esc(t('Drag to draw an arrow'))}</span>
+        <button class="soft" data-k="undo">${icon('undo', 15)}${esc(t('Undo'))}</button>
+        <button class="soft" data-k="cancel">${esc(t('Cancel'))}</button>
+        <button class="primary" data-k="attach">${esc(t('Add to the pin'))}</button>
+      </div>
+      <canvas></canvas>
+    </div>`);
+    document.body.append(overlay);
+    const canvas = overlay.querySelector('canvas');
+    canvas.width = shot.width;
+    canvas.height = shot.height;
+    const g = canvas.getContext('2d');
+    const width = Math.max(4, shot.width / 220);
+    const arrows = [];
+    let drawing = null;
+    const arrow = ([a, b]) => {
+      const angle = Math.atan2(b[1] - a[1], b[0] - a[0]);
+      const head = width * 4.5;
+      const tip = (turn, length) => [b[0] - length * Math.cos(angle + turn), b[1] - length * Math.sin(angle + turn)];
+      g.lineCap = 'round';
+      g.lineJoin = 'round';
+      for (const [colour, line] of [
+        ['#fff', width + 4],
+        ['#ff3b30', width],
+      ]) {
+        g.strokeStyle = colour;
+        g.fillStyle = colour;
+        g.lineWidth = line;
+        const end = tip(0, head * 0.6);
+        g.beginPath();
+        g.moveTo(a[0], a[1]);
+        g.lineTo(end[0], end[1]);
+        g.stroke();
+        g.beginPath();
+        g.moveTo(b[0], b[1]);
+        for (const p of [tip(-0.45, head), tip(0.45, head)]) g.lineTo(p[0], p[1]);
+        g.closePath();
+        g.fill();
+        if (colour === '#fff') g.stroke();
+      }
+    };
+    const draw = () => {
+      g.drawImage(shot, 0, 0);
+      for (const a of drawing ? [...arrows, drawing] : arrows) arrow(a);
+    };
+    draw();
+    const at = e => {
+      const r = canvas.getBoundingClientRect();
+      return [((e.clientX - r.left) * canvas.width) / r.width, ((e.clientY - r.top) * canvas.height) / r.height];
+    };
+    canvas.addEventListener('pointerdown', e => {
+      try {
+        canvas.setPointerCapture(e.pointerId);
+      } catch {} // a pointer the browser no longer tracks
+      drawing = [at(e), at(e)];
+    });
+    canvas.addEventListener('pointermove', e => {
+      if (!drawing) return;
+      drawing[1] = at(e);
+      draw();
+    });
+    canvas.addEventListener('pointerup', () => {
+      if (drawing && Math.hypot(drawing[1][0] - drawing[0][0], drawing[1][1] - drawing[0][1]) > 10) arrows.push(drawing);
+      drawing = null;
+      draw();
+    });
+    const close = () => {
+      overlay.remove();
+      removeEventListener('keydown', onKey, true);
+    };
+    const onKey = e => {
+      if (e.key !== 'Escape') return;
+      e.stopPropagation();
+      close();
+    };
+    addEventListener('keydown', onKey, true);
+    overlay.querySelector('.aib-sketch-bar').addEventListener('click', async e => {
+      const k = e.target.closest('[data-k]')?.dataset.k;
+      if (k === 'undo') {
+        arrows.pop();
+        draw();
+      } else if (k === 'cancel') close();
+      else if (k === 'attach') {
+        const blob = await new Promise(resolve => canvas.toBlob(resolve, 'image/jpeg', 0.85));
+        close();
+        if (blob) addPhotos(pin, [new File([blob], 'screenshot.jpg', {type: 'image/jpeg'})]);
+      }
+    });
+  }
+
+  // What the owner was looking at when they put the pin, the spot ringed.
+  async function keepView(pin) {
+    if (!upload) return;
+    try {
+      const canvas = viewCanvas(pin);
+      if (!canvas) return;
       const blob = await new Promise(resolve => canvas.toBlob(resolve, 'image/jpeg', 0.82));
       if (!blob) return;
       const name = await upload(blob, 'view');
@@ -318,6 +451,11 @@ export function openReview(
 
   function renderPins() {
     pinLayer.replaceChildren(
+      ...pastPins.map((pin, k) => {
+        const b = el(`<button class="aib-pin past" data-p="${k}" title="${esc(pin.text)}">${icon('check', 13)}</button>`);
+        b.classList.toggle('on', k === pastOpen);
+        return b;
+      }),
       ...notes.pins.map((pin, i) => {
         const b = el(`<button class="aib-pin" data-i="${i}">${i + 1}</button>`);
         b.classList.toggle('on', i === active);
@@ -329,29 +467,106 @@ export function openReview(
     place();
   }
 
+  // ---------- the pins of earlier rounds that were made ----------
+
+  function openPast(k) {
+    setActive(null);
+    pastOpen = k;
+    const pin = pastPins[k];
+    pastPop.hidden = pin == null;
+    if (pin) {
+      pastPop.querySelector('.aib-pop-target').textContent = pinLabel(pin, t('Outside'));
+      pastPop.querySelector('.aib-past-when').textContent = t('Done in round {0}', pin.round);
+      pastPop.querySelector('.aib-past-text').textContent = pin.text;
+      pastPop.querySelector('.aib-thumbs').replaceChildren(
+        ...(pin.photos || []).map(name => {
+          const thumb = el(`<a class="aib-thumb" target="_blank" rel="noopener"><img alt=""></a>`);
+          thumb.href = pictureUrl?.(name) || '#';
+          thumb.querySelector('img').src = pictureUrl?.(name) || '';
+          return thumb;
+        }),
+      );
+    }
+    renderPins();
+    renderPast();
+  }
+
+  function closePast() {
+    pastOpen = null;
+    pastPop.hidden = true;
+    renderPins();
+    renderPast();
+  }
+
+  // Not done after all: a pin of this round at the same spot, with the same words and pictures, to send again.
+  function pinAgain() {
+    const pin = pastPins[pastOpen];
+    if (!pin) return;
+    notes.pins.push({
+      x: pin.x,
+      y: pin.y,
+      ...(pin.z != null ? {z: pin.z} : {}),
+      room: pin.room || null,
+      roomName: pin.roomName || null,
+      item: pin.item || null,
+      itemName: pin.itemName || null,
+      text: pin.text,
+      view: pin.view || null,
+      photos: [...(pin.photos || [])],
+    });
+    closePast();
+    setActive(notes.pins.length - 1);
+    changed();
+  }
+
+  function renderPast() {
+    const details = box.querySelector('.aib-past');
+    details.hidden = !pastPins.length;
+    if (!pastPins.length) return;
+    details.querySelector('summary').textContent = t('{0, plural, one {# change done earlier} other {# changes done earlier}}', pastPins.length);
+    details.querySelector('.aib-notes').replaceChildren(
+      ...pastPins.map((pin, k) => {
+        const row = el(`<li class="aib-note past" data-p="${k}">
+          <span class="aib-num">${icon('check', 12)}</span>
+          <span class="aib-note-body"><small></small><span></span></span></li>`);
+        row.classList.toggle('on', k === pastOpen);
+        row.querySelector('small').textContent = pinLabel(pin, t('Outside'));
+        row.querySelector('.aib-note-body>span').textContent = pin.text;
+        return row;
+      }),
+    );
+  }
+
   // Each frame: pins follow the view (pan, zoom, orbit); the bubble follows its pin.
   function place() {
     const pane = panes[view];
     const paneBox = pane.getBoundingClientRect();
     let activeAt = null;
-    pinLayer.childNodes.forEach((b, i) => {
-      const pin = notes.pins[i];
+    let pastAt = null;
+    pinLayer.childNodes.forEach(b => {
+      const past = b.dataset.p != null;
+      const pin = past ? pastPins[+b.dataset.p] : notes.pins[+b.dataset.i];
       if (!pin) return;
       const [x, y] = view === 'plan' ? ed.v.S([pin.x, pin.y]) : ed.view.project([pin.x, pin.y], pin.z ?? 0);
       // `translate`, not `transform`: the bigger active pin's `scale` would scale a transform's offset too
       b.style.translate = `${x.toFixed(1)}px ${y.toFixed(1)}px`;
-      if (i === active) activeAt = [paneBox.left + x, paneBox.top + y];
+      if (!past && +b.dataset.i === active) activeAt = [paneBox.left + x, paneBox.top + y];
+      if (past && +b.dataset.p === pastOpen) pastAt = [paneBox.left + x, paneBox.top + y];
     });
-    if (activeAt && !pop.hidden) {
-      const w = pop.offsetWidth;
-      const h = pop.offsetHeight;
+    for (const [bubble, at] of [
+      [pop, activeAt],
+      [pastPop, pastAt],
+    ]) {
+      if (!at || bubble.hidden) continue;
+      const w = bubble.offsetWidth;
+      const h = bubble.offsetHeight;
       const ins = insets();
       const maxLeft = innerWidth - ins.right - w - 12;
-      let left = activeAt[0] + 44;
-      if (left > maxLeft) left = activeAt[0] - w - 16;
+      let left = at[0] + 44;
+      if (left > maxLeft) left = at[0] - w - 16;
       left = Math.max(12, Math.min(maxLeft, left));
-      const top = Math.max(64, Math.min(innerHeight - ins.bottom - h - 12, activeAt[1] - 46));
-      pop.style.transform = `translate(${left.toFixed(0)}px, ${top.toFixed(0)}px)`;
+      const top = Math.max(64, Math.min(innerHeight - ins.bottom - h - 12, at[1] - 46));
+      bubble.style.transform = `translate(${left.toFixed(0)}px, ${top.toFixed(0)}px)`;
     }
   }
 
@@ -467,6 +682,7 @@ export function openReview(
 
   box.addEventListener('click', e => {
     const target = e.target.closest('[data-act],[data-tool],[data-view],.aib-note');
+    if (target?.classList.contains('past')) return openPast(+target.dataset.p);
     if (!target) return;
     if (target.dataset.tool) return setTool(target.dataset.tool);
     if (target.dataset.view) return setView(target.dataset.view);
@@ -479,6 +695,9 @@ export function openReview(
     if (act === 'send') return send();
     if (act === 'pin-done') return setActive(null);
     if (act === 'pin-photo') return pop.querySelector('input[type=file]')?.click();
+    if (act === 'pin-sketch' && active != null) return openSketch(notes.pins[active]);
+    if (act === 'past-close') return closePast();
+    if (act === 'past-again') return pinAgain();
     if (act === 'photo-remove' && active != null) {
       notes.pins[active].photos.splice(+target.dataset.k, 1);
       changed();
@@ -564,7 +783,8 @@ export function openReview(
   }
   pinLayer.addEventListener('click', e => {
     const b = e.target.closest('.aib-pin');
-    if (b) setActive(+b.dataset.i);
+    if (b?.dataset.p != null) openPast(+b.dataset.p);
+    else if (b) setActive(+b.dataset.i);
   });
 
   // The plan: the editor's own clicks never reach it — a drag pans, a click puts a pin (the wheel still zooms, as in the editor).
@@ -675,6 +895,7 @@ export function openReview(
   renderPins();
   renderNotes();
   renderLast();
+  renderPast();
   loop();
   return {close};
 }
