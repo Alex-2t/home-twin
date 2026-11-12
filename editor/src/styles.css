@@ -467,7 +467,9 @@ body[data-look=on] :is(#side,#dock,#banner:not(.in-look),#pill,#topr,#pip-show,#
 .aib-start-spin{width:18px;height:18px;border-radius:50%;border:2.5px solid rgba(255,255,255,.95);border-right-color:transparent;animation:aib-spin .8s linear infinite}
 .aib-start-meter{grid-column:2;display:block;height:4px;margin-top:8px;border-radius:2px;background:var(--chip);overflow:hidden}
 .aib-start-meter>i{display:block;height:100%;width:0;border-radius:2px;background:linear-gradient(90deg,#6366f1,#a855f7);transition:width .6s ease-out}
-.aib-start-new{display:block;margin:0 auto 12px;height:28px;padding:0 10px;background:none;border:0;color:var(--mut);font-size:12.5px}.aib-start-new:hover{color:var(--acc);background:none}
+/* a new build while one is followed: a button of its own under the card, as wide as it, never read as the heading of the cards below */
+.aib-start-new{display:flex;width:100%;height:48px;margin:0 0 18px;gap:8px;border:1.5px dashed var(--line2);border-radius:14px;color:var(--tx);font-size:14.5px;font-weight:600}
+.aib-start-new:hover{border-color:var(--acc);border-style:solid;color:var(--acc);background:var(--acc2)}
 body[data-bare] :is(#side,#dock,#banner,#pill,#topr,#pip-show,#divider,#brand,#modes,#ctx,.spot,.dev,.pane .view-tools,.pane-tag,.pane-empty,.pip-grip,.pip-cover){display:none!important}
 body[data-bare] .pane.main{left:0!important;right:0!important}
 body.aib-pinning :is(#pane-plan,#pane-3d) canvas{cursor:crosshair!important}
@@ -620,7 +622,7 @@ button.aib-big{height:46px;padding:0 22px;border-radius:12px;font-size:15px;box-
 .aib-thumb.aib-add{display:grid;place-items:center;border:1.5px dashed var(--line2);background:none;color:var(--mut);cursor:pointer;padding:0}.aib-thumb.aib-add:hover{border-color:var(--acc);color:var(--acc)}
 .aib-pin.past{background:var(--panel-solid);color:var(--acc);opacity:.55;box-shadow:0 0 0 2px var(--acc),0 3px 10px rgba(0,0,0,.2)}.aib-pin.past:hover,.aib-pin.past.on{opacity:1}
 .aib-past summary{cursor:pointer;color:var(--mut);font-size:12.5px;padding:6px 8px;border-radius:9px;list-style-position:inside}.aib-past summary:hover{background:var(--hov)}
-.aib-note.past{opacity:.6}.aib-note.past:hover,.aib-note.past.on{opacity:1}.aib-note.past .aib-num{background:var(--panel-solid);color:var(--acc);box-shadow:inset 0 0 0 1.5px var(--acc)}
+.aib-note.past{opacity:.5}.aib-note.past:hover,.aib-note.past.on{opacity:1}.aib-note.past .aib-num{background:var(--panel-solid);color:var(--acc);box-shadow:inset 0 0 0 1.5px var(--acc)}
 .aib-past-pop .aib-num{background:var(--panel-solid);color:var(--acc);box-shadow:inset 0 0 0 1.5px var(--acc)}
 .aib-past-when{margin:0;color:var(--ok,var(--mut));font-size:12px}.aib-past-text{margin:0;font-size:13.5px;line-height:1.4;overflow-wrap:anywhere}
 .aib-past-pop footer{display:flex;justify-content:space-between;gap:8px}.aib-past-pop footer .primary{margin-left:auto}

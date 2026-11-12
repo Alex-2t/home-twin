@@ -1,6 +1,6 @@
 import {test} from 'node:test';
 import assert from 'node:assert/strict';
-import {overview,roomKind,roomClimate,homeRange,roomPower,roomDevices} from './overview.js';
+import {overview,roomKind,roomClimate,homeRange,roomPower,roomDevices,kindName,localRoomName,numberAlike} from './overview.js';
 
 const sq=(x,y,w,h)=>[[x,y],[x+w,y],[x+w,y+h],[x,y+h]];
 const sensors=[
@@ -29,6 +29,20 @@ test('room climate: a sensor on this room’s wall comes first, otherwise the be
   assert.equal(roomClimate(p,r2,ctx).t.entity,'sensor.wall_t'); // placed on the kitchen wall
   p.sensors=[];assert.notEqual(roomClimate(p,r2,ctx).t.entity,'sensor.fridge_t');
   assert.deepEqual(roomClimate(p,{id:'x',area:'none',polygon:[]},ctx),{});
+});
+
+test('a room outdoors is named by what it is, not all "Balcony"; names that read the same are numbered',()=>{
+  const asIs=text=>text;
+  assert.equal(kindName('front garden',asIs),'Garden');
+  assert.equal(kindName('rear terrace',asIs),'Terrace');
+  assert.equal(kindName('balcony',asIs),'Balcony');
+  assert.equal(kindName('лоджия',asIs),'Loggia'); // allow-cyrillic: a room name from a Russian plan
+  assert.equal(kindName('patio',asIs),'Patio');
+  assert.equal(kindName('bedroom',asIs),'Bedroom');
+  assert.equal(localRoomName('Rear Porch/Utility',asIs),'Porch/Utility');
+  assert.equal(localRoomName('Bedroom 2',asIs),'Bedroom 2');
+  assert.deepEqual(numberAlike(['Bedroom','Kitchen','Bedroom']),['Bedroom 1','Kitchen','Bedroom 2']);
+  assert.deepEqual(numberAlike(['Garden','Terrace']),['Garden','Terrace']);
 });
 
 test('room kind from name and id; home temperature range; room power button',()=>{

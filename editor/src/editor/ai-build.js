@@ -20,7 +20,7 @@ import {el, esc} from './ui.js';
 import {icon} from './icons.js';
 import {readPlan} from '../core/plan-file.js';
 import {emptyPlan} from '../core/plan.js';
-import {roomKind, KIND_NAME, localRoomName} from '../core/overview.js';
+import {kindName, localRoomName, numberAlike} from '../core/overview.js';
 import {byId} from '../core/catalog.js';
 import {openReview} from './ai-review.js';
 import {changeCount, pinsToSend, pinsToRetry} from './ai-pins.js';
@@ -30,8 +30,8 @@ const START_POLL_MS = 3000;
 const NOTES = 'home-twin-editor:ai-notes:';
 // The build this browser started or opened last: the start screen shows how it goes until its home is opened.
 const FOLLOWED = 'home-twin-editor:ai-build';
-// The plan call thinks for minutes before it writes: meanwhile what it works out is named in turn, a new line this often.
-const PHRASE_SECONDS = 6;
+// A step works for minutes between the things it finds: meanwhile what it does is named in turn, a new line this often.
+const PHRASE_SECONDS = 5;
 
 // What the owner sees as stages; each is a few of the build's own steps (the harness's tools/steps.ts). The plan runs beside
 // the rooms, so two stages can run at once.
@@ -42,22 +42,112 @@ const STAGES = [
   {key: 'assembly', steps: ['assemble', 'check'], label: N('Assembly'), note: N('Everything in its place, then checked')},
   {key: 'final', steps: ['shot', 'report'], label: N('Final check'), note: N('A last look over the whole home')},
 ];
-const PLAN_PHRASES = [
-  N('Looking at the drawing'),
-  N('Finding the outer walls'),
-  N('Finding the rooms'),
-  N('Finding the doors and windows'),
-  N('Working out the scale'),
-];
+// What each step does while it has nothing new to show, named in turn: each line true of that step (a dry word now and then).
+const PHRASES = {
+  plan: [
+    N('Looking at the drawing'),
+    N('Finding the outer walls'),
+    N('Finding the rooms'),
+    N('Finding the doors and windows'),
+    N('Seeing which way the doors open'),
+    N('Reading the written sizes'),
+    N('Squinting at the small print'),
+    N('Working out the scale'),
+  ],
+  // The plan call again, with what our code found wrong in its plan.
+  planFix: [N('Checking that the walls meet'), N('Setting each window on its wall'), N('Double-checking the plan')],
+  split: [
+    N('Finding the rooms in your video'),
+    N('Watching each second of the video'),
+    N('Noting where each room ends'),
+    N('Leaving the street and stairs out'),
+    N('Telling the hallway from the kitchen'),
+    N('No skipping: every second counts'),
+  ],
+  frames: [
+    N('Picking the sharpest frames'),
+    N('Dropping blurred and dark frames'),
+    N('Blurring faces in every frame'),
+    N('A few good frames for each room'),
+    N('Your best angles only'),
+  ],
+  recon: [
+    N('Measuring the rooms in 3D'),
+    N('Rebuilding each room in 3D'),
+    N('Working out where the camera stood'),
+    N("Working out your lens's angle"),
+    N('No tape measure: we use the frames'),
+  ],
+  rooms: [
+    N('Looking at each room'),
+    N('Lettering the walls A to D'),
+    N('Noting the doors and windows'),
+    N('Noting the floor and the walls'),
+    N('Listing what stands where'),
+    N('Sizing up the furniture'),
+    N('Counting the chairs'),
+  ],
+  bind: [
+    N('Matching the rooms to the plan'),
+    N('Finding each room on the plan'),
+    N('Matching walls by doors and windows'),
+    N('Turning each room the right way'),
+    N('The video meets the drawing'),
+  ],
+  ours: [
+    N('Choosing the furniture'),
+    N('Looking for each piece in our catalog'),
+    N('Comparing shapes with our models'),
+    N('Finding look-alikes'),
+  ],
+  parts: [
+    N('Making the rest from parts'),
+    N('Comparing each render to the frame'),
+    N('Fixing what does not look alike'),
+    N('Board by board, leg by leg'),
+  ],
+  colours: [N('Measuring the colours'), N('Taking the colours from the frames'), N('Telling beige from cream')],
+  assemble: [
+    N('Putting everything in its place'),
+    N('Setting each piece along its wall'),
+    N('Placing things as the video shows'),
+    N('Keeping the doorways clear'),
+    N('Moving furniture, no movers needed'),
+  ],
+  check: [
+    N('Second look at every room'),
+    N('Drawing each room from above'),
+    N('Comparing the drawing with the video'),
+    N('Moving what stands out of place'),
+    N('Checking the fixes landed'),
+    N('Picking on the details'),
+  ],
+  revise: [N('Making your changes'), N('Reading your pins'), N('Moving things as you asked'), N('Checking the changes landed')],
+  shot: [N('Taking pictures of your home'), N('Opening your home in the editor'), N('Finding a good angle')],
+  report: [
+    N('Final touches'),
+    N('Checking the whole home once more'),
+    N('Checking nothing blocks a doorway'),
+    N('Counting what was built'),
+  ],
+};
+// Under a room's card while its call works, each card in its own turn.
+const ROOM_PHRASES = [N('Looking…'), N('Walls, doors, windows…'), N('Listing the furniture…')];
 
-// A room of the video: its name on the plan once matched (read off the plan, often in English), else its guess in English
-// ("hallway") — in the owner's language either way.
+// A room of the video: its name on the plan once matched (read off the plan, often in English), else what its guess in English
+// ("rear terrace") is — in the owner's language either way.
 const roomName = room =>
   room.name
     ? getLang() === 'en'
       ? room.name
       : localRoomName(room.name, t)
-    : t(KIND_NAME[roomKind(room.guess)]);
+    : kindName(room.guess, t);
+
+// Each room of the video by its id, named (roomName); two that would read the same are numbered in video order.
+function videoRoomNames(rooms) {
+  const names = numberAlike(rooms.map(roomName));
+  return new Map(rooms.map((room, index) => [room.id, names[index]]));
+}
 
 // A piece of furniture as the build lists it ({type, model?, label}): our catalog's name in the owner's language when the room
 // call matched it to one, else the call's own words.
@@ -151,7 +241,7 @@ function planSvg(plan) {
  */
 export function aiStartCard(ed, card, {api = ''} = {}) {
   const idle = card.innerHTML;
-  const another = el(`<button class="aib-start-new" hidden>${esc(t('Start another build'))}</button>`);
+  const another = el(`<button class="aib-start-new" hidden>${icon('plus', 18)}${esc(t('Start another build'))}</button>`);
   card.after(another);
   let shown = null;
   let timer = 0;
@@ -560,16 +650,24 @@ export function openAiBuild(ed, {api = '', id = null, flows = ed.flows} = {}) {
 
   const stepRunning = name => status.steps?.find(x => x.name === name)?.state === 'running';
   const roomById = id => status.rooms?.find(room => room.id === id);
-  // A line that changes every few seconds, the same for everyone looking at the same moment.
-  const inTurn = list => list[Math.floor(Date.now() / 1000 / PHRASE_SECONDS) % list.length];
+  const nameOf = room => videoRoomNames(status.rooms || []).get(room?.id) ?? roomName(room || {guess: ''});
+  // A line that changes every few seconds, the same for everyone looking at the same moment; offset — another place in the turn.
+  const turn = () => Math.floor(Date.now() / 1000 / PHRASE_SECONDS);
+  const inTurn = (list, offset = 0) => list[(turn() + offset) % list.length];
+  // What the step does, in turn.
+  const phrase = step => t(inTurn(PHRASES[step]));
+  // Every other turn: a line about the work in hand (its room or piece in turn too), what the step does between — the line never
+  // stands still for long, and each room still gets its turn.
+  const inHalfTurn = list => list[Math.floor(turn() / 2) % list.length];
+  const between = (line, step) => (turn() % 2 ? t(inHalfTurn(PHRASES[step])) : line);
 
   // What the plan call is at: thinking (what it works out, in turn), writing (the rooms as they come), or fixing what our code found.
   function planLine() {
     const call = status.live?.plan;
-    if (call && call.round > 0) return t('Checking that the walls meet');
+    if (call && call.round > 0) return phrase('planFix');
     if (call?.phase === 'writing' && call.rooms.length) return t('Found: {0}', call.rooms.at(-1));
     if (call?.phase === 'writing') return t('Writing down the plan');
-    return t(inTurn(PLAN_PHRASES));
+    return phrase('plan');
   }
 
   // The line under a running stage: what it is working on right now.
@@ -577,34 +675,36 @@ export function openAiBuild(ed, {api = '', id = null, flows = ed.flows} = {}) {
     const live = status.live || {};
     if (stage.key === 'plan') return planLine();
     if (stage.key === 'rooms') {
-      if (stepRunning('split')) return t('Finding the rooms in your video');
-      if (stepRunning('frames')) return t('Picking the sharpest frames');
+      if (stepRunning('split')) return phrase('split');
+      if (stepRunning('frames')) return phrase('frames');
       const rooms = Object.entries(live.rooms || {});
       const writing = rooms.filter(([, call]) => call.phase === 'writing' && call.pieces.length);
       if (writing.length) {
         const [id, call] = writing.at(-1);
-        return `${roomName(roomById(id) || {guess: ''})}: ${pieceName(call.pieces.at(-1))}`;
+        return `${nameOf(roomById(id))}: ${pieceName(call.pieces.at(-1))}`;
       }
       const looking = rooms.filter(([, call]) => call.phase !== 'done').map(([id]) => roomById(id)).filter(Boolean);
-      if (looking.length) return t('Looking at: {0}', roomName(inTurn(looking)));
-      if (stepRunning('recon')) return t('Measuring the rooms in 3D');
-      return t('Looking at each room');
+      if (looking.length) return between(t('Looking at: {0}', nameOf(inHalfTurn(looking))), 'rooms');
+      if (stepRunning('recon')) return phrase('recon');
+      return phrase('rooms');
     }
     if (stage.key === 'furniture') {
-      if (stepRunning('bind')) return t('Matching the rooms to the plan');
+      if (stepRunning('bind')) return phrase('bind');
       const work = live.making?.at(-1);
-      if (work) return work.how === 'parts' ? t('Making from parts: {0}', pieceName(work)) : t('Comparing with our model: {0}', pieceName(work));
-      if (stepRunning('colours')) return t('Measuring the colours');
-      return t('Choosing the furniture');
+      if (work?.how === 'parts') return between(t('Making from parts: {0}', pieceName(work)), 'parts');
+      if (work) return between(t('Comparing with our model: {0}', pieceName(work)), 'ours');
+      if (stepRunning('colours')) return phrase('colours');
+      return phrase(stepRunning('parts') ? 'parts' : 'ours');
     }
     if (stage.key === 'assembly') {
       const checking = live.checking?.map(roomById).filter(Boolean) || [];
-      if (status.revising) return checking.length ? t('Changing: {0}', roomName(inTurn(checking))) : t('Making your changes');
-      if (stepRunning('assemble')) return t('Putting everything in its place');
-      if (checking.length) return t('Second look: {0}', roomName(inTurn(checking)));
-      return t('Second look at every room');
+      if (status.revising && checking.length) return between(t('Changing: {0}', nameOf(inHalfTurn(checking))), 'revise');
+      if (status.revising) return phrase('revise');
+      if (stepRunning('assemble')) return phrase('assemble');
+      if (checking.length) return between(t('Second look: {0}', nameOf(inHalfTurn(checking))), 'check');
+      return phrase('check');
     }
-    return stepRunning('shot') ? t('Taking pictures of your home') : t('Final touches');
+    return phrase(stepRunning('shot') ? 'shot' : 'report');
   }
 
   // The small count beside a stage's name.
@@ -768,7 +868,7 @@ export function openAiBuild(ed, {api = '', id = null, flows = ed.flows} = {}) {
         chip.querySelector('.aib-chip-state').innerHTML = state === 'busy' ? '<i class="spin"></i>' : icon('check', 12);
       }
       const name = pieceName(piece);
-      const where = roomName(roomById(piece.room) || {guess: ''});
+      const where = nameOf(roomById(piece.room));
       if (chip.querySelector('b').textContent !== name) chip.querySelector('b').textContent = name;
       if (chip.querySelector('small').textContent !== where) chip.querySelector('small').textContent = where;
     }
@@ -780,7 +880,12 @@ export function openAiBuild(ed, {api = '', id = null, flows = ed.flows} = {}) {
     const call = live.rooms?.[room.id];
     if (!room.done) {
       if (call?.pieces?.length) return `${call.pieces.length} · ${call.pieces.map(pieceName).reverse().join(', ')}`;
-      return looking ? t('Looking…') : '';
+      if (!looking) return '';
+      // Its call not started yet: the room is being rebuilt in 3D first.
+      if (!call && stepRunning('recon')) return t('Measuring in 3D…');
+      // Each room whose call works now a step apart in the turn: the cards do not change in step.
+      const working = Object.entries(live.rooms || {}).filter(([, other]) => other.phase !== 'done').map(([id]) => id);
+      return t(inTurn(ROOM_PHRASES, Math.max(0, working.indexOf(room.id))));
     }
     const making = (live.making || []).filter(work => work.room === room.id);
     if (making.length && stageState(status, STAGES[2]) === 'running') return t('Making: {0}', making.map(pieceName).join(', '));
@@ -808,7 +913,7 @@ export function openAiBuild(ed, {api = '', id = null, flows = ed.flows} = {}) {
         };
         img.src = `${base()}/frame/${encodeURIComponent(room.id)}`;
       }
-      figure.querySelector('.aib-room-name').textContent = roomName(room);
+      figure.querySelector('.aib-room-name').textContent = nameOf(room);
       const busyHere = furnishing && (status.live?.making || []).some(work => work.room === room.id);
       const state = busyHere ? 'running' : room.done ? 'done' : looking ? 'running' : 'todo';
       if (figure.dataset.state !== state) {

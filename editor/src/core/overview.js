@@ -28,7 +28,40 @@ export const KIND_NAME={bath:N('Bathroom'),kids:N("Kids' room"),bed:N('Bedroom')
 // kind, a number kept; a part of no known kind stays as written. The AI build (harness) names its rooms so; the progress page too.
 export function localRoomName(name,tr){
   return String(name||'').split('/').map(part=>{const kind=roomKind(part),n=/\b(\d+)\b/.exec(part)?.[1];
-    return kind==='room'?part.trim():tr(KIND_NAME[kind])+(n?' '+n:'');}).join('/');}
+    return kind==='room'?part.trim():kindName(part,tr)+(n?' '+n:'');}).join('/');}
+
+// What a room outdoors is: one kind ('balcony') for its icon and its devices, but named by what it is — a garden and a terrace
+// are not two balconies. The first that matches; none — a balcony.
+const OUTDOOR=[
+  ['loggia',/лодж|loggi|logia/],
+  ['terrace',/террас|terra[scz]|\bdeck\b|露台/],
+  ['patio',/патио|patio|pátio|庭院/],
+  ['garden',/(?<![а-яё])сад(?![а-яё])|палисад|garden|garten|jardin|jardín|giardino|tuin|ogród|jardim|花园/],
+  ['porch',/веранд|крыльц|porch|veranda|varanda|véranda|weranda|porche|alpendre|门廊/],
+];
+const OUTDOOR_NAME={loggia:N('Loggia'),terrace:N('Terrace'),patio:N('Patio'),garden:N('Garden'),porch:N('Porch')};
+
+/** Names where two or more read the same get a number each, in order: ["Bedroom", "Kitchen", "Bedroom"] → "Bedroom 1", "Bedroom 2". */
+export function numberAlike(names){
+  const count=new Map();
+  for(const name of names)count.set(name,(count.get(name)||0)+1);
+  const given=new Map();
+  return names.map(name=>{
+    if(count.get(name)<2)return name;
+    const number=(given.get(name)||0)+1;
+    given.set(name,number);
+    return `${name} ${number}`;
+  });
+}
+
+/** A room's kind named in the user's language (tr = i18n t), from its name or the AI build's guess ("rear terrace"). */
+export function kindName(text,tr){
+  const kind=roomKind(text);
+  if(kind!=='balcony')return tr(KIND_NAME[kind]);
+  const lower=String(text||'').toLowerCase();
+  const outdoor=OUTDOOR.find(([,pattern])=>pattern.test(lower));
+  return tr(outdoor?OUTDOOR_NAME[outdoor[0]]:KIND_NAME.balcony);
+}
 
 // Room climate: each quantity comes from the sensor the user placed on this room's wall, otherwise from the best sensor of its
 // area (like the suggestion in “Sensors”, pickAuto). No sensor or no number: no quantity.

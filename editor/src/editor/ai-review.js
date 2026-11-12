@@ -6,10 +6,10 @@
 // Each pin keeps what the owner was looking at when they put it (the view, the spot ringed) and takes photos or screenshots
 // they add, dropped or pasted onto its bubble or its row (D-076): the service's model sees what they mean. Pins that did
 // not work out last time come back with why.
-import {t, N} from '../i18n/i18n.js';
+import {t} from '../i18n/i18n.js';
 import {el, esc} from './ui.js';
 import {icon} from './icons.js';
-import {newPin, pinLabel, changeCount, MAX_PIN_PHOTOS} from './ai-pins.js';
+import {newPin, pinLabel, changeCount, MAX_PIN_PHOTOS, MISSED_REASON} from './ai-pins.js';
 
 // The panel on the right (a sheet at the bottom on a narrow screen): the views fit into what it leaves free.
 const PANEL_WIDTH = 340;
@@ -20,16 +20,8 @@ const VIEW_PIXELS = 1280;
 const PHOTO_PIXELS = 1600;
 // The ring round the spot in the kept view, as the service's drawing rings it (harness tools/home.mjs roomDiagram).
 const RING = '#d6249f';
-// Why a pin did not work out last time, by the service's reason (harness tools/owner-result.ts).
-const MISSED = {
-  'no-fix': N('Not understood'),
-  refused: N('Ended up elsewhere'),
-  undone: N('Would block a door or a wall'),
-  unchanged: N('Nothing changed'),
-  box: N('No model for it yet: a plain box'),
-  'no-room': N('Outside the home'),
-};
-const missedText = retry => (retry?.codes || []).map(code => t(MISSED[code] || MISSED.unchanged)).join(' · ');
+const missedText = retry =>
+  (retry?.codes || []).map(code => t(MISSED_REASON[code] || MISSED_REASON.unchanged)).join(' · ');
 const isPicture = file => /^image\//.test(file.type) || /\.(heic|heif)$/i.test(file.name || '');
 
 /**
@@ -42,11 +34,13 @@ export function openReview(
   ed,
   {host, photo = null, notes, onChange, onBack, onSend, upload = null, pictureUrl = null, lastRound = null, pastRounds = []},
 ) {
-  // The pins of earlier rounds that were made: faded on the home, to see that each was done (one that was not can be pinned again).
+  // The pins of earlier rounds that were made: listed faded in the panel, not on the home; one shows on the home while its row is
+  // pointed at or opened (one that was not done after all can be pinned again).
   const pastPins = pastRounds.flatMap(round =>
     (round.pins || []).filter(pin => pin.made === 'yes').map(pin => ({...pin, round: round.round})),
   );
   let pastOpen = null;
+  let pastHovered = null;
   let view = '3d';
   let tool = 'pin';
   let active = null;
@@ -450,8 +444,9 @@ export function openReview(
   }
 
   function renderPins() {
+    const shownPast = pastPins.map((pin, k) => ({pin, k})).filter(({k}) => k === pastOpen || k === pastHovered);
     pinLayer.replaceChildren(
-      ...pastPins.map((pin, k) => {
+      ...shownPast.map(({pin, k}) => {
         const b = el(`<button class="aib-pin past" data-p="${k}" title="${esc(pin.text)}">${icon('check', 13)}</button>`);
         b.classList.toggle('on', k === pastOpen);
         return b;
@@ -622,7 +617,7 @@ export function openReview(
     line.textContent =
       done === pins.length
         ? t('All {0} changes are made.', pins.length)
-        : t('{0} of {1} changes are made. The rest are pinned again: a photo helps.', done, pins.length);
+        : t('{0} of {1} changes are made. The rest are pinned again, each with why.', done, pins.length);
   }
 
   function renderSend() {
@@ -711,18 +706,29 @@ export function openReview(
   });
   box.addEventListener('pointerover', e => {
     const row = e.target.closest('.aib-note');
-    const next = row ? +row.dataset.i : null;
-    if (next !== hovered) {
+    const past = row?.classList.contains('past');
+    const next = row && !past ? +row.dataset.i : null;
+    const nextPast = past ? +row.dataset.p : null;
+    if (next !== hovered || nextPast !== pastHovered) {
       hovered = next;
+      pastHovered = nextPast;
       renderPins();
     }
+  });
+  // Off the rows, to the home or anywhere outside the panel: no row is pointed at.
+  box.addEventListener('pointerout', e => {
+    if (e.relatedTarget?.closest?.('.aib-note')) return;
+    if (hovered == null && pastHovered == null) return;
+    hovered = null;
+    pastHovered = null;
+    renderPins();
   });
   popText.addEventListener('input', () => {
     if (active == null) return;
     notes.pins[active].text = popText.value;
     onChange(notes);
     renderNotes();
-    pinLayer.childNodes[active]?.classList.toggle('draft', !popText.value.trim());
+    pinLayer.querySelector(`[data-i="${active}"]`)?.classList.toggle('draft', !popText.value.trim());
   });
   popText.addEventListener('keydown', e => {
     e.stopPropagation();

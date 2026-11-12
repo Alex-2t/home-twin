@@ -3,11 +3,27 @@
 // added — and what goes to the service. A pin that did not work out last time comes back with why. Data only; the screen
 // is ai-review.js.
 import {pointIn, segDist} from '../core/geometry.js';
+import {N} from '../i18n/i18n.js';
 
 // A pin on an exterior wall seen from outside lands outside its room: the nearest room within this many metres counts.
 const NEAR_ROOM = 0.6;
 /** Photos the owner may add to one pin (the service keeps as many: the harness's owner-notes.ts). */
 export const MAX_PIN_PHOTOS = 4;
+
+/**
+ * Why a pin did not work out last time, by the service's reason (the harness's OWNER_MISS_CODES in tools/types.ts; its test
+ * reads this list): what happened and what helps, in a few words. A reason the owner cannot read is as good as none.
+ */
+export const MISSED_REASON = {
+  'no-fix': N('Not understood: say it another way or add a photo'),
+  refused: N('The video shows it elsewhere: a photo helps'),
+  undone: N('Would block a door or a wall'),
+  unchanged: N('Did not apply: our mistake, we try again'),
+  'same-place': N('Not clear where to: point at the spot'),
+  box: N('No model for it yet: a plain box'),
+  'no-room': N('Outside the home'),
+  light: N('Lights are not built yet: add them in the editor'),
+};
 
 /** The room a spot is in, else the nearest one within `near` metres; null outside the home. */
 export function roomAt(plan, p, near = NEAR_ROOM) {
