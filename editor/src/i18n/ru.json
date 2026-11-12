@@ -1500,5 +1500,6 @@
  "Lights are added at the next stage": "Свет добавим на следующем этапе",
  "{0} of {1} changes are made. The rest are pinned again, each with why.": "Сделано {0} из {1}. Остальные снова отмечены — под каждой причина.",
  "Waits for the plan": "Ждёт план",
- "Not on the plan: not built": "Нет на плане — не строим"
+ "Not on the plan: not built": "Нет на плане — не строим",
+ "An error in our code, not in the files": "Ошибка в нашем коде, не в файлах"
 }

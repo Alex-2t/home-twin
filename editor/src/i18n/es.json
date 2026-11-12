@@ -1500,5 +1500,6 @@
  "Lights are added at the next stage": "La iluminación se añade en la siguiente etapa",
  "{0} of {1} changes are made. The rest are pinned again, each with why.": "{0} de {1} cambios hechos. Los demás vuelven a estar marcados, cada uno con el motivo.",
  "Waits for the plan": "Espera el plano",
- "Not on the plan: not built": "No está en el plano: no se construye"
+ "Not on the plan: not built": "No está en el plano: no se construye",
+ "An error in our code, not in the files": "Un error en nuestro código, no en los archivos"
 }

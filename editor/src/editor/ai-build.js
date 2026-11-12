@@ -755,11 +755,13 @@ export function openAiBuild(ed, {api = '', id = null, flows = ed.flows} = {}) {
   function ctaCard() {
     const s = status;
     if (s.error) {
+      // An error of our own code is said in words; its message stays on hover, for us.
+      const why = s.ourCode ? t('An error in our code, not in the files') : s.error;
       return {
         key: `error:${s.error}`,
         html: `<div class="aib-card bad">
           <span class="aib-card-ic">${icon('alert', 20)}</span>
-          <span class="aib-card-text"><b>${esc(t('The build stopped'))}</b><small>${esc(s.error)}</small></span>
+          <span class="aib-card-text"><b>${esc(t('The build stopped'))}</b><small title="${esc(s.error)}">${esc(why)}</small></span>
           <button class="primary" data-act="resume">${esc(t('Try again'))}</button></div>`,
       };
     }
