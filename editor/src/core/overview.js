@@ -14,17 +14,22 @@ const KINDS=[
   ['bed',/спальн|bedroom|schlaf|chambre|dormitorio|camera da letto|slaapkamer|sypialn|quarto|卧室/],
   ['kitchen',/кухн|kitchen|küche|cuisine|cocina|cucina|keuken|kuchni|cozinha|厨房/],
   ['living',/гостин|living|зал|wohnzimmer|salon|séjour|woonkamer|sala|soggiorno|salotto|pokój dzienny|客厅/],
-  ['hall',/коридор|прихож|холл|hall|corridor|flur|diele|entrée|couloir|pasillo|recibidor|corridoio|ingresso|\bgang\b|korytarz|przedpok|corredor|走廊|玄关/],
+  ['hall',/коридор|прихож|холл|hall|corridor|flur|diele|entrée|couloir|pasillo|recibidor|corridoio|ingresso|\bgang\b|\bhal\b|entrada|korytarz|przedpok|corredor|走廊|玄关/],
   // a balcony and the like outdoors: a terrace, patio, garden, porch (the icon; devices.js: which door a contact is on)
   // (a British plan's "side return" is the strip of yard along a back extension, a courtyard a yard closed round: outdoors)
-  ['balcony',/балкон|лодж|террас|веранд|патио|(?<![а-яё])сад(?![а-яё])|двори|balcon|balkon|loggia|terra[scz]|patio|garden|garten|jardin|jardín|giardino|tuin|ogród|jardim|\bdeck\b|porch|veranda|varanda|sacada|panorama|side return|courtyard|阳台|露台|花园/],
-  ['office',/кабинет|office|study|büro|arbeitszimmer|bureau|despacho|oficina|studio|kantoor|gabinet|escritório|书房/],
-  ['storage',/кладов|гардероб|storage|pantry|closet|abstell|cellier|despensa|ripostiglio|berging|spiżarn|储藏/],
+  ['balcony',/балкон|лодж|террас|веранд|патио|(?<![а-яё])сад(?![а-яё])|двори|balcon|balkon|loggia|terra[scz]|patio|garden|garten|jardin|jardín|giardino|tuin|ogród|jardim|\bdeck\b|porch|veranda|varanda|sacada|panorama|side return|courtyard|logia|taras|weranda|alpendre|阳台|露台|花园|凉廊|庭院|门廊/],
+  ['office',/кабинет|office|study|büro|arbeitszimmer|bureau|despacho|oficina|studio|kantoor|werkkamer|gabinet|escritório|escritorio|书房/],
+  ['storage',/кладов|гардероб|storage|pantry|closet|abstell|cellier|despensa|ripostiglio|berging|spiżarn|debarras|trastero|schowek|arrecada|储藏/],
 ];
-export const roomKind=(...names)=>{const s=names.filter(Boolean).join(' ').toLowerCase();return KINDS.find(([,re])=>re.test(s))?.[0]||'room';};
+// Matched as written and with its accents taken off ("Balcón", "Pátio", "Véranda" as the words are listed).
+const plainLetters=s=>s.normalize('NFD').replace(/[\u0300-\u036f]/g,'');
+export const roomKind=(...names)=>{const s=names.filter(Boolean).join(' ').toLowerCase(),plain=plainLetters(s);
+  return KINDS.find(([,re])=>re.test(s)||re.test(plain))?.[0]||'room';};
 // Each kind of room named in the user's language (tr = i18n t): what the AI build calls a room it found.
 export const KIND_NAME={bath:N('Bathroom'),kids:N("Kids' room"),bed:N('Bedroom'),kitchen:N('Kitchen'),living:N('Living room'),hall:N('Hallway'),
-  balcony:N('Balcony'),office:N('Office'),storage:N('Storage'),room:N('Room')};
+  balcony:N('Balcony'),office:N('Office|room'),storage:N('Storage|room'),room:N('Room')};
+// (A room's name has keys of its own where the catalog's category is the same English word: a storage room took the
+// category's Russian word for storing things, which no room kind knew back.)
 // A room's name read off a plan ("Bedroom 2", "Kitchen/Living Room", "En-suite") in the user's language: each part of it by its
 // kind, a number kept; a part of no known kind stays as written. The AI build (harness) names its rooms so; the progress page too.
 export function localRoomName(name,tr){

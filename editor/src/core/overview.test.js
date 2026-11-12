@@ -1,6 +1,6 @@
 import {test} from 'node:test';
 import assert from 'node:assert/strict';
-import {overview,roomKind,roomClimate,homeRange,roomPower,roomDevices,kindName,localRoomName,numberAlike} from './overview.js';
+import {overview,KIND_NAME,roomKind,roomClimate,homeRange,roomPower,roomDevices,kindName,localRoomName,numberAlike} from './overview.js';
 
 const sq=(x,y,w,h)=>[[x,y],[x+w,y],[x+w,y+h],[x,y+h]];
 const sensors=[
@@ -69,4 +69,17 @@ test('room devices: an air conditioner and a thermostat with a setpoint, covers 
   assert.deepEqual(d.acs.map(a=>[a.title,a.kind,a.temp,a.name]),[['Air conditioner','ac',22,'Cool'],['Floor heating','heat',27,'Heat']]);
   assert.deepEqual(d.covers.map(c=>[c.name,c.pos,c.blind]),[['Blind 1',100,true],['Blind 2',0,true]]);
   assert.deepEqual(d.contacts.map(c=>[c.name,c.open]),[['Window',true]]);
+});
+
+// Every room name the editor gives, in every language, is known back as its kind (home-mwdhlwq4: a storage room named by
+// the catalog category's Russian word was of no kind again; "Balcón", "Pátio", "Hal" were not known either).
+test('a room named by its kind in any language is that kind again', async () => {
+  const {LANGS, setLang, t} = await import('../i18n/i18n.js');
+  for (const [lang] of LANGS) {
+    setLang(lang);
+    for (const [kind, key] of Object.entries(KIND_NAME)) if (kind !== 'room') assert.equal(roomKind(t(key)), kind, `${lang} ${kind} ${t(key)}`);
+    for (const outdoors of ['loggia', 'rear terrace', 'patio', 'front garden', 'porch'])
+      assert.equal(roomKind(kindName(outdoors, t)), 'balcony', `${lang} ${kindName(outdoors, t)}`);
+  }
+  setLang('en');
 });

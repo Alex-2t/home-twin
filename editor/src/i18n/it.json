@@ -1502,5 +1502,7 @@
  "We could not draw it yet: we try again": "Non siamo ancora riusciti a disegnarlo: riproviamo",
  "The pin is outside the home": "Il segno è fuori dalla casa",
  "Not done: {0}": "Non fatto: {0}",
- "Done in part: {0}": "Fatto in parte: {0}"
+ "Done in part: {0}": "Fatto in parte: {0}",
+ "Office|room": "Studio",
+ "Storage|room": "Ripostiglio"
 }

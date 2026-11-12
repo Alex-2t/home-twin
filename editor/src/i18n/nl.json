@@ -1502,5 +1502,7 @@
  "We could not draw it yet: we try again": "We konden het nog niet tekenen: we proberen het opnieuw",
  "The pin is outside the home": "De markering ligt buiten de woning",
  "Not done: {0}": "Niet gedaan: {0}",
- "Done in part: {0}": "Deels gedaan: {0}"
+ "Done in part: {0}": "Deels gedaan: {0}",
+ "Office|room": "Werkkamer",
+ "Storage|room": "Berging"
 }

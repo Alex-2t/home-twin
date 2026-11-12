@@ -1502,5 +1502,7 @@
  "We could not draw it yet: we try again": "暂时没能画出它：我们会再试",
  "The pin is outside the home": "标记在房屋外",
  "Not done: {0}": "未完成：{0}",
- "Done in part: {0}": "部分完成：{0}"
+ "Done in part: {0}": "部分完成：{0}",
+ "Office|room": "书房",
+ "Storage|room": "储藏室"
 }

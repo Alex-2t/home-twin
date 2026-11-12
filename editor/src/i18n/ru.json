@@ -1502,5 +1502,7 @@
  "We could not draw it yet: we try again": "Пока не смогли нарисовать эту вещь — попробуем снова",
  "The pin is outside the home": "Метка вне дома",
  "Not done: {0}": "Не сделано: {0}",
- "Done in part: {0}": "Сделано не всё: {0}"
+ "Done in part: {0}": "Сделано не всё: {0}",
+ "Office|room": "Кабинет",
+ "Storage|room": "Кладовая"
 }
