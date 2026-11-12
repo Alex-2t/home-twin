@@ -137,8 +137,10 @@ function concrete(base=[168,167,163]){
 // Carpet: soft pile, dense fine grain and a slight tone variation.
 function carpet(base=[155,149,139]){
   const c=canvas(),g=c.getContext('2d'),r=rng(31);g.fillStyle=rgb(base);g.fillRect(0,0,N,N);
-  for(let i=0;i<40;i++){const x=r()*N,y=r()*N,rad=60+r()*120,a=.008+r()*.012;for(const dx of [-N,0,N])for(const dy of [-N,0,N]){const gr=g.createRadialGradient(x+dx,y+dy,0,x+dx,y+dy,rad);gr.addColorStop(0,`rgba(${r()<.5?'255,255,255':'50,45,40'},${a})`);gr.addColorStop(1,'rgba(0,0,0,0)');g.fillStyle=gr;g.fillRect(x+dx-rad,y+dy-rad,rad*2,rad*2);}}
+  for(let i=0;i<40;i++){const x=r()*N,y=r()*N,rad=60+r()*120,a=.02+r()*.025;for(const dx of [-N,0,N])for(const dy of [-N,0,N]){const gr=g.createRadialGradient(x+dx,y+dy,0,x+dx,y+dy,rad);gr.addColorStop(0,`rgba(${r()<.5?'255,255,255':'50,45,40'},${a})`);gr.addColorStop(1,'rgba(0,0,0,0)');g.fillStyle=gr;g.fillRect(x+dx-rad,y+dy-rad,rad*2,rad*2);}}
   for(let i=0;i<140000;i++){g.fillStyle=r()<.5?'rgba(255,250,240,.07)':'rgba(45,40,35,.08)';g.fillRect(r()*N,r()*N,1,1);}
+  // tufts a few millimetres across, so the pile still reads from across the room (D-080: the carpet looked a flat colour)
+  for(let i=0;i<26000;i++){g.fillStyle=r()<.5?'rgba(255,250,240,.06)':'rgba(40,35,30,.07)';g.fillRect(r()*N,r()*N,3,3);}
   return c;
 }
 // Lawn: mown grass — soft lighter and darker patches (drawn shifted by the width too, no seam) and thousands of short blades leaning

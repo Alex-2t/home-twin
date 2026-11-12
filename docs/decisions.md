@@ -17,6 +17,12 @@ New decisions are appended at the top of their section, old ones are not rewritt
 
 ## Decisions
 
+### D-080. Skirting boards, door and window trim, a carpet whose pile shows — **accepted** (2026-11-12)
+- The owner: the AI-built homes' floors and walls look wrong and dull, and they are most of the picture. Checked against a test home's video: the colours were close (the AI corrects for the room's light as the eye does; measuring them from the video's pixels came out worse under a phone's warm, mixed light), so the look was the drawing's — one even colour from floor to ceiling, nothing where a wall meets the floor or frames a door.
+- **Trim:** every room gets white skirting (9 cm) along its walls, stopping at doors and at windows down to the floor; doors and windows get casings (6.5 cm) on each side of the wall, a window a sill. None where a wall is taken away or is a railing. A casing on an exterior wall hides with its facade (core/trim.js).
+- **Carpet:** its pile shows from across the room (tufts a few millimetres across, stronger soft patches) — it read as a flat colour.
+- Light and the other floors' textures: looked at again on the next homes.
+
 ### D-079. Past pins only in the panel; every pin that did not work out says why; the progress keeps talking — **accepted** (2026-11-12)
 - The owner after a build of a test home: the done pins on the home are in the way; "Last time: Nothing changed" tells a customer nothing — at least the reason; the progress lines should keep showing that something happens; "Balcony" twice for a garden and a terrace; the "Start another build" link was not to be seen.
 - **Past rounds:** the pins made in earlier rounds are no longer drawn on the home. They stay listed under "Done earlier: N", faded; pointing at a row shows its pin on the home, a click opens it as before ("Not done? Pin it again"). Replaces D-078's "stay on the home faded".

@@ -4,6 +4,7 @@ import * as THREE from 'three';
 import {OrbitControls} from 'three/addons/controls/OrbitControls.js';
 import {RoomEnvironment} from 'three/addons/environments/RoomEnvironment.js';
 import {WALL,pointIn} from './geometry.js';
+import {trimBoxes} from './trim.js';
 import {formFor,lineForm,shadeOf,housingOf} from './fixtures.js';
 import {makeObject} from './furniture3d.js';
 import {partsKey} from './parts.js';
@@ -22,6 +23,8 @@ export {floorColor} from './surfaces.js';
 const AOU=aoUniforms();
 // walls are warm white; the inner side of exterior walls has the same color as partitions
 const wallMat=withAO(new THREE.MeshStandardMaterial({color:0xf0ece5,roughness:.92}),AOU,true);
+// skirting boards and door and window trim: white satin paint (D-080)
+const trimMat=new THREE.MeshStandardMaterial({color:0xf3f1ec,roughness:.5});
 const facadeMat=withAO(new THREE.MeshStandardMaterial({color:0xece8e0,roughness:.95}),AOU,true);
 const capMat=new THREE.MeshStandardMaterial({color:0x4a4f57,roughness:.8});
 const slabMat=new THREE.MeshStandardMaterial({color:0xb7b1a7,roughness:.9});
@@ -179,6 +182,9 @@ export function createView(host){
     const sideGroup={};
     for(const s of plan2d.sides){const grp=new THREE.Group();model.add(grp);sides.push({id:s.id,grp,out:OUT[s.id]});sideGroup[s.id]=grp;
       for(const b of s.bands)add(prism(b.mp,b.bottom,b.top),[b.last?capMat:facadeMat,facadeMat],grp);}
+    // Skirting boards and door and window trim (D-080), white; a casing on an exterior wall hides with its facade.
+    for(const t of trimBoxes(rooms,openings)){const facade=t.opening!=null?sideGroup[plan2d.openingSide[t.opening]]:null;
+      const m=add(prism(t.mp,t.bottom,t.top),trimMat,facade??model);if(m)m.castShadow=false;}
     openings.forEach((o,i)=>{if(o.kind!=='window'&&!o.glass)return; // windows and glazed doors
       const [ax,ay]=o.a,[bx,by]=o.b,l=Math.hypot(bx-ax,by-ay);
       // Glass hides together with its facade side.
