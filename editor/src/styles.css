@@ -483,6 +483,14 @@ body.aib-pinning :is(#pane-plan,#pane-3d) canvas{cursor:crosshair!important}
   background:radial-gradient(1100px 460px at 50% -12%,color-mix(in srgb,var(--acc) 11%,transparent),transparent 72%),var(--cv)}
 .aib-head{display:flex;align-items:center;gap:10px;min-height:60px;padding-block:8px;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px))}
 .aib-head b{font-size:15px;font-weight:600}.aib-eta{margin-left:auto;color:var(--mut);font-variant-numeric:tabular-nums}.aib-eta:empty+.aib-exit{margin-left:auto}
+/* the package (D-085): a small bar of what is used, what is left beside it; used up, it reads in the warning colour */
+.aib-wallet{display:inline-flex;align-items:center;gap:7px;color:var(--mut);font-size:12.5px;font-variant-numeric:tabular-nums;white-space:nowrap}
+.aib-wallet .ic{color:var(--acc)}.aib-wallet .aib-meter{width:56px;height:5px;border-radius:3px}
+.aib-wallet.empty{color:var(--bad)}.aib-wallet.empty .ic{color:var(--bad)}.aib-wallet.empty .aib-meter>i{background:var(--bad)}
+.aib-head-wallet:empty{display:none}
+.aib-go-wallet{display:flex;flex-wrap:wrap;align-items:center;gap:6px 10px}.aib-go-wallet:empty{display:none}.aib-go-wallet button.soft{height:32px}
+.aib-wallet-err{color:var(--bad);font-size:12px;flex-basis:100%}
+.aib-panel footer .aib-wallet{align-self:flex-start}
 .aib-meter.aib-overall{flex:none;height:3px;border-radius:0;margin-bottom:14px}.aib-overall>i{background:linear-gradient(90deg,#6366f1,#a855f7);transition:width .8s ease-out}
 .aib-upload{width:min(720px,calc(100% - 32px));margin:12px auto 48px}
 .aib-upload h1{font-size:32px;line-height:1.15;letter-spacing:-.022em;margin:0 0 10px;text-wrap:balance}

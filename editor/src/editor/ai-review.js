@@ -10,6 +10,7 @@ import {t} from '../i18n/i18n.js';
 import {el, esc} from './ui.js';
 import {icon} from './icons.js';
 import {newPin, pinLabel, changeCount, MAX_PIN_PHOTOS, MISSED_REASON} from './ai-pins.js';
+import {walletMeter} from './ai-wallet.js';
 
 // The panel on the right (a sheet at the bottom on a narrow screen): the views fit into what it leaves free.
 const PANEL_WIDTH = 340;
@@ -47,7 +48,8 @@ const isPicture = file => /^image\//.test(file.type) || /\.(heic|heif)$/i.test(f
  * onChange(notes) after each change; onBack() — back to the progress; onSend(notes) → a promise: the answer is on its way
  * (all right when there are no changes); upload(blob, 'view' | 'photo') → a promise of the picture's name at the service;
  * pictureUrl(name) → where to show it; lastRound — the service's last round (how many pins worked out); onReport(pin) → a
- * promise: a pin that came back is sent to the developer (what the app could not do, or did wrong).
+ * promise: a pin that came back is sent to the developer (what the app could not do, or did wrong); wallet — the package's
+ * shares (ai-wallet.js), shown above the button that sends the changes.
  */
 export function openReview(
   ed,
@@ -63,6 +65,7 @@ export function openReview(
     lastRound = null,
     pastRounds = [],
     onReport = null,
+    wallet = null,
   },
 ) {
   // The pins of earlier rounds that were made: listed faded in the panel, not on the home; one shows on the home while its row is
@@ -115,6 +118,7 @@ export function openReview(
         <textarea class="aib-general" rows="2" placeholder="${esc(t('Anything else? For example: the floors are light oak'))}"></textarea>
       </div>
       <footer>
+        ${walletMeter(wallet)}
         <small class="aib-after"></small>
         <button class="primary" data-act="send"></button>
       </footer>

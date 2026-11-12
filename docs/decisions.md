@@ -17,6 +17,13 @@ New decisions are appended at the top of their section, old ones are not rewritt
 
 ## Decisions
 
+### D-085. The AI build is paid from a package shown in percent; a build waits when it runs out — **accepted** (2026-11-12)
+- The owner: the AI build is sold as packages, like Claude's usage: a progress bar shows how much is spent and how much is left. It replaces the one purchase per home of D-063: a big home or many changes simply use more of the package, and a top-up adds another.
+- **Percent, never money:** the editor shows the package as a bar of what is used and what is left of all that was bought (beside the time left on the progress page, beside the button on the upload page and above "Send" in the review). The service answers with shares only.
+- **Used up, the build waits where it is:** the next step waits instead of failing; the page says the package is used up and offers a top-up, and after it the build goes on from where it stopped. A new build starts only while something is left.
+- **No account:** the browser keeps the package's key; the service keeps what is on it. The payment itself comes with the service's payment provider; until then a package and a top-up are given free for testing.
+- Code: `editor/src/editor/ai-wallet.js` (the key, the shares as percents, the bar), the pause and top-up on the progress page in `ai-build.js`, the bar in the review in `ai-review.js`.
+
 ### D-084. Pieces of finish: the AI build may finish part of a wall or floor; by hand a pick covers it whole — **accepted** (2026-11-12)
 - The owner after a round: half a wall was slats and half paint, and the service could only answer "we can't do this yet". The owner: what the editor can't do must not stop the AI build; and it is fine, on purpose, that the AI build can do more than the editor's controls.
 - **The structure:** a room has pieces of finish on top of its own. On a wall (`room.wp[i]`, per edge like `wf`): a stretch of the edge (fractions from its start corner) and a height (metres above the floor), each optional; on the floor (`room.fp`): an outline in plan metres, drawn only inside the room. Each piece is a catalog finish plus its own colour, and on a wall its own tile size and joint. Later pieces lie on top. It covers what real homes have: tiles up to 1.5 m, a kitchen backsplash, slats behind the TV, panels below a dado, a tiled kitchen area or entrance in a parquet room.

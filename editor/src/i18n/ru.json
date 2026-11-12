@@ -1515,5 +1515,12 @@
  "Sent to the developer": "Отправлено разработчику",
  "Send to the developer": "Отправить разработчику",
  "Not sent: check the connection and try again": "Не отправлено: проверьте связь и попробуйте ещё раз",
- "Parts are finished by the AI build: a pick here replaces all of it": "Части отделаны ИИ: выбор здесь заменит всё целиком"
+ "Parts are finished by the AI build: a pick here replaces all of it": "Части отделаны ИИ: выбор здесь заменит всё целиком",
+ "Package: {0}% used, {1}% left": "Пакет: использовано {0}%, осталось {1}%",
+ "{0}% left": "осталось {0}%",
+ "The package is used up": "Пакет закончился",
+ "The build waits. Top up and it goes on from where it stopped.": "Сборка ждёт. После пополнения она продолжится с того же места.",
+ "Top up": "Пополнить",
+ "Waiting for a top-up": "Ждёт пополнения",
+ "Could not top up: {0}": "Не удалось пополнить: {0}"
 }

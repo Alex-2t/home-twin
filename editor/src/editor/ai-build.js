@@ -16,6 +16,8 @@
 //   POST <api>/api/builds/<id>/answer             {at: 'final', action: 'confirm' | 'correct', text?, pins?}
 //   POST <api>/api/builds/<id>/resume             start a stopped build again
 //   POST <api>/api/builds/<id>/feedback           {round, n}: a pin that came back goes to the developer
+//   POST <api>/api/builds/<id>/top-up             one more package on the build's own: a build waiting for it goes on
+// The package (what is left of what was bought, in percent; D-085): ai-wallet.js.
 import {t, N, getLang} from '../i18n/i18n.js';
 import {el, esc} from './ui.js';
 import {icon} from './icons.js';
@@ -25,6 +27,7 @@ import {kindName, localRoomName, numberAlike} from '../core/overview.js';
 import {byId} from '../core/catalog.js';
 import {openReview} from './ai-review.js';
 import {changeCount, pinsToSend, pinsToRetry, refreshRetries} from './ai-pins.js';
+import {ensureWallet, topUpWallet, walletMeter} from './ai-wallet.js';
 
 const POLL_MS = 2000;
 const START_POLL_MS = 3000;
@@ -342,6 +345,8 @@ export function openAiBuild(ed, {api = '', id = null, flows = ed.flows} = {}) {
   let shownFinal = false;
   // The plan as read: its outline and what it holds, once the plan call is done.
   let planRead = null;
+  // Why the last top-up did not go through, said on the card that offers it.
+  let topUpError = null;
   const base = () => `${api}/api/builds/${encodeURIComponent(buildId)}`;
   if (buildId) follow(buildId);
 
@@ -501,15 +506,43 @@ export function openAiBuild(ed, {api = '', id = null, flows = ed.flows} = {}) {
           </ul>
           <div class="aib-go">
             <span class="aib-time">${icon('clock', 15)}<span>${esc(t('About 15 minutes. You can close the page meanwhile.'))}</span></span>
+            <span class="aib-go-wallet"></span>
             <button class="primary aib-big" data-act="start" disabled>${icon('sparkles', 16)}${esc(t('Build my home'))}</button>
           </div>
           <div class="aib-sending" hidden><i class="aib-meter"><i></i></i><span></span></div>
         </main>
       </div>`;
     const start = root.querySelector('[data-act=start]');
+    // The package the build spends from: a build starts only while something is left on it.
+    let wallet = null;
     const sync = () => {
-      start.disabled = !files.plan || !files.videos.length;
+      start.disabled = !files.plan || !files.videos.length || !wallet || wallet.empty;
     };
+    const showWallet = error => {
+      const slot = root.querySelector('.aib-go-wallet');
+      const topUp = wallet?.empty ? `<button class="soft" data-act="top-up">${esc(t('Top up'))}</button>` : '';
+      const why = error ? `<small class="aib-wallet-err">${esc(t('Could not top up: {0}', error))}</small>` : '';
+      slot.innerHTML = walletMeter(wallet) + topUp + why;
+      const button = slot.querySelector('[data-act=top-up]');
+      if (button)
+        button.onclick = async () => {
+          button.disabled = true;
+          try {
+            wallet = await topUpWallet(api, wallet.key);
+            showWallet(null);
+          } catch (e) {
+            showWallet(e.message);
+          }
+          sync();
+        };
+    };
+    ensureWallet(api)
+      .then(found => {
+        wallet = found;
+        showWallet(null);
+        sync();
+      })
+      .catch(e => showWallet(e.message));
     const setFiles = (kind, list) => {
       const label = root.querySelector(`.aib-drop[data-kind=${kind}]`);
       const shown = label.querySelector('.aib-drop-file');
@@ -548,11 +581,11 @@ export function openAiBuild(ed, {api = '', id = null, flows = ed.flows} = {}) {
       });
     }
     root.querySelector('[data-act=exit]').onclick = exit;
-    start.onclick = () => send(files);
+    start.onclick = () => send(files, wallet);
   }
 
   // The files go up with a progress bar (fetch reports no upload progress); then the build's progress.
-  function send(files) {
+  function send(files, wallet) {
     const sending = root.querySelector('.aib-sending');
     const bar = sending.querySelector('.aib-meter>i');
     const line = sending.querySelector('span');
@@ -564,6 +597,8 @@ export function openAiBuild(ed, {api = '', id = null, flows = ed.flows} = {}) {
     const form = new FormData();
     // The language the owner reads: the build names the rooms and the furniture in it.
     form.append('lang', getLang());
+    // The package the build spends from.
+    form.append('wallet', wallet.key);
     form.append('plan', files.plan);
     for (const video of files.videos) form.append('video', video);
     const xhr = new XMLHttpRequest();
@@ -611,6 +646,7 @@ export function openAiBuild(ed, {api = '', id = null, flows = ed.flows} = {}) {
         <header class="aib-head">
           <span class="logo">${icon('sparkles', 15)}</span><b class="aib-title"></b>
           <span class="aib-eta"></span>
+          <span class="aib-head-wallet"></span>
           <button class="ib aib-exit" data-act="exit" title="${esc(t('Close'))}">${icon('x', 17)}</button>
         </header>
         <i class="aib-meter aib-overall"><i></i></i>
@@ -676,6 +712,7 @@ export function openAiBuild(ed, {api = '', id = null, flows = ed.flows} = {}) {
 
   // The line under a running stage: what it is working on right now.
   function stageLine(stage) {
+    if (status.paused) return t('Waiting for a top-up');
     const live = status.live || {};
     if (stage.key === 'plan') return planLine();
     if (stage.key === 'rooms') {
@@ -767,6 +804,16 @@ export function openAiBuild(ed, {api = '', id = null, flows = ed.flows} = {}) {
           <span class="aib-card-ic">${icon('alert', 20)}</span>
           <span class="aib-card-text"><b>${esc(t('The build stopped'))}</b><small title="${esc(s.error)}">${esc(why)}</small></span>
           <button class="primary" data-act="resume">${esc(t('Try again'))}</button></div>`,
+      };
+    }
+    if (s.paused) {
+      const why = topUpError ? t('Could not top up: {0}', topUpError) : t('The build waits. Top up and it goes on from where it stopped.');
+      return {
+        key: `paused:${topUpError || ''}`,
+        html: `<div class="aib-card asking">
+          <span class="aib-card-ic">${icon('wallet', 20)}</span>
+          <span class="aib-card-text"><b>${esc(t('The package is used up'))}</b><small>${esc(why)}</small></span>
+          <button class="primary" data-act="top-up">${esc(t('Top up'))}</button></div>`,
       };
     }
     if (s.waiting === 'final') {
@@ -946,13 +993,22 @@ export function openAiBuild(ed, {api = '', id = null, flows = ed.flows} = {}) {
       ? t('Building your home')
       : s.error
         ? t('The build stopped')
-        : s.waiting || s.finished
+        : s.paused
+          ? t('Waiting for a top-up')
+          : s.waiting || s.finished
           ? t('Your home is ready')
           : s.revising
             ? t('Changing your home…')
             : t('Building your home');
     root.querySelector('.aib-title').textContent = title;
     root.querySelector('.aib-eta').textContent = s ? etaText(s.eta) : '';
+    // The package beside the time: drawn again only when its shares change (the bar would restart its motion).
+    const walletSlot = root.querySelector('.aib-head-wallet');
+    const meter = walletMeter(s?.wallet);
+    if (walletSlot.dataset.meter !== meter) {
+      walletSlot.dataset.meter = meter;
+      walletSlot.innerHTML = meter;
+    }
     const overall = root.querySelector('.aib-overall');
     overall.hidden = !s || !!s.error;
     overall.firstChild.style.width = percent(s?.share || 0);
@@ -973,7 +1029,17 @@ export function openAiBuild(ed, {api = '', id = null, flows = ed.flows} = {}) {
     const act = e.target.closest('[data-act]')?.dataset.act;
     if (act === 'review') startReview();
     else if (act === 'open') openHome();
-    else if (act === 'resume') {
+    else if (act === 'top-up') {
+      const button = e.target.closest('[data-act]');
+      button.disabled = true;
+      try {
+        status = await post('/top-up');
+        topUpError = null;
+      } catch (err) {
+        topUpError = err.message;
+      }
+      renderProgress();
+    } else if (act === 'resume') {
       try {
         status = await post('/resume');
         renderProgress();
@@ -1016,6 +1082,7 @@ export function openAiBuild(ed, {api = '', id = null, flows = ed.flows} = {}) {
       pictureUrl: file => `${base()}/owner/${encodeURIComponent(file)}`,
       lastRound: status?.lastRound || null,
       pastRounds: status?.rounds || [],
+      wallet: status?.wallet || null,
       onReport: pin => post('/feedback', {round: pin.retry.round, n: pin.retry.n}),
     });
   }

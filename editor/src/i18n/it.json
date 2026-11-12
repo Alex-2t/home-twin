@@ -1515,5 +1515,12 @@
  "Sent to the developer": "Inviato allo sviluppatore",
  "Send to the developer": "Invia allo sviluppatore",
  "Not sent: check the connection and try again": "Non inviato: controlla la connessione e riprova",
- "Parts are finished by the AI build: a pick here replaces all of it": "Alcune parti sono rifinite dall’IA: una scelta qui sostituisce tutto"
+ "Parts are finished by the AI build: a pick here replaces all of it": "Alcune parti sono rifinite dall’IA: una scelta qui sostituisce tutto",
+ "Package: {0}% used, {1}% left": "Pacchetto: {0}% usato, {1}% rimasto",
+ "{0}% left": "{0}% rimasto",
+ "The package is used up": "Il pacchetto è esaurito",
+ "The build waits. Top up and it goes on from where it stopped.": "La creazione è in attesa. Ricarica e riprenderà da dove si è fermata.",
+ "Top up": "Ricarica",
+ "Waiting for a top-up": "In attesa di ricarica",
+ "Could not top up: {0}": "Ricarica non riuscita: {0}"
 }

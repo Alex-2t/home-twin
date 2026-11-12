@@ -1515,5 +1515,12 @@
  "Sent to the developer": "Naar de ontwikkelaar gestuurd",
  "Send to the developer": "Naar de ontwikkelaar sturen",
  "Not sent: check the connection and try again": "Niet verzonden: controleer de verbinding en probeer het opnieuw",
- "Parts are finished by the AI build: a pick here replaces all of it": "Delen zijn afgewerkt door de AI: een keuze hier vervangt alles"
+ "Parts are finished by the AI build: a pick here replaces all of it": "Delen zijn afgewerkt door de AI: een keuze hier vervangt alles",
+ "Package: {0}% used, {1}% left": "Pakket: {0}% gebruikt, {1}% over",
+ "{0}% left": "{0}% over",
+ "The package is used up": "Het pakket is op",
+ "The build waits. Top up and it goes on from where it stopped.": "De bouw wacht. Waardeer op en hij gaat verder waar hij stopte.",
+ "Top up": "Opwaarderen",
+ "Waiting for a top-up": "Wacht op opwaardering",
+ "Could not top up: {0}": "Opwaarderen mislukt: {0}"
 }
