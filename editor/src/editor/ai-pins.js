@@ -22,7 +22,7 @@ export const MISSED_REASON = {
   'same-place': N('Not clear where to: point at the spot'),
   box: N('No model for it yet: a plain box'),
   'no-room': N('Outside the home'),
-  light: N('Lights are not built yet: add them in the editor'),
+  light: N('Lights are added at the next stage'),
 };
 
 /** The room a spot is in, else the nearest one within `near` metres; null outside the home. */

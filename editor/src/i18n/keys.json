@@ -693,7 +693,7 @@
  "Lighting & decor": "src/core/catalog.js:162 src/core/catalog.js:163 src/core/catalog.js:164",
  "Lights": "src/editor/wizard-path.js:7 src/look/overview.js:45 src/shell.html",
  "Lights & climate": "src/editor/look.js:141 src/look/layout.js:16",
- "Lights are not built yet: add them in the editor": "src/editor/ai-pins.js:25",
+ "Lights are added at the next stage": "src/editor/ai-pins.js:25",
  "Lights from Home Assistant": "src/shell.html",
  "Lights in room: {0}": "src/editor/modes/rooms.js:466",
  "Lights off": "src/look/overview.js:85",

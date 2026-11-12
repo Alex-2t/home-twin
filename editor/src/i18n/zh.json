@@ -1497,6 +1497,6 @@
  "The video shows it elsewhere: a photo helps": "视频里它在别处：附上照片会有帮助",
  "Did not apply: our mistake, we try again": "未生效：是我们的错，会再试一次",
  "Not clear where to: point at the spot": "不清楚放在哪里：请指出位置",
- "Lights are not built yet: add them in the editor": "暂不放置灯具：可在编辑器中添加",
+ "Lights are added at the next stage": "灯具将在下一阶段添加",
  "{0} of {1} changes are made. The rest are pinned again, each with why.": "已完成 {0}/{1} 处修改。其余已重新标记，并注明原因。"
 }
