@@ -27,7 +27,7 @@ import {kindName, localRoomName, numberAlike} from '../core/overview.js';
 import {byId} from '../core/catalog.js';
 import {openReview} from './ai-review.js';
 import {changeCount, pinsToSend, pinsToRetry, refreshRetries} from './ai-pins.js';
-import {ensureWallet, topUpWallet, walletMeter} from './ai-wallet.js';
+import {buyPackage, claimFromAddress, ensureWallet, priceText, topUpWallet, walletMeter, walletOffer} from './ai-wallet.js';
 
 const POLL_MS = 2000;
 const START_POLL_MS = 3000;
@@ -329,7 +329,25 @@ export function aiStartCard(ed, card, {api = ''} = {}) {
  * Opens the AI build over the editor: the upload screen, or a build's progress when its id is known (the page's ?build=<id>,
  * the start screen's card). flows — the start screen (flows.js): back to it, and the plan kept aside before a new one replaces it.
  */
-export function openAiBuild(ed, {api = '', id = null, flows = ed.flows} = {}) {
+/**
+ * The AI build the address asks for: ?build=<id> opens that build's progress. Back from the checkout (?payment_id=…), the
+ * payment is counted first, then the build it was for opens, or the upload page.
+ */
+export async function openAiFromAddress(ed, {api = ''} = {}) {
+  const params = new URLSearchParams(location.search);
+  const id = params.get('build');
+  if (!id && !params.has('payment_id') && !params.has('paid')) return null;
+  const claimed = await claimFromAddress(api);
+  const notice = claimed?.failed
+    ? t('The payment did not go through')
+    : claimed?.error
+      ? t('Could not check the payment: {0}', claimed.error)
+      : null;
+  return openAiBuild(ed, {api, id, notice});
+}
+
+// notice — a line for the owner on arrival (a payment that did not go through), on the package's place.
+export function openAiBuild(ed, {api = '', id = null, flows = ed.flows, notice = null} = {}) {
   const root = el(`<div class="aib"></div>`);
   document.body.append(root);
   flows?.hideStart();
@@ -345,8 +363,17 @@ export function openAiBuild(ed, {api = '', id = null, flows = ed.flows} = {}) {
   let shownFinal = false;
   // The plan as read: its outline and what it holds, once the plan call is done.
   let planRead = null;
-  // Why the last top-up did not go through, said on the card that offers it.
-  let topUpError = null;
+  // Why the last top-up did not go through, in words, said on the card that offers it.
+  let topUpError = notice;
+  // How a package comes from the service (bought at a checkout, or given free) and its price; asked once.
+  let offer = null;
+  const paid = () => offer?.payments === 'dodo';
+  walletOffer(api)
+    .then(found => {
+      offer = found;
+      if (screen === 'progress') renderProgress();
+    })
+    .catch(() => {});
   const base = () => `${api}/api/builds/${encodeURIComponent(buildId)}`;
   if (buildId) follow(buildId);
 
@@ -513,33 +540,55 @@ export function openAiBuild(ed, {api = '', id = null, flows = ed.flows} = {}) {
         </main>
       </div>`;
     const start = root.querySelector('[data-act=start]');
-    // The package the build spends from: a build starts only while something is left on it.
+    // The package the build spends from: a build starts only while something is left on it. Without one, or with it used up,
+    // it is bought here first (given free where the service takes no payments).
     let wallet = null;
     const sync = () => {
       start.disabled = !files.plan || !files.videos.length || !wallet || wallet.empty;
     };
-    const showWallet = error => {
-      const slot = root.querySelector('.aib-go-wallet');
-      const topUp = wallet?.empty ? `<button class="soft" data-act="top-up">${esc(t('Top up'))}</button>` : '';
-      const why = error ? `<small class="aib-wallet-err">${esc(t('Could not top up: {0}', error))}</small>` : '';
-      slot.innerHTML = walletMeter(wallet) + topUp + why;
-      const button = slot.querySelector('[data-act=top-up]');
-      if (button)
-        button.onclick = async () => {
-          button.disabled = true;
-          try {
-            wallet = await topUpWallet(api, wallet.key);
-            showWallet(null);
-          } catch (e) {
-            showWallet(e.message);
-          }
-          sync();
-        };
+    // The button that gets a package, if one is needed now: [what it does, its label].
+    const walletAction = () => {
+      const price = priceText(offer?.price);
+      if (!wallet) return paid() ? ['buy', t('Buy a package · {0}', price)] : null;
+      if (!wallet.empty) return null;
+      return ['top-up', paid() ? t('Top up · {0}', price) : t('Top up')];
     };
-    ensureWallet(api)
-      .then(found => {
-        wallet = found;
+    // line: what to say under the package, already in words.
+    const showWallet = line => {
+      const slot = root.querySelector('.aib-go-wallet');
+      const action = walletAction();
+      const button = action
+        ? `<button class="${wallet ? 'soft' : 'primary'}" data-act="${action[0]}">${esc(action[1])}</button>`
+        : '';
+      const why = line ? `<small class="aib-wallet-err">${esc(line)}</small>` : '';
+      slot.innerHTML = walletMeter(wallet) + button + why;
+      const node = slot.querySelector('[data-act]');
+      if (node) node.onclick = () => getPackage(node);
+    };
+    const getPackage = async node => {
+      node.disabled = true;
+      if (paid()) {
+        node.textContent = t('Opening the payment…');
+        try {
+          await buyPackage(api, {wallet: wallet?.key || null});
+        } catch (e) {
+          showWallet(t('Could not open the payment: {0}', e.message));
+        }
+        return;
+      }
+      try {
+        wallet = await topUpWallet(api, wallet.key);
         showWallet(null);
+      } catch (e) {
+        showWallet(t('Could not top up: {0}', e.message));
+      }
+      sync();
+    };
+    Promise.resolve(offer || walletOffer(api))
+      .then(async found => {
+        offer = found;
+        wallet = await ensureWallet(api, offer);
+        showWallet(notice);
         sync();
       })
       .catch(e => showWallet(e.message));
@@ -807,13 +856,14 @@ export function openAiBuild(ed, {api = '', id = null, flows = ed.flows} = {}) {
       };
     }
     if (s.paused) {
-      const why = topUpError ? t('Could not top up: {0}', topUpError) : t('The build waits. Top up and it goes on from where it stopped.');
+      const why = topUpError || t('The build waits. Top up and it goes on from where it stopped.');
+      const label = paid() ? t('Top up · {0}', priceText(offer.price)) : t('Top up');
       return {
-        key: `paused:${topUpError || ''}`,
+        key: `paused:${why}:${label}`,
         html: `<div class="aib-card asking">
           <span class="aib-card-ic">${icon('wallet', 20)}</span>
           <span class="aib-card-text"><b>${esc(t('The package is used up'))}</b><small>${esc(why)}</small></span>
-          <button class="primary" data-act="top-up">${esc(t('Top up'))}</button></div>`,
+          <button class="primary" data-act="top-up">${esc(label)}</button></div>`,
       };
     }
     if (s.waiting === 'final') {
@@ -1032,11 +1082,22 @@ export function openAiBuild(ed, {api = '', id = null, flows = ed.flows} = {}) {
     else if (act === 'top-up') {
       const button = e.target.closest('[data-act]');
       button.disabled = true;
+      if (paid()) {
+        // To the checkout; it comes back to this build, which goes on once the payment is counted.
+        button.textContent = t('Opening the payment…');
+        try {
+          await buyPackage(api, {build: buildId});
+        } catch (err) {
+          topUpError = t('Could not open the payment: {0}', err.message);
+          renderProgress();
+        }
+        return;
+      }
       try {
         status = await post('/top-up');
         topUpError = null;
       } catch (err) {
-        topUpError = err.message;
+        topUpError = t('Could not top up: {0}', err.message);
       }
       renderProgress();
     } else if (act === 'resume') {

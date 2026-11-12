@@ -1522,5 +1522,11 @@
  "The build waits. Top up and it goes on from where it stopped.": "De bouw wacht. Waardeer op en hij gaat verder waar hij stopte.",
  "Top up": "Opwaarderen",
  "Waiting for a top-up": "Wacht op opwaardering",
- "Could not top up: {0}": "Opwaarderen mislukt: {0}"
+ "Could not top up: {0}": "Opwaarderen mislukt: {0}",
+ "Buy a package · {0}": "Pakket kopen · {0}",
+ "Top up · {0}": "Opwaarderen · {0}",
+ "The payment did not go through": "De betaling is niet gelukt",
+ "Could not check the payment: {0}": "Betaling kon niet worden gecontroleerd: {0}",
+ "Could not open the payment: {0}": "Betaling kon niet worden geopend: {0}",
+ "Opening the payment…": "Betaling openen…"
 }

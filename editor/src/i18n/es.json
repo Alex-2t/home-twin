@@ -1522,5 +1522,11 @@
  "The build waits. Top up and it goes on from where it stopped.": "La creación espera. Recarga y seguirá desde donde se detuvo.",
  "Top up": "Recargar",
  "Waiting for a top-up": "Esperando una recarga",
- "Could not top up: {0}": "No se pudo recargar: {0}"
+ "Could not top up: {0}": "No se pudo recargar: {0}",
+ "Buy a package · {0}": "Comprar paquete · {0}",
+ "Top up · {0}": "Recargar · {0}",
+ "The payment did not go through": "El pago no se completó",
+ "Could not check the payment: {0}": "No se pudo comprobar el pago: {0}",
+ "Could not open the payment: {0}": "No se pudo abrir el pago: {0}",
+ "Opening the payment…": "Abriendo el pago…"
 }

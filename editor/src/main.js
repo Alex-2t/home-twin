@@ -5,7 +5,7 @@ import {mockHA} from './editor/ha.js';
 import {DEMO_NAME,DEMO,HA,DEMO_UNDERLAY} from './gen/demo.gen.js';
 import {EXAMPLES} from './gen/examples.gen.js';
 import {hashRouter} from './editor/route.js';
-import {openAiBuild,aiService,aiStartCard} from './editor/ai-build.js';
+import {openAiFromAddress,aiService,aiStartCard} from './editor/ai-build.js';
 
 // The start screen's examples (D-062): the ten typical homes, and first the build's demo apartment if it is not one of them (own.mjs).
 // Home Assistant is not connected — each example's own demo data through the same interface as the real one (editor/ha.js, ha-live.js).
@@ -19,7 +19,7 @@ const ha=mockHA(cur.HA);
 // demo: lamp state “in HA” is the plan's lamps
 const ed=await boot({ha,examples:list.map(x=>({id:x.id,plan:x.DEMO,underlay:x.UNDERLAY||null})),example:cur.id,router,dev:true,onApp:ed=>ha._lightsFrom(()=>ed.plan.lights)});
 // The AI build (D-072, D-073, D-074): offered on the start screen where its service answers (locally: the harness's build server
-// serves this page), with the build on its way if there is one; ?build=<id> opens that build's progress.
+// serves this page), with the build on its way if there is one; ?build=<id> opens that build's progress, and back from the
+// checkout (?payment_id=…) the payment is counted, then the build or the upload opens (D-086).
 aiService().then(ok=>{if(ok)ed.flows.offerAi(card=>aiStartCard(ed,card));});
-const build=new URLSearchParams(location.search).get('build');
-if(build)openAiBuild(ed,{id:build});
+openAiFromAddress(ed);

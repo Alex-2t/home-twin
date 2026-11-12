@@ -1519,8 +1519,14 @@
  "Package: {0}% used, {1}% left": "Forfait : {0} % utilisé, {1} % restant",
  "{0}% left": "{0} % restant",
  "The package is used up": "Le forfait est épuisé",
- "The build waits. Top up and it goes on from where it stopped.": "La création attend. Rechargez et elle reprendra là où elle s’est arrêtée.",
+ "The build waits. Top up and it goes on from where it stopped.": "La création attend. Rechargez et elle reprendra là où elle s'est arrêtée.",
  "Top up": "Recharger",
  "Waiting for a top-up": "En attente de recharge",
- "Could not top up: {0}": "Recharge impossible : {0}"
+ "Could not top up: {0}": "Recharge impossible : {0}",
+ "Buy a package · {0}": "Acheter un forfait · {0}",
+ "Top up · {0}": "Recharger · {0}",
+ "The payment did not go through": "Le paiement n'a pas abouti",
+ "Could not check the payment: {0}": "Impossible de vérifier le paiement : {0}",
+ "Could not open the payment: {0}": "Impossible d'ouvrir le paiement : {0}",
+ "Opening the payment…": "Ouverture du paiement…"
 }

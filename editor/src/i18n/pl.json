@@ -1522,5 +1522,11 @@
  "The build waits. Top up and it goes on from where it stopped.": "Budowa czeka. Po doładowaniu ruszy od miejsca, w którym stanęła.",
  "Top up": "Doładuj",
  "Waiting for a top-up": "Czeka na doładowanie",
- "Could not top up: {0}": "Nie udało się doładować: {0}"
+ "Could not top up: {0}": "Nie udało się doładować: {0}",
+ "Buy a package · {0}": "Kup pakiet · {0}",
+ "Top up · {0}": "Doładuj · {0}",
+ "The payment did not go through": "Płatność nie powiodła się",
+ "Could not check the payment: {0}": "Nie udało się sprawdzić płatności: {0}",
+ "Could not open the payment: {0}": "Nie udało się otworzyć płatności: {0}",
+ "Opening the payment…": "Otwieranie płatności…"
 }

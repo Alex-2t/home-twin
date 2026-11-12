@@ -17,6 +17,13 @@ New decisions are appended at the top of their section, old ones are not rewritt
 
 ## Decisions
 
+### D-086. A package is bought at the payment provider's checkout and counted only once the service has checked it — **accepted** (2026-11-13)
+- With D-085 the package came free for testing. Now, where the service takes payments, the package is bought: the upload page shows "Buy a package · $20" until this browser holds one, and "Top up · $20" when it is used up; the progress page of a build waiting for money offers the same top-up.
+- **The checkout is the provider's own page:** the browser goes there and comes back to the editor with the payment in the address. The editor never trusts the address: it asks the service, which checks the payment with the provider before it puts the package on, and counts each payment once, however often the page comes back.
+- **Back where it left:** a top-up for a waiting build comes back to that build, which goes on by itself; a first package comes back to the upload page. A payment that did not go through says so on the package's place.
+- Where the service takes no payments (testing), the package is still given free (D-085).
+- Code: `editor/src/editor/ai-wallet.js` (the offer, the checkout, the claim on return, the price in the owner's language), `ai-build.js` (`openAiFromAddress`, the buttons), `main.js`.
+
 ### D-085. The AI build is paid from a package shown in percent; a build waits when it runs out — **accepted** (2026-11-12)
 - The owner: the AI build is sold as packages, like Claude's usage: a progress bar shows how much is spent and how much is left. It replaces the one purchase per home of D-063: a big home or many changes simply use more of the package, and a top-up adds another.
 - **Percent, never money:** the editor shows the package as a bar of what is used and what is left of all that was bought (beside the time left on the progress page, beside the button on the upload page and above "Send" in the review). The service answers with shares only.
