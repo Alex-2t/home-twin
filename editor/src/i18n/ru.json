@@ -1505,5 +1505,14 @@
  "Done in part: {0}": "Сделано не всё: {0}",
  "Office|room": "Кабинет",
  "Storage|room": "Кладовая",
- "From where you looked it still looks wrong: we try again": "С вашей точки всё ещё не так — попробуем снова"
+ "From where you looked it still looks wrong: we try again": "С вашей точки всё ещё не так — попробуем снова",
+ "We can’t do this yet": "Пока не умеем",
+ "Not understood: say it another way or add a photo": "Не поняли: скажите иначе или добавьте фото",
+ "We can’t do this yet: {0}": "Пока не умеем: {0}",
+ "Not understood: {0}": "Не поняли: {0}",
+ "Understood as: {0}": "Поняли так: {0}",
+ "The developer sees your pin and what we answered, and teaches the app to do it": "Разработчик увидит вашу метку и наш ответ и научит приложение это делать",
+ "Sent to the developer": "Отправлено разработчику",
+ "Send to the developer": "Отправить разработчику",
+ "Not sent: check the connection and try again": "Не отправлено: проверьте связь и попробуйте ещё раз"
 }

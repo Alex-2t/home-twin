@@ -113,3 +113,40 @@ test('a pin that came back follows what the service says of its round now: made,
   const otherRound = {...back[1], retry: {...back[1].retry, round: 2}};
   assert.deepEqual(refreshRetries([own, otherRound], judgedAgain), [own, otherRound]);
 });
+
+// The service reads each pin back (harness owner-result.ts): what it understood, and in the owner's words what it can't do yet
+// or what it asks. The owner: "why was it unclear?" — it was understood, and the app could not do it.
+test("a pin that comes back keeps what the service understood and said in the owner's words, and that it was sent on", () => {
+  const lastRound = {
+    round: 1,
+    pins: [
+      {
+        n: 4,
+        x: 12.3,
+        y: 3.1,
+        text: 'from here to the right the wall is white',
+        made: 'no',
+        understood: 'The wall right of the balcony door is plain white.',
+        why: [{code: 'cannot', text: '…', say: 'A wall has one finish from corner to corner in this version.'}],
+      },
+    ],
+  };
+  const [pin] = pinsToRetry(lastRound);
+  assert.deepEqual(pin.retry, {
+    round: 1,
+    n: 4,
+    made: 'no',
+    codes: ['cannot'],
+    told: [{code: 'cannot', say: 'A wall has one finish from corner to corner in this version.'}],
+    understood: 'The wall right of the balcony door is plain white.',
+  });
+  // Sent to the developer: that stays when the round is read again; what the service says is taken anew.
+  const sent = {...pin, retry: {...pin.retry, reported: true}};
+  const again = {
+    ...lastRound,
+    pins: [{...lastRound.pins[0], why: [{code: 'unclear', text: '…', say: 'Which wall do you mean?'}]}],
+  };
+  const [now] = refreshRetries([sent], again);
+  assert.equal(now.retry.reported, true);
+  assert.deepEqual(now.retry.told, [{code: 'unclear', say: 'Which wall do you mean?'}]);
+});

@@ -24,6 +24,8 @@ export const MISSED_REASON = {
   'no-room': N('The pin is outside the home'),
   light: N('Lights are added at the next stage'),
   still: N('From where you looked it still looks wrong: we try again'),
+  cannot: N('We can’t do this yet'),
+  unclear: N('Not understood: say it another way or add a photo'),
 };
 
 /** The room a spot is in, else the nearest one within `near` metres; null outside the home. */
@@ -108,11 +110,28 @@ export function pinsToRetry(lastRound) {
       view: pin.view || null,
       ...(pin.camera ? {camera: pin.camera} : {}),
       photos: pin.photos || [],
-      retry: {round: lastRound.round, n: pin.n, made: pin.made, codes: reasonCodes(pin)},
+      retry: retryOf(lastRound.round, pin),
     }));
 }
 
 const reasonCodes = pin => [...new Set((pin.why || []).map(w => w.code))];
+
+/**
+ * What comes back with a pin not made: the round, the pin's number, made in part or not, the reasons' codes, what the service
+ * said to the owner in their language (`told`: what it can't do yet and why, what it asks, what it sees now) and how it
+ * understood the pin.
+ */
+function retryOf(round, pin) {
+  const told = (pin.why || []).filter(w => w.say).map(w => ({code: w.code, say: w.say}));
+  return {
+    round,
+    n: pin.n,
+    made: pin.made,
+    codes: reasonCodes(pin),
+    ...(told.length ? {told} : {}),
+    ...(pin.understood ? {understood: pin.understood} : {}),
+  };
+}
 
 /**
  * The draft's pins that came back from the last round, checked against what the service says of that round now (its result
@@ -135,7 +154,8 @@ export function refreshRetries(pins, lastRound) {
       const {retry, ...kept} = pin;
       return [kept];
     }
-    return [{...pin, retry: {...pin.retry, round: lastRound.round, n: now.n, made: now.made, codes: reasonCodes(now)}}];
+    const {told, understood, ...kept} = pin.retry;
+    return [{...pin, retry: {...kept, ...retryOf(lastRound.round, now)}}];
   });
 }
 

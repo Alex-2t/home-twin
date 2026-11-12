@@ -1505,5 +1505,14 @@
  "Done in part: {0}": "部分完成：{0}",
  "Office|room": "书房",
  "Storage|room": "储藏室",
- "From where you looked it still looks wrong: we try again": "从您看的角度仍然不对：我们会再试"
+ "From where you looked it still looks wrong: we try again": "从您看的角度仍然不对：我们会再试",
+ "We can’t do this yet": "目前还做不到",
+ "Not understood: say it another way or add a photo": "没看懂：换个说法或加一张照片",
+ "We can’t do this yet: {0}": "目前还做不到：{0}",
+ "Not understood: {0}": "没看懂：{0}",
+ "Understood as: {0}": "我们的理解：{0}",
+ "The developer sees your pin and what we answered, and teaches the app to do it": "开发者会看到你的标记和我们的回答，并让应用学会这样做",
+ "Sent to the developer": "已发送给开发者",
+ "Send to the developer": "发送给开发者",
+ "Not sent: check the connection and try again": "未发送：请检查网络后重试"
 }

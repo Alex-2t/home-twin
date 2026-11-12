@@ -20,22 +20,50 @@ const VIEW_PIXELS = 1280;
 const PHOTO_PIXELS = 1600;
 // The ring round the spot in the kept view, as the service's drawing rings it (harness tools/home.mjs roomDiagram).
 const RING = '#d6249f';
+// Each reason in the service's own words for this pin when it gave them (what it can't do yet and why, what it asks, what it
+// sees now — in the owner's language), else the reason's usual words.
+const saidFor = (retry, code) =>
+  (retry?.told || [])
+    .filter(told => told.code === code)
+    .map(told => told.say)
+    .join(' ');
 const missedText = retry =>
-  (retry?.codes || []).map(code => t(MISSED_REASON[code] || MISSED_REASON.unchanged)).join(' · ');
-// Under a pin that comes back: not done, or done in part, and why (the owner: "Last time: …" told them nothing).
-const retryText = retry =>
-  t(retry.made === 'partly' ? 'Done in part: {0}' : 'Not done: {0}', missedText(retry));
+  (retry?.codes || []).map(code => saidFor(retry, code) || t(MISSED_REASON[code] || MISSED_REASON.unchanged)).join(' · ');
+// Under a pin that comes back: not done, or done in part, and why (the owner: "Last time: …" told them nothing). What the app
+// can't do yet, and what was not understood, say so plainly (the owner: "why was it unclear?" — it was understood, and the
+// app could not do it).
+const retryText = retry => {
+  const codes = retry?.codes || [];
+  const only = code => codes.length > 0 && codes.every(each => each === code) && saidFor(retry, code);
+  if (only('cannot')) return t('We can’t do this yet: {0}', saidFor(retry, 'cannot'));
+  if (only('unclear')) return t('Not understood: {0}', saidFor(retry, 'unclear'));
+  return t(retry.made === 'partly' ? 'Done in part: {0}' : 'Not done: {0}', missedText(retry));
+};
+const understoodText = retry => (retry?.understood ? t('Understood as: {0}', retry.understood) : '');
 const isPicture = file => /^image\//.test(file.type) || /\.(heic|heif)$/i.test(file.name || '');
 
 /**
  * host — where the review's panels go; photo — the plan photo to compare with; notes — {pins, text}, changed in place;
  * onChange(notes) after each change; onBack() — back to the progress; onSend(notes) → a promise: the answer is on its way
  * (all right when there are no changes); upload(blob, 'view' | 'photo') → a promise of the picture's name at the service;
- * pictureUrl(name) → where to show it; lastRound — the service's last round (how many pins worked out).
+ * pictureUrl(name) → where to show it; lastRound — the service's last round (how many pins worked out); onReport(pin) → a
+ * promise: a pin that came back is sent to the developer (what the app could not do, or did wrong).
  */
 export function openReview(
   ed,
-  {host, photo = null, notes, onChange, onBack, onSend, upload = null, pictureUrl = null, lastRound = null, pastRounds = []},
+  {
+    host,
+    photo = null,
+    notes,
+    onChange,
+    onBack,
+    onSend,
+    upload = null,
+    pictureUrl = null,
+    lastRound = null,
+    pastRounds = [],
+    onReport = null,
+  },
 ) {
   // The pins of earlier rounds that were made: listed faded in the panel, not on the home; one shows on the home while its row is
   // pointed at or opened (one that was not done after all can be pinned again).
@@ -95,6 +123,8 @@ export function openReview(
     <div class="aib-pop glass" hidden>
       <header><span class="aib-num"></span><span class="aib-pop-target"></span></header>
       <p class="aib-retry" hidden></p>
+      <p class="aib-understood" hidden></p>
+      ${onReport ? `<button class="soft aib-report" data-act="pin-report" hidden title="${esc(t('The developer sees your pin and what we answered, and teaches the app to do it'))}"><span></span></button>` : ''}
       <textarea rows="3" placeholder="${esc(t('What is wrong here?'))}"></textarea>
       ${upload ? '<div class="aib-thumbs"></div><input type="file" accept="image/*" multiple hidden>' : ''}
       <small class="aib-photo-err" hidden></small>
@@ -219,6 +249,10 @@ export function openReview(
       const retry = pop.querySelector('.aib-retry');
       retry.hidden = !pin.retry;
       retry.textContent = pin.retry ? retryText(pin.retry) : '';
+      const understood = pop.querySelector('.aib-understood');
+      understood.textContent = understoodText(pin.retry);
+      understood.hidden = !understood.textContent;
+      renderReport(pin);
       popText.value = pin.text;
       photoError('');
       requestAnimationFrame(() => popText.focus({preventScroll: true}));
@@ -592,7 +626,7 @@ export function openReview(
       ...notes.pins.map((pin, i) => {
         const row = el(`<li class="aib-note" data-i="${i}">
           <span class="aib-num">${i + 1}</span>
-          <span class="aib-note-body"><small></small><span></span><em class="aib-retry" hidden></em></span>
+          <span class="aib-note-body"><small></small><span></span><em class="aib-retry" hidden></em><em class="aib-understood" hidden></em></span>
           ${pin.photos?.length ? `<span class="aib-note-photos" title="${esc(t('{0, plural, one {# photo} other {# photos}}', pin.photos.length))}">${icon('image', 12)}${pin.photos.length}</span>` : ''}
           <button class="ib" data-act="pin-delete" title="${esc(t('Delete'))}">${icon('trash', 14)}</button>
         </li>`);
@@ -601,6 +635,9 @@ export function openReview(
         const retry = row.querySelector('.aib-retry');
         retry.hidden = !pin.retry;
         retry.textContent = pin.retry ? retryText(pin.retry) : '';
+        const understood = row.querySelector('.aib-understood');
+        understood.textContent = understoodText(pin.retry);
+        understood.hidden = !understood.textContent;
         const words = row.querySelector('.aib-note-body>span');
         words.textContent = pin.text.trim() || t('What is wrong here?');
         words.classList.toggle('muted', !pin.text.trim());
@@ -678,6 +715,34 @@ export function openReview(
     ed.setBare(view, {right: ins.right, bottom: ins.bottom});
   }
 
+  // ---------- sending a pin to the developer ----------
+
+  // A pin that came back (not done, can't do yet, not understood) can go to the developer, once: the button says it went.
+  const reporting = new Set();
+  function renderReport(pin) {
+    const button = pop.querySelector('.aib-report');
+    if (!button) return;
+    button.hidden = !pin?.retry;
+    const sent = !!pin?.retry?.reported;
+    button.disabled = sent || reporting.has(pin);
+    button.querySelector('span').textContent = sent ? t('Sent to the developer') : t('Send to the developer');
+  }
+  async function report(pin) {
+    if (!pin?.retry || pin.retry.reported || reporting.has(pin)) return;
+    reporting.add(pin);
+    renderReport(pin);
+    try {
+      await onReport(pin);
+      pin.retry = {...pin.retry, reported: true};
+      changed();
+    } catch {
+      photoError(t('Not sent: check the connection and try again'));
+    } finally {
+      reporting.delete(pin);
+      if (active != null && notes.pins[active] === pin) renderReport(pin);
+    }
+  }
+
   // ---------- input ----------
 
   box.addEventListener('click', e => {
@@ -698,6 +763,7 @@ export function openReview(
     if (act === 'pin-sketch' && active != null) return openSketch(notes.pins[active]);
     if (act === 'past-close') return closePast();
     if (act === 'past-again') return pinAgain();
+    if (act === 'pin-report' && active != null) return report(notes.pins[active]);
     if (act === 'photo-remove' && active != null) {
       notes.pins[active].photos.splice(+target.dataset.k, 1);
       changed();

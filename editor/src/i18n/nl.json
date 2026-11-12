@@ -1505,5 +1505,14 @@
  "Done in part: {0}": "Deels gedaan: {0}",
  "Office|room": "Werkkamer",
  "Storage|room": "Berging",
- "From where you looked it still looks wrong: we try again": "Vanaf waar je keek klopt het nog niet: we proberen het opnieuw"
+ "From where you looked it still looks wrong: we try again": "Vanaf waar je keek klopt het nog niet: we proberen het opnieuw",
+ "We can’t do this yet": "Dat kunnen we nog niet",
+ "Not understood: say it another way or add a photo": "Niet begrepen: zeg het anders of voeg een foto toe",
+ "We can’t do this yet: {0}": "Dat kunnen we nog niet: {0}",
+ "Not understood: {0}": "Niet begrepen: {0}",
+ "Understood as: {0}": "Zo begrepen: {0}",
+ "The developer sees your pin and what we answered, and teaches the app to do it": "De ontwikkelaar ziet uw markering en ons antwoord, en leert de app het te doen",
+ "Sent to the developer": "Naar de ontwikkelaar gestuurd",
+ "Send to the developer": "Naar de ontwikkelaar sturen",
+ "Not sent: check the connection and try again": "Niet verzonden: controleer de verbinding en probeer het opnieuw"
 }

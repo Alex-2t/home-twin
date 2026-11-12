@@ -17,6 +17,12 @@ New decisions are appended at the top of their section, old ones are not rewritt
 
 ## Decisions
 
+### D-083. A pin that comes back says how it was understood, what the app can't do yet, and can go to the developer — **accepted** (2026-11-12)
+- The owner after a round: "Not understood" came back on a pin the service had understood and could not do (a wall white from a point onward), "Not done" on one it had done, and it felt as if every note was read from scratch.
+- **Understood as:** each pin that comes back shows, in the owner's language, how the service understood it — a misreading is seen at once.
+- **Plain reasons:** "We can't do this yet: …" with why, in the owner's words ("In this version a wall has one finish from corner to corner"), and "Not understood: …" with the question back, apart from each other; "Not done" carries what the service sees now.
+- **Send to the developer:** a pin that came back has a button that sends it, with what the service answered, to the developer, once; the button then says it was sent.
+
 ### D-082. A radiator goes under a table's top; one rule for what may share floor — **accepted** (2026-11-12)
 - The owner on an AI build: a vanity stood inside the shower. The service found it but did not act on it; part of the reason was that its own check and the editor's red disagreed on what may share floor (a chair under a table, a radiator under its top).
 - **A radiator under a table:** a radiator hung under the window goes under the top of a table standing at it, as a chair does — not red. `under: true` now means all of a thing up to its top (its lift counts), so a tall radiator reaching above the top is still red.

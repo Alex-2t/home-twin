@@ -608,6 +608,8 @@ button.aib-big{height:46px;padding:0 22px;border-radius:12px;font-size:15px;box-
 .aib-pop header{display:flex;align-items:center;gap:8px;min-width:0}.aib-pop-target{color:var(--mut);font-size:12.5px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .aib-pop footer{display:flex;align-items:center;gap:2px}.aib-pop footer .ib{color:var(--mut)}.aib-pop footer .primary{margin-left:auto;padding:0 16px}
 .aib-retry{margin:0;color:var(--warn);font-size:12px;line-height:1.35}.aib-note-body em.aib-retry{font-style:normal}
+.aib-understood{margin:0;color:var(--sub);font-size:12px;line-height:1.35}.aib-note-body em.aib-understood{font-style:normal;display:block}
+.aib-report{align-self:flex-start;font-size:12px;padding:3px 9px}.aib-report:disabled{opacity:.6;cursor:default}
 .aib-thumbs{display:flex;flex-wrap:wrap;gap:6px}
 .aib-thumb{position:relative;width:52px;height:52px;border-radius:9px;overflow:hidden;background:var(--hov);border:1px solid var(--line)}
 .aib-thumb a,.aib-thumb img{display:block;width:100%;height:100%;object-fit:cover}.aib-thumb.busy{display:grid;place-items:center}

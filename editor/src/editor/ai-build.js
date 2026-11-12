@@ -15,6 +15,7 @@
 //   GET  <api>/api/builds/<id>/owner/<file>       a pin's picture
 //   POST <api>/api/builds/<id>/answer             {at: 'final', action: 'confirm' | 'correct', text?, pins?}
 //   POST <api>/api/builds/<id>/resume             start a stopped build again
+//   POST <api>/api/builds/<id>/feedback           {round, n}: a pin that came back goes to the developer
 import {t, N, getLang} from '../i18n/i18n.js';
 import {el, esc} from './ui.js';
 import {icon} from './icons.js';
@@ -1015,6 +1016,7 @@ export function openAiBuild(ed, {api = '', id = null, flows = ed.flows} = {}) {
       pictureUrl: file => `${base()}/owner/${encodeURIComponent(file)}`,
       lastRound: status?.lastRound || null,
       pastRounds: status?.rounds || [],
+      onReport: pin => post('/feedback', {round: pin.retry.round, n: pin.retry.n}),
     });
   }
 

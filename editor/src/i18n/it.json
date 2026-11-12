@@ -1505,5 +1505,14 @@
  "Done in part: {0}": "Fatto in parte: {0}",
  "Office|room": "Studio",
  "Storage|room": "Ripostiglio",
- "From where you looked it still looks wrong: we try again": "Da dove guardavi non va ancora bene: riproviamo"
+ "From where you looked it still looks wrong: we try again": "Da dove guardavi non va ancora bene: riproviamo",
+ "We can’t do this yet": "Non possiamo ancora farlo",
+ "Not understood: say it another way or add a photo": "Non capito: dillo in un altro modo o aggiungi una foto",
+ "We can’t do this yet: {0}": "Non ancora possibile: {0}",
+ "Not understood: {0}": "Non capito: {0}",
+ "Understood as: {0}": "Capito così: {0}",
+ "The developer sees your pin and what we answered, and teaches the app to do it": "Lo sviluppatore vede il tuo segno e la nostra risposta, e insegna all’app a farlo",
+ "Sent to the developer": "Inviato allo sviluppatore",
+ "Send to the developer": "Invia allo sviluppatore",
+ "Not sent: check the connection and try again": "Non inviato: controlla la connessione e riprova"
 }
