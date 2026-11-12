@@ -16,7 +16,8 @@ const KINDS=[
   ['living',/гостин|living|зал|wohnzimmer|salon|séjour|woonkamer|sala|soggiorno|salotto|pokój dzienny|客厅/],
   ['hall',/коридор|прихож|холл|hall|corridor|flur|diele|entrée|couloir|pasillo|recibidor|corridoio|ingresso|\bgang\b|korytarz|przedpok|corredor|走廊|玄关/],
   // a balcony and the like outdoors: a terrace, patio, garden, porch (the icon; devices.js: which door a contact is on)
-  ['balcony',/балкон|лодж|террас|веранд|патио|(?<![а-яё])сад(?![а-яё])|balcon|balkon|loggia|terra[scz]|patio|garden|garten|jardin|jardín|giardino|tuin|ogród|jardim|\bdeck\b|porch|veranda|varanda|sacada|panorama|阳台|露台|花园/],
+  // (a British plan's "side return" is the strip of yard along a back extension, a courtyard a yard closed round: outdoors)
+  ['balcony',/балкон|лодж|террас|веранд|патио|(?<![а-яё])сад(?![а-яё])|двори|balcon|balkon|loggia|terra[scz]|patio|garden|garten|jardin|jardín|giardino|tuin|ogród|jardim|\bdeck\b|porch|veranda|varanda|sacada|panorama|side return|courtyard|阳台|露台|花园/],
   ['office',/кабинет|office|study|büro|arbeitszimmer|bureau|despacho|oficina|studio|kantoor|gabinet|escritório|书房/],
   ['storage',/кладов|гардероб|storage|pantry|closet|abstell|cellier|despensa|ripostiglio|berging|spiżarn|储藏/],
 ];
@@ -35,7 +36,7 @@ export function localRoomName(name,tr){
 const OUTDOOR=[
   ['loggia',/лодж|loggi|logia/],
   ['terrace',/террас|terra[scz]|\bdeck\b|露台/],
-  ['patio',/патио|patio|pátio|庭院/],
+  ['patio',/патио|patio|pátio|side return|courtyard|двори|庭院/],
   ['garden',/(?<![а-яё])сад(?![а-яё])|палисад|garden|garten|jardin|jardín|giardino|tuin|ogród|jardim|花园/],
   ['porch',/веранд|крыльц|porch|veranda|varanda|véranda|weranda|porche|alpendre|门廊/],
 ];

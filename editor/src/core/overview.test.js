@@ -36,6 +36,10 @@ test('a room outdoors is named by what it is, not all "Balcony"; names that read
   assert.equal(kindName('front garden',asIs),'Garden');
   assert.equal(kindName('rear terrace',asIs),'Terrace');
   assert.equal(kindName('balcony',asIs),'Balcony');
+  // a British plan's side return (home-mwdn9wlb's patio, renamed so, was built as a room with walls)
+  assert.equal(roomKind('Side return'),'balcony');
+  assert.equal(kindName('Side return',asIs),'Patio');
+  assert.equal(kindName('courtyard',asIs),'Patio');
   assert.equal(kindName('лоджия',asIs),'Loggia'); // allow-cyrillic: a room name from a Russian plan
   assert.equal(kindName('patio',asIs),'Patio');
   assert.equal(kindName('bedroom',asIs),'Bedroom');
