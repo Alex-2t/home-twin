@@ -15,13 +15,13 @@ export const MAX_PIN_PHOTOS = 4;
  * reads this list): what happened and what helps, in a few words. A reason the owner cannot read is as good as none.
  */
 export const MISSED_REASON = {
-  'no-fix': N('Not understood: say it another way or add a photo'),
-  refused: N('The video shows it elsewhere: a photo helps'),
-  undone: N('Would block a door or a wall'),
-  unchanged: N('Did not apply: our mistake, we try again'),
-  'same-place': N('Not clear where to: point at the spot'),
-  box: N('No model for it yet: a plain box'),
-  'no-room': N('Outside the home'),
+  'no-fix': N('Not understood what to change: say it another way or add a photo'),
+  refused: N('Not enough room there: point at another spot'),
+  undone: N('It would block a door or the way through'),
+  unchanged: N('It did not work, our mistake: we try again'),
+  'same-place': N('Not clear where to move it: point at the spot'),
+  box: N('We could not draw it yet: we try again'),
+  'no-room': N('The pin is outside the home'),
   light: N('Lights are added at the next stage'),
 };
 

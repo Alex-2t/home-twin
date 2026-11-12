@@ -22,6 +22,9 @@ const PHOTO_PIXELS = 1600;
 const RING = '#d6249f';
 const missedText = retry =>
   (retry?.codes || []).map(code => t(MISSED_REASON[code] || MISSED_REASON.unchanged)).join(' · ');
+// Under a pin that comes back: not done, or done in part, and why (the owner: "Last time: …" told them nothing).
+const retryText = retry =>
+  t(retry.made === 'partly' ? 'Done in part: {0}' : 'Not done: {0}', missedText(retry));
 const isPicture = file => /^image\//.test(file.type) || /\.(heic|heif)$/i.test(file.name || '');
 
 /**
@@ -215,7 +218,7 @@ export function openReview(
       pop.querySelector('.aib-pop-target').textContent = pinLabel(pin, t('Outside'));
       const retry = pop.querySelector('.aib-retry');
       retry.hidden = !pin.retry;
-      retry.textContent = pin.retry ? t('Last time: {0}', missedText(pin.retry)) : '';
+      retry.textContent = pin.retry ? retryText(pin.retry) : '';
       popText.value = pin.text;
       photoError('');
       requestAnimationFrame(() => popText.focus({preventScroll: true}));
@@ -595,7 +598,7 @@ export function openReview(
         row.querySelector('small').textContent = pinLabel(pin, t('Outside'));
         const retry = row.querySelector('.aib-retry');
         retry.hidden = !pin.retry;
-        retry.textContent = pin.retry ? t('Last time: {0}', missedText(pin.retry)) : '';
+        retry.textContent = pin.retry ? retryText(pin.retry) : '';
         const words = row.querySelector('.aib-note-body>span');
         words.textContent = pin.text.trim() || t('What is wrong here?');
         words.classList.toggle('muted', !pin.text.trim());
