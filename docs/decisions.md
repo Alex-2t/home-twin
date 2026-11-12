@@ -17,6 +17,13 @@ New decisions are appended at the top of their section, old ones are not rewritt
 
 ## Decisions
 
+### D-084. Pieces of finish: the AI build may finish part of a wall or floor; by hand a pick covers it whole — **accepted** (2026-11-12)
+- The owner after a round: half a wall was slats and half paint, and the service could only answer "we can't do this yet". The owner: what the editor can't do must not stop the AI build; and it is fine, on purpose, that the AI build can do more than the editor's controls.
+- **The structure:** a room has pieces of finish on top of its own. On a wall (`room.wp[i]`, per edge like `wf`): a stretch of the edge (fractions from its start corner) and a height (metres above the floor), each optional; on the floor (`room.fp`): an outline in plan metres, drawn only inside the room. Each piece is a catalog finish plus its own colour, and on a wall its own tile size and joint. Later pieces lie on top. It covers what real homes have: tiles up to 1.5 m, a kitchen backsplash, slats behind the TV, panels below a dado, a tiled kitchen area or entrance in a parquet room.
+- **By hand a pick covers it whole:** a finish picked for a wall removes that wall's pieces; for the room's walls, the pieces on the walls without their own finish; for the floor, the floor's pieces. Where there are pieces the panel says so in one line before the pick.
+- **They follow the plan:** a corner put on a wall splits its pieces, a removed one joins them; a split room's parts keep their own; joined rooms keep both; the plan turned, scaled or a room dragged moves the floor pieces with it. A wall moved: its pieces move with it; a floor piece stays where it lies and is cut by the room.
+- **Drawing:** the wall map holds a stack per stretch of wall — up to four finishes bottom to top and where each starts; the floor pieces are drawn over the room's floor with its pattern laid along the same walls. A ceiling can join later the same way.
+
 ### D-083. A pin that comes back says how it was understood, what the app can't do yet, and can go to the developer — **accepted** (2026-11-12)
 - The owner after a round: "Not understood" came back on a pin the service had understood and could not do (a wall white from a point onward), "Not done" on one it had done, and it felt as if every note was read from scratch.
 - **Understood as:** each pin that comes back shows, in the owner's language, how the service understood it — a misreading is seen at once.

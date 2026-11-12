@@ -4,6 +4,7 @@
 // almost free for weak tablets, unlike screen-space shading on every frame.
 import {t} from '../i18n/i18n.js';
 import * as THREE from 'three';
+import {edgePieces,edgeRuns} from './pieces.js';
 
 // ---------- floor covering ----------
 // Coverings: pattern is how it is drawn (planks, herringbone, tile with cols×rows per repeat, concrete,
@@ -279,31 +280,80 @@ export function wallSwatch(k,tint){const key=k+'|'+(tint||'');if(wsCache.has(key
   else if(K.pattern==='zellige'){const w=K.w*px;for(let y=0;y<48;y+=w)for(let x=0;x<48;x+=w){g.fillStyle=rgb(base,.82+r()*.34);g.fillRect(x+.5,y+.5,w-1,w-1);}}
   const u=c.toDataURL();wsCache.set(key,u);return u;}
 // The edge map: top-down, 2 cm per pixel; each room edge gets a strip 30 cm inward (ends cut along the corner bisector)
-// holding the finish number. In the shader a wall reads the number 9 cm in front of its face. The numbers index a table: color, pattern, sizes.
+// holding a stack number. In the shader a wall reads the number 9 cm in front of its face. A stack is up to four finishes
+// bottom to top with the heights where each next one starts (pieces of finish, pieces.js, D-084: tiles up to 1.5 m, a
+// backsplash); a wall without pieces is a stack of one. Along an edge the stack changes where pieces start and end.
+// The finish numbers index a table: color, pattern, sizes.
 const FIN_PAT={paint:0,grid:1,bond:2,slats:3,concrete:4,brick:5,plaster:6,limewash:7,stripes:8,deco:9,boiserie:10,fluted:11,marble:12,zellige:13,linen:14};
+const TABLE_SIZE=256; // finishes and stacks per home; number 0 is none
+const BAND_STEP=.02; // stack heights in steps of 2 cm (up to 5.1 m)
+const isWallKind=k=>!!WALL_KINDS[k];
+
+/** The finish table: one entry per distinct finish (key, tint, tile size, joint). */
+function finishTable(){
+  const data=new Uint8Array(TABLE_SIZE*2*4),ids=new Map();
+  const idOf=finish=>{
+    const kind=WALL_KINDS[finish.k],width=finish.tile?.[0]??kind.w??0,height=finish.tile?.[1]??kind.h??0,joint=finish.joint??kind.joint??0;
+    const key=[finish.k,finish.tint||'',width,height,joint].join('|');
+    if(ids.has(key))return ids.get(key);
+    if(ids.size>=TABLE_SIZE-1)return 0;
+    const id=ids.size+1,base=unhex(finish.tint)||kind.base;
+    ids.set(key,id);
+    data.set([base[0],base[1],base[2],FIN_PAT[kind.pattern]],id*4);
+    data.set([Math.round(width*100),Math.round(height*100),Math.round((kind.panel||0)*100),Math.round(joint*1000)],(TABLE_SIZE+id)*4);
+    return id;
+  };
+  return {data,idOf,count:()=>ids.size};
+}
+
+/** The stack table: row 0 — up to four finish numbers bottom to top, row 1 — the heights where the 2nd, 3rd and 4th start. */
+function stackTable(idOf){
+  const data=new Uint8Array(TABLE_SIZE*2*4),ids=new Map();
+  const stackId=bands=>{
+    const finishes=[0,0,0,0],starts=[255,255,255,0];
+    bands.forEach((band,j)=>{finishes[j]=idOf(band.finish);if(j>0)starts[j-1]=Math.min(255,Math.round(band.bottom/BAND_STEP));});
+    if(!finishes[0])return 0;
+    const key=finishes.join(',')+'@'+starts.join(',');
+    if(ids.has(key))return ids.get(key);
+    if(ids.size>=TABLE_SIZE-1)return 0;
+    const id=ids.size+1;
+    ids.set(key,id);
+    data.set(finishes,id*4);
+    data.set(starts,(TABLE_SIZE+id)*4);
+    return id;
+  };
+  return {data,idOf:stackId};
+}
+
 export function bakeFinish(rooms,{px=.02,D=.3}={}){
   const list=rooms.filter(r=>!r.solid&&r.polygon?.length>2);if(!list.length)return null;
   const pts=list.flatMap(r=>r.polygon),x0=Math.min(...pts.map(p=>p[0]))-.5,y0=Math.min(...pts.map(p=>p[1]))-.5,x1=Math.max(...pts.map(p=>p[0]))+.5,y1=Math.max(...pts.map(p=>p[1]))+.5;
-  const W=Math.ceil((x1-x0)/px),H=Math.ceil((y1-y0)/px),map=new Uint8Array(W*H*4),tab=new Uint8Array(64*2*4),ids=new Map();
-  const idOf=({k,tint})=>{const key=k+'|'+(tint||'');if(ids.has(key))return ids.get(key);if(ids.size>=63)return 0;const id=ids.size+1,K=WALL_KINDS[k],b=unhex(tint)||K.base;ids.set(key,id);
-    tab.set([b[0],b[1],b[2],FIN_PAT[K.pattern]],id*4);tab.set([Math.round((K.w||0)*100),Math.round((K.h||0)*100),Math.round((K.panel||0)*100),Math.round((K.joint||0)*1000)],(64+id)*4);return id;};
+  const W=Math.ceil((x1-x0)/px),H=Math.ceil((y1-y0)/px),map=new Uint8Array(W*H*4);
+  const finishes=finishTable(),stacks=stackTable(finishes.idOf);
   for(const r of list){const P=r.polygon,n=P.length,s=area(P)>0?1:-1;
     const nrm=i=>{const a=P[i],b=P[(i+1)%n],l=Math.hypot(b[0]-a[0],b[1]-a[1])||1;return [-(b[1]-a[1])/l*s,(b[0]-a[0])/l*s];}; // into the room
     const inset=i=>{const n1=nrm((i-1+n)%n),n2=nrm(i),d=1+n1[0]*n2[0]+n1[1]*n2[1],k=d>.2?D/d:D/.2;return [P[i][0]+(n1[0]+n2[0])*k,P[i][1]+(n1[1]+n2[1])*k];};
     const In=P.map((_,i)=>inset(i));
-    for(let i=0;i<n;i++){const id=idOf(sideWall(r,i));if(!id)continue;const q=[P[i],P[(i+1)%n],In[(i+1)%n],In[i]];
+    for(let i=0;i<n;i++){
+      const runs=edgeRuns(sideWall(r,i),edgePieces(r,i,isWallKind)),ids=runs.map(run=>stacks.idOf(run.bands));
+      if(!ids.some(id=>id))continue;
+      const a=P[i],b=P[(i+1)%n],dx=b[0]-a[0],dy=b[1]-a[1],lengthSquared=dx*dx+dy*dy||1;
+      // which run a point of the strip is in: by where it falls along the edge
+      const idAt=p=>{if(ids.length===1)return ids[0];const along=((p[0]-a[0])*dx+(p[1]-a[1])*dy)/lengthSquared;
+        for(let j=0;j<runs.length;j++)if(along<runs[j].to)return ids[j];return ids[ids.length-1];};
+      const q=[a,b,In[(i+1)%n],In[i]];
       const bx0=Math.max(0,Math.floor((Math.min(...q.map(p=>p[0]))-x0)/px)),bx1=Math.min(W-1,Math.ceil((Math.max(...q.map(p=>p[0]))-x0)/px));
       const by0=Math.max(0,Math.floor((Math.min(...q.map(p=>p[1]))-y0)/px)),by1=Math.min(H-1,Math.ceil((Math.max(...q.map(p=>p[1]))-y0)/px));
-      for(let y=by0;y<=by1;y++)for(let x=bx0;x<=bx1;x++){const p=[x0+(x+.5)*px,y0+(y+.5)*px];if(pointIn(p,q))map[(y*W+x)*4]=id;}}}
+      for(let y=by0;y<=by1;y++)for(let x=bx0;x<=bx1;x++){const p=[x0+(x+.5)*px,y0+(y+.5)*px];if(pointIn(p,q))map[(y*W+x)*4]=idAt(p);}}}
   const tex=new THREE.DataTexture(map,W,H);tex.magFilter=tex.minFilter=THREE.NearestFilter;tex.needsUpdate=true;
-  const tt=new THREE.DataTexture(tab,64,2);tt.magFilter=tt.minFilter=THREE.NearestFilter;tt.needsUpdate=true;
-  return {tex,tab:tt,box:[x0,y0,1/(W*px),1/(H*px)],count:ids.size};
+  const table=data=>{const t=new THREE.DataTexture(data,TABLE_SIZE,2);t.magFilter=t.minFilter=THREE.NearestFilter;t.needsUpdate=true;return t;};
+  return {tex,tab:table(finishes.data),stk:table(stacks.data),box:[x0,y0,1/(W*px),1/(H*px)],count:finishes.count()};
 }
 const area=P=>P.reduce((s,p,i)=>{const q=P[(i+1)%P.length];return s+p[0]*q[1]-q[0]*p[1];},0)/2;
 const pointIn=([x,y],P)=>{let c=false;for(let i=0,j=P.length-1;i<P.length;j=i++){const [xi,yi]=P[i],[xj,yj]=P[j];if(((yi>y)!==(yj>y))&&(x<(xj-xi)*(y-yi)/(yj-yi)+xi))c=!c;}return c;};
 // wall shader fragment: the finish number in front of the face → color and pattern (grid, staggered, brick, slats, concrete)
 export const FINISH_GLSL=`
-uniform sampler2D htFin,htFinTab;uniform vec4 htFinBox;
+uniform sampler2D htFin,htFinTab,htFinStk;uniform vec4 htFinBox;
 float htHash(vec2 c){return fract(sin(dot(c,vec2(127.1,311.7)))*43758.5453);}
 float htNoise(vec2 p){vec2 i=floor(p),f=fract(p);f=f*f*(3.0-2.0*f);return mix(mix(htHash(i),htHash(i+vec2(1.,0.)),f.x),mix(htHash(i+vec2(0.,1.)),htHash(i+vec2(1.,1.)),f.x),f.y);}
 vec3 htLin(vec3 c){return pow(c,vec3(2.2));}
@@ -312,8 +362,11 @@ void htFinish(inout vec4 dc){
   vec3 n=normalize(htNrm);if(abs(n.y)>0.5)return;
   vec2 pl=vec2(htPos.x,-htPos.z),np=normalize(vec2(n.x,-n.z)),uv=(pl+np*0.09-htFinBox.xy)*htFinBox.zw;
   if(uv.x<=0.0||uv.y<=0.0||uv.x>=1.0||uv.y>=1.0)return;
-  float id=floor(texture2D(htFin,uv).r*255.0+0.5);if(id<0.5)return;
-  vec4 A=texture2D(htFinTab,vec2((id+0.5)/64.0,0.25)),B=texture2D(htFinTab,vec2((id+0.5)/64.0,0.75));
+  float stack=floor(texture2D(htFin,uv).r*255.0+0.5);if(stack<0.5)return;
+  // the stack: up to four finishes bottom to top and the heights where the next ones start (pieces of finish, D-084)
+  vec4 S=floor(texture2D(htFinStk,vec2((stack+0.5)/256.0,0.25))*255.0+0.5),Z=floor(texture2D(htFinStk,vec2((stack+0.5)/256.0,0.75))*255.0+0.5)*0.02;
+  float id=S.r;if(htPos.y>=Z.r)id=S.g;if(htPos.y>=Z.g)id=S.b;if(htPos.y>=Z.b)id=S.a;if(id<0.5)return;
+  vec4 A=texture2D(htFinTab,vec2((id+0.5)/256.0,0.25)),B=texture2D(htFinTab,vec2((id+0.5)/256.0,0.75));
   float pat=floor(A.a*255.0+0.5);vec3 col=htLin(A.rgb);
   float u=dot(pl,vec2(-np.y,np.x)),v=htPos.y,tw=max(0.01,B.r*2.55),th=max(0.01,B.g*2.55),panel=B.b*2.55,jt=B.a*0.255,aa=max(fwidth(u),fwidth(v))+1e-4;
   if(panel>0.0&&v>panel){dc.rgb=htLin(vec3(0.941,0.925,0.898));return;}
@@ -407,7 +460,7 @@ export function bakeAO(plan2d,{R=AO.R,px=AO.px}={}){
 export function aoUniforms(){
   const blank=new THREE.DataTexture(new Uint8Array([0,0,0,0]),1,1);blank.needsUpdate=true;
   return {htAoA:{value:blank},htAoB:{value:blank},htAoBox:{value:new THREE.Vector4(0,0,1,1)},htAoVis:{value:new THREE.Vector4(1,1,1,1)},
-    htFin:{value:blank},htFinTab:{value:blank},htFinBox:{value:new THREE.Vector4(0,0,0,0)}, // wall finish: the edge map and the table
+    htFin:{value:blank},htFinTab:{value:blank},htFinStk:{value:blank},htFinBox:{value:new THREE.Vector4(0,0,0,0)}, // wall finish: the edge map, the finishes, the stacks
     // strength at the floor, strength in vertical wall corners, how much shading applies to direct light (sun, lamps), radius
     htAoK:{value:new THREE.Vector4(.8,1,.65,AO.R)}};
 }

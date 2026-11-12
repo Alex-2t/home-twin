@@ -3,6 +3,7 @@
 import {t} from '../i18n/i18n.js';
 import {area,centroid,attachOpening,openingCoords,pointIn,segDist,poly,WALL,OUTER,edgeThickness} from './geometry.js';
 import pc from 'polygon-clipping';
+import {splitPieces,joinPieces,carryPieces,fractionAlong,mapFloorPieces,keepFloorPiecesInside} from './pieces.js';
 
 export const PLAN_VERSION=1;
 export const LINK=.45; // edges of neighboring rooms closer than this form one wall
@@ -44,12 +45,34 @@ export function reattachOpenings(plan,beforeRooms){
 // Edge thicknesses (room.wt), edge finishes (room.wf) and railings (room.rail) follow the corners: a new edge inherits the one it
 // was split from; removing a corner keeps the previous one.
 export const EDGE_KEYS=['wt','wf','rail'];
+// Pieces of finish on the walls (room.wp, pieces.js, D-084) follow the corners by position: a new corner splits the pieces of
+// its edge between the two parts, a removed one joins the pieces of both edges.
+function padWallPieces(room,count){while(room.wp.length<count)room.wp.push(null);}
+function tidyWallPieces(room){if(room.wp&&!room.wp.some(list=>list?.length))delete room.wp;}
+function splitEdgePieces(room,edge,cut){
+  padWallPieces(room,room.polygon.length-1); // the corner is in already: one edge more than the pieces have
+  const [before,after]=splitPieces(room.wp[edge],cut);
+  room.wp.splice(edge,1,before,after);
+}
+function joinEdgePieces(room,corner){
+  const points=room.polygon,count=points.length,previous=(corner-1+count)%count;
+  const edgeLength=j=>{const a=points[j],b=points[(j+1)%count];return Math.hypot(b[0]-a[0],b[1]-a[1]);};
+  padWallPieces(room,count);
+  room.wp[previous]=joinPieces(room.wp[previous],room.wp[corner],edgeLength(previous),edgeLength(corner));
+  room.wp.splice(corner,1);
+}
 export function insertVertex(plan,room,i,p){
-  const before=cloneRooms(plan);room.polygon.splice(i+1,0,p);for(const k of EDGE_KEYS)if(room[k])room[k].splice(i+1,0,room[k][i]??null);reattachOpenings(plan,before);return i+1;
+  const before=cloneRooms(plan);
+  const cut=fractionAlong(p,room.polygon[i],room.polygon[(i+1)%room.polygon.length]);
+  room.polygon.splice(i+1,0,p);for(const k of EDGE_KEYS)if(room[k])room[k].splice(i+1,0,room[k][i]??null);
+  if(room.wp){splitEdgePieces(room,i,cut);tidyWallPieces(room);}
+  reattachOpenings(plan,before);return i+1;
 }
 export function removeVertex(plan,room,i){
   if(room.polygon.length<=3)return false;
-  const before=cloneRooms(plan);room.polygon.splice(i,1);for(const k of EDGE_KEYS)if(room[k])room[k].splice(i,1);reattachOpenings(plan,before);return true;
+  const before=cloneRooms(plan);
+  if(room.wp){joinEdgePieces(room,i);tidyWallPieces(room);}
+  room.polygon.splice(i,1);for(const k of EDGE_KEYS)if(room[k])room[k].splice(i,1);reattachOpenings(plan,before);return true;
 }
 
 // One wall is the adjacent edges of the same room on one line (a redundant corner mid-wall) plus the parallel edges of neighbors
@@ -161,7 +184,7 @@ export function settleRoom(plan,room){
 // Rotate the whole plan by th (rad, counterclockwise) around point c: rooms, furniture, lights. Openings are attached to room edges and follow on their own.
 export function rotatePlan(plan,c,th){
   const cs=Math.cos(th),sn=Math.sin(th),R=([x,y])=>[+(c[0]+(x-c[0])*cs-(y-c[1])*sn).toFixed(4),+(c[1]+(x-c[0])*sn+(y-c[1])*cs).toFixed(4)];
-  for(const r of plan.rooms)r.polygon=r.polygon.map(R);
+  for(const r of plan.rooms){r.polygon=r.polygon.map(R);mapFloorPieces(r,R);}
   for(const f of plan.furniture){[f.x,f.y]=R([f.x,f.y]);f.rot=+((((f.rot||0)+th*180/Math.PI)%360+360)%360).toFixed(3);if(f.a)f.a=R(f.a);if(f.b)f.b=R(f.b);} // a, b: the ends of a built-in wardrobe
   for(const L of plan.lights){if(L.points)L.points=L.points.map(R);if(L.segments)L.segments=L.segments.map(s=>s.map(R));}
 }
@@ -177,12 +200,18 @@ export function cutChord(room,c,dir){
   return [[R(c[0]+dir[0]*t0),R(c[1]+dir[1]*t0)],[R(c[0]+dir[0]*t1),R(c[1]+dir[1]*t1)]];
 }
 // Split an outline (and edge thicknesses) along p1–p2 into two parts. The parts follow the traversal order; the last edge of each is the split.
-export function splitPolygon(polygon,wt,p1,p2,wf,rail){
+// Wall pieces (wp, pieces.js): a split point on an edge splits its pieces too.
+export function splitPolygon(polygon,wt,p1,p2,wf,rail,wp){
   const P=polygon.map(v=>[...v]),W=wt?[...wt]:null,F=wf?[...wf]:null,R=rail?[...rail]:null,same=(a,b)=>Math.hypot(a[0]-b[0],a[1]-b[1])<1e-4;
+  const WP=wp?P.map((_,i)=>wp[i]??null):null;
   const put=p=>{let k=P.findIndex(q=>same(q,p));if(k>=0)return;
-    for(let i=0;i<P.length;i++){if(segDist(p,P[i],P[(i+1)%P.length])[0]<1e-5){P.splice(i+1,0,p);W?.splice(i+1,0,W[i]??null);F?.splice(i+1,0,F[i]??null);R?.splice(i+1,0,R[i]??null);return;}}};
+    for(let i=0;i<P.length;i++){if(segDist(p,P[i],P[(i+1)%P.length])[0]<1e-5){
+      const cut=fractionAlong(p,P[i],P[(i+1)%P.length]);
+      P.splice(i+1,0,p);W?.splice(i+1,0,W[i]??null);F?.splice(i+1,0,F[i]??null);R?.splice(i+1,0,R[i]??null);
+      if(WP){const [before,after]=splitPieces(WP[i],cut);WP.splice(i,1,before,after);}
+      return;}}};
   put(p1);put(p2);const i1=P.findIndex(q=>same(q,p1)),i2=P.findIndex(q=>same(q,p2));if(i1<0||i2<0||i1===i2)return null;
-  const walk=(from,to)=>{const pts=[],ws=[],fs=[],rs=[];for(let k=from;;k=(k+1)%P.length){pts.push(P[k]);ws.push(k===to?null:W?W[k]??null:null);fs.push(k===to?null:F?F[k]??null:null);rs.push(k===to?null:R?R[k]??null:null);if(k===to)break;}return {pts,ws,fs,rs};};
+  const walk=(from,to)=>{const pts=[],ws=[],fs=[],rs=[],ps=[];for(let k=from;;k=(k+1)%P.length){pts.push(P[k]);ws.push(k===to?null:W?W[k]??null:null);fs.push(k===to?null:F?F[k]??null:null);rs.push(k===to?null:R?R[k]??null:null);ps.push(k===to?null:WP?WP[k]??null:null);if(k===to)break;}return {pts,ws,fs,rs,ps};};
   const A=walk(i1,i2),B=walk(i2,i1);
   if(A.pts.length<3||B.pts.length<3)return null;return [A,B];
 }
@@ -190,17 +219,20 @@ const outN=(room,i)=>{const p=room.polygon,a=p[i],b=p[(i+1)%p.length],l=Math.hyp
 // Split a room: two rooms flush along the split (with the default partition between them). The larger part stays this room
 // (name, HA area); the smaller one is new. Openings and lights go to the part they are in.
 export function splitRoom(plan,room,p1,p2){
-  const parts=splitPolygon(room.polygon,room.wt,p1,p2,room.wf,room.rail);if(!parts)return null;
+  const parts=splitPolygon(room.polygon,room.wt,p1,p2,room.wf,room.rail,room.wp);if(!parts)return null;
   const [A,B]=parts,aA=Math.abs(area(A.pts)),aB=Math.abs(area(B.pts));if(aA<.01-1e-8||aB<.01-1e-8)return null;
   const before=cloneRooms(plan),[big,small]=aA>=aB?[A,B]:[B,A],hasWt=!!room.wt;
   room.polygon=big.pts;if(hasWt)room.wt=big.ws;if(room.wf)room.wf=big.fs;if(room.rail)room.rail=big.rs;
   const nr=addRoom(plan,small.pts);if(hasWt)nr.wt=small.ws;if(room.wf&&small.fs.some(x=>x))nr.wf=small.fs;if(room.rail&&small.rs.some(x=>x))nr.rail=small.rs;
+  if(room.wp){room.wp=big.ps;tidyWallPieces(room);if(small.ps.some(list=>list?.length))nr.wp=small.ps;}
+  if(room.fp)nr.fp=structuredClone(room.fp); // each part keeps the floor pieces that reach into it (below, after the walls settle)
   if(room.railGlass&&nr.rail)nr.railGlass=true; // glass railings stay glass on both parts (D-075)
   if(room.rail?.every(x=>!x)){delete room.rail;delete room.railGlass;}
   for(const k of ['wall','wallTint','floor','floorTint'])if(room[k]!=null)nr[k]=room[k]; // the new part gets the same finish
   if(room.wt?.every(x=>x==null))delete room.wt;if(nr.wt?.every(x=>x==null))delete nr.wt;
   const gap=Math.max(0,wallDefaults(plan).inner-2*WALL.inner);
   if(gap>.001)for(const r of [room,nr]){const i=r.polygon.length-1;moveEdges([[r,i]],snapshot(plan),outN(r,i),-gap/2);}
+  for(const r of [room,nr])keepFloorPiecesInside(r);
   reattachOpenings(plan,before);
   for(const L of plan.lights)if(L.room===room.id){const q=L.points?.[0]||(L.segments?.[0]&&[(L.segments[0][0][0]+L.segments[0][1][0])/2,(L.segments[0][0][1]+L.segments[0][1][1])/2]);const r=q&&roomAt(plan,q);if(r)L.room=r.id;}
   return [room,nr];
@@ -231,11 +263,17 @@ export function mergeRooms(plan,info){
   const src=[A,B].flatMap(r=>r.polygon.map((c,j)=>({c,e:r.polygon[(j+1)%r.polygon.length],t:r.wt?.[j]??null,f:r.wf?.[j]??null,h:r.rail?.[j]??null})));
   const srcOf=(p,i)=>{const q=pts[(i+1)%pts.length];return src.find(x=>segDist(p,x.c,x.e)[0]<1e-3&&segDist(q,x.c,x.e)[0]<1e-3);};
   const wt=pts.map((p,i)=>srcOf(p,i)?.t??null),wf=pts.map((p,i)=>srcOf(p,i)?.f??null),rail=pts.map((p,i)=>srcOf(p,i)?.h??null);
+  // wall pieces: from every old edge each new edge lies along (two rooms side by side: one long wall gets the pieces of both)
+  const wallPiecesOf=(start,end)=>{const carried=[];
+    for(const r of [A,B])r.polygon.forEach((c,j)=>carried.push(...carryPieces(r.wp?.[j],c,r.polygon[(j+1)%r.polygon.length],start,end)));
+    return carried.length?carried:null;};
+  const wp=pts.map((p,i)=>wallPiecesOf(p,pts[(i+1)%pts.length])),fp=[...(A.fp||[]),...(B.fp||[])];
   const [keep,gone]=Math.abs(area(A.polygon))>=Math.abs(area(B.polygon))?[A,B]:[B,A];
   const before=cloneRooms(plan);
   // a door in the removed wall disappears
   plan.openings=plan.openings.filter(o=>{const c=openingCoords(before,o);if(!c)return true;const m=[(c.a[0]+c.b[0])/2,(c.a[1]+c.b[1])/2];return !pointIn(m,band);});
   keep.polygon=pts;if(wt.some(x=>x!=null))keep.wt=wt;else delete keep.wt;if(wf.some(x=>x))keep.wf=wf;else delete keep.wf;if(rail.some(x=>x))keep.rail=rail;else delete keep.rail;
+  if(wp.some(x=>x))keep.wp=wp;else delete keep.wp;if(fp.length)keep.fp=fp;else delete keep.fp;
   if(keep.rail&&(A.railGlass||B.railGlass))keep.railGlass=true;else delete keep.railGlass;
   plan.rooms=plan.rooms.filter(r=>r!==gone);
   for(const o of plan.openings)if(o.at?.room===gone.id)o.at={...o.at,room:keep.id};
@@ -248,7 +286,7 @@ export function mergeRooms(plan,info){
 // Furniture sizes and wall thicknesses are left alone (they are already real); openings are attached to edges in meters, so they are scaled too.
 export function scalePlan(plan,c,k){
   const S=([x,y])=>[+(c[0]+(x-c[0])*k).toFixed(4),+(c[1]+(y-c[1])*k).toFixed(4)];
-  for(const r of plan.rooms)r.polygon=r.polygon.map(S);
+  for(const r of plan.rooms){r.polygon=r.polygon.map(S);mapFloorPieces(r,S);}
   for(const o of plan.openings)if(o.at)o.at={...o.at,s0:o.at.s0*k,s1:o.at.s1*k,d:o.at.d*k};
   for(const f of plan.furniture){[f.x,f.y]=S([f.x,f.y]);if(f.a)f.a=S(f.a);if(f.b)f.b=S(f.b);}
   for(const L of plan.lights){if(L.points)L.points=L.points.map(S);if(L.segments)L.segments=L.segments.map(s=>s.map(S));}

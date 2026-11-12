@@ -27,6 +27,9 @@ export function readPlan(text){
     check(points(r.polygon)&&r.polygon.length>=3);optional(r,'name',x=>typeof x==='string');optional(r,'area',str);
     optional(r,'wt',x=>Array.isArray(x)&&x.every(v=>v==null||Number.isFinite(v)));
     optional(r,'wf',x=>Array.isArray(x)&&x.every(v=>v==null||obj(v)));
+    // pieces of finish (pieces.js, D-084): on the walls per edge, on the floor as outlines; a bad value inside one is skipped when drawn
+    optional(r,'wp',x=>Array.isArray(x)&&x.every(v=>v==null||Array.isArray(v)&&v.every(obj)));
+    optional(r,'fp',x=>Array.isArray(x)&&x.every(v=>obj(v)&&points(v.poly)));
     optional(r,'rail',x=>Array.isArray(x)&&x.every(v=>v==null||Number.isFinite(v)&&v>=0)); // a railing's height per edge (geometry.js RAIL)
     optional(r,'railGlass',x=>x===true); // its railings are glass (D-075)
     if(r.zone!=null){check(obj(r.zone)&&point(r.zone.a)&&point(r.zone.b));optional(r.zone,'area',str);}

@@ -1514,5 +1514,6 @@
  "The developer sees your pin and what we answered, and teaches the app to do it": "Разработчик увидит вашу метку и наш ответ и научит приложение это делать",
  "Sent to the developer": "Отправлено разработчику",
  "Send to the developer": "Отправить разработчику",
- "Not sent: check the connection and try again": "Не отправлено: проверьте связь и попробуйте ещё раз"
+ "Not sent: check the connection and try again": "Не отправлено: проверьте связь и попробуйте ещё раз",
+ "Parts are finished by the AI build: a pick here replaces all of it": "Части отделаны ИИ: выбор здесь заменит всё целиком"
 }

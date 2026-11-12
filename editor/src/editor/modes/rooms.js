@@ -4,6 +4,7 @@ import {t} from '../../i18n/i18n.js';
 import {axisCursor} from '../drag-gesture.js';
 import {area,dist2,segDist,pointIn,offsetVar,WALL,RAIL} from '../../core/geometry.js';
 import {floorColor} from '../../core/scene.js';
+import {hasWallPieces,hasFloorPieces,clearWallPieces,clearFloorPieces,mapFloorPieces} from '../../core/pieces.js';
 import {FLOOR_KINDS,FLOOR_QUICK,FLOOR_GROUPS,floorKind,floorSwatch,floorBase,WALL_KINDS,WALL_QUICK,WALL_GROUPS,roomWall,sideWall,wallSwatch,wallBase} from '../../core/surfaces.js';
 import {GRID} from '../../core/layout.js';
 import {addRoom,removeRoom,insertVertex,removeVertex,linkedEdges,moveEdges,setEdgeLength,snapshot,roomById,wallInfo,setWallThickness,setWallOpen,setRail,settleRoom,cutChord,splitPolygon,splitRoom,mergeRooms,wallAt,absorbRoom,zoneParts,moveZone,zoneFromEdge} from '../../core/plan.js';
@@ -276,7 +277,7 @@ m.closeHint=()=>{if(draft?.click){draft=null;ed.draw();return true;}return close
     if(h.kind==='vertex')drag={kind:'vertex',room:h.room,i:h.i};
     else if(h.kind==='edge'){const pp=h.room.polygon,a=pp[h.i],b=pp[(h.i+1)%pp.length],l=Math.hypot(b[0]-a[0],b[1]-a[1]);
       drag={kind:'edge',room:h.room,i:h.i,t:h.t,n:[-(b[1]-a[1])/l,(b[0]-a[0])/l],start:p,orig,edges:[[h.room,h.i],...linkedEdges(plan(),h.room,h.i)]};}
-    else drag={kind:'room',room:h.room,start:p,orig};
+    else drag={kind:'room',room:h.room,start:p,orig,floorPieces:h.room.fp&&structuredClone(h.room.fp)};
     ed.drag=drag;ed.draw();return true;
   };
   m.move=(e,p)=>{
@@ -326,7 +327,9 @@ m.closeHint=()=>{if(draft?.click){draft=null;ed.draw();return true;}return close
       moveEdges(drag.edges,drag.orig,n,d);
     }
     else{let dx=p[0]-drag.start[0],dy=p[1]-drag.start[1];if(!free&&ed.grid){dx=Math.round(dx/GRID)*GRID;dy=Math.round(dy/GRID)*GRID;}
-      drag.room.polygon=drag.orig.get(drag.room.id).map(q=>[+(q[0]+dx).toFixed(4),+(q[1]+dy).toFixed(4)]);}
+      const shift=q=>[+(q[0]+dx).toFixed(4),+(q[1]+dy).toFixed(4)];
+      drag.room.polygon=drag.orig.get(drag.room.id).map(shift);
+      if(drag.floorPieces){drag.room.fp=structuredClone(drag.floorPieces);mapFloorPieces(drag.room,shift);}}
     ed.update();
   };
   m.up=(e,p)=>{
@@ -531,8 +534,10 @@ m.closeHint=()=>{if(draft?.click){draft=null;ed.draw();return true;}return close
           x.onkeydown=e=>{e.stopPropagation();if(e.key==='Enter')x.blur();};x.onchange=()=>{const w=selWall();if(w){setWallThickness(plan(),w,(+x.value||0)/100);ed.commit();}};lines.push(ml);}}
       // the side finish: for an outer wall — from inside, for a wall between rooms — each side has its own (an accent wall); a railing has none
       if(!W.open&&!W.rail){const owner='wallsel:'+W.room.id+':'+W.i,others=[...new Set((W.B||[]).map(([rb])=>rb))].filter(rb=>!rb.solid);
-        const finishes=[];if(!W.room.solid)finishes.push(...finRow(()=>sideState(W.room,[W.i],others.length?t('“{0}” side',W.room.name):t('Wall finish')),owner));
-        for(const rb of others){const js=W.B.filter(([x])=>x===rb).map(([,j])=>j);finishes.push(...finRow(()=>sideState(rb,js,t('“{0}” side',rb.name)),owner));}
+        const finishes=[],states=[];
+        if(!W.room.solid){const get=()=>sideState(W.room,[W.i],others.length?t('“{0}” side',W.room.name):t('Wall finish'));states.push(get());finishes.push(...finRow(get,owner));}
+        for(const rb of others){const js=W.B.filter(([x])=>x===rb).map(([,j])=>j),get=()=>sideState(rb,js,t('“{0}” side',rb.name));states.push(get());finishes.push(...finRow(get,owner));}
+        finishes.push(...aiPiecesLine(states));
         if(extra)extra.append(...finishes);else lines.push(...finishes);
         ed.showCtx(lines);syncFin(owner);return;}
       ed.showCtx(lines);syncFin(null);return;}
@@ -554,7 +559,7 @@ m.closeHint=()=>{if(draft?.click){draft=null;ed.draw();return true;}return close
     const more=el(`<button class="ib ${open?'on':''} ${q?'pulse':''}" title="${t('More')}">${icon('more',15)}</button>`);
     more.onclick=()=>{const was=open;if(q)hintRoom=null;roomMore=was?null:r.id;ctxPanel();ed.draw();};
     line.append(name,el(`<small>${r.solid?t('solid'):fmtArea(area(r.polygon))}</small>`),...(r.solid?[]:[link]),more,del);
-    const lines=[line];if(!r.solid)lines.push(floorLine(r),...finRow(()=>wallState(r),'room:'+r.id));
+    const lines=[line];if(!r.solid)lines.push(...floorLines(r),...finRow(()=>wallState(r),'room:'+r.id),...aiPiecesLine([floorState(r),wallState(r)]));
     if(roomLink!==r.id)roomLink=null;
     if(!q&&!r.solid&&roomLink===r.id)lines.push(...areaLines(r,false,false).slice(1));
     // the question: “Yes” — make it solid, “No” — keep it a room; after the answer “⋯” stays open with the switch
@@ -600,7 +605,7 @@ m.closeHint=()=>{if(draft?.click){draft=null;ed.draw();return true;}return close
       un.onclick=()=>{delete r.zone;if(wiz)wiz.cur={id:r.id,z:false};ed.commit();};tools.append(un);}
     else if(ask)tools.append(el(`<small>${t('Two areas here? Drag the circle on a side.')}</small>`));
     const extra=el(`<details class="ctx-extra"><summary>${t('Floor and room divisions')}</summary></details>`);
-    if(ask&&!z)extra.append(floorLine(r));if(tools.childNodes.length)extra.append(tools);
+    if(ask&&!z)extra.append(...floorLines(r));if(tools.childNodes.length)extra.append(tools);
     return [head,...rows,foot,...(extra.childNodes.length>1?[extra]:[])];
   }
   // Finishes — the floor and walls of the room, a separate wall side — as one row of swatches: the selected one outlined; not chosen —
@@ -609,13 +614,18 @@ m.closeHint=()=>{if(draft?.click){draft=null;ed.draw();return true;}return close
   const FIN={floor:{kinds:FLOOR_KINDS,quick:FLOOR_QUICK,groups:FLOOR_GROUPS,swatch:floorSwatch,base:floorBase},
     wall:{kinds:WALL_KINDS,quick:WALL_QUICK,groups:WALL_GROUPS,swatch:wallSwatch,base:wallBase}};
   const setWf=(r,i,v)=>{r.wf||=r.polygon.map(()=>null);while(r.wf.length<r.polygon.length)r.wf.push(null);r.wf[i]=v;if(r.wf.every(x=>!x))delete r.wf;};
-  const floorState=r=>({type:'floor',key:'floor:'+r.id,title:t('Floor'),cur:floorKind(r),tint:r.floorTint||null,auto:!FLOOR_KINDS[r.floor],autoTip:t('from room name'),
-    pick:k=>{r.floor=k;delete r.floorTint;ed.commit();},setTint:h=>{r.floor=floorKind(r);r.floorTint=h;ed.commit();},reset:()=>{delete r.floorTint;ed.commit();}});
-  const wallState=r=>{const w=roomWall(r);return {type:'wall',key:'wall:'+r.id,title:t('Walls'),cur:w.k,tint:w.tint||null,auto:!WALL_KINDS[r.wall],autoTip:t('from room name'),
-    pick:k=>{r.wall=k;delete r.wallTint;ed.commit();},setTint:h=>{r.wall=w.k;r.wallTint=h;ed.commit();},reset:()=>{delete r.wallTint;ed.commit();}};};
+  // A pick by hand covers the whole floor or wall: the pieces of finish the AI build put there (pieces.js, D-084) go; ai — there are some.
+  const floorState=r=>{const done=()=>{clearFloorPieces(r);ed.commit();};
+    return {type:'floor',key:'floor:'+r.id,title:t('Floor'),cur:floorKind(r),tint:r.floorTint||null,auto:!FLOOR_KINDS[r.floor],autoTip:t('from room name'),ai:hasFloorPieces(r),
+    pick:k=>{r.floor=k;delete r.floorTint;done();},setTint:h=>{r.floor=floorKind(r);r.floorTint=h;done();},reset:()=>{delete r.floorTint;done();}};};
+  // the room's walls: the sides without a finish of their own
+  const roomSides=r=>r.polygon.map((_,i)=>i).filter(i=>!sideWall(r,i).own);
+  const wallState=r=>{const w=roomWall(r),done=()=>{clearWallPieces(r,roomSides(r));ed.commit();};
+    return {type:'wall',key:'wall:'+r.id,title:t('Walls'),cur:w.k,tint:w.tint||null,auto:!WALL_KINDS[r.wall],autoTip:t('from room name'),ai:hasWallPieces(r,roomSides(r)),
+    pick:k=>{r.wall=k;delete r.wallTint;done();},setTint:h=>{r.wall=w.k;r.wallTint=h;done();},reset:()=>{delete r.wallTint;done();}};};
   // a wall side: for room r — sides js (a wall shared with a neighbour may consist of several pieces); “same as room” — remove its own
-  const sideState=(r,js,title)=>{const w=sideWall(r,js[0]),set=v=>{for(const j of js)setWf(r,j,v);ed.commit();};
-    return {type:'wall',key:'side:'+r.id+':'+js.join(','),title,cur:w.k,tint:w.tint,auto:!w.own,autoTip:t('same as room'),
+  const sideState=(r,js,title)=>{const w=sideWall(r,js[0]),set=v=>{for(const j of js)setWf(r,j,v);clearWallPieces(r,js);ed.commit();};
+    return {type:'wall',key:'side:'+r.id+':'+js.join(','),title,cur:w.k,tint:w.tint,auto:!w.own,autoTip:t('same as room'),ai:hasWallPieces(r,js),
       pick:k=>set({k}),setTint:h=>set({k:w.k,tint:h}),reset:()=>set(w.own?{k:w.k}:null),same:w.own?()=>set(null):null};};
   let finPop=null; // the open popup: {key, owner — whose panel, get — fresh state}
   const finBtn=(F,st,k)=>{const K=F.kinds[k],on=k===st.cur,b=el(`<button class="floor ${on?'on':''}" title="${esc(K.label)}${on&&st.auto?' — '+st.autoTip:''}" style="background-image:url(${F.swatch(k,on?st.tint:null)})"></button>`);
@@ -626,6 +636,8 @@ m.closeHint=()=>{if(draft?.click){draft=null;ed.draw();return true;}return close
     const more=el(`<button class="ib floor-more ${finPop?.key===st.key?'on':''}" title="${t('All options and custom color')}">${icon('palette',15)}</button>`);
     more.onclick=()=>{if(finPop?.key===st.key||performance.now()-popClosedAt<250){closePop();finPop=null;return;}openFin(get,owner,more);};
     row.append(more);return side?[el(`<div class="line sub"><small>${esc(st.title)}</small></div>`),row]:[row];} // for a wall side — a label on the line above
+  // one line under a panel's finishes when a pick there would replace pieces the AI build put (pieces.js, D-084)
+  const aiPiecesLine=states=>states.some(st=>st.ai)?[el(`<div class="line sub ai-pieces"><small>${t('Parts are finished by the AI build: a pick here replaces all of it')}</small></div>`)]:[];
   function finBox(st){const F=FIN[st.type],box=el(`<div class="fpop"></div>`);
     for(const [g,keys] of F.groups){box.append(el(`<div class="grp">${esc(g)}</div>`));const sw=el(`<div class="fgrid"></div>`);for(const k of keys)sw.append(finBtn(F,st,k));box.append(sw);}
     const own=el(`<label class="own" title="${t('Custom color for the selected option')}"><input type="color" value="${F.base(st.cur,st.tint)}"><span>${t('Custom color')}</span></label>`),inp=own.querySelector('input');
@@ -637,7 +649,7 @@ m.closeHint=()=>{if(draft?.click){draft=null;ed.draw();return true;}return close
   // after an edit — the popup with the new choice; a panel about something else (another room or wall) — the popup closes
   function syncFin(owner){if(!finPop)return;const m=document.querySelector('.menu.pop.panel.fp');
     if(!m||finPop.owner!==owner){closePop();finPop=null;return;}const st=finPop.get();finPop.key=st.key;m.replaceChildren(finBox(st));}
-  const floorLine=r=>finRow(()=>floorState(r),'room:'+r.id)[0];
+  const floorLines=r=>finRow(()=>floorState(r),'room:'+r.id);
   m.anchor=()=>{const oa=ops.anchor();if(oa)return oa;const W=selWall();if(W){const d=span(W),q=[W.a,W.b,[W.a[0]+W.n[0]*d,W.a[1]+W.n[1]*d],[W.b[0]+W.n[0]*d,W.b[1]+W.n[1]*d]],xs=q.map(p=>p[0]),ys=q.map(p=>p[1]);
       return [Math.min(...xs),Math.min(...ys),Math.max(...xs),Math.max(...ys)];}
     const r=roomById(plan(),ctxRoom());if(!r)return null;const cc=curCell(),poly=cc&&cc.r===r&&!sel().room?cc.poly:r.polygon;

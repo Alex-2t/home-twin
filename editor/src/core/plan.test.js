@@ -96,7 +96,7 @@ test('wall finish: by name, per room, per edge; the edge follows corners and spl
   assert.equal(sideWall(a,0).k,'paintSage');assert.ok(sideWall(a,2).own&&sideWall(a,2).k==='brickRed');
   addCorner(p,a,0,.5);assert.equal(a.wf.length,a.polygon.length);assert.equal(a.wf[4]?.k,'brickRed','brick stays on the same edge after a new corner');
   const f=bakeFinish(p.rooms),[x0,y0,sx,sy]=f.box,W=f.tex.image.width,at=(x,y)=>f.tex.image.data[(Math.floor((y-y0)*sy*f.tex.image.height)*W+Math.floor((x-x0)*sx*W))*4],tab=f.tab.image.data;
-  const col=id=>[tab[id*4],tab[id*4+1],tab[id*4+2]].join(',');
+  const stacks=f.stk.image.data,col=stack=>{const id=stacks[stack*4];return [tab[id*4],tab[id*4+1],tab[id*4+2]].join(',');}; // the stack's lowest finish
   assert.equal(col(at(1.5,4-.14)),WALL_KINDS.brickRed.base.join(','),'brick along the top wall of room A');
   assert.equal(col(at(1.5,.14)),WALL_KINDS.paintSage.base.join(','),'sage along the bottom one');
   assert.equal(col(at(4.5,.14)),WALL_KINDS.tileWhite.base.join(','),'tiles in the bathroom');assert.equal(at(1.5,2),0,'no finish in the middle of the room');

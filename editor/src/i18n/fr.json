@@ -1514,5 +1514,6 @@
  "The developer sees your pin and what we answered, and teaches the app to do it": "Le développeur voit votre repère et notre réponse, et apprend à l’appli à le faire",
  "Sent to the developer": "Envoyé au développeur",
  "Send to the developer": "Envoyer au développeur",
- "Not sent: check the connection and try again": "Non envoyé : vérifiez la connexion et réessayez"
+ "Not sent: check the connection and try again": "Non envoyé : vérifiez la connexion et réessayez",
+ "Parts are finished by the AI build: a pick here replaces all of it": "Des parties sont finies par l’IA : un choix ici remplace le tout"
 }

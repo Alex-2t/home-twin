@@ -1514,5 +1514,6 @@
  "The developer sees your pin and what we answered, and teaches the app to do it": "开发者会看到你的标记和我们的回答，并让应用学会这样做",
  "Sent to the developer": "已发送给开发者",
  "Send to the developer": "发送给开发者",
- "Not sent: check the connection and try again": "未发送：请检查网络后重试"
+ "Not sent: check the connection and try again": "未发送：请检查网络后重试",
+ "Parts are finished by the AI build: a pick here replaces all of it": "部分由 AI 装修：在此选择将整体替换"
 }

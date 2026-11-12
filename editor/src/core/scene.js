@@ -17,6 +17,7 @@ import {RectAreaLightUniformsLib} from 'three/addons/lights/RectAreaLightUniform
 import {buildDeviceLights,setDeviceLighting} from './card/lighting.js';
 import {installRoomLightMask} from './card/room-light-mask.js';
 import {floorKind,FLOOR_KINDS,floorTexture,floorUV,bakeAO,bakeFinish,aoUniforms,withAO} from './surfaces.js';
+import {floorPieces} from './pieces.js';
 export {floorColor} from './surfaces.js';
 
 // Shading near walls and in corners: one map per scene (surfaces.js); walls and floor read it in the shader.
@@ -158,9 +159,23 @@ export function createView(host){
   controls.addEventListener('change',()=>{if(grab)setMoved(true);});
   const dir=new THREE.Vector3();
   // Wall finishes: the side map (which finish each side of a room has), rebuilt with the rooms, ~ms.
-  function bakeWalls(rooms){const f=bakeFinish(rooms||[]);const old=[AOU.htFin.value,AOU.htFinTab.value];
-    if(f){AOU.htFin.value=f.tex;AOU.htFinTab.value=f.tab;AOU.htFinBox.value.set(...f.box);}else AOU.htFinBox.value.set(0,0,0,0);
-    for(const t of old)if(t!==AOU.htFin.value&&t!==AOU.htFinTab.value&&t.image?.width>1)t.dispose();}
+  function bakeWalls(rooms){const f=bakeFinish(rooms||[]);const old=[AOU.htFin.value,AOU.htFinTab.value,AOU.htFinStk.value];
+    if(f){AOU.htFin.value=f.tex;AOU.htFinTab.value=f.tab;AOU.htFinStk.value=f.stk;AOU.htFinBox.value.set(...f.box);}else AOU.htFinBox.value.set(0,0,0,0);
+    const now=[AOU.htFin.value,AOU.htFinTab.value,AOU.htFinStk.value];
+    for(const t of old)if(!now.includes(t)&&t.image?.width>1)t.dispose();}
+  // Pieces of the floor (pieces.js, D-084): a tiled kitchen area in a parquet room — over the room's floor, 1 mm up,
+  // the pattern laid along the same walls as the room's.
+  function addFloorPieces(room,floorMesh,selected){
+    for(const piece of floorPieces(room,k=>!!FLOOR_KINDS[k])){
+      const kind=FLOOR_KINDS[piece.k],toVectors=ring=>ring.map(([x,y])=>new THREE.Vector2(x,y));
+      const shape=new THREE.Shape(toVectors(piece.rings[0]));
+      for(const hole of piece.rings.slice(1))shape.holes.push(new THREE.Path(toVectors(hole)));
+      const geometry=new THREE.ShapeGeometry(shape);geometry.rotateX(-Math.PI/2);floorUV(geometry,room.polygon,kind.size);
+      const material=withAO(new THREE.MeshStandardMaterial({map:floorTexture(piece.k,aniso,piece.tint),roughness:kind.rough,
+        emissive:0x2f6fd0,emissiveIntensity:selected?.35:0,polygonOffset:true,polygonOffsetFactor:-1,polygonOffsetUnits:-1}),AOU,false);
+      const mesh=new THREE.Mesh(geometry,material);mesh.receiveShadow=true;mesh.position.y=.001;mesh.userData.own=true;floorMesh.add(mesh);
+    }
+  }
   function set(plan2d,rooms,openings,selected){roomsNow=rooms||[];dropRoomFx();
     if(model){scene.remove(model);model.traverse(o=>{if(o.isMesh){o.geometry.dispose();if(o.userData.own)o.material.dispose();}});}
     if(!plan2d){model=null;sides=[];floors=new Map();occluders=[];AOU.htAoBox.value.set(1e6,1e6,1,1);return;} // empty plan means an empty scene, no shadow on the platform
@@ -171,6 +186,7 @@ export function createView(host){
       const g=new THREE.ShapeGeometry(new THREE.Shape(r.polygon.map(([x,y])=>new THREE.Vector2(x,y))));g.rotateX(-Math.PI/2);floorUV(g,r.polygon,K.size);
       const m=withAO(new THREE.MeshStandardMaterial({map:floorTexture(kind,aniso,r.floorTint),roughness:K.rough,emissive:0x2f6fd0,emissiveIntensity:r.id===selected?.35:0}),AOU,false);
       const mesh=add(g,m,model);mesh.position.y=.002;mesh.userData.own=true;floors.set(r.id,mesh);
+      addFloorPieces(r,mesh,r.id===selected);
     }
     add(prism(plan2d.footprint,-.22,0),[slabMat,slabMat],model);
     for(const b of plan2d.interior){const m=add(prism(b.mp,b.bottom,b.top),[b.last?capMat:wallMat,wallMat],model);if(m)occluders.push(m);}
@@ -471,7 +487,7 @@ export function createView(host){
       placeLabel(o,d);keep.add(d.id);}
     for(const [id,o] of labels)if(!keep.has(id)){sensGrp.remove(o.mesh);o.mesh.geometry.dispose();o.mesh.material.dispose();o.tex.dispose();labels.delete(id);}}
   function setTheme(d){dark=d;bg();ground.material.opacity=d?.4:.22;}
-  function select(id){for(const [k,m] of floors)m.material.emissiveIntensity=k===id?.35:0;}
+  function select(id){for(const [k,m] of floors)m.traverse(o=>{if(o.isMesh)o.material.emissiveIntensity=k===id?.35:0;});}
   // Home view (D-035): where the apartment opens and where “Home” leads. Until the user saves their own, the old
   // angle (32° around, 58° tilt), whole model. Their own is {t (look-at target), theta, phi, fit (frame size)}, stored in the plan.
   const HOME0={theta:DEG0(32),phi:DEG0(58)};let home=HOME0,saved=null;
