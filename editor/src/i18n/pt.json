@@ -1498,5 +1498,7 @@
  "Did not apply: our mistake, we try again": "Não aplicado: erro nosso, vamos tentar de novo",
  "Not clear where to: point at the spot": "Não está claro onde: indique o local",
  "Lights are added at the next stage": "A iluminação vem na próxima etapa",
- "{0} of {1} changes are made. The rest are pinned again, each with why.": "{0} de {1} alterações feitas. As restantes estão marcadas de novo, cada uma com o motivo."
+ "{0} of {1} changes are made. The rest are pinned again, each with why.": "{0} de {1} alterações feitas. As restantes estão marcadas de novo, cada uma com o motivo.",
+ "Waits for the plan": "Aguarda a planta",
+ "Not on the plan: not built": "Não está na planta: não é construído"
 }

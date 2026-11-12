@@ -713,7 +713,9 @@ export function openAiBuild(ed, {api = '', id = null, flows = ed.flows} = {}) {
     if (state === 'ask') return t('Ready to check');
     if (state !== 'running') return '';
     if (stage.key === 'plan' && live.plan?.rooms?.length) return t('{0, plural, one {# room} other {# rooms}}', live.plan.rooms.length);
-    if (stage.key === 'rooms' && status.rooms?.length) return t('{0} of {1}', status.rooms.filter(r => r.done).length, status.rooms.length);
+    // A room left out (an open-air space the plan does not show) is not counted: its call is not made.
+    const builtRooms = (status.rooms || []).filter(room => !room.left);
+    if (stage.key === 'rooms' && builtRooms.length) return t('{0} of {1}', builtRooms.filter(room => room.done).length, builtRooms.length);
     if (stage.key === 'furniture' && live.madeCount) return t('{0} ready', live.madeCount);
     if (stage.key === 'assembly' && stepRunning('check') && !status.revising) {
       const total = status.rooms.filter(room => room.name).length;
@@ -878,6 +880,9 @@ export function openAiBuild(ed, {api = '', id = null, flows = ed.flows} = {}) {
   function roomLine(room, looking) {
     const live = status.live || {};
     const call = live.rooms?.[room.id];
+    // A garden or a terrace: its call waits for the plan, and is left out when the plan does not show it.
+    if (room.left) return t('Not on the plan: not built');
+    if (room.waits) return t('Waits for the plan');
     if (!room.done) {
       if (call?.pieces?.length) return `${call.pieces.length} · ${call.pieces.map(pieceName).reverse().join(', ')}`;
       if (!looking) return '';
@@ -915,7 +920,7 @@ export function openAiBuild(ed, {api = '', id = null, flows = ed.flows} = {}) {
       }
       figure.querySelector('.aib-room-name').textContent = nameOf(room);
       const busyHere = furnishing && (status.live?.making || []).some(work => work.room === room.id);
-      const state = busyHere ? 'running' : room.done ? 'done' : looking ? 'running' : 'todo';
+      const state = busyHere ? 'running' : room.done ? 'done' : room.left ? 'left' : looking && !room.waits ? 'running' : 'todo';
       if (figure.dataset.state !== state) {
         figure.dataset.state = state;
         figure.querySelector('.aib-room-state').innerHTML =

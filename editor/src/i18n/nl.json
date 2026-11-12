@@ -1498,5 +1498,7 @@
  "Did not apply: our mistake, we try again": "Niet doorgevoerd: onze fout, we proberen het opnieuw",
  "Not clear where to: point at the spot": "Niet duidelijk waar: wijs de plek aan",
  "Lights are added at the next stage": "Verlichting komt in de volgende stap",
- "{0} of {1} changes are made. The rest are pinned again, each with why.": "{0} van {1} wijzigingen gedaan. De rest is opnieuw gemarkeerd, elk met de reden."
+ "{0} of {1} changes are made. The rest are pinned again, each with why.": "{0} van {1} wijzigingen gedaan. De rest is opnieuw gemarkeerd, elk met de reden.",
+ "Waits for the plan": "Wacht op de plattegrond",
+ "Not on the plan: not built": "Niet op de plattegrond: niet gebouwd"
 }
