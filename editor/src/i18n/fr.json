@@ -1504,5 +1504,6 @@
  "Not done: {0}": "Non fait : {0}",
  "Done in part: {0}": "Fait en partie : {0}",
  "Office|room": "Bureau",
- "Storage|room": "Débarras"
+ "Storage|room": "Débarras",
+ "From where you looked it still looks wrong: we try again": "Vu d’où vous regardiez, ce n’est toujours pas bon : nous réessayons"
 }

@@ -23,6 +23,7 @@ export const MISSED_REASON = {
   box: N('We could not draw it yet: we try again'),
   'no-room': N('The pin is outside the home'),
   light: N('Lights are added at the next stage'),
+  still: N('From where you looked it still looks wrong: we try again'),
 };
 
 /** The room a spot is in, else the nearest one within `near` metres; null outside the home. */
@@ -82,6 +83,7 @@ export function pinsToSend(pins) {
       ...(pin.item ? {item: pin.item, itemName: pin.itemName} : {}),
       text: pin.text.trim(),
       ...(pin.view ? {view: pin.view} : {}),
+      ...(pin.camera ? {camera: pin.camera} : {}),
       ...(pin.photos?.length ? {photos: pin.photos.slice(0, MAX_PIN_PHOTOS)} : {}),
     }));
 }
@@ -104,6 +106,7 @@ export function pinsToRetry(lastRound) {
       itemName: pin.itemName || null,
       text: pin.text,
       view: pin.view || null,
+      ...(pin.camera ? {camera: pin.camera} : {}),
       photos: pin.photos || [],
       retry: {round: lastRound.round, n: pin.n, made: pin.made, codes: reasonCodes(pin)},
     }));

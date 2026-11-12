@@ -61,6 +61,9 @@ test("a pin's pictures go with it: what the owner saw and their photos, at most 
   const [sent] = pinsToSend([pin]);
   assert.equal(sent.view, 'view-k1.jpg');
   assert.equal(sent.photos.length, MAX_PIN_PHOTOS);
+  // A pin put in 3D keeps the camera it was put from (D-081): the service looks at the changed home from there.
+  const camera = {t: [2, 0.4, -1], theta: 0.6, phi: 1, fit: [6, 4]};
+  assert.deepEqual(pinsToSend([{...newPin(plan, {p: [2, 1]}), text: 'a lamp', camera}])[0].camera, camera);
   const [bare] = pinsToSend([{...newPin(plan, {p: [2, 1]}), text: 'a lamp'}]);
   assert.equal('view' in bare || 'photos' in bare, false);
 });

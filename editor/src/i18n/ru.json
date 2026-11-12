@@ -1504,5 +1504,6 @@
  "Not done: {0}": "Не сделано: {0}",
  "Done in part: {0}": "Сделано не всё: {0}",
  "Office|room": "Кабинет",
- "Storage|room": "Кладовая"
+ "Storage|room": "Кладовая",
+ "From where you looked it still looks wrong: we try again": "С вашей точки всё ещё не так — попробуем снова"
 }

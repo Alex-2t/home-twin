@@ -17,6 +17,11 @@ New decisions are appended at the top of their section, old ones are not rewritt
 
 ## Decisions
 
+### D-081. A pin is judged by what the owner sees, from where they put it — **accepted** (2026-11-12)
+- The owner after a round on a test home: "you did it, and nothing changed". The service moved the sink off the dryer — the overlap was gone in numbers and the pin read done — and from where the owner looked the two still looked jammed.
+- **The pin keeps its camera:** a pin put in 3D keeps the view it was put from (the 3D view's camera), beside its picture, and sends it with the round.
+- **The service looks from there:** after a round it shows the home as changed from each pin's camera, beside the owner's picture and words, and asks whether the problem is gone as the owner would see it. Gone: done. Still there: the pin comes back "Not done: From where you looked it still looks wrong: we try again". A pin put on the plan keeps the service's own result.
+
 ### D-080. Skirting boards, door and window trim, a carpet whose pile shows — **accepted** (2026-11-12)
 - The owner: the AI-built homes' floors and walls look wrong and dull, and they are most of the picture. Checked against a test home's video: the colours were close (the AI corrects for the room's light as the eye does; measuring them from the video's pixels came out worse under a phone's warm, mixed light), so the look was the drawing's — one even colour from floor to ceiling, nothing where a wall meets the floor or frames a door.
 - **Trim:** every room gets white skirting (9 cm) along its walls, stopping at doors and at windows down to the floor; doors and windows get casings (6.5 cm) on each side of the wall, a window a sill. None where a wall is taken away or is a railing. A casing on an exterior wall hides with its facade (core/trim.js).

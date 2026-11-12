@@ -1504,5 +1504,6 @@
  "Not done: {0}": "Nicht erledigt: {0}",
  "Done in part: {0}": "Teilweise erledigt: {0}",
  "Office|room": "Arbeitszimmer",
- "Storage|room": "Abstellraum"
+ "Storage|room": "Abstellraum",
+ "From where you looked it still looks wrong: we try again": "Von Ihrem Blickwinkel aus stimmt es noch nicht: wir versuchen es erneut"
 }

@@ -430,8 +430,10 @@ export function openReview(
     });
   }
 
-  // What the owner was looking at when they put the pin, the spot ringed.
+  // What the owner was looking at when they put the pin, the spot ringed. A pin put in 3D keeps the camera too: the service
+  // looks at the changed home from there, to tell whether what the owner pinned is put right as they see it (D-081).
   async function keepView(pin) {
+    if (view === '3d') pin.camera = ed.view.getView();
     if (!upload) return;
     try {
       const canvas = viewCanvas(pin);
