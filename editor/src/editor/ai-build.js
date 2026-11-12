@@ -23,7 +23,7 @@ import {emptyPlan} from '../core/plan.js';
 import {kindName, localRoomName, numberAlike} from '../core/overview.js';
 import {byId} from '../core/catalog.js';
 import {openReview} from './ai-review.js';
-import {changeCount, pinsToSend, pinsToRetry} from './ai-pins.js';
+import {changeCount, pinsToSend, pinsToRetry, refreshRetries} from './ai-pins.js';
 
 const POLL_MS = 2000;
 const START_POLL_MS = 3000;
@@ -385,12 +385,15 @@ export function openAiBuild(ed, {api = '', id = null, flows = ed.flows} = {}) {
       localStorage.removeItem(notesKey());
     } catch {}
   }
-  // The pins of the service's last round that did not work out come back once, as pins to look at again.
+  // The pins of the service's last round that did not work out come back once, as pins to look at again; those already back
+  // follow what the service says of the round now.
   const retriedKey = () => `${NOTES}${buildId}:retried`;
   function notesWithRetries() {
     const notes = loadNotes();
     const round = status?.lastRound?.round;
     if (!round) return notes;
+    notes.pins = refreshRetries(notes.pins, status.lastRound);
+    saveNotes(notes);
     let retried = 0;
     try {
       retried = Number(localStorage.getItem(retriedKey()) || 0);

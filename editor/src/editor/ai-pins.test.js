@@ -1,7 +1,7 @@
 // The AI build's pins (ai-pins.js): which room and item a spot is, and what the service gets.
 import {test} from 'node:test';
 import assert from 'node:assert/strict';
-import {roomAt, newPin, pinLabel, pinsToSend, pinsToRetry, changeCount, MAX_PIN_PHOTOS} from './ai-pins.js';
+import {roomAt, newPin, pinLabel, pinsToSend, pinsToRetry, refreshRetries, changeCount, MAX_PIN_PHOTOS} from './ai-pins.js';
 
 const plan = {
   rooms: [
@@ -79,8 +79,34 @@ test('the pins of the last round that did not work out come back, with why', () 
     pins.map(pin => pin.text),
     ['faces the window', 'a column'],
   );
-  assert.deepEqual(pins[0].retry, {made: 'no', codes: ['refused']});
+  assert.deepEqual(pins[0].retry, {round: 1, n: 1, made: 'no', codes: ['refused']});
   assert.equal(pins[0].z, 0.5);
   assert.deepEqual(pins[1].photos, ['photo-a.jpg']);
   assert.deepEqual(pinsToRetry(null), []);
+});
+
+test('a pin that came back follows what the service says of its round now: made, it leaves; still not, its reason is new', () => {
+  // A round judged again: the plant (n 1) is made now; the kitchen run (n 2) is not, for another reason.
+  const judgedAgain = {
+    round: 1,
+    pins: [
+      {n: 1, x: 1, y: 3, item: 'r2_i19', text: 'flowers stand here', made: 'yes', why: []},
+      {n: 2, x: 1, y: 1, item: 'r3_i1', text: 'what is this cube?', made: 'no', why: [{code: 'unchanged', text: '…'}]},
+    ],
+  };
+  const back = pinsToRetry({...judgedAgain, pins: judgedAgain.pins.map(pin => ({...pin, made: 'no', why: [{code: 'box'}]}))});
+  const now = refreshRetries(back, judgedAgain);
+  assert.deepEqual(now.map(pin => pin.text), ['what is this cube?']);
+  assert.deepEqual(now[0].retry.codes, ['unchanged']);
+  // A made pin the owner added to stays, without its reason.
+  const added = refreshRetries([{...back[0], text: 'flowers stand here, three pots'}], judgedAgain);
+  assert.equal(added.length, 1);
+  assert.equal('retry' in added[0], false);
+  // A pin kept before pins had their number is found by its words and its thing.
+  const older = {...back[0], retry: {made: 'no', codes: ['box']}};
+  assert.deepEqual(refreshRetries([older], judgedAgain), []);
+  // The owner's own new pins and those of another round stay as they are.
+  const own = {x: 2, y: 2, text: 'a rug here'};
+  const otherRound = {...back[1], retry: {...back[1].retry, round: 2}};
+  assert.deepEqual(refreshRetries([own, otherRound], judgedAgain), [own, otherRound]);
 });

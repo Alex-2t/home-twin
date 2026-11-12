@@ -105,8 +105,35 @@ export function pinsToRetry(lastRound) {
       text: pin.text,
       view: pin.view || null,
       photos: pin.photos || [],
-      retry: {made: pin.made, codes: [...new Set((pin.why || []).map(w => w.code))]},
+      retry: {round: lastRound.round, n: pin.n, made: pin.made, codes: reasonCodes(pin)},
     }));
+}
+
+const reasonCodes = pin => [...new Set((pin.why || []).map(w => w.code))];
+
+/**
+ * The draft's pins that came back from the last round, checked against what the service says of that round now (its result
+ * can change: a round judged again). One made now leaves the draft, or, when the owner added words or photos to it, stays
+ * without its reason; one still not made shows its reason as it is now. A pin from before pins kept their number is found
+ * by its words and its thing.
+ */
+export function refreshRetries(pins, lastRound) {
+  const roundPins = lastRound?.pins || [];
+  return pins.flatMap(pin => {
+    if (!pin.retry || (pin.retry.round != null && pin.retry.round !== lastRound?.round)) return [pin];
+    const now =
+      pin.retry.n != null
+        ? roundPins.find(roundPin => roundPin.n === pin.retry.n)
+        : roundPins.find(roundPin => roundPin.text === pin.text && (roundPin.item || null) === (pin.item || null));
+    if (!now) return [pin];
+    if (now.made === 'yes') {
+      const untouched = pin.text === now.text && (pin.photos || []).length === (now.photos || []).length;
+      if (untouched) return [];
+      const {retry, ...kept} = pin;
+      return [kept];
+    }
+    return [{...pin, retry: {...pin.retry, round: lastRound.round, n: now.n, made: now.made, codes: reasonCodes(now)}}];
+  });
 }
 
 /** How many changes the owner asks for: each pin with words, and the note for the whole home. */
