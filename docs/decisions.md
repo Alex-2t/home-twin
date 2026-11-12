@@ -17,6 +17,11 @@ New decisions are appended at the top of their section, old ones are not rewritt
 
 ## Decisions
 
+### D-082. A radiator goes under a table's top; one rule for what may share floor — **accepted** (2026-11-12)
+- The owner on an AI build: a vanity stood inside the shower. The service found it but did not act on it; part of the reason was that its own check and the editor's red disagreed on what may share floor (a chair under a table, a radiator under its top).
+- **A radiator under a table:** a radiator hung under the window goes under the top of a table standing at it, as a chair does — not red. `under: true` now means all of a thing up to its top (its lift counts), so a tall radiator reaching above the top is still red.
+- **One rule:** layout.js exports `tuck`; the AI build's audit counts things standing in each other by it, so what it reports and what the owner sees red in Furniture mode agree.
+
 ### D-081. A pin is judged by what the owner sees, from where they put it — **accepted** (2026-11-12)
 - The owner after a round on a test home: "you did it, and nothing changed". The service moved the sink off the dryer — the overlap was gone in numbers and the pin read done — and from where the owner looked the two still looked jammed.
 - **The pin keeps its camera:** a pin put in 3D keeps the view it was put from (the 3D view's camera), beside its picture, and sends it with the round.

@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import {validate,buildPlan2d,openingCoords,openingOut,wallsAt,area,labelPoint,pointIn as inside,segDist as sdist} from './geometry.js';
 import {migrate,linkedEdges,moveEdges,snapshot,setEdgeLength,addRoom,wallInfo,setWallThickness,setWallOpen,settleRoom,rotatePlan,cutChord,splitRoom,addCorner,mergeRooms,scalePlan,wallAt,absorbRoom,closeOuterOpen,zoneParts,setZone,moveZone,zoneFromEdge,addOpening,setOpeningWidth,openingGap,turnDoor,addRoom as add2} from './plan.js';
 import {checkItem} from './parts.js';
-import {snapToWall,furnitureConflicts,setRoomArea,autoPlaceLights,footRects,stackOf,snapLightPoint} from './layout.js';
+import {snapToWall,furnitureConflicts,setRoomArea,autoPlaceLights,footRects,stackOf,snapLightPoint,tuck} from './layout.js';
 import {sideWall,roomWall,bakeFinish,WALL_KINDS} from './surfaces.js';
 
 // Two rooms with a 10 cm wall and a door between them.
@@ -46,6 +46,13 @@ test('a chair from parts at a table from parts is tucked under it when both say 
   assert.equal(furnitureConflicts(p).size,0,'a seat at 0.48 m under a 0.75 m top: tucked');
   chair.parts.under=.8;assert.match(furnitureConflicts(p).get('c'),/overlaps/,'arms higher than the top: overlapping');
   assert.deepEqual(checkItem({...box(1,1,.75),table:'high'}),['table must be true or a height in meters']);
+});
+test('a radiator under the window goes under the top of a table standing at it; one reaching above the top does not',()=>{
+  const p=two(),table={id:'t',model:'diningTable',w:1.2,d:.8,h:.75,rot:0,x:1.5,y:.6},radiator={id:'r',model:'radiator',w:1,d:.1,h:.5,rot:0,x:1.5,y:.3};
+  p.furniture.push(table,radiator);
+  assert.equal(furnitureConflicts(p).size,0,'its top at 0.62 m under a 0.75 m top: tucked');
+  radiator.h=.7;assert.match(furnitureConflicts(p).get('r'),/overlaps/,'its top at 0.82 m: overlapping');
+  assert.equal(tuck(radiator,{...table,h:.9}),true,'under a higher top');
 });
 test('furniture at a wall: snaps to the corner and the middle within snap (depends on zoom)',()=>{
   const p=two(),b={id:'b',model:'bed',w:1.6,d:2.1,h:1,rot:0,x:0,y:0},at=(x,snap)=>snapToWall(p,b,[x,.4],false,snap),lo=at(1,.25).x;

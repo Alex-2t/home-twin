@@ -9,7 +9,8 @@
 // foot: L-shaped on the plan (corner cabinet, corner sofa): an arm along the back of depth back and along the left side (mirrored: the right) of width side;
 // u: U-shaped (both side arms). run: along walls (built-in wardrobe, kitchen cabinets): stretches along the walls and around corners, its shape comes from the walls (runs.js);
 // also: which other catalog sections to show it in. round: a circle on the plan (true or a list of variants: ['round','oval']).
-// table: a table with space under it; under: slides under a table: true means entirely (mobile pedestal), a number is up to which height
+// table: a table with space under it; under: slides under a table: true means entirely, up to its top (a mobile pedestal, a radiator
+// under the window), a number is up to which height
 // it goes under the tabletop (a chair seat, armchair armrests; the backrest stays outside).
 // vars: the third element is a number (how much deeper it extends forward: an unfolded sofa bed) or {w,d,h}, the dimensions of this variant.
 // free: stands on its own, away from the walls (a car): tall, yet in 3D it does not hide with its back to the camera like a wardrobe by a facade.
@@ -144,7 +145,7 @@ export const CATALOG=[
   {id:'gasBoiler',cat:N('Climate'),name:N('Boiler'),kind:'gen',w:.42,d:.32,h:.72,lift:1.2,color:'white',colors:APPL,vars:[['wall',N('Wall-mounted')],['floor',N('Floor-standing'),{w:.6,d:.6,h:.85,z:0}]],tags:N('gas boiler furnace heating heat pump'),min:[.3,.2,.5],max:[.8,.8,1.6]},
   {id:'elPanel',cat:N('Climate'),name:N('Electrical panel'),kind:'gen',w:.4,d:.12,h:.5,lift:1.4,color:'white',colors:['white','grey'],tags:N('electrical panel breaker box fuse box meter'),min:[.25,.06,.25],max:[1,.25,1.2]},
   {id:'netRack',cat:N('Climate'),name:N('Network cabinet'),kind:'gen',w:.6,d:.6,h:1.2,color:'black',colors:['black','white'],vars:[['floor',N('Floor-standing')],['wall',N('Wall-mounted'),{w:.55,d:.45,h:.5,z:1.5}]],lift:0,tags:N('server rack router nas network cabinet home assistant'),min:[.4,.3,.3],max:[.8,1,2.2]},
-  {id:'radiator',cat:N('Climate'),name:N('Radiator'),kind:'gen',w:1,d:.1,h:.5,lift:.12,color:'white',colors:['white','graphite','black'],vars:[['sections',N('Column')],['panel',N('Panel')]],tags:N('radiator heating heater'),min:[.3,.05,.2],max:[2.4,.2,1.8]},
+  {id:'radiator',under:true,cat:N('Climate'),name:N('Radiator'),kind:'gen',w:1,d:.1,h:.5,lift:.12,color:'white',colors:['white','graphite','black'],vars:[['sections',N('Column')],['panel',N('Panel')]],tags:N('radiator heating heater'),min:[.3,.05,.2],max:[2.4,.2,1.8]},
   {id:'aircon',cat:N('Climate'),name:N('Air conditioner'),kind:'gen',w:.8,d:.22,h:.29,lift:2.15,color:'white',colors:APPL,tags:N('air conditioner ac split system climate cooling'),min:[.7,.18,.25],max:[1.2,.3,.36]},
   {id:'purifier',cat:N('Climate'),name:N('Air purifier'),kind:'gen',w:.3,d:.3,h:.6,color:'white',colors:['white','graphite'],tags:N('air purifier cleaner filter'),min:[.2,.2,.3],max:[.5,.5,1]},
   {id:'convector',cat:N('Climate'),name:N('Convector heater'),kind:'gen',w:.8,d:.1,h:.45,lift:.15,color:'white',colors:['white','graphite','black'],vars:[['wall',N('Wall-mounted'),{z:.15}],['floor',N('On legs'),{z:0}]],tags:N('convector heater electric panel heater'),min:[.4,.07,.3],max:[1.6,.15,.7]},

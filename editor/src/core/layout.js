@@ -77,9 +77,11 @@ function overlap(A,B){
 const zr=f=>{const z=zOf(f);return [z,z+f.h];},above=(f,g)=>{const [a0,a1]=zr(f),[b0,b1]=zr(g);return a1<=b0+.005||b1<=a0+.005;};
 // Tucked under a table: a chair, desk chair or mobile pedestal (under) under a table (table) does not overlap if the part going under
 // the tabletop is lower than it (for a chair, the seat; the backrest stays outside). A catalog model says so in the catalog; an item
-// from parts says so itself (parts.under, parts.table — the same true or height in meters).
-const tuck=(f,g)=>{const U=x=>byId(x.model)?.under??x.parts?.under,T=x=>byId(x.model)?.table??x.parts?.table,
-    u=x=>U(x)===true?x.h:U(x)||0,t=x=>T(x)===true?x.h:T(x)||0;
+// from parts says so itself (parts.under, parts.table — the same true or height in meters). true: all of it, up to its top (a
+// radiator hung under the window goes under the top of a table standing at it, a tall one does not). The AI build's audit counts
+// things standing in each other by this same rule.
+export const tuck=(f,g)=>{const U=x=>byId(x.model)?.under??x.parts?.under,T=x=>byId(x.model)?.table??x.parts?.table,
+    u=x=>U(x)===true?zOf(x)+x.h:U(x)||0,t=x=>T(x)===true?x.h:T(x)||0;
   return U(f)&&T(g)&&u(f)<=t(g)-.03||U(g)&&T(f)&&u(g)<=t(f)-.03;}; // table as a number: the tabletop height (a dressing table has a mirror above it)
 // Items stacked above each other (wall cabinets above base cabinets, a TV above a TV stand, a range hood above a cooktop, a microwave on
 // the countertop): they overlap f on the plan but not in height. Bottom to top, including f; the item panel lets you switch to any of them.
