@@ -38,8 +38,9 @@ const ed = await boot({
   onApp: ed => ha._lightsFrom(() => ed.plan.lights),
 });
 // The AI build (D-072, D-073, D-074): offered on the start screen where its service answers (locally: the harness's build server
-// serves this page), with the build on its way if there is one; ?build=<id> opens that build's progress, and back from the
-// checkout (?payment_id=…) the payment is counted, then the build or the upload opens (D-086).
+// serves this page), with the build on its way if there is one; ?build=<id> opens that build's progress, ?ai=new the upload.
+// Back from the checkout (?payment_id=…) the payment is counted on the account, then the page it left opens again (D-086,
+// D-088); back from a sign-in with Google or GitHub, the same page opens signed in.
 aiService().then(ok => {
   if (ok) ed.flows.offerAi(card => aiStartCard(ed, card));
 });

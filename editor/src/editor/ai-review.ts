@@ -11,8 +11,6 @@ import {$, el, esc, find} from './ui.ts';
 import {icon} from './icons.ts';
 import {newPin, pinLabel, changeCount, MAX_PIN_PHOTOS, MISSED_REASON} from './ai-pins.ts';
 import type {Pin, PinHit, PinNotes, PinRetry, PinRound, RoundPin} from './ai-pins.ts';
-import {walletMeter} from './ai-wallet.ts';
-import type {WalletShare} from './ai-wallet.ts';
 import type {CanvasPoint, Editor, Pane} from './editor-types.ts';
 
 /** What openReview is given (see its comment). */
@@ -28,7 +26,7 @@ export interface ReviewOptions {
   lastRound?: PinRound | null;
   pastRounds?: PinRound[];
   onReport?: ((pin: Pin) => Promise<unknown>) | null;
-  wallet?: WalletShare | null;
+  account?: ((slot: HTMLElement) => void) | null;
 }
 
 /** The review's tools: look around, or put pins. */
@@ -90,8 +88,9 @@ const targetOf = (e: Event): Element => e.target as Element;
  * onChange(notes) after each change; onBack() — back to the progress; onSend(notes) → a promise: the answer is on its way
  * (all right when there are no changes); upload(blob, 'view' | 'photo') → a promise of the picture's name at the service;
  * pictureUrl(name) → where to show it; lastRound — the service's last round (how many pins worked out); onReport(pin) → a
- * promise: a pin that came back is sent to the developer (what the app could not do, or did wrong); wallet — the package's
- * shares (ai-wallet.js), shown above the button that sends the changes.
+ * promise: a pin that came back is sent to the developer (what the app could not do, or did wrong); account(slot) fills the
+ * account's place above the button that sends the changes (the balance, and a top-up once it is used up; ai-build.ts), and
+ * fills it again itself when the account changes.
  */
 export function openReview(
   ed: Editor,
@@ -107,7 +106,7 @@ export function openReview(
     lastRound = null,
     pastRounds = [],
     onReport = null,
-    wallet = null,
+    account = null,
   }: ReviewOptions,
 ): {close(): void} {
   // The pins of earlier rounds that were made: listed faded in the panel, not on the home; one shows on the home while its row is
@@ -160,7 +159,7 @@ export function openReview(
         <textarea class="aib-general" rows="2" placeholder="${esc(t('Anything else? For example: the floors are light oak'))}"></textarea>
       </div>
       <footer>
-        ${walletMeter(wallet)}
+        <div class="aib-review-account"></div>
         <small class="aib-after"></small>
         <button class="primary" data-act="send"></button>
       </footer>
@@ -1010,9 +1009,10 @@ export function openReview(
     if (hit) addPin(hit);
   }
 
-  // Keys: V and P choose the tool, Esc closes the bubble; the editor's shortcuts are off while the review is open.
+  // Keys: V and P choose the tool, Esc closes the bubble; the editor's shortcuts are off while the review is open. What is
+  // typed into the review's fields and the sign-in (ai-account-ui.ts) is theirs.
   function keys(e: KeyboardEvent): void {
-    if (targetOf(e).closest?.('.aib-review textarea')) return;
+    if (targetOf(e).closest?.('.aib-review textarea, .aib-sign')) return;
     const key = e.key.toLowerCase();
     if (key === 'v') setTool('look');
     else if (key === 'p') setTool('pin');
@@ -1056,6 +1056,7 @@ export function openReview(
     ed.view.setNight(!!ed.night?.());
   }
 
+  account?.(find(box, '.aib-review-account'));
   setTool(tool);
   if (notes.pins.length) hideHint();
   else find(box, '[data-tool=pin]').classList.add('aib-pulse');
