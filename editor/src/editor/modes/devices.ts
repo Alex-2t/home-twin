@@ -1,4 +1,3 @@
-// @ts-nocheck
 // The “Devices” mode (D-048): air conditioners, curtains and blinds, door/window sensors from Home Assistant — in the model, like lights.
 // On the left — devices by area: in the model or not, what is happening now (heating 25°, open). “Place automatically” —
 // everything not yet in the model (core/devices.js: autoPlace). A device is dragged from the list onto the plan, like furniture from the catalog (or a click,
@@ -14,7 +13,7 @@ import {
   deviceKind,
   PLACEABLE,
   coverModel,
-  autoPlace,
+  autoPlace as autoPlaceUntyped,
   placeOn,
   moveTo,
   unplace,
@@ -24,41 +23,116 @@ import {
   contactView,
   windowsOf,
 } from '../../core/devices.ts';
-import {$, el, esc, section} from '../ui.ts';
+import {$, el, esc} from '../ui.ts';
 import {icon, iconD} from '../icons.ts';
-import {pal} from '../draw.ts';
+import {pal, section} from './typed-helpers.ts';
+import type {
+  HaDevice,
+  HaLayer,
+  HassEntityState,
+  Opening,
+  PlacedOpening,
+  Plan,
+  PlanDevice,
+  Point,
+} from '../../core/types.ts';
+import type {CanvasPoint, DevicesMode, Editor, PlanPointer, PlanView2d, Selection} from '../editor-types.ts';
 
-const ICON = {ac: 'airVent', contact: 'doorOpen'};
-export const deviceIcon = d =>
-  deviceKind(d) === 'cover'
+/** What a device is in the model (devices.ts deviceKind): a heater has no model, only the others are placed. */
+type DeviceKind = 'ac' | 'heat' | 'cover' | 'contact';
+
+/** Where a device goes (devices.ts placeOn, moveTo): an air conditioner on a room side, the others on an opening. */
+type DeviceTarget = {room: string; edge: number; t: number} | {opening: string};
+
+/** A room side under the pointer (wallAt): its room and edge, how far along it (metres), its ends, and the distance to it. */
+interface WallSide {
+  d: number;
+  room: string;
+  edge: number;
+  t: number;
+  a: Point;
+  b: Point;
+}
+
+/** An opening under the pointer (openingAt): the opening, its ends now, and the distance in pixels. */
+interface OpeningSpot {
+  o: Opening;
+  c: PlacedOpening;
+  dist: number;
+}
+
+/** What the pointer is over while a device is placed or dragged: a room side or an opening, and where the device would go. */
+interface DeviceHover {
+  wall?: WallSide | null;
+  o?: Opening;
+  c?: PlacedOpening;
+  dist?: number;
+  t?: DeviceTarget;
+}
+
+/** A device's icon on the plan: its entity and where the icon is, canvas pixels. */
+interface DeviceBadge {
+  e: string;
+  X: number;
+  Y: number;
+}
+
+/** A device's icon dragged on the plan: from where (canvas pixels), and where the pointer is now. */
+interface DeviceDrag {
+  d: HaDevice;
+  start: CanvasPoint;
+  moved: boolean;
+  at?: CanvasPoint;
+}
+
+/** A row of the list dragged onto the plan: where the press was (client pixels); at: the pointer over the plan, null: not over it. */
+interface ListDrag {
+  d: HaDevice;
+  x: number;
+  y: number;
+  dragging?: boolean;
+  at?: CanvasPoint | null;
+}
+
+// core/devices.ts is not typed yet: its autoPlace reads as taking an entity lookup without an argument; this is how it is called
+const autoPlace = autoPlaceUntyped as (
+  plan: Plan,
+  devices: HaDevice[],
+  entityOf?: (entity: string) => HassEntityState | null | undefined,
+) => number;
+
+const ICON: Partial<Record<string, string>> = {ac: 'airVent', contact: 'doorOpen'};
+export const deviceIcon = (d: HaDevice): string =>
+  deviceKind(d, undefined) === 'cover'
     ? coverModel(d) === 'blind'
       ? 'blinds'
       : 'curtain'
-    : deviceKind(d) === 'contact' && d.cls === 'window'
+    : deviceKind(d, undefined) === 'contact' && d.cls === 'window'
       ? 'window'
-      : ICON[deviceKind(d)] || 'zap';
+      : ICON[deviceKind(d, undefined) as string] || 'zap'; // null (not for the model) finds no icon
 
-export function devicesMode(ed) {
-  const m = {id: 'devices'};
-  let placing = null,
-    hover = null,
-    hits = [],
-    stepKey = null,
-    drag = null,
-    listDrag = null,
-    dropOk = false;
-  const plan = () => ed.plan,
-    sel = () => ed.sel,
-    v = () => ed.v,
-    ha = () => ed.ha;
+export function devicesMode(ed: Editor): DevicesMode {
+  const m = {id: 'devices'} as DevicesMode; // its members are set below, before app.ts calls any
+  let placing: HaDevice | null = null;
+  let hover: DeviceHover | null = null;
+  let hits: DeviceBadge[] = [];
+  let stepKey: string | null = null;
+  let drag: DeviceDrag | null = null;
+  let listDrag: ListDrag | null = null;
+  let dropOk = false;
+  const plan = (): Plan => ed.plan;
+  const sel = (): Selection => ed.sel;
+  const v = (): PlanView2d => ed.v;
+  const ha = (): HaLayer => ed.ha;
   // into the model — air conditioners, curtains, opening sensors; the thermostat (heating only) — no, it is only in the “Preview” panel
-  const kind = d => deviceKind(d, ha().entity?.(d.entity));
-  const devs = () => (ha().devices?.() || []).filter(d => PLACEABLE.has(kind(d)));
-  const byE = e => devs().find(d => d.entity === e);
+  const kind = (d: HaDevice): DeviceKind | null => deviceKind(d, ha().entity?.(d.entity));
+  // a null kind is simply not in the set
+  const devs = (): HaDevice[] => (ha().devices?.() || []).filter(d => PLACEABLE.has(kind(d)!));
+  const byE = (e: string | null | undefined): HaDevice | undefined => devs().find(d => d.entity === e);
   // what is happening now: “Heat · 25°”, “40% open”, “Open”
-  function stateText(d) {
-    const x = ha().entity?.(d.entity),
-      k = kind(d);
+  function stateText(d: HaDevice): string {
+    const x = ha().entity?.(d.entity);
+    const k = kind(d);
     if (k === 'ac') {
       const a = acView(x);
       return !a.ok
@@ -82,7 +156,7 @@ export function devicesMode(ed) {
     const c = contactView(x);
     return !c.ok ? t('No connection') : c.open ? t('Open') : t('Closed');
   }
-  const want = d =>
+  const want = (d: HaDevice): string =>
     kind(d) === 'ac'
       ? t('Click a wall to place the air conditioner')
       : kind(d) === 'cover'
@@ -90,37 +164,37 @@ export function devicesMode(ed) {
         : d.cls === 'window'
           ? t('Click a window')
           : t('Click a door');
-  const fits = (d, o) =>
+  const fits = (d: HaDevice, o: Opening): boolean =>
     kind(d) === 'cover' || d.cls === 'window'
       ? o.kind === 'window'
       : d.cls === 'opening' || o.kind === 'door';
 
   // ---------- what is under the pointer ----------
   // the opening under the pointer (in screen pixels, up to 14 px) that suits the device
-  function openingAt(e, d) {
-    let best = null;
+  function openingAt(e: Pick<PlanPointer, 'offsetX' | 'offsetY'>, d: HaDevice | null): OpeningSpot | null {
+    let best: OpeningSpot | null = null;
     for (const o of plan().openings) {
       if (d && !fits(d, o)) continue;
       const c = openingCoords(plan().rooms, o);
       if (!c) continue;
-      const [ax, ay] = v().S(c.a),
-        [bx, by] = v().S(c.b),
-        [dist] = segDist([e.offsetX, e.offsetY], [ax, ay], [bx, by]);
+      const [ax, ay] = v().S(c.a);
+      const [bx, by] = v().S(c.b);
+      const [dist] = segDist([e.offsetX, e.offsetY], [ax, ay], [bx, by]);
       if (dist < 14 && (!best || dist < best.dist)) best = {o, c, dist};
     }
     return best;
   }
   // the room side under the pointer: the nearest wall of the room under it, otherwise of the nearest room → {room, edge, t, a, b}
-  function wallAt(p) {
-    const rooms = plan().rooms.filter(r => !r.solid),
-      inR = rooms.find(r => pointIn(p, r.polygon));
-    let best = null;
+  function wallAt(p: Point): WallSide | null {
+    const rooms = plan().rooms.filter(r => !r.solid);
+    const inR = rooms.find(r => pointIn(p, r.polygon));
+    let best: WallSide | null = null;
     for (const r of inR ? [inR] : rooms) {
       const P = r.polygon;
       for (let i = 0; i < P.length; i++) {
-        const a = P[i],
-          b = P[(i + 1) % P.length],
-          [d, tt] = segDist(p, a, b);
+        const a = P[i];
+        const b = P[(i + 1) % P.length];
+        const [d, tt] = segDist(p, a, b);
         if (!best || d < best.d)
           best = {d, room: r.id, edge: i, t: tt * Math.hypot(b[0] - a[0], b[1] - a[1]), a, b};
       }
@@ -128,18 +202,25 @@ export function devicesMode(ed) {
     return best && (inR || best.d < 1.2) ? best : null;
   } // inside a room — to its nearest wall, outside — no farther than 1.2 m
   // where the device icon is on the plan: for an object — its middle, for a sensor — the middle of the opening, slightly into the room
-  function spotOf(rec) {
+  function spotOf(rec: PlanDevice): Point | null {
     if (rec.furn) {
       const f = plan().furniture.find(f => f.id === rec.furn);
       return f ? [f.x, f.y] : null;
     }
-    const o = plan().openings.find(o => o.id === rec.opening),
-      c = o && openingCoords(plan().rooms, o);
+    const o = plan().openings.find(o => o.id === rec.opening);
+    const c = o && openingCoords(plan().rooms, o);
     return c ? [(c.a[0] + c.b[0]) / 2, (c.a[1] + c.b[1]) / 2] : null;
   }
 
   // ---------- plan ----------
-  function badge(g, X, Y, name, on, warm) {
+  function badge(
+    g: CanvasRenderingContext2D,
+    X: number,
+    Y: number,
+    name: string,
+    on: boolean,
+    warm: boolean,
+  ): void {
     g.save();
     g.beginPath();
     g.arc(X, Y, 12, 0, 7);
@@ -158,7 +239,8 @@ export function devicesMode(ed) {
     g.restore();
   }
   // what is being placed or dragged now (to highlight the places)
-  const active = () => placing || (drag?.moved ? drag.d : null) || (listDrag?.dragging ? listDrag.d : null);
+  const active = (): HaDevice | null =>
+    placing || (drag?.moved ? drag.d : null) || (listDrag?.dragging ? listDrag.d : null);
   m.draw = () => {
     const g = v().ctx;
     hits = [];
@@ -205,9 +287,9 @@ export function devicesMode(ed) {
       if (!d || !recOf(plan(), d.entity) || ghost?.d === d) continue;
       const q = spotOf(rec);
       if (!q) continue;
-      const [X, Y] = v().S(q),
-        k = kind(d),
-        warm = k === 'contact' && contactView(ha().entity?.(d.entity)).open;
+      const [X, Y] = v().S(q);
+      const k = kind(d);
+      const warm = k === 'contact' && contactView(ha().entity?.(d.entity)).open;
       badge(g, X, Y, deviceIcon(d), sel().device === d.entity, warm);
       hits.push({e: d.entity, X, Y});
     }
@@ -218,7 +300,11 @@ export function devicesMode(ed) {
     }
   };
   // the place under the pointer for device d: for an air conditioner — a room side, for the others — a suitable opening
-  const targetAt = (e, p, d) => {
+  const targetAt = (
+    e: Pick<PlanPointer, 'offsetX' | 'offsetY'>,
+    p: Point,
+    d: HaDevice,
+  ): DeviceHover | null => {
     if (kind(d) === 'ac') {
       const w = wallAt(p);
       return w ? {wall: w, t: {room: w.room, edge: w.edge, t: w.t}} : null;
@@ -226,12 +312,14 @@ export function devicesMode(ed) {
     const h = openingAt(e, d);
     return h ? {o: h.o, t: {opening: h.o.id}} : null;
   };
-  const hoverKey = h => h?.o?.id || (h?.wall && h.wall.room + ':' + h.wall.edge) || null;
-  const hitAt = e => hits.find(h => Math.hypot(e.offsetX - h.X, e.offsetY - h.Y) <= 13);
+  const hoverKey = (h: DeviceHover | null): string | null =>
+    h?.o?.id || (h?.wall && h.wall.room + ':' + h.wall.edge) || null;
+  const hitAt = (e: Pick<PlanPointer, 'offsetX' | 'offsetY'>): DeviceBadge | undefined =>
+    hits.find(h => Math.hypot(e.offsetX - h.X, e.offsetY - h.Y) <= 13);
   m.down = (e, p) => {
     if (placing) {
       const d = placing;
-      let r = null;
+      let r: PlanDevice | null = null;
       if (kind(d) === 'ac') {
         const w = wallAt(p);
         if (w) r = placeOn(plan(), d, {room: w.room, edge: w.edge, t: w.t});
@@ -246,8 +334,8 @@ export function devicesMode(ed) {
       ed.commit();
       return true;
     }
-    const h = hitAt(e),
-      d = h && byE(h.e);
+    const h = hitAt(e);
+    const d = h && byE(h.e);
     if (!d) return false;
     const was = sel().device;
     sel().device = d.entity;
@@ -275,7 +363,7 @@ export function devicesMode(ed) {
       return;
     }
     if (placing) {
-      const nh = kind(placing) === 'ac' ? {wall: wallAt(p)} : openingAt(e, placing);
+      const nh: DeviceHover | null = kind(placing) === 'ac' ? {wall: wallAt(p)} : openingAt(e, placing);
       const k = nh?.o?.id || (nh?.wall && nh.wall.room + ':' + nh.wall.edge) || null;
       if (k !== (hover?.o?.id || (hover?.wall && hover.wall.room + ':' + hover.wall.edge) || null)) {
         hover = nh;
@@ -291,8 +379,8 @@ export function devicesMode(ed) {
     const d = drag;
     drag = null;
     ed.drag = null;
-    const ac = kind(d.d) === 'ac',
-      ok = d.moved && (ac || (!!hover?.t && moveTo(plan(), d.d, hover.t)));
+    const ac = kind(d.d) === 'ac';
+    const ok = d.moved && (ac || (!!hover?.t && moveTo(plan(), d.d, hover.t)));
     hover = null; // missed — it stays where it was
     if (ok) ed.commit();
     else {
@@ -336,8 +424,8 @@ export function devicesMode(ed) {
     }
   };
   m.anchor = () => {
-    const rec = recOf(plan(), sel().device),
-      q = rec && spotOf(rec);
+    const rec: PlanDevice | undefined = recOf(plan(), sel().device);
+    const q = rec && spotOf(rec);
     return q ? [q[0] - 0.3, q[1] - 0.3, q[0] + 0.3, q[1] + 0.3] : null;
   };
   m.reset = () => {
@@ -356,14 +444,14 @@ export function devicesMode(ed) {
   m.placing = () => placing; // for tests
   m.counts = () => {
     const c = {ac: 0, cover: 0, contact: 0};
-    for (const d of devs()) c[kind(d)]++;
+    for (const d of devs()) c[kind(d) as keyof typeof c]++; // devs() holds only the kinds the model places
     return c;
   }; // for the wizard question
 
   // ---------- panel above the selection ----------
-  function ctxPanel() {
-    const d = byE(sel().device),
-      rec = d && recOf(plan(), d.entity);
+  function ctxPanel(): void {
+    const d = byE(sel().device);
+    const rec = d && recOf(plan(), d.entity);
     if (!d || !rec) {
       ed.showCtx(null);
       return;
@@ -389,8 +477,8 @@ export function devicesMode(ed) {
     const tools = $('tools');
     tools.innerHTML = '';
     tools.appendChild(ed.selectButton());
-    const D = devs(),
-      todo = D.filter(d => !recOf(plan(), d.entity) && roomOfArea(plan(), d.area));
+    const D = devs();
+    const todo = D.filter(d => !recOf(plan(), d.entity) && roomOfArea(plan(), d.area));
     if (placing) {
       tools.appendChild(el(`<span class="hint">${esc(want(placing))}</span>`));
       const c = el(`<button class="soft">${t('Cancel')}</button>`);
@@ -423,16 +511,16 @@ export function devicesMode(ed) {
     }
     for (const ar of ed.sortAreas(new Set(D.map(d => d.area || '')))) {
       const ds = D.filter(d => (d.area || '') === ar).sort((a, b) =>
-          a.name.localeCompare(b.name, undefined, {numeric: true}),
-        ),
-        n = ds.filter(d => recOf(plan(), d.entity)).length;
-      const room = roomOfArea(plan(), ar),
-        body = section(side, 'dev:' + ar, ar ? ed.areaName(ar) : t('No area'), {
-          count: `${n}/${ds.length}`,
-          open: !!room || !ar,
-        });
+        a.name.localeCompare(b.name, undefined, {numeric: true}),
+      );
+      const n = ds.filter(d => recOf(plan(), d.entity)).length;
+      const room = roomOfArea(plan(), ar);
+      const body = section(side, 'dev:' + ar, ar ? ed.areaName(ar) : t('No area'), {
+        count: `${n}/${ds.length}`,
+        open: !!room || !ar,
+      });
       // why it is not in the model: a curtain needs a window in its room
-      const why = d =>
+      const why = (d: HaDevice): string =>
         room && kind(d) === 'cover' && !windowsOf(plan(), room).length
           ? t('no window')
           : t('not in the model');
@@ -441,8 +529,8 @@ export function devicesMode(ed) {
           el(`<p class="empty">${t('This area isn’t on the plan — click a device, then its spot.')}</p>`),
         );
       for (const d of ds) {
-        const placed = !!recOf(plan(), d.entity),
-          cur = placing === d || sel().device === d.entity;
+        const placed = !!recOf(plan(), d.entity);
+        const cur = placing === d || sel().device === d.entity;
         const row =
           el(`<div class="row device ${placed ? 'on' : ''} ${cur ? 'sel' : ''}" title="${esc(placed ? t('In the model · click to select, drag to move') : t('Drag onto the plan, or click and then pick a spot'))}">
           <span class="dev-ic">${icon(deviceIcon(d), 15)}</span><span class="nm">${esc(d.name)}</span><small>${esc(stateText(d))}</small>${placed ? icon('check', 14) : `<em>${esc(why(d))}</em>`}</div>`);
@@ -486,15 +574,15 @@ export function devicesMode(ed) {
       sel().device = null;
       ed.showCtx(null);
     }
-    const r = v().cv.getBoundingClientRect(),
-      X = e.clientX - r.left,
-      Y = e.clientY - r.top,
-      over =
-        X >= 0 &&
-        Y >= 0 &&
-        X <= r.width &&
-        Y <= r.height &&
-        document.elementFromPoint(e.clientX, e.clientY) === v().cv;
+    const r = v().cv.getBoundingClientRect();
+    const X = e.clientX - r.left;
+    const Y = e.clientY - r.top;
+    const over =
+      X >= 0 &&
+      Y >= 0 &&
+      X <= r.width &&
+      Y <= r.height &&
+      document.elementFromPoint(e.clientX, e.clientY) === v().cv;
     listDrag.at = over ? [X, Y] : null;
     hover = over ? targetAt({offsetX: X, offsetY: Y}, v().W([X, Y]), listDrag.d) : null;
     ed.draw();
@@ -525,9 +613,9 @@ export function devicesMode(ed) {
   });
 
   // ---------- wizard step ----------
-  const wizOn = () => !!ed.wizard?.get(plan().id)?.dev;
+  const wizOn = (): boolean => !!ed.wizard?.get(plan().id)?.dev;
   m.wizardOn = wizOn;
-  function stepBanner() {
+  function stepBanner(): void {
     if (!wizOn()) {
       if (stepKey) {
         stepKey = null;
@@ -535,8 +623,8 @@ export function devicesMode(ed) {
       }
       return;
     }
-    const n = (plan().devices || []).filter(x => recOf(plan(), x.entity)).length,
-      key = 'on:' + n;
+    const n = (plan().devices || []).filter(x => recOf(plan(), x.entity)).length;
+    const key = 'on:' + n;
     if (stepKey === key && ed.stepNow()?.mode === m) return;
     stepKey = key;
     ed.step(

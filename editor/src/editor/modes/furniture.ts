@@ -1,14 +1,13 @@
-// @ts-nocheck
 // The “Furniture” mode: the catalog in the panel, dragging onto the plan, snapping back-to-wall, rotation, sizes.
 import {t} from '../../i18n/i18n.ts';
 import {axisCursor} from '../drag-gesture.ts';
 import {
-  CATALOG,
+  CATALOG as catalogEntries,
   CATEGORIES,
   colorOf,
   TOP,
-  TOPS,
-  byId,
+  TOPS as catalogTops,
+  byId as catalogById,
   zOf,
   colorsOf,
   nameOf,
@@ -31,49 +30,194 @@ import {
   RUN_MIN,
 } from '../../core/runs.ts';
 import {roomAt} from '../../core/plan.ts';
-import {$, el, esc, section} from '../ui.ts';
+import {$, el, esc} from '../ui.ts';
 import {icon} from '../icons.ts';
-import {pal, dimLabel, drawRun} from '../draw.ts';
+import {dimLabel, drawRun} from '../draw.ts';
+import {pal, section} from './typed-helpers.ts';
+import type {CatalogEntry, FurnitureItem, MultiPolygon, Plan, Point, Room, Vector} from '../../core/types.ts';
+import type {Editor, FurnitureMode, PlanBox, PlanView2d, Selection} from '../editor-types.ts';
 
-export function furnitureMode(ed) {
-  const m = {id: 'furniture'};
-  let drag = null,
-    placing = null;
-  const sizeCursor = (f, handle) =>
+/** A variant's own sizes (catalog vars[i][2] as an object): only what it changes, a wall-hung one its height above the floor. */
+interface VariantSize {
+  w?: number;
+  d?: number;
+  h?: number;
+  z?: number;
+}
+
+/**
+ * A catalog entry as catalog.ts has it. types.ts CatalogEntry gives a variant's object all of w, d and h and no z; catalog.ts
+ * has variants with only some of them, or only z.
+ */
+type CatalogItem = Omit<CatalogEntry, 'vars'> & {
+  vars?: Array<[key: string, name: string, extra?: number | VariantSize]>;
+};
+
+// catalog.ts is not typed yet: its entries read as a union of their object literals, and its [name, colour] pairs as arrays
+// that may be shorter. The same list, lookup and table, with the types they have.
+const CATALOG = catalogEntries as CatalogItem[];
+const byId = catalogById as (id: string) => CatalogItem | undefined;
+/** Worktops: key → [name, colour as 0xrrggbb]. */
+const TOPS = catalogTops as unknown as Record<string, [name: string, hex: number]>;
+
+/** A built-in run's inner face as a ring (runs.ts ring): its perimeter P, metres. */
+interface RunRing {
+  E: unknown[];
+  P: number;
+}
+
+/** A built-in run's handles (runs.ts runShape): its two ends, and the depth handle with the front's normal and offset. */
+interface RunHandles {
+  a: Point;
+  b: Point;
+  d: {p: Point; n: Vector; ref: number};
+}
+
+/** What this mode reads of a built-in run's shape (runs.ts runGeo; runs.ts is not typed yet). */
+interface RunShape {
+  outline: MultiPolygon;
+  sides: Array<{u: Vector; front: unknown}>;
+  /** null: it has no front. */
+  handles: RunHandles | null;
+  room: Room;
+  R: RunRing;
+  /** Where it starts on the ring, and its length along it. */
+  sa: number;
+  L: number;
+}
+
+/** An item's handles: w and d for a sized one, a and b (the ends) and rd (the depth) for a built-in run. */
+type ItemHandle = 'w' | 'd' | 'a' | 'b' | 'rd';
+
+/** What a press hits: an item, and its handle. */
+interface FurnitureHit {
+  f: FurnitureItem;
+  handle?: ItemHandle;
+}
+
+/** The size handles in the item's axes [x, z]; w[2]: where the width grows (+1 to the right, −1 to the left). */
+interface SizeHandles {
+  w: [number, number, number];
+  d: [number, number];
+}
+
+/** A resize by a handle, from the item as it was. */
+interface SizeDrag {
+  kind: 'size';
+  f: FurnitureItem;
+  handle: ItemHandle;
+  orig: FurnitureItem;
+  moved?: boolean;
+}
+
+/** A move, with the offset from the pointer to the item's centre. */
+interface MoveDrag {
+  kind: 'move';
+  f: FurnitureItem;
+  off: Vector;
+  moved?: boolean;
+}
+
+/** A built-in run without its shape: nothing to drag. */
+interface StillRunDrag {
+  kind: 'run';
+  f: FurnitureItem;
+  end: 'none';
+  cursor: string;
+  moved?: boolean;
+}
+
+/**
+ * A built-in run dragged by an end (a, b), by its depth (rd) or whole (null): its room and ring, where it starts and how long,
+ * the pointer along the ring, the places its ends snap to.
+ */
+interface ActiveRunDrag {
+  kind: 'run';
+  f: FurnitureItem;
+  end: ItemHandle | null;
+  room: Room;
+  R: RunRing;
+  sa: number;
+  L: number;
+  sp: number;
+  stops: number[];
+  dh: RunHandles['d'] | undefined;
+  cursor: string;
+  moved?: boolean;
+}
+
+type RunDrag = StillRunDrag | ActiveRunDrag;
+
+type FurnitureDrag = SizeDrag | MoveDrag | RunDrag;
+
+/** An item picked in the catalog: pressed on its card (x, y: where), or clicked (it waits for a click on the plan). */
+interface Placing {
+  c: CatalogItem;
+  name?: string | null;
+  x?: number;
+  y?: number;
+  click?: boolean;
+  dragging?: boolean;
+  /** The item over the plan; null: the pointer is off the plan. */
+  item?: FurnitureItem | null;
+}
+
+/** The distance from an item's side to the wall: the direction, from o to q on the wall, how far, the room behind it. */
+interface WallGap {
+  d: Vector;
+  o: Point;
+  g: number;
+  /** How far the opposite side can go (to its wall). */
+  room: number;
+  q: Point;
+}
+
+/** A label's box on the canvas, px (draw.ts dimLabel). */
+type LabelBox = [x: number, y: number, w: number, h: number];
+
+/** A distance drawn on the plan: its label's box and centre, for the click that types it. */
+type ShownGap = WallGap & {r: LabelBox; X: number; Y: number};
+
+export function furnitureMode(ed: Editor): FurnitureMode {
+  const m = {id: 'furniture'} as FurnitureMode; // its members are set below, before app.ts calls any
+  let drag: FurnitureDrag | null = null;
+  let placing: Placing | null = null;
+  const sizeCursor = (f: FurnitureItem, handle: ItemHandle): string =>
     isRun(f) ? runCursor(f, handle) : axisCursor(axes(f)[handle === 'w' ? 0 : 1]);
   m.dragCursor = () =>
     drag?.kind === 'size' ? sizeCursor(drag.orig, drag.handle) : drag?.kind === 'run' ? drag.cursor : 'move';
   m.cancelDrag = () => {
     drag = null;
   };
-  const plan = () => ed.plan,
-    sel = () => ed.sel,
-    v = () => ed.v;
-  const find = id => plan().furniture.find(f => f.id === id);
+  const plan = (): Plan => ed.plan;
+  const sel = (): Selection => ed.sel;
+  const v = (): PlanView2d => ed.v;
+  const find = (id: string | null | undefined): FurnitureItem | undefined =>
+    plan().furniture.find(f => f.id === id);
 
   // Size handles in the object's axes ([x, z], z — toward the front): width — on the end, depth — on the front. For an L-shaped one (a corner
   // sofa, corner cabinets) — at the ends of the arms: width — the end of the back arm, depth — the end of the side arm (the owner: stretch
   // a corner sofa both ways; a handle in the middle of the recess cannot be found). w[2] — where the width grows: +1 to the right, −1 to the left.
-  function handlesOf(f) {
-    const L = lArms(f),
-      W = f.w / 2,
-      D = f.d / 2;
+  function handlesOf(f: FurnitureItem): SizeHandles {
+    const L = lArms(f);
+    const W = f.w / 2;
+    const D = f.d / 2;
     if (!L) return {w: [W, 0, 1], d: [0, D]};
     const s = f.mx && !L.u ? -1 : 1;
     return {w: [s * W, -D + L.back / 2, s], d: [s * (-W + L.side / 2), D]};
   }
-  function hit(p) {
-    const tol = v().tol(),
-      flat = f => (byId(f.model)?.soft && f.h < 0.05 ? 1 : 0),
-      order = [...plan().furniture].sort(
-        (a, b) => (b.id === sel().furn) - (a.id === sel().furn) || flat(a) - flat(b),
-      ); // a rug goes last: a click on the sofa on top of it selects the sofa
+  function hit(p: Point): FurnitureHit | null {
+    const tol = v().tol();
+    const flat = (f: FurnitureItem): number => (byId(f.model)?.soft && f.h < 0.05 ? 1 : 0);
+    const order = [...plan().furniture].sort(
+      (a, b) => +(b.id === sel().furn) - +(a.id === sel().furn) || flat(a) - flat(b),
+    ); // a rug goes last: a click on the sofa on top of it selects the sofa
     for (const f of order) {
       if (isRun(f)) {
-        const g = runGeo(plan(), f);
+        const g: RunShape | null = runGeo(plan(), f);
         if (!g) continue;
-        const H = g.handles,
-          near = q => Math.hypot(p[0] - q[0], p[1] - q[1]) < tol * 1.2;
+        const H = g.handles;
+        const near = (q: Point): boolean => Math.hypot(p[0] - q[0], p[1] - q[1]) < tol * 1.2;
         if (f.id === sel().furn && H) {
           if (near(H.a)) return {f, handle: 'a'};
           if (near(H.b)) return {f, handle: 'b'};
@@ -83,7 +227,8 @@ export function furnitureMode(ed) {
         continue;
       }
       const [lx, lz] = localXY(f, p);
-      if (f.id === sel().furn && byId(f.model).kind === 'gen') {
+      // an item's model is always in the catalog (a custom item and one from parts too)
+      if (f.id === sel().furn && byId(f.model)!.kind === 'gen') {
         const H = handlesOf(f);
         if (Math.hypot(lx - H.w[0], lz - H.w[1]) < tol * 1.2) return {f, handle: 'w'};
         if (Math.hypot(lx - H.d[0], lz - H.d[1]) < tol * 1.2) return {f, handle: 'd'};
@@ -94,12 +239,12 @@ export function furnitureMode(ed) {
   }
   // to a corner and the middle of a wall — within 12 px on screen (no farther than 25 cm): zoomed in — barely pulls, zoomed out — as before
   // at a window — to its center; curtains from the catalog also take the window width with a margin (fit)
-  function place(f, p, free, fit) {
+  function place(f: FurnitureItem, p: Point, free: boolean, fit?: boolean): void {
     // an along-the-walls object — right away over the whole free wall under the pointer (runs.js): up to a corner, a door, a window at its height, other
     // furniture at the wall (fridge, tall cabinet, hood); no wall nearby — it is not placed
     if (isRun(f)) {
-      const z = zOf(f),
-        r = runAt(plan(), p, byId(f.model).w, f.d, {z0: z, z1: z + f.h});
+      const z = zOf(f);
+      const r = runAt(plan(), p, byId(f.model)!.w, f.d, {z0: z, z1: z + f.h});
       if (r) runSet(plan(), f, r.room, r.R, r.sa, r.L);
       else {
         delete f.a;
@@ -110,7 +255,7 @@ export function furnitureMode(ed) {
     }
     const snap = Math.min(0.25, v().tol(12));
     let s = snapToWall(plan(), f, p, free, snap);
-    const c = byId(f.model);
+    const c = byId(f.model)!;
     if (fit && c.fit && s.win) {
       f.w = +Math.max(c.min[0], Math.min(c.max[0], s.win + c.fit)).toFixed(3);
       s = snapToWall(plan(), f, p, free, snap);
@@ -129,25 +274,25 @@ export function furnitureMode(ed) {
   // For the selected object (and while it is dragged from the catalog or across the plan) — dashed distances from its sides to the walls along
   // its axes, in cm to the wall surface: across the width and the depth — to the nearer one; a side flush against a wall — to the opposite one
   // (back to the wall — the passage in front of it). A click on the number — type it exactly: the object moves to that distance (the owner, like in SketchUp).
-  let gaps = [],
-    hoverGap = -1;
-  function wallGaps(f) {
+  let gaps: ShownGap[] = [];
+  let hoverGap = -1;
+  function wallGaps(f: FurnitureItem): WallGap[] {
     const r = !isRun(f) && roomAt(plan(), [f.x, f.y]);
     if (!r) return [];
-    const P = r.polygon,
-      [ax, fz] = axes(f),
-      out = [];
-    const ray = (o, d) => {
+    const P = r.polygon;
+    const [ax, fz] = axes(f);
+    const out: WallGap[] = [];
+    const ray = (o: Point, d: Vector): number => {
       let best = Infinity;
       for (let i = 0; i < P.length; i++) {
-        const a = P[i],
-          b = P[(i + 1) % P.length],
-          e = [b[0] - a[0], b[1] - a[1]],
-          den = d[0] * e[1] - d[1] * e[0];
+        const a = P[i];
+        const b = P[(i + 1) % P.length];
+        const e = [b[0] - a[0], b[1] - a[1]];
+        const den = d[0] * e[1] - d[1] * e[0];
         if (Math.abs(den) < 1e-9) continue;
-        const w = [a[0] - o[0], a[1] - o[1]],
-          t = (w[0] * e[1] - w[1] * e[0]) / den,
-          u = (w[0] * d[1] - w[1] * d[0]) / den;
+        const w = [a[0] - o[0], a[1] - o[1]];
+        const t = (w[0] * e[1] - w[1] * e[0]) / den;
+        const u = (w[0] * d[1] - w[1] * d[0]) / den;
         if (t > -1e-6 && u >= -1e-6 && u <= 1 + 1e-6 && t < best) best = t;
       }
       return best - WALL.inner;
@@ -155,15 +300,15 @@ export function furnitureMode(ed) {
     for (const [u, h] of [
       [ax, f.w / 2],
       [fz, f.d / 2],
-    ]) {
+    ] as const) {
       const sides = [1, -1].map(k => {
-        const d = [u[0] * k, u[1] * k],
-          o = [f.x + d[0] * h, f.y + d[1] * h];
+        const d: Vector = [u[0] * k, u[1] * k];
+        const o: Point = [f.x + d[0] * h, f.y + d[1] * h];
         return {d, o, g: ray(o, d)};
       });
       const s = sides.filter(x => isFinite(x.g) && x.g >= 0.01 && x.g < 8).sort((a, b) => a.g - b.g)[0];
       if (!s) continue;
-      const back = sides.find(x => x !== s);
+      const back = sides.find(x => x !== s)!; // the other of the two sides
       out.push({
         ...s,
         room: isFinite(back.g) ? Math.max(0, back.g) : 0,
@@ -172,7 +317,7 @@ export function furnitureMode(ed) {
     }
     return out;
   }
-  function drawGaps(f, live) {
+  function drawGaps(f: FurnitureItem, live: boolean): void {
     const {ctx} = v();
     gaps = [];
     wallGaps(f).forEach((g, i) => {
@@ -185,8 +330,9 @@ export function furnitureMode(ed) {
       ctx.stroke();
       ctx.setLineDash([]);
       v().dot(g.q, 2.5, pal.acc);
-      const [X, Y] = v().S([(g.o[0] + g.q[0]) / 2, (g.o[1] + g.q[1]) / 2]),
-        r = dimLabel(v(), X, Y, t('{0} cm', Math.round(g.g * 100)));
+      const [X, Y] = v().S([(g.o[0] + g.q[0]) / 2, (g.o[1] + g.q[1]) / 2]);
+      // draw.ts is not typed yet: dimLabel gives the label's box [x, y, w, h]
+      const r = dimLabel(v(), X, Y, t('{0} cm', Math.round(g.g * 100))) as LabelBox;
       if (!live) {
         if (i === hoverGap) {
           ctx.strokeStyle = pal.dark ? '#fff' : '#0b0c10';
@@ -199,13 +345,13 @@ export function furnitureMode(ed) {
       }
     });
   }
-  const gapAt = p => {
+  const gapAt = (p: Point): number => {
     const [X, Y] = v().S(p);
     return gaps.findIndex(
       g => X >= g.r[0] - 3 && X <= g.r[0] + g.r[2] + 3 && Y >= g.r[1] - 3 && Y <= g.r[1] + g.r[3] + 3,
     );
   };
-  function typeGap(f, g) {
+  function typeGap(f: FurnitureItem, g: ShownGap): void {
     ed.ask(g.X, g.Y, t('Distance to wall, cm'), Math.round(g.g * 100), {
       type: 'len',
       ok: x => {
@@ -233,8 +379,8 @@ export function furnitureMode(ed) {
       return true;
     }
     {
-      const i = gapAt(p),
-        f = find(sel().furn);
+      const i = gapAt(p);
+      const f = find(sel().furn);
       if (i >= 0 && f) {
         typeGap(f, gaps[i]);
         return true;
@@ -260,9 +406,9 @@ export function furnitureMode(ed) {
   };
   m.move = (e, p) => {
     if (!drag) {
-      const gi = gapAt(p),
-        h = gi < 0 ? hit(p) : null,
-        hv = h?.f.id || null; // under the pointer — the name, if it did not fit into the outline (draw.js)
+      const gi = gapAt(p);
+      const h = gi < 0 ? hit(p) : null;
+      const hv = h?.f.id || null; // under the pointer — the name, if it did not fit into the outline (draw.js)
       if (gi !== hoverGap || hv !== ed.furnHover) {
         hoverGap = gi;
         ed.furnHover = hv;
@@ -276,8 +422,8 @@ export function furnitureMode(ed) {
       return;
     }
     drag.moved = true;
-    const f = drag.f,
-      free = e.shiftKey;
+    const f = drag.f;
+    const free = e.shiftKey;
     if (drag.kind === 'run') {
       runDrag(drag, p, free);
       ed.update();
@@ -285,21 +431,24 @@ export function furnitureMode(ed) {
     }
     if (drag.kind === 'move') place(f, [p[0] + drag.off[0], p[1] + drag.off[1]], free);
     else {
-      const c = byId(f.model),
-        o = drag.orig,
-        [ax, fz] = axes(o),
-        q = x => (free ? x : Math.round(x / GRID) * GRID);
+      const c = byId(f.model)!;
+      const o = drag.orig;
+      const [ax, fz] = axes(o);
+      const q = (x: number): number => (free ? x : Math.round(x / GRID) * GRID);
       // the width grows from the opposite end (for a mirrored L-shaped one the handle is on the left, it grows to the left)
       if (drag.handle === 'w') {
-        const k = handlesOf(o).w[2],
-          L = [o.x - (k * ax[0] * o.w) / 2, o.y - (k * ax[1] * o.w) / 2],
-          w = Math.max(c.min[0], Math.min(c.max[0], q(k * ((p[0] - L[0]) * ax[0] + (p[1] - L[1]) * ax[1]))));
+        const k = handlesOf(o).w[2];
+        const L = [o.x - (k * ax[0] * o.w) / 2, o.y - (k * ax[1] * o.w) / 2];
+        const w = Math.max(
+          c.min[0],
+          Math.min(c.max[0], q(k * ((p[0] - L[0]) * ax[0] + (p[1] - L[1]) * ax[1]))),
+        );
         f.w = +w.toFixed(3);
         f.x = L[0] + (k * ax[0] * w) / 2;
         f.y = L[1] + (k * ax[1] * w) / 2;
       } else {
-        const B = [o.x - (fz[0] * o.d) / 2, o.y - (fz[1] * o.d) / 2],
-          d = Math.max(c.min[1], Math.min(c.max[1], q((p[0] - B[0]) * fz[0] + (p[1] - B[1]) * fz[1])));
+        const B = [o.x - (fz[0] * o.d) / 2, o.y - (fz[1] * o.d) / 2];
+        const d = Math.max(c.min[1], Math.min(c.max[1], q((p[0] - B[0]) * fz[0] + (p[1] - B[1]) * fz[1])));
         f.d = +d.toFixed(3);
         f.x = B[0] + (fz[0] * d) / 2;
         f.y = B[1] + (fz[1] * d) / 2;
@@ -344,21 +493,22 @@ export function furnitureMode(ed) {
     }
   };
   m.draw = () => {
-    const f = find(sel().furn),
-      pf = placing?.item,
-      run = x => x && isRun(x);
-    if (run(f)) drawRunSel(f);
+    const f = find(sel().furn);
+    const pf = placing?.item;
+    const run = (x: FurnitureItem | null | undefined): boolean | null | undefined => x && isRun(x);
+    if (run(f))
+      drawRunSel(f!); // run() is true only for an item
     else if (f) {
-      if (byId(f.model).kind === 'gen') {
-        const [ax, fz] = axes(f),
-          H = handlesOf(f);
+      if (byId(f.model)!.kind === 'gen') {
+        const [ax, fz] = axes(f);
+        const H = handlesOf(f);
         for (const [x, z] of [H.w, H.d])
           v().dot([f.x + ax[0] * x + fz[0] * z, f.y + ax[1] * x + fz[1] * z], 5, '#fff', pal.acc, 1.8);
       }
       // the size of the selected one — as a badge below it
-      const cs = corners(f).map(q => v().S(q)),
-        X = cs.reduce((a, q) => a + q[0], 0) / 4,
-        Y = Math.max(...cs.map(q => q[1]));
+      const cs = corners(f).map(q => v().S(q));
+      const X = cs.reduce((a, q) => a + q[0], 0) / 4;
+      const Y = Math.max(...cs.map(q => q[1]));
       dimLabel(v(), X, Y + 16, `${Math.round(f.w * 100)} × ${Math.round(f.d * 100)}`);
     }
     if (run(pf)) drawRun(ed, pf, false, false, true);
@@ -379,23 +529,24 @@ export function furnitureMode(ed) {
   // ---------- built-in cabinet (runs.js) ----------
   // Dragged by the ends — the cabinet follows the wall faces and around the corner; by the middle of the front — depth; by the cabinet itself — slides along the walls,
   // into another room — moves there. The ends snap to corners and to the edges of doors and windows (Shift — no snapping).
-  const placeable = f => !isRun(f) || !!runGeo(plan(), f);
-  function runBox(f) {
-    const g = runGeo(plan(), f);
+  const placeable = (f: FurnitureItem): boolean => !isRun(f) || !!runGeo(plan(), f);
+  function runBox(f: FurnitureItem): PlanBox | null {
+    const g: RunShape | null = runGeo(plan(), f);
     if (!g?.outline.length) return null;
-    const q = g.outline.flatMap(P => P[0]),
-      xs = q.map(x => x[0]),
-      ys = q.map(x => x[1]);
+    const q = g.outline.flatMap(P => P[0]);
+    const xs = q.map(x => x[0]);
+    const ys = q.map(x => x[1]);
     return [Math.min(...xs), Math.min(...ys), Math.max(...xs), Math.max(...ys)];
   }
-  function runCursor(f, handle) {
-    const g = runGeo(plan(), f),
-      fr = g?.sides.filter(s => s.front) || [];
+  function runCursor(f: FurnitureItem, handle: ItemHandle): string {
+    const g: RunShape | null = runGeo(plan(), f);
+    const fr = g?.sides.filter(s => s.front) || [];
     if (!fr.length) return 'move';
-    return axisCursor(handle === 'rd' ? g.handles.d.n : handle === 'a' ? fr[0].u : fr[fr.length - 1].u);
+    // it has fronts, so its shape is there and it has handles
+    return axisCursor(handle === 'rd' ? g!.handles!.d.n : handle === 'a' ? fr[0].u : fr[fr.length - 1].u);
   }
-  function runStart(f, handle, p) {
-    const g = runGeo(plan(), f);
+  function runStart(f: FurnitureItem, handle: ItemHandle | undefined, p: Point): RunDrag {
+    const g: RunShape | null = runGeo(plan(), f);
     if (!g) return {kind: 'run', f, end: 'none', cursor: 'move'};
     return {
       kind: 'run',
@@ -405,20 +556,20 @@ export function furnitureMode(ed) {
       R: g.R,
       sa: g.sa,
       L: g.L,
-      sp: ringProject(g.R, p).s,
+      sp: ringProject(g.R, p)!.s, // a room's ring has edges
       stops: runStops(plan(), g.room, g.R, f.d).stops,
       dh: g.handles?.d,
       cursor: handle ? runCursor(f, handle) : 'move',
     };
   }
-  const wrap = (x, P) => (((x % P) + P * 1.5) % P) - P / 2; // difference around the outline ring: −P/2…P/2
-  function runDrag(dr, p, free) {
+  const wrap = (x: number, P: number): number => (((x % P) + P * 1.5) % P) - P / 2; // difference around the outline ring: −P/2…P/2
+  function runDrag(dr: RunDrag, p: Point, free: boolean): void {
     const f = dr.f;
     if (dr.end === 'none') return;
     if (dr.end === 'rd') {
-      const h = dr.dh,
-        c = byId(f.model),
-        x = p[0] * h.n[0] + p[1] * h.n[1] - h.ref;
+      const h = dr.dh!; // the depth handle was pressed: the run has its handles
+      const c = byId(f.model)!;
+      const x = p[0] * h.n[0] + p[1] * h.n[1] - h.ref;
       f.d = +Math.max(c.min[1], Math.min(c.max[1], free ? x : Math.round(x / GRID) * GRID)).toFixed(3);
       syncRun(plan(), f);
       return;
@@ -426,8 +577,8 @@ export function furnitureMode(ed) {
     if (!dr.end) {
       const r = roomAt(plan(), p);
       if (r && r !== dr.room) {
-        const R = ring(faceOf(r)),
-          s = ringProject(R, p).s;
+        const R = ring(faceOf(r));
+        const s = ringProject(R, p)!.s;
         Object.assign(dr, {
           room: r,
           R,
@@ -438,10 +589,10 @@ export function furnitureMode(ed) {
         dr.sa = s - dr.L / 2;
       }
     }
-    const R = dr.R,
-      P = R.P,
-      s = ringProject(R, p).s,
-      ds = wrap(s - dr.sp, P);
+    const R = dr.R;
+    const P = R.P;
+    const s = ringProject(R, p)!.s;
+    const ds = wrap(s - dr.sp, P);
     dr.sp = s;
     if (dr.end === 'a') {
       dr.sa += ds;
@@ -456,18 +607,18 @@ export function furnitureMode(ed) {
       if (dr.end === 'a') dr.sa += dr.L - (P - 0.05);
       dr.L = P - 0.05;
     }
-    let sa = dr.sa,
-      L = dr.L;
+    let sa = dr.sa;
+    let L = dr.L;
     if (!free) {
-      const tol = Math.min(0.25, v().tol(12)),
-        near = x => {
-          let b = null;
-          for (const q of dr.stops) {
-            const o = wrap(q - x, P);
-            if (Math.abs(o) < tol && (!b || Math.abs(o) < Math.abs(b))) b = o;
-          }
-          return b;
-        };
+      const tol = Math.min(0.25, v().tol(12));
+      const near = (x: number): number | null => {
+        let b: number | null = null;
+        for (const q of dr.stops) {
+          const o = wrap(q - x, P);
+          if (Math.abs(o) < tol && (!b || Math.abs(o) < Math.abs(b))) b = o;
+        }
+        return b;
+      };
       if (dr.end === 'a') {
         const o = near(sa);
         if (o != null) {
@@ -478,26 +629,26 @@ export function furnitureMode(ed) {
         const o = near(sa + L);
         if (o != null) L += o;
       } else {
-        const o1 = near(sa),
-          o2 = near(sa + L),
-          o = o1 != null && (o2 == null || Math.abs(o1) <= Math.abs(o2)) ? o1 : o2;
+        const o1 = near(sa);
+        const o2 = near(sa + L);
+        const o = o1 != null && (o2 == null || Math.abs(o1) <= Math.abs(o2)) ? o1 : o2;
         if (o != null) sa += o;
       }
     }
     runSet(plan(), f, dr.room, R, sa, L);
   }
-  function drawRunSel(f) {
-    const g = runGeo(plan(), f);
+  function drawRunSel(f: FurnitureItem): void {
+    const g: RunShape | null = runGeo(plan(), f);
     if (!g?.handles) return;
     const H = g.handles;
     for (const q of [H.a, H.b, H.d.p]) v().dot(q, 5, '#fff', pal.acc, 1.8);
-    const b = runBox(f),
-      [X, Y] = v().S([(b[0] + b[2]) / 2, b[3]]),
-      [, Y2] = v().S([0, b[1]]);
+    const b = runBox(f)!; // its shape is there (checked above)
+    const [X, Y] = v().S([(b[0] + b[2]) / 2, b[3]]);
+    const [, Y2] = v().S([0, b[1]]);
     dimLabel(v(), X, Math.max(Y, Y2) + 16, `${Math.round(f.w * 100)} × ${Math.round(f.d * 100)}`);
   }
   // ---------- catalog ----------
-  const makeItem = ({c, name}) => ({
+  const makeItem = ({c, name}: Pick<Placing, 'c' | 'name'>): FurnitureItem => ({
     id: 'f' + Date.now().toString(36),
     model: c.id,
     w: c.w,
@@ -511,11 +662,12 @@ export function furnitureMode(ed) {
   });
   addEventListener('pointermove', e => {
     if (!placing || ed.mode !== m) return;
-    const r = v().cv.getBoundingClientRect(),
-      X = e.clientX - r.left,
-      Y = e.clientY - r.top;
+    const r = v().cv.getBoundingClientRect();
+    const X = e.clientX - r.left;
+    const Y = e.clientY - r.top;
     if (!placing.click && !placing.dragging) {
-      if (Math.hypot(e.clientX - placing.x, e.clientY - placing.y) < 6) return;
+      // pressed on a card: where is known
+      if (Math.hypot(e.clientX - placing.x!, e.clientY - placing.y!) < 6) return;
       placing.dragging = true;
     }
     if (
@@ -567,8 +719,8 @@ export function furnitureMode(ed) {
     ed.furnHover = null;
   };
   // ---------- top row, catalog, panel above the object ----------
-  let query = '',
-    cat = t('All');
+  let query = '';
+  let cat = t('All');
   m.refresh = () => {
     if (ed.mode !== m) return;
     $('tools').innerHTML = '';
@@ -583,7 +735,7 @@ export function furnitureMode(ed) {
       `<div class="search">${icon('search', 15)}<input type="search" placeholder="${t('Search furniture')}" value="${esc(query)}"></div>`,
     );
     top.appendChild(search);
-    const inp = search.querySelector('input');
+    const inp = search.querySelector('input')!; // in the markup above
     inp.oninput = () => {
       query = inp.value;
       renderCatalog();
@@ -614,15 +766,15 @@ export function furnitureMode(ed) {
     }
     const holder = el(`<div></div>`);
     side.appendChild(holder);
-    const size = c => `${Math.round(c.w * 100)}×${Math.round(c.d * 100)}`;
-    function renderCatalog() {
+    const size = (c: CatalogItem): string => `${Math.round(c.w * 100)}×${Math.round(c.d * 100)}`;
+    function renderCatalog(): void {
       holder.innerHTML = '';
       const q = query.trim().toLowerCase();
-      const own = byId('custom'),
-        rank = c => {
-          const i = TOP.indexOf(c.id);
-          return i < 0 ? 999 : i;
-        };
+      const own = byId('custom')!; // the catalog's custom item
+      const rank = (c: CatalogItem): number => {
+        const i = TOP.indexOf(c.id);
+        return i < 0 ? 999 : i;
+      };
       const items = CATALOG.filter(c =>
         c.hidden || c === own
           ? false
@@ -636,7 +788,7 @@ export function furnitureMode(ed) {
       if (!q && cat !== t('All')) items.sort((a, b) => rank(a) - rank(b)); // in a category the frequent ones go first
       const grid = el(`<div class="catalog"></div>`);
       holder.appendChild(grid);
-      const card = (c, name) => {
+      const card = (c: CatalogItem, name?: string | null): void => {
         const it = el(
           `<button type="button" class="item ${placing?.c === c ? 'on' : ''}" title="${t('Select an item, then click the plan. You can also drag it.')}" aria-label="${esc(name || c.name)}"><img src="${ed.thumbs?.[c.id] || ''}" draggable="false" alt="">${c.kind === 'gen' ? `<span class="rs" title="${t('Any size')}">${icon('resize', 12)}</span>` : ''}<b>${esc(name || c.name)}</b><small>${size(c)}</small></button>`,
         );
@@ -653,11 +805,11 @@ export function furnitureMode(ed) {
         };
         grid.appendChild(it);
       };
-      const head = t => grid.appendChild(el(`<div class="cat-h">${esc(t)}</div>`));
+      const head = (t: string): HTMLElement => grid.appendChild(el(`<div class="cat-h">${esc(t)}</div>`));
       // “All” without a search — frequent ones first, then by room; the custom object goes last everywhere
       if (!q && cat === t('All')) {
         head(t('Popular'));
-        TOP.map(byId).forEach(c => card(c));
+        TOP.map(byId).forEach(c => card(c!)); // TOP lists catalog ids
         for (const k of CATEGORIES) {
           const rest = items.filter(c => c.cat === k && rank(c) === 999);
           if (rest.length) {
@@ -687,7 +839,8 @@ export function furnitureMode(ed) {
           `<div class="row ${f.id === sel().furn ? 'sel' : ''} ${ed.conflicts.has(f.id) ? 'warn' : ''}"><span class="name">${esc(nameOf(f))}</span><small>${Math.round(f.w * 100)}×${Math.round(f.d * 100)}</small><button class="x ib" title="${t('Delete')}">${icon('x', 14)}</button></div>`,
         );
         row.onclick = () => ed.select('furn', f.id);
-        row.querySelector('.x').onclick = e => {
+        // the button is in the row's markup
+        row.querySelector<HTMLElement>('.x')!.onclick = e => {
           e.stopPropagation();
           plan().furniture = plan().furniture.filter(x => x !== f);
           ed.commit();
@@ -700,23 +853,23 @@ export function furnitureMode(ed) {
     stepBanner();
   };
   let more = false;
-  const named = c => c.id === 'custom' || c.id === 'parts';
+  const named = (c: CatalogItem): boolean => c.id === 'custom' || c.id === 'parts';
   // Colors: the model's swatches and a custom one (the color picker); a picked color practically equal to a swatch (ΔE < 3) selects that
   // swatch. key: 'color', or 'color2' — a rug's border; not set, it is a shade darker than the field: the first swatch, split in two.
-  function swatches(f, c, key) {
-    const two = key === 'color2',
-      cur = two ? f.color2 : (f.color ?? c.color),
-      keys = colorsOf(c),
-      hex = k => colorOf(c, k)?.[1] ?? hexOf(k),
-      out = [];
-    const set = v => {
-        if (v === cur) return;
-        if (v == null) delete f[key];
-        else f[key] = v;
-        ed.commit();
-      },
-      main = hex(f.color ?? c.color),
-      auto = shadeHex(main, 0.78);
+  function swatches(f: FurnitureItem, c: CatalogItem, key: 'color' | 'color2'): HTMLElement[] {
+    const two = key === 'color2';
+    const cur = two ? f.color2 : (f.color ?? c.color);
+    const keys: string[] = colorsOf(c);
+    const hex = (k: string): number => colorOf(c, k)?.[1] ?? hexOf(k);
+    const out: HTMLElement[] = [];
+    const set = (v: string | null): void => {
+      if (v === cur) return;
+      if (v == null) delete f[key];
+      else f[key] = v;
+      ed.commit();
+    };
+    const main = hex(f.color ?? c.color);
+    const auto = shadeHex(main, 0.78);
     if (two) {
       const b = el(
         `<button class="sw ${cur ? '' : 'on'}" title="${t('A shade darker than the rug')}" style="background:linear-gradient(135deg,${cssHex(main)} 50%,${cssHex(auto)} 50%)"></button>`,
@@ -731,32 +884,33 @@ export function furnitureMode(ed) {
       b.onclick = () => set(k);
       out.push(b);
     }
-    const own = isHex(cur),
-      pk = el(
-        `<label class="sw own ${own ? 'on' : ''}" title="${t('Custom color')}"${own ? ` style="background:${cur}"` : ''}><input type="color" value="${own ? cur.toLowerCase() : cssHex(cur ? hex(cur) : auto)}"></label>`,
-      );
-    pk.querySelector('input').onchange = e =>
+    const own = isHex(cur);
+    const pk = el(
+      `<label class="sw own ${own ? 'on' : ''}" title="${t('Custom color')}"${own ? ` style="background:${cur}"` : ''}><input type="color" value="${own ? cur.toLowerCase() : cssHex(cur ? hex(cur) : auto)}"></label>`,
+    );
+    // the input is in the markup above
+    pk.querySelector('input')!.onchange = e =>
       set(
         snapColor(
-          e.target.value,
+          (e.target as HTMLInputElement).value,
           keys.map(k => [k, hex(k)]),
         ),
       );
     out.push(pk);
     return out;
   }
-  function ctxPanel() {
+  function ctxPanel(): void {
     const f = find(sel().furn);
     if (!f) {
       ed.showCtx(null);
       return;
     }
-    const c = byId(f.model),
-      cm = x => Math.round(x * 100),
-      line = el(`<div class="line"><b>${esc(c.name)}</b></div>`);
+    const c = byId(f.model)!;
+    const cm = (x: number): number => Math.round(x * 100);
+    const line = el(`<div class="line"><b>${esc(c.name)}</b></div>`);
     // a custom item and one from parts (the AI build) have their own name instead of the catalog one
     if (named(c)) {
-      const nm = el(
+      const nm = el<HTMLInputElement>(
         `<input class="nm" value="${esc(f.name || '')}" placeholder="${t('Name it')}" title="${t('Item name')}">`,
       );
       nm.onkeydown = e => {
@@ -769,15 +923,15 @@ export function furnitureMode(ed) {
         else delete f.name;
         ed.commit();
       };
-      line.firstChild.replaceWith(nm);
+      line.firstChild!.replaceWith(nm); // the name in the line's markup
     }
     // stacked on top of each other — a switch instead of the name: bottom to top, the selected one highlighted (the owner: a hanging one cannot be selected by click)
     const stack = stackOf(plan(), f);
     if (stack.length > 1) {
       const seg = el(
-          `<span class="stack" title="${t('Stacked on top of each other — choose which one to edit')}"></span>`,
-        ),
-        own = line.firstChild;
+        `<span class="stack" title="${t('Stacked on top of each other — choose which one to edit')}"></span>`,
+      );
+      const own = line.firstChild!; // the line starts with the name
       for (const g of stack) {
         if (g === f && named(c)) {
           seg.append(own);
@@ -826,20 +980,22 @@ export function furnitureMode(ed) {
       lines.push(bl);
     } // a rug's second color
     if (c.vars) {
-      const vl = el(`<div class="line opts"></div>`),
-        cur = f.v || c.vars[0][0]; // variants of one object — as chips, like for a strip
+      const vl = el(`<div class="line opts"></div>`);
+      const cur = f.v || c.vars[0][0]; // variants of one object — as chips, like for a strip
       for (const [k, n] of c.vars) {
         const b = el(`<button class="chip ${k === cur ? 'on' : ''}">${esc(n)}</button>`);
         b.onclick = () => {
           if (k === cur) return;
           // a sofa bed unfolded — deeper toward the front, the backrest stays at the wall
           // a variant may have its own sizes ({w,d,h}: a top-loading washer is narrower, a folded dryer rack is thinner) — the back stays at the wall
-          const opt = x => c.vars.find(q => q[0] === x)[2],
-            ext = x => (typeof opt(x) === 'number' ? opt(x) : 0),
-            to = opt(k);
+          // inside `if (c.vars)`; x is a variant key: the chip's or the current one
+          const opt = (x: string): number | VariantSize | undefined => c.vars!.find(q => q[0] === x)![2];
+          // the same call as the check
+          const ext = (x: string): number => (typeof opt(x) === 'number' ? (opt(x) as number) : 0);
+          const to = opt(k);
           let dd = ext(k) - ext(cur);
           if (to && typeof to === 'object') {
-            for (const q of ['w', 'h']) if (to[q]) f[q] = to[q];
+            for (const q of ['w', 'h'] as const) if (to[q]) f[q] = to[q];
             if (to.d) {
               dd = to.d - f.d;
             }
@@ -863,9 +1019,9 @@ export function furnitureMode(ed) {
     }
     // the worktop: one for the whole kitchen — every unit with a worktop in this room gets it
     if (c.tops) {
-      const tl = el(`<div class="line opts"><small>${t('Worktop')}</small></div>`),
-        cur = TOPS[f.top] ? f.top : 'stone',
-        room = roomAt(plan(), [f.x, f.y]);
+      const tl = el(`<div class="line opts"><small>${t('Worktop')}</small></div>`);
+      const cur = TOPS[f.top as string] ? f.top : 'stone'; // no worktop: undefined is no key
+      const room = roomAt(plan(), [f.x, f.y]);
       for (const [k, [n, hex]] of Object.entries(TOPS)) {
         const b = el(
           `<button class="sw ${k === cur ? 'on' : ''}" title="${esc(n)}" style="background:#${hex.toString(16).padStart(6, '0')}"></button>`,
@@ -898,15 +1054,15 @@ export function furnitureMode(ed) {
           ['w', t('W'), 0],
           ['d', t('D'), 1],
           ['h', t('H'), 2],
-        ]) {
-          const lab = el(`<label>${l}<input type="number" step="5" value="${cm(f[k])}"></label>`),
-            x = lab.querySelector('input');
+        ] as const) {
+          const lab = el(`<label>${l}<input type="number" step="5" value="${cm(f[k])}"></label>`);
+          const x = lab.querySelector('input')!; // in the markup above
           x.onkeydown = e => e.stopPropagation();
           x.onchange = () => {
             const val = +Math.max(c.min[i], Math.min(c.max[i], (+x.value || 0) / 100)).toFixed(3);
             // for a built-in cabinet the width is the length along the walls: the end goes further along the outline (and around the corner)
             if (isRun(f) && k === 'w') {
-              const g = runGeo(plan(), f);
+              const g: RunShape | null = runGeo(plan(), f);
               if (g) runSet(plan(), f, g.room, g.R, g.sa, g.L + val - f.w);
             } else {
               f[k] = val;
@@ -918,13 +1074,14 @@ export function furnitureMode(ed) {
         }
         if ('lift' in c) {
           const lab = el(
-              `<label title="${t('Bottom edge above floor')}">${t('Above floor')}<input type="number" step="5" value="${cm(zOf(f))}"></label>`,
-            ),
-            x = lab.querySelector('input');
+            `<label title="${t('Bottom edge above floor')}">${t('Above floor')}<input type="number" step="5" value="${cm(zOf(f))}"></label>`,
+          );
+          const x = lab.querySelector('input')!; // in the markup above
           x.onkeydown = e => e.stopPropagation();
           x.onchange = () => {
             const z = +Math.max(0, Math.min(2.6 - f.h, (+x.value || 0) / 100)).toFixed(3);
-            if (Math.abs(z - c.lift) < 0.001) delete f.z;
+            // 'lift' in c (above)
+            if (Math.abs(z - c.lift!) < 0.001) delete f.z;
             else f.z = z;
             ed.commit();
           };
@@ -944,23 +1101,23 @@ export function furnitureMode(ed) {
       const b = runBox(f);
       return b && [b[0], b[1], b[2], b[3]];
     }
-    const cs = corners(f),
-      xs = cs.map(q => q[0]),
-      ys = cs.map(q => q[1]);
+    const cs = corners(f);
+    const xs = cs.map(q => q[0]);
+    const ys = cs.map(q => q[1]);
     return [Math.min(...xs), Math.min(...ys), Math.max(...xs), Math.max(...ys)];
   };
   m.status = () => '';
   // ---------- “Furniture” wizard step ----------
   // Between “Link rooms” and “Lights” (the owner: lighting is often on furniture — the kitchen plinth, under cabinets, under the bed).
   // Short: place the furniture (lighting is not mentioned in the text — the owner: unclear what it is), not ready — “For later”. When on — the project has ui.wiz[id] = {furn:true}.
-  const wizOn = () => !!ed.wizard?.get(plan().id)?.furn;
+  const wizOn = (): boolean => !!ed.wizard?.get(plan().id)?.furn;
   m.wizardOn = wizOn;
-  let stepKey = null;
+  let stepKey: string | null = null;
   m.reset = () => {
     stepKey = null;
     placing = null;
   };
-  function stepBanner() {
+  function stepBanner(): void {
     if (!wizOn()) {
       if (stepKey != null) {
         stepKey = null;
@@ -968,8 +1125,8 @@ export function furnitureMode(ed) {
       }
       return;
     }
-    const has = plan().furniture.length > 0,
-      key = has + '|' + !!placing?.click;
+    const has = plan().furniture.length > 0;
+    const key = has + '|' + !!placing?.click;
     if (stepKey === key && ed.stepNow()?.mode === m) return;
     stepKey = key;
     ed.step(
@@ -979,7 +1136,7 @@ export function furnitureMode(ed) {
       {id: 'furniture', short: placing?.click ? t('Click the plan to place the item.') : undefined},
     );
   }
-  function toLights() {
+  function toLights(): void {
     ed.wizard.set(plan().id, {lights: true});
     stepKey = null;
     ed.step(null);
