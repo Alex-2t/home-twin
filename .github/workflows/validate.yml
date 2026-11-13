@@ -33,4 +33,4 @@ jobs:
         run: npm ci && npm run build && npm test
       - name: English only
         working-directory: editor
-        run: node tools/no-cyrillic.mjs
+        run: node tools/no-cyrillic.ts

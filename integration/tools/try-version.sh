@@ -14,12 +14,12 @@ unzip -q "$D/home_twin.zip" -d "$D/config/custom_components/home_twin"
 docker run -d --name "$N" -p "$P:8123" -v "$D/config:/config" "ghcr.io/home-assistant/home-assistant:$V" >/dev/null
 for i in $(seq 1 150); do curl -sf "http://localhost:$P/api/onboarding" >/dev/null && break; sleep 2; done
 export HA_URL=http://localhost:$P HA_TOKEN=$D/token.json
-cd "$ROOT/integration"; node tools/ha-dev.mjs onboard
+cd "$ROOT/integration"; node tools/ha-dev.ts onboard
 TOK=$(node -e "console.log(require('$D/token.json').token)")
 for i in $(seq 1 30); do F=$(curl -s -X POST -H "Authorization: Bearer $TOK" -H 'content-type: application/json' -d '{"handler":"home_twin"}' "http://localhost:$P/api/config/config_entries/flow"); echo "$F" | grep -q flow_id && break; sleep 3; done
 FID=$(echo "$F" | node -e "let s='';process.stdin.on('data',d=>s+=d).on('end',()=>console.log(JSON.parse(s).flow_id))")
 curl -s -X POST -H "Authorization: Bearer $TOK" -H 'content-type: application/json' -d '{}' "http://localhost:$P/api/config/config_entries/flow/$FID" >/dev/null
-PLAN=$(cd "$ROOT/editor" && node --input-type=module -e "const {DEMO}=await (await import('./demo/typical.mjs')).default();console.log(JSON.stringify({type:'home_twin/plan/save',plan:DEMO}))")
-echo "plan saved: $(node tools/ha-dev.mjs ws "$PLAN" | tr -d '\n ')"
-echo "panel: $(node tools/ha-dev.mjs ws '{"type":"get_panels"}' | node -e "let s='';process.stdin.on('data',d=>s+=d).on('end',()=>{const h=JSON.parse(s)[0]['home-twin'];console.log(h?h.title+' / config panel of '+h.config_panel_domain:'missing')})")"
+PLAN=$(cd "$ROOT/editor" && node --input-type=module -e "const {DEMO}=await (await import('./demo/typical.ts')).default();console.log(JSON.stringify({type:'home_twin/plan/save',plan:DEMO}))")
+echo "plan saved: $(node tools/ha-dev.ts ws "$PLAN" | tr -d '\n ')"
+echo "panel: $(node tools/ha-dev.ts ws '{"type":"get_panels"}' | node -e "let s='';process.stdin.on('data',d=>s+=d).on('end',()=>{const h=JSON.parse(s)[0]['home-twin'];console.log(h?h.title+' / config panel of '+h.config_panel_domain:'missing')})")"
 echo "Open http://localhost:$P/home-twin (dev / devdevdev)"

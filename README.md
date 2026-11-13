@@ -20,7 +20,7 @@ License: [GPL-3.0](LICENSE).
 
 Product: a live 3D twin of your home for Home Assistant. The floor-plan editor and the card are free; paid services and add-ons are planned ([D-052](docs/decisions.md)).
 
-This repository holds the code, decisions, business notes and research. It contains no personal data from the owner's apartment: its demo, openings and plan photo are kept local only (`editor/demo/own.mjs`, `prototypes/walls-from-json/own/` and the neighbouring `3d_floor` are in `.gitignore`); without them the demo is an invented typical apartment.
+This repository holds the code, decisions, business notes and research. It contains no personal data from the owner's apartment: its demo, openings and plan photo are kept local only (`editor/demo/own.ts`, `prototypes/walls-from-json/own/` and the neighbouring `3d_floor` are in `.gitignore`); without them the demo is an invented typical apartment.
 
 State as of 2026-11-08: a standalone editor and a Home Assistant integration (configuration panel, plan stored in HA), packaging for the catalog. The dashboard card is still ahead.
 

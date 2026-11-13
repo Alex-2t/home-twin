@@ -1,6 +1,6 @@
 # Translation glossary (D-036)
 
-English is the source language: UI text in code is written in English, and the English string itself is the key (`t('Done')`). Dictionaries: `src/i18n/<lang>.json` — an object “English string → translation”, one per language including `ru.json`. Keys are all strings from `keys.json` (written by `node tools/i18n-scan.mjs --keys`; next to each key is where it is used). Check: `npm test` (nothing missing, placeholders match).
+English is the source language: UI text in code is written in English, and the English string itself is the key (`t('Done')`). Dictionaries: `src/i18n/<lang>.json` — an object “English string → translation”, one per language including `ru.json`. Keys are all strings from `keys.json` (written by `node tools/i18n-scan.ts --keys`; next to each key is where it is used). Check: `npm test` (nothing missing, placeholders match).
 
 A key may end in a `|context` suffix, e.g. `Open|verb` or `Rectangular|feminine`: the same English word that needs different translations. English shows only the part before `|`; the translation is written without the suffix.
 

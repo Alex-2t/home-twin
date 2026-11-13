@@ -3,11 +3,11 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "build": "node build.mjs",
-    "dev": "node build.mjs --serve",
-    "test": "node --test src/core/*.test.js src/editor/*.test.js src/look/*.test.js src/i18n/*.test.js",
-    "format": "prettier --write \"src/**/*.{js,ts}\" \"demo/**/*.{js,mjs,ts}\" \"tools/**/*.{js,mjs,ts}\" \"*.{js,mjs,ts}\"",
-    "format:check": "prettier --check \"src/**/*.{js,ts}\" \"demo/**/*.{js,mjs,ts}\" \"tools/**/*.{js,mjs,ts}\" \"*.{js,mjs,ts}\"",
+    "build": "node build.ts",
+    "dev": "node build.ts --serve",
+    "test": "node --test src/core/*.test.ts src/editor/*.test.ts src/look/*.test.ts src/i18n/*.test.ts",
+    "format": "prettier --write \"src/**/*.ts\" \"demo/**/*.ts\" \"tools/**/*.ts\" \"*.ts\"",
+    "format:check": "prettier --check \"src/**/*.ts\" \"demo/**/*.ts\" \"tools/**/*.ts\" \"*.ts\"",
     "typecheck": "tsc -p .",
     "check": "npm run format:check && npm run typecheck && npm test"
   },

@@ -47,8 +47,8 @@ cd integration
 docker run -d --name home-twin-ha -p 8123:8123 -e TZ="$(readlink /etc/localtime | sed 's#.*/zoneinfo/##')" \
   -v "$PWD/dev/config:/config" -v "$PWD/../custom_components/home_twin:/config/custom_components/home_twin" \
   ghcr.io/home-assistant/home-assistant:stable
-node tools/ha-dev.mjs onboard   # user dev / devdevdev, language en, token in dev/token.json
-node tools/ha-dev.mjs seed      # five areas, demo entities in them, the home_twin integration
-node tools/ha-dev.mjs ws '{"type":"home_twin/plan/get"}'
+node tools/ha-dev.ts onboard   # user dev / devdevdev, language en, token in dev/token.json
+node tools/ha-dev.ts seed      # five areas, demo entities in them, the home_twin integration
+node tools/ha-dev.ts ws '{"type":"home_twin/plan/get"}'
 ```
-`dev/config/configuration.yaml` has `demo:` (fake lights, climate, covers, sensors, taps, a camera, weather). `dev/` is not in git. Building the panel: `cd editor && npm run build` (or `npm run dev` — rebuilds on changes); then refresh the HA page. `node tools/ha-dev.mjs tokens` — tokens for the browser (`localStorage.hassTokens`), to log in without the form during checks.
+`dev/config/configuration.yaml` has `demo:` (fake lights, climate, covers, sensors, taps, a camera, weather). `dev/` is not in git. Building the panel: `cd editor && npm run build` (or `npm run dev` — rebuilds on changes); then refresh the HA page. `node tools/ha-dev.ts tokens` — tokens for the browser (`localStorage.hassTokens`), to log in without the form during checks.
