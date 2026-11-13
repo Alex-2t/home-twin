@@ -264,9 +264,9 @@ export function buildSeries<Item extends SeriesItem>(
   for (const item of items) {
     const g = groupOf(item);
     for (const r of rows?.[item.statistic] || []) {
-      // as JavaScript compares and adds it: a null change is 0, a missing one is not a number
-      const change = Number(r.change);
-      if (!(change >= 0)) continue;
+      // a row without a change (null or missing) is no data, not a zero: it does not start the series
+      const change = r.change;
+      if (change == null || !(change >= 0)) continue;
       const b = at(r.start);
       if (!b) continue;
       first = Math.min(first, r.start);

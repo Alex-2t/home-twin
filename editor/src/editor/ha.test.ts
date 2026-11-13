@@ -43,6 +43,25 @@ test('demo valve-as-cover: closes with a cover command, state closed', async () 
   assert.equal(ha.entity('cover.water_valve')!.state, 'closed');
 });
 
+test('demo air conditioner: the setpoint stays in its range; one without min_temp and max_temp gets the usual 7–35 °C', async () => {
+  const ha = mockHA({
+    ...base(),
+    entities: {
+      'climate.ranged': {state: 'cool', attributes: {temperature: 22, min_temp: 16, max_temp: 30}},
+      'climate.bare': {state: 'cool', attributes: {temperature: 22, current_temperature: 24}},
+    },
+  });
+  const setpoint = async (entity: string, temperature: number): Promise<number | undefined> => {
+    await ha.call('climate', 'set_temperature', {entity_id: entity, temperature});
+    return ha.entity(entity)!.attributes.temperature;
+  };
+  assert.equal(await setpoint('climate.ranged', 12), 16);
+  assert.equal(await setpoint('climate.ranged', 25), 25);
+  assert.equal(await setpoint('climate.bare', 23.5), 23.5);
+  assert.equal(await setpoint('climate.bare', 50), 35);
+  assert.equal(await setpoint('climate.bare', 2), 7);
+});
+
 test('day and night follow the sun: the demo by its weather profile, no weather — always day (D-068)', () => {
   const p = {low: 3, high: 11, sunrise: '07:05', sunset: '16:40', hours: Array<string>(24).fill('cloudy')};
   const at = (h: number, m = 0) => {

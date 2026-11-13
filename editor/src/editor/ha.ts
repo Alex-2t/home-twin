@@ -50,6 +50,7 @@
 //                 which opens the areas page in the user's own HA.
 // Until HA is connected — demo data (mockHA).
 import {demoStatistics, demoStateHistory} from './ha-demo.ts';
+import {DEFAULT_MAX_TEMP_C, DEFAULT_MIN_TEMP_C} from '../core/devices.ts';
 import type {
   DemoHaData,
   DemoHaLayer,
@@ -76,8 +77,6 @@ type DemoAttributes = HassAttributes & {
   _last?: string;
   temperature: number;
   current_temperature: number;
-  min_temp: number;
-  max_temp: number;
   current_position: number;
 };
 
@@ -339,9 +338,12 @@ export function mockHA({
         if (service === 'set_hvac_mode' && A.hvac_modes?.includes(data.hvac_mode)) x.state = data.hvac_mode;
         else if (service === 'turn_off') x.state = 'off';
         else if (service === 'turn_on') x.state = last;
-        else if (service === 'set_temperature' && Number.isFinite(data.temperature))
-          A.temperature = Math.max(A.min_temp, Math.min(A.max_temp, data.temperature));
-        else if (service === 'set_fan_mode' && A.fan_modes?.includes(data.fan_mode))
+        else if (service === 'set_temperature' && Number.isFinite(data.temperature)) {
+          // a demo entity without its own range gets the one the controls show (core/devices.ts acView)
+          const lowest = A.min_temp ?? DEFAULT_MIN_TEMP_C;
+          const highest = A.max_temp ?? DEFAULT_MAX_TEMP_C;
+          A.temperature = Math.max(lowest, Math.min(highest, data.temperature));
+        } else if (service === 'set_fan_mode' && A.fan_modes?.includes(data.fan_mode))
           A.fan_mode = data.fan_mode;
         if (x.state !== 'off') A._last = x.state;
         A.hvac_action =

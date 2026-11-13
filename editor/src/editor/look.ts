@@ -915,7 +915,6 @@ export function createLook(ed: LookEditor, host0: HTMLElement): LookPanel {
     };
     for (const L of ed.plan.lights)
       if (L.entity && L.placed && !L.draft && !L.skip) add(L.entity, L.name, L.room);
-    // neither HA layer gives a device its device id: it stays undefined
     for (const d of ed.ha?.devices?.() || []) add(d.entity, d.name, room(d.area)?.id, d.device);
     for (const c of climate)
       for (const k of ['temperature', 'humidity', 'co2'] as const) {
@@ -1812,16 +1811,18 @@ export function createLook(ed: LookEditor, host0: HTMLElement): LookPanel {
   function coverTile(c: RoomCover): string {
     const v = c.blind;
     const dis = !c.ok ? 'disabled' : '';
-    // an unavailable cover has no position: NaN, as Math.round(undefined) was
-    const live = Math.round(Number(c.pos));
+    // an unavailable cover has no position: its slider stands at 0 and its value reads a dash
+    const live = c.pos == null ? null : Math.round(c.pos);
+    const level = live ?? 0;
+    const valueText = live == null ? '—' : live + '%';
     const button = (command: string, title: string, symbol: string): string =>
       `<button class="cover-btn" data-action="cover" data-id="${escape(c.entity)}" data-command="${command}" title="${escape(title)}" aria-label="${escape(c.name)}: ${escape(title.toLowerCase())}" ${dis}>${icon(symbol)}</button>`;
-    return `<div class="tile wide cover-tile ${live > 1 ? 'on' : ''}" style="--tile-accent:rgb(var(--color-green,111,154,130))" data-id="${escape(c.entity)}">
+    return `<div class="tile wide cover-tile ${level > 1 ? 'on' : ''}" style="--tile-accent:rgb(var(--color-green,111,154,130))" data-id="${escape(c.entity)}">
       <div class="tile-head-row"><span class="tile-head"><span class="tile-chip">${icon(v ? 'blind' : 'curtain')}</span>
           <span class="tile-text"><strong>${escape(c.name)}</strong><small>${escape(coverStatus(c))}</small></span></span>
         <div class="cover-buttons">${button('open', v ? t('Raise') : t('Open|verb'), v ? 'cover-up' : 'cover-open')}${button('stop', t('Stop'), 'stop')}${button('close', v ? t('Lower') : t('Close'), v ? 'cover-down' : 'cover-close')}</div></div>
-      <div class="bar" style="--level:${live}%"><input type="range" min="0" max="100" step="1" value="${live}" data-cover="${escape(c.entity)}" aria-label="${escape(t('Position'))}: ${escape(c.name)}" ${dis}>
-        <span class="bar-value">${live}%</span></div></div>`;
+      <div class="bar" style="--level:${level}%"><input type="range" min="0" max="100" step="1" value="${level}" data-cover="${escape(c.entity)}" aria-label="${escape(t('Position'))}: ${escape(c.name)}" ${dis}>
+        <span class="bar-value">${valueText}</span></div></div>`;
   }
   const lightTileOf = (
     l: LookLamp,

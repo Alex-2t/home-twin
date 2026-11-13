@@ -63,8 +63,8 @@ test('formats: number and time formats from the HA profile override the language
   setFormats({number_format: 'none'});
   assert.equal(num(12345.5, 1), '12345.5');
   setLang('de');
-  setFormats({time_format: 'am_pm'});
-  assert.match(sp(clock(at)), /^2:05 PM$/);
+  setFormats({time_format: '12'});
+  assert.match(sp(clock(at)), /^2:05 PM$/, "HA keeps the 12-hour clock as '12'");
   setFormats({number_format: 'comma_decimal'});
   assert.equal(num(12345.5, 1), '12,345.5');
   setLang('en');

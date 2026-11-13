@@ -552,6 +552,9 @@ export const TONE: Record<string, string> = {
   dry: 'dry',
   fan_only: 'fan',
 };
+// the setpoint range of an air conditioner or heater that does not give its own (min_temp, max_temp), °C
+export const DEFAULT_MIN_TEMP_C = 7;
+export const DEFAULT_MAX_TEMP_C = 35;
 export function acView(x: EntityState | null | undefined): AcView {
   if (!x || ['unavailable', 'unknown'].includes(x.state)) return {ok: false, on: false};
   const A: HassAttributes = x.attributes || {};
@@ -564,8 +567,8 @@ export function acView(x: EntityState | null | undefined): AcView {
     name: MODES()[mode] || mode,
     temp: finite(A.temperature) ? A.temperature : null,
     current: finite(A.current_temperature) ? A.current_temperature : null,
-    min: finite(A.min_temp) ? A.min_temp : 7,
-    max: finite(A.max_temp) ? A.max_temp : 35,
+    min: finite(A.min_temp) ? A.min_temp : DEFAULT_MIN_TEMP_C,
+    max: finite(A.max_temp) ? A.max_temp : DEFAULT_MAX_TEMP_C,
     step: finite(A.target_temp_step) && A.target_temp_step > 0 ? A.target_temp_step : 0.5,
     fan: A.fan_mode,
     action: A.hvac_action,

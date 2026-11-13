@@ -122,6 +122,12 @@ test("areas, lamps, sensors: the area is its own or the device's; no hidden or s
   assert.equal(ha.entity('climate.ac')?.attributes.temperature, 22);
   const leak = ha.devices().find(d => d.entity === 'binary_sensor.leak');
   assert.equal(leak?.battery, 'sensor.leak_bat', 'the charge is an entity of the same device');
+  assert.equal(leak?.device, 'd1', "its device id: Preview's statistics show a device's entities as one row");
+  assert.equal(
+    ha.devices().find(d => d.entity === 'climate.ac')?.device,
+    undefined,
+    'an entity without a registry entry has no device',
+  );
 });
 
 test('registries not received — ready() false: an empty area list does not mean “deleted”', () => {

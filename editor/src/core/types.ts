@@ -893,7 +893,7 @@ export interface HassLocale {
   language?: string;
   /** 'language' (the default), 'system', 'comma_decimal', 'decimal_comma', 'space_comma', 'quote_decimal' or 'none'. */
   number_format?: string;
-  /** 'language' (the default), 'system', '24', or the 12-hour clock ('am_pm' as i18n.ts checks it). */
+  /** 'language' (the default), 'system', '12' (HA's am_pm) or '24'. */
   time_format?: string;
 }
 
@@ -1071,7 +1071,7 @@ export interface HaDevice {
   /** A leak sensor: the battery charge sensor and the "battery low" binary_sensor of the same device. */
   battery?: string;
   low?: string;
-  /** Its HA device id, which Preview's statistics read; neither HA layer sets it yet. */
+  /** Its HA device id (the real HA layer; the demo's devices have none): Preview's statistics group a device's entities by it. */
   device?: string;
 }
 

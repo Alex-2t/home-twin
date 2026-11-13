@@ -166,9 +166,10 @@ const NUMBER_LOCALE: Partial<Record<string, string[]>> = {
 };
 const numLocale = (): string | string[] | undefined =>
   numberFormat === 'system' ? undefined : NUMBER_LOCALE[numberFormat] || LOCALE[lang];
-// 12-hour clock: am_pm / 24 as set; for "language" and "system" — whatever that locale does with 22:00
+// 12-hour clock: '12' / '24' as set (HA's TimeFormat stores am_pm as '12'); for "language" and "system" — whatever that
+// locale does with 22:00
 export const amPm = (): boolean =>
-  timeFormat === 'am_pm' ||
+  timeFormat === '12' ||
   (timeFormat !== '24' &&
     new Date(2023, 0, 1, 22)
       .toLocaleString(timeFormat === 'system' ? undefined : LOCALE[lang])

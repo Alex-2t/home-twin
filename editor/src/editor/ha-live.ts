@@ -386,6 +386,8 @@ export function liveHA(initial: Hass): LiveHaLayer {
             return [];
           const device: HaDevice = {entity: e, name: nameOf(e), area: areaOf(e), domain, cls};
           const entry = reg(e);
+          // Preview's statistics show the entities of one device as one row (look/stats.ts health)
+          if (entry?.device_id) device.device = entry.device_id;
           // leak sensor: charge and “battery low” are entities of the same device
           if (cls === 'moisture' && entry?.device_id) {
             // an entry came from hass.entities, so it is there

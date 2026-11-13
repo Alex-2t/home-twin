@@ -85,6 +85,10 @@ test('increments: bars by day, the series start (negative) is skipped, before th
     'days with data — from the first row, today — by the elapsed fraction',
   );
   assert.equal(buildSeries(items, w, {}, null).empty, true);
+  const nulls = {'s.a': [{start: day(w, 1), change: null}, ...rows['s.a']], 's.b': rows['s.b']};
+  const withNulls = buildSeries(items, w, nulls, null, {groupOf: i => i.room});
+  assert.equal(withNulls.since, day(w, 3), 'a row without a change is no data: it does not start the series');
+  assert.equal(withNulls.total, 6);
 });
 
 test('climate: mean, range and comfort — by hourly averages; a year — without comfort', () => {
