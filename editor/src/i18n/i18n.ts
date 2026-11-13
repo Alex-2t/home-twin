@@ -1,4 +1,3 @@
-// @ts-nocheck
 // UI translations (D-036). UI text in code is written in English; t('…') looks the string itself up in the current language's
 // dictionary (like gettext): no invented keys, the English text is the source. No translation — the English text.
 //   t('Done')                                     — a plain string;
@@ -10,6 +9,7 @@
 //   tr(x)                                         — translate a data string when shown.
 // The check (i18n.test.js) collects keys from t() and N() and finds missing translations; Cyrillic in code is not allowed
 // (Russian lives in ru.json).
+import type {HassLocale, Lang} from '../core/types.ts';
 import de from './de.json' with {type: 'json'};
 import fr from './fr.json' with {type: 'json'};
 import nl from './nl.json' with {type: 'json'};
@@ -20,8 +20,11 @@ import pl from './pl.json' with {type: 'json'};
 import pt from './pt.json' with {type: 'json'};
 import ru from './ru.json' with {type: 'json'};
 
+// A language's dictionary: the English string → its translation.
+type Dictionary = Partial<Record<string, string>>;
+
 // Order — by number of HA users (D-036); English is the source.
-export const LANGS = [
+export const LANGS: Array<[Lang, string]> = [
   ['en', 'English'],
   ['de', 'Deutsch'],
   ['fr', 'Français'],
@@ -33,8 +36,8 @@ export const LANGS = [
   ['pt', 'Português'],
   ['ru', 'Русский'], // allow-cyrillic: endonym
 ];
-const DICT = {de, fr, nl, es, zh, it, pl, pt, ru};
-const LOCALE = {
+const DICT: Record<Exclude<Lang, 'en'>, Dictionary> = {de, fr, nl, es, zh, it, pl, pt, ru};
+const LOCALE: Record<Lang, string> = {
   en: 'en',
   de: 'de',
   fr: 'fr',
@@ -46,35 +49,41 @@ const LOCALE = {
   pt: 'pt-BR',
   ru: 'ru',
 };
-let lang = 'en';
-export const getLang = () => lang;
-export const locale = () => LOCALE[lang];
+// A language the UI has: one with a locale. (Looked up as the code always did, by a truthy entry.)
+const isLang = (code: string): code is Lang => Boolean((LOCALE as Partial<Record<string, string>>)[code]);
+let lang: Lang = 'en';
+export const getLang = (): Lang => lang;
+export const locale = (): string => LOCALE[lang];
 // page: also the page's lang (the editor's own document); the dashboard card lives in HA's page and leaves it alone
-export function setLang(l, {page = true} = {}) {
-  lang = LOCALE[l] ? l : 'en';
+export function setLang(code: string, {page = true}: {page?: boolean} = {}): void {
+  lang = isLang(code) ? code : 'en';
   if (page && typeof document !== 'undefined') document.documentElement.lang = LOCALE[lang];
 }
 // system language (later the HA language): exact match first, then by the first part (de-AT → de, pt-PT → pt, zh-TW → zh)
-export function pickLang(list) {
-  for (const x of list || []) {
-    const s = String(x).toLowerCase(),
-      b = s.split(/[-_]/)[0];
-    if (LOCALE[b]) return b;
+export function pickLang(list: readonly unknown[] | null | undefined): Lang {
+  for (const candidate of list || []) {
+    const code = String(candidate).toLowerCase();
+    const base = code.split(/[-_]/)[0];
+    if (isLang(base)) return base;
   }
   return 'en';
 }
 
-const missing = new Set();
-export const missingKeys = () => [...missing];
-const plurals = new Map(),
-  pr = () => {
-    if (!plurals.has(lang)) plurals.set(lang, new Intl.PluralRules(LOCALE[lang]));
-    return plurals.get(lang);
-  };
+const missing = new Set<string>();
+export const missingKeys = (): string[] => [...missing];
+const plurals = new Map<Lang, Intl.PluralRules>();
+const pluralRules = (): Intl.PluralRules => {
+  let rules = plurals.get(lang);
+  if (!rules) {
+    rules = new Intl.PluralRules(LOCALE[lang]);
+    plurals.set(lang, rules);
+  }
+  return rules;
+};
 // placeholders: {0}, {1}…; {0, plural, one {…} few {…} other {…}} — inside a form, # is the number formatted for the language
-function format(s, args) {
-  let out = '',
-    i = 0;
+function format(s: string, args: unknown[]): string {
+  let out = '';
+  let i = 0;
   while (i < s.length) {
     const c = s[i];
     if (c !== '{') {
@@ -83,11 +92,11 @@ function format(s, args) {
       continue;
     }
     // find the matching brace
-    let d = 0,
-      j = i;
+    let depth = 0;
+    let j = i;
     for (; j < s.length; j++) {
-      if (s[j] === '{') d++;
-      else if (s[j] === '}' && --d === 0) break;
+      if (s[j] === '{') depth++;
+      else if (s[j] === '}' && --depth === 0) break;
     }
     const body = s.slice(i + 1, j);
     i = j + 1;
@@ -101,67 +110,75 @@ function format(s, args) {
       out += v == null ? '' : typeof v === 'number' ? num(v) : String(v);
       continue;
     }
-    const forms = {},
-      re = /\s*(=?\w+)\s*\{/g;
-    let k;
+    const forms: Partial<Record<string, string>> = {};
+    const re = /\s*(=?\w+)\s*\{/g;
+    let form: RegExpExecArray | null;
     const src = m[2];
-    while ((k = re.exec(src))) {
-      let dd = 1,
-        e = re.lastIndex;
-      for (; e < src.length && dd; e++) {
-        if (src[e] === '{') dd++;
-        else if (src[e] === '}') dd--;
+    while ((form = re.exec(src))) {
+      let formDepth = 1;
+      let e = re.lastIndex;
+      for (; e < src.length && formDepth; e++) {
+        if (src[e] === '{') formDepth++;
+        else if (src[e] === '}') formDepth--;
       }
-      forms[k[1]] = src.slice(re.lastIndex, e - 1);
+      forms[form[1]] = src.slice(re.lastIndex, e - 1);
       re.lastIndex = e;
     }
-    const f = forms['=' + v] ?? forms[pr().select(+v)] ?? forms.other ?? '';
-    out += format(f.replace(/#/g, num(+v)), args);
+    const f = forms['=' + v] ?? forms[pluralRules().select(Number(v))] ?? forms.other ?? '';
+    out += format(f.replace(/#/g, num(Number(v))), args);
   }
   return out;
 }
 // "Open|verb" → "Open": the context after "|" is for translators only
-const bare = s => {
+const bare = (s: string): string => {
   const i = s.lastIndexOf('|');
   return i > 0 && !s.slice(i).includes('}') ? s.slice(0, i) : s;
 };
-export function t(s, ...args) {
-  let r = bare(s);
+export function t(s: string, ...args: unknown[]): string {
+  let text = bare(s);
   if (lang !== 'en') {
     const d = DICT[lang];
-    if (d && s in d && d[s]) r = d[s];
+    const translated = d && s in d ? d[s] : undefined;
+    if (translated) text = translated;
     else missing.add(s);
   }
-  return args.length || r.includes('{') ? format(r, args) : r;
+  return args.length || text.includes('{') ? format(text, args) : text;
 }
-export const N = s => s;
-export const tr = s => (s == null ? s : t(s));
+export const N = <Text extends string>(s: Text): Text => s;
+export function tr(s: string): string;
+export function tr(s: string | null | undefined): string | null | undefined;
+export function tr(s: string | null | undefined): string | null | undefined {
+  return s == null ? s : t(s);
+}
 // Number and time formats. In Home Assistant — from the user's profile (hass.locale: number_format, time_format), mapped
 // the way HA's own frontend does it; outside HA (and for "language") — by the UI language.
-let numberFormat = 'language',
-  timeFormat = 'language';
-export function setFormats(l) {
+let numberFormat = 'language';
+let timeFormat = 'language';
+export function setFormats(l: HassLocale | null | undefined): void {
   numberFormat = l?.number_format || 'language';
   timeFormat = l?.time_format || 'language';
 }
-const NUMBER_LOCALE = {
+const NUMBER_LOCALE: Partial<Record<string, string[]>> = {
   comma_decimal: ['en-US', 'en'],
   decimal_comma: ['de', 'es', 'it'],
   space_comma: ['fr', 'sv', 'cs'],
   quote_decimal: ['de-CH'],
 };
-const numLocale = () => (numberFormat === 'system' ? undefined : NUMBER_LOCALE[numberFormat] || LOCALE[lang]);
+const numLocale = (): string | string[] | undefined =>
+  numberFormat === 'system' ? undefined : NUMBER_LOCALE[numberFormat] || LOCALE[lang];
 // 12-hour clock: am_pm / 24 as set; for "language" and "system" — whatever that locale does with 22:00
-export const amPm = () =>
+export const amPm = (): boolean =>
   timeFormat === 'am_pm' ||
   (timeFormat !== '24' &&
     new Date(2023, 0, 1, 22)
       .toLocaleString(timeFormat === 'system' ? undefined : LOCALE[lang])
       .includes('10'));
+// The options num takes: Intl's, plus grouping (Intl's useGrouping, defaulting to 'min2').
+type NumOptions = Intl.NumberFormatOptions & {grouping?: Intl.NumberFormatOptions['useGrouping']};
 // number: 23,1 or 23.1; d — decimal places (default: as is, up to 2); grouping — 'min2' by default (1234 cm, but
-// 12 345 m²), 'auto' as the locale groups; "none" in HA turns grouping off
-export const num = (v, d, {grouping = 'min2', ...o} = {}) =>
-  Number.isFinite(v)
+// 12 345 m²), 'auto' as the locale groups; "none" in HA turns grouping off. Anything but a finite number is printed as it is.
+export const num = (v: unknown, d?: number, {grouping = 'min2', ...o}: NumOptions = {}): string =>
+  typeof v === 'number' && Number.isFinite(v)
     ? new Intl.NumberFormat(numLocale(), {
         useGrouping: numberFormat === 'none' ? false : grouping,
         ...(d == null ? {maximumFractionDigits: 2} : {minimumFractionDigits: d, maximumFractionDigits: d}),
@@ -169,25 +186,29 @@ export const num = (v, d, {grouping = 'min2', ...o} = {}) =>
       }).format(v)
     : String(v);
 // date and time in the UI language; with an hour — on the 12- or 24-hour clock from HA
-export const dateTime = (at, o) =>
+export const dateTime = (at: Date | number, o: Intl.DateTimeFormatOptions): string =>
   new Intl.DateTimeFormat(LOCALE[lang], o.hour ? {...o, hourCycle: amPm() ? 'h12' : 'h23'} : o).format(at);
 // time of day: 14:05 or 2:05 PM
-export const clock = (at, o = {}) => dateTime(at, {hour: 'numeric', minute: '2-digit', ...o});
+export const clock = (at: Date | number, o: Intl.DateTimeFormatOptions = {}): string =>
+  dateTime(at, {hour: 'numeric', minute: '2-digit', ...o});
 // Static markup (shell.html): text and tooltips are translated by the string itself, once at startup.
 // Elements with translate="no" (key names, numbers) are left as they are.
-export function translateDom(root) {
+export function translateDom(root: Element | null | undefined): void {
   if (lang === 'en' || !root) return;
-  const d = DICT[lang] || {},
-    skip = n => n.parentElement?.closest('[translate=no]');
-  const w = document.createTreeWalker(root, NodeFilter.SHOW_TEXT);
-  let n;
-  while ((n = w.nextNode())) {
-    const s = n.nodeValue.trim();
-    if (s && d[s] && !skip(n)) n.nodeValue = n.nodeValue.replace(s, d[s]);
+  const d = DICT[lang] || {};
+  const skip = (node: Node): Element | null | undefined => node.parentElement?.closest('[translate=no]');
+  const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT);
+  let node: Node | null;
+  while ((node = walker.nextNode())) {
+    // a text node's value is never null
+    const s = node.nodeValue!.trim();
+    const translated = d[s];
+    if (s && translated && !skip(node)) node.nodeValue = node.nodeValue!.replace(s, translated);
   }
   for (const e of root.querySelectorAll('[title],[placeholder],[aria-label]'))
     for (const a of ['title', 'placeholder', 'aria-label']) {
       const s = e.getAttribute(a);
-      if (s && d[s]) e.setAttribute(a, d[s]);
+      const translated = s ? d[s] : undefined;
+      if (s && translated) e.setAttribute(a, translated);
     }
 }

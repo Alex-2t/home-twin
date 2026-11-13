@@ -1,4 +1,3 @@
-// @ts-nocheck
 import {test} from 'node:test';
 import assert from 'node:assert/strict';
 import {
@@ -26,12 +25,13 @@ import {
 } from './plan.ts';
 import {bakeFinish, WALL_KINDS} from './surfaces.ts';
 import {readPlan} from './plan-file.ts';
+import type {Room} from './types.ts';
 
 const anyKind = () => true;
 const paint = {k: 'paintWarm'};
 
 // A 4 × 3 m room; edge 0 runs along y = 0 from x = 0 to x = 4.
-const room = extra => ({
+const room = (extra?: Partial<Room>): Room => ({
   id: 'a',
   name: 'Kitchen',
   polygon: [
@@ -54,7 +54,7 @@ test('a piece fills in its defaults; a bad one or an unknown finish is skipped',
       ],
     ],
   });
-  const pieces = edgePieces(r, 0, k => !!WALL_KINDS[k]);
+  const pieces = edgePieces(r, 0, k => k in WALL_KINDS);
   assert.equal(pieces.length, 2);
   assert.deepEqual([pieces[0].from, pieces[0].to, pieces[0].bottom, pieces[0].top], [0.25, 0.75, 0.9, 1.5]);
   assert.deepEqual([pieces[1].from, pieces[1].to, pieces[1].bottom, pieces[1].top], [0, 1, 0, Infinity]);
@@ -146,12 +146,12 @@ test('a corner on an edge splits its pieces; removing it joins them back', () =>
   insertVertex(p, r, 0, [1, 0]);
   // edge 0 is now 0…1 m: the subway band from 1 m (its end) — none there; the tiles all of it
   assert.deepEqual(
-    r.wp[0].map(piece => [piece.k, piece.t]),
+    r.wp![0]!.map(piece => [piece.k, piece.t]),
     [['tileWhite', undefined]],
   );
   // edge 1 is 1…4 m: the band from 1 to 3 m is 0…2/3 of it
   assert.deepEqual(
-    r.wp[1].map(piece => [piece.k, piece.t]),
+    r.wp![1]!.map(piece => [piece.k, piece.t]),
     [
       ['tileSubway', [0, 0.6667]],
       ['tileWhite', undefined],
@@ -160,7 +160,7 @@ test('a corner on an edge splits its pieces; removing it joins them back', () =>
   removeVertex(p, r, 1);
   assert.equal(r.polygon.length, 4);
   assert.deepEqual(
-    r.wp[0].map(piece => [piece.k, piece.t]),
+    r.wp![0]!.map(piece => [piece.k, piece.t]),
     [
       ['tileWhite', [0, 0.25]],
       ['tileSubway', [0.25, 0.75]],
@@ -173,10 +173,10 @@ test('a double corner (to make a step) keeps the pieces where they were', () => 
   const p = migrate({rooms: [room({wp: [[{k: 'slatsOak', t: [0.5, 1]}]]})]});
   const [r] = p.rooms;
   addCorner(p, r, 0, 0.25);
-  assert.equal(r.wp.length, r.polygon.length);
-  assert.equal(r.wp[0], null, 'the first metre: none');
+  assert.equal(r.wp!.length, r.polygon.length);
+  assert.equal(r.wp![0], null, 'the first metre: none');
   assert.deepEqual(
-    r.wp[2].map(piece => piece.t),
+    r.wp![2]!.map(piece => piece.t),
     [[0.3333, 1]],
     'the last three metres: from 2 m on',
   );
@@ -201,8 +201,8 @@ test('a split room: each part keeps the pieces on its walls and its part of the 
       }),
     ],
   });
-  const [big, small] = splitRoom(p, p.rooms[0], [3, 0], [3, 3]);
-  const all = r => (r.wp || []).flatMap(list => list || []).map(piece => piece.k);
+  const [big, small] = splitRoom(p, p.rooms[0], [3, 0], [3, 3])!;
+  const all = (r: Room): string[] => (r.wp || []).flatMap(list => list || []).map(piece => piece.k);
   assert.ok(all(big).includes('slatsOak'));
   assert.ok(all(big).includes('brickWhite'));
   assert.ok(!all(small).includes('slatsOak'), 'the slats were on the first 2 m');
@@ -255,9 +255,9 @@ test('two rooms joined: their pieces on the walls that stay, their floor pieces 
     const next = kept.polygon[(i + 1) % kept.polygon.length];
     return Math.abs(q[1]) < 1e-6 && Math.abs(next[1]) < 1e-6;
   });
-  const kinds = kept.wp[bottom].map(piece => piece.k).sort();
+  const kinds = kept.wp![bottom]!.map(piece => piece.k).sort();
   assert.deepEqual(kinds, ['brickWhite', 'slatsOak'], 'one long wall: the pieces of both');
-  assert.equal(kept.fp.length, 1);
+  assert.equal(kept.fp!.length, 1);
 });
 
 test('the plan turned or scaled: the floor pieces go with it', () => {
@@ -278,9 +278,9 @@ test('the plan turned or scaled: the floor pieces go with it', () => {
     ],
   });
   rotatePlan(p, [0, 0], Math.PI / 2);
-  assert.deepEqual(p.rooms[0].fp[0].poly[0], [0, 1]);
+  assert.deepEqual(p.rooms[0].fp![0].poly[0], [0, 1]);
   scalePlan(p, [0, 0], 2);
-  assert.deepEqual(p.rooms[0].fp[0].poly[0], [0, 2]);
+  assert.deepEqual(p.rooms[0].fp![0].poly[0], [0, 2]);
 });
 
 test('a finish picked by hand for a wall removes its pieces', () => {
@@ -310,15 +310,18 @@ test('pieces split and join as fractions; carried onto a longer edge along the s
 
 test('the wall map: a backsplash band along part of a wall, by height', () => {
   const r = room({wall: 'paintWhite', wp: [[{k: 'tileSubway', t: [0.5, 1], z: [0.9, 1.5]}]]});
-  const f = bakeFinish([r]);
+  const f = bakeFinish([r])!;
   const [x0, y0, sx, sy] = f.box;
   const width = f.tex.image.width;
   const height = f.tex.image.height;
-  const stackAt = (x, y) =>
-    f.tex.image.data[(Math.floor((y - y0) * sy * height) * width + Math.floor((x - x0) * sx * width)) * 4];
-  const stacks = f.stk.image.data;
-  const finishes = f.tab.image.data;
-  const colour = id => [finishes[id * 4], finishes[id * 4 + 1], finishes[id * 4 + 2]].join(',');
+  // the maps are filled in (a texture made from data)
+  const map = f.tex.image.data!;
+  const stacks = f.stk.image.data!;
+  const finishes = f.tab.image.data!;
+  const stackAt = (x: number, y: number): number =>
+    map[(Math.floor((y - y0) * sy * height) * width + Math.floor((x - x0) * sx * width)) * 4];
+  const colour = (id: number): string =>
+    [finishes[id * 4], finishes[id * 4 + 1], finishes[id * 4 + 2]].join(',');
   const left = stackAt(1, 0.14);
   const right = stackAt(3, 0.14);
   assert.notEqual(left, right, 'two stacks along the wall');
@@ -352,6 +355,7 @@ test('a plan file with pieces reads; a broken list is refused', () => {
     ],
   };
   assert.ok(readPlan(JSON.stringify(plan)));
-  assert.throws(() => readPlan(JSON.stringify({rooms: [room({wp: [{k: 'tileWhite'}]})]})));
-  assert.throws(() => readPlan(JSON.stringify({rooms: [room({fp: [{k: 'tile'}]})]})));
+  // broken on purpose: a piece where an edge's list should be, a floor piece without its outline
+  assert.throws(() => readPlan(JSON.stringify({rooms: [{...room(), wp: [{k: 'tileWhite'}]}]})));
+  assert.throws(() => readPlan(JSON.stringify({rooms: [{...room(), fp: [{k: 'tile'}]}]})));
 });

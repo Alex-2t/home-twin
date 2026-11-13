@@ -1,10 +1,12 @@
-// @ts-nocheck
 // Language comes before the other modules (main.js imports this first): strings built at load time are already in it.
 // The user's own choice (“⋯” menu → “Language”) lives in the editor settings, otherwise the system language (in HA — the HA user's language).
 import {setLang, pickLang, setFormats} from './i18n.ts';
-let saved = null;
+import type {UiState} from '../core/types.ts';
+
+let saved: UiState['lang'] | null = null;
 try {
-  saved = JSON.parse(localStorage.getItem('home-twin-editor:ui') || '{}').lang;
+  const ui: Partial<UiState> = JSON.parse(localStorage.getItem('home-twin-editor:ui') || '{}');
+  saved = ui.lang;
 } catch {}
 // in the HA panel, ha-panel.js sets the HA user's language (HOME_TWIN_LANG) before the other modules load
 const host = globalThis.HOME_TWIN_LANG;

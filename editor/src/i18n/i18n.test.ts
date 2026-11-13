@@ -1,4 +1,3 @@
-// @ts-nocheck
 // Translations (D-036): no Cyrillic in code (Russian lives in ru.json); every language has every string, with the same placeholders.
 import {test} from 'node:test';
 import assert from 'node:assert/strict';
@@ -7,7 +6,7 @@ import {scan} from '../../tools/i18n-scan.ts';
 import {LANGS, setLang, t, setFormats, num, clock} from './i18n.ts';
 
 const {keys, bad} = scan();
-const holes = s =>
+const holes = (s: string): string =>
   [...s.matchAll(/\{(\d+)(?:\s*,\s*plural)?/g)]
     .map(m => m[1])
     .sort()
@@ -22,9 +21,15 @@ test('translations: no Cyrillic in code', () => {
 
 for (const [id] of LANGS.filter(([id]) => id !== 'en'))
   test(`translations: ${id} — every string, placeholders in place`, () => {
-    const d = JSON.parse(fs.readFileSync(new URL(`./${id}.json`, import.meta.url)));
-    const miss = [...keys.keys()].filter(k => !d[k]),
-      wrong = [...keys.keys()].filter(k => d[k] && holes(d[k]) !== holes(k));
+    const d: Partial<Record<string, string>> = JSON.parse(
+      fs.readFileSync(new URL(`./${id}.json`, import.meta.url), 'utf8'),
+    );
+    const allKeys: string[] = [...keys.keys()];
+    const miss = allKeys.filter(k => !d[k]);
+    const wrong = allKeys.filter(k => {
+      const translated = d[k];
+      return translated && holes(translated) !== holes(k);
+    });
     assert.deepEqual(
       {miss: miss.slice(0, 10), n: miss.length, wrong: wrong.slice(0, 10)},
       {miss: [], n: 0, wrong: []},
@@ -43,8 +48,8 @@ test('translations: plurals and numbers follow the language; "|context" is not s
 });
 
 test('formats: number and time formats from the HA profile override the language', () => {
-  const at = new Date(2026, 0, 1, 14, 5),
-    sp = s => s.replace(/\s/g, ' ');
+  const at = new Date(2026, 0, 1, 14, 5);
+  const sp = (s: string): string => s.replace(/\s/g, ' ');
   setLang('en');
   setFormats(null);
   assert.equal(num(1234.5, 1), '1234.5');

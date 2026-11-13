@@ -1,4 +1,3 @@
-// @ts-nocheck
 // An item described by simple parts (furniture model 'parts'): what the AI build could not match to the catalog comes as a few
 // blocks, cylinders, spheres, profiles and turned shapes. The item: {w, d, h, materials: {name: {color '#rrggbb', rough 0–1, metal 0–1}},
 // parts: [...]}, at most 4 materials and 60 parts after expanding repeat. Item coordinates: origin on the floor at the center of the
@@ -12,56 +11,84 @@
 // checkItem works without WebGL (plan-file.js validates with it); buildItem makes a three.js group, furniture3d.js bakes it.
 import * as THREE from 'three';
 import {RoundedBoxGeometry} from 'three/addons/geometries/RoundedBoxGeometry.js';
+import type {ExpandedPart, ItemCheck, Part, PartMaterial, PartsItem, ShapePart, Vec3} from './types.ts';
+
+// A value from a file read as an object: its fields are unknown until checked, and a value that is not an object has none
+// (reading one gives undefined, as `value?.field` always did).
+type Fields = {readonly [field: string]: unknown} | null | undefined;
 
 export const LIMITS = {parts: 60, materials: 4, tolerance: 0.02, maxSize: 6, repeat: 50};
 const KINDS = ['box', 'cyl', 'sphere', 'profile', 'lathe', 'repeat'];
 const HEX = /^#[0-9a-f]{6}$/i;
-const num = x => typeof x === 'number' && Number.isFinite(x);
-const pos = x => num(x) && x > 0;
-const vec = (x, n = 3) => Array.isArray(x) && x.length === n && x.every(num);
-const pts = (x, min) => Array.isArray(x) && x.length >= min && x.every(p => vec(p, 2));
-const add = (a, b, k = 1) => [a[0] + b[0] * k, a[1] + b[1] * k, a[2] + b[2] * k];
+const isList = (x: unknown): x is unknown[] => Array.isArray(x);
+const num = (x: unknown): x is number => typeof x === 'number' && Number.isFinite(x);
+const pos = (x: unknown): x is number => num(x) && x > 0;
+const vec = (x: unknown, n = 3): x is number[] => Array.isArray(x) && x.length === n && x.every(num);
+const pts = (x: unknown, min: number): x is Array<[number, number]> =>
+  Array.isArray(x) && x.length >= min && x.every(p => vec(p, 2));
+const add = (a: readonly number[], b: readonly number[], k = 1): Vec3 => [
+  a[0] + b[0] * k,
+  a[1] + b[1] * k,
+  a[2] + b[2] * k,
+];
 
 // Repeats become plain parts, each with its own path for error messages ("parts[3].part#2": the 3rd entry, copy 2).
-export function expand(parts, path = 'parts') {
-  const out = [];
+// The parts of a checked item come back as shapes; anything else comes back as it was, each entry unknown.
+export function expand(parts: readonly Part[], path?: string): ExpandedPart[];
+export function expand(
+  parts: readonly unknown[] | null | undefined,
+  path?: string,
+): Array<{part: unknown; path: string}>;
+export function expand(
+  parts: readonly unknown[] | null | undefined,
+  path = 'parts',
+): Array<{part: unknown; path: string}> {
+  const out: Array<{part: unknown; path: string}> = [];
   (parts || []).forEach((p, i) => {
     const here = `${path}[${i}]`;
-    if (p?.kind !== 'repeat') {
+    const fields = p as Fields;
+    if (fields?.kind !== 'repeat') {
       out.push({part: p, path: here});
       return;
     }
-    const n = Number.isInteger(p.count) ? Math.min(p.count, LIMITS.repeat) : 0;
+    const count = fields.count;
+    const n = typeof count === 'number' && Number.isInteger(count) ? Math.min(count, LIMITS.repeat) : 0;
     for (let k = 0; k < n; k++)
-      for (const q of expand([p.part], `${here}.part`))
+      for (const q of expand([fields.part], `${here}.part`)) {
+        const copy = q.part as Fields;
         out.push({
           part: {
-            ...q.part,
-            at: add(vec(q.part?.at) ? q.part.at : [0, 0, 0], vec(p.step) ? p.step : [0, 0, 0], k),
+            ...copy,
+            at: add(vec(copy?.at) ? copy.at : [0, 0, 0], vec(fields.step) ? fields.step : [0, 0, 0], k),
           },
           path: `${q.path}#${k + 1}`,
         });
+      }
   });
   return out;
 }
 
-function checkPart(p, path, mats, errors) {
-  if (!p || typeof p !== 'object') {
+function checkPart(value: unknown, path: string, mats: object, errors: string[]): void {
+  if (!value || typeof value !== 'object') {
     errors.push(`${path}: not an object`);
     return;
   }
-  if (!KINDS.includes(p.kind)) {
+  const p = value as Fields & object;
+  if (!KINDS.some(kind => kind === p.kind)) {
     errors.push(`${path}: unknown kind "${p.kind}" (use ${KINDS.join(', ')})`);
     return;
   }
   if (p.kind === 'repeat') {
-    if (!Number.isInteger(p.count) || p.count < 1 || p.count > LIMITS.repeat)
+    const count = p.count;
+    if (typeof count !== 'number' || !Number.isInteger(count) || count < 1 || count > LIMITS.repeat)
       errors.push(`${path}: count must be an integer 1–${LIMITS.repeat}`);
     if (!vec(p.step)) errors.push(`${path}: step must be [x, y, z]`);
     checkPart(p.part, `${path}.part`, mats, errors);
     return;
   }
-  if (!Object.hasOwn(mats, p.mat)) errors.push(`${path}: material "${p.mat}" is not in materials`);
+  // Object.hasOwn reads any value as a key, as it always did
+  if (!Object.hasOwn(mats, p.mat as PropertyKey))
+    errors.push(`${path}: material "${p.mat}" is not in materials`);
   if (!vec(p.at)) errors.push(`${path}: at must be [x, y, z]`);
   if (p.tilt != null && !vec(p.tilt)) errors.push(`${path}: tilt must be [x, y, z] degrees`);
   if (p.kind === 'box') {
@@ -70,7 +97,8 @@ function checkPart(p, path, mats, errors) {
   } else if (p.kind === 'cyl') {
     if (!pos(p.r) || !pos(p.h)) errors.push(`${path}: r and h must be > 0`);
     if (p.r2 != null && !(num(p.r2) && p.r2 >= 0)) errors.push(`${path}: r2 must be ≥ 0`);
-    if (p.seg != null && !(Number.isInteger(p.seg) && p.seg >= 3 && p.seg <= 64))
+    const seg = p.seg;
+    if (seg != null && !(typeof seg === 'number' && Number.isInteger(seg) && seg >= 3 && seg <= 64))
       errors.push(`${path}: seg must be an integer 3–64`);
   } else if (p.kind === 'sphere') {
     if (!pos(p.r)) errors.push(`${path}: r must be > 0`);
@@ -86,45 +114,53 @@ function checkPart(p, path, mats, errors) {
 }
 
 // Structural check without three.js: everything needed to build. Returns error strings (empty — buildable).
-export function checkItem(item) {
-  if (!item || typeof item !== 'object' || Array.isArray(item)) return ['the item must be a JSON object'];
-  const errors = [];
-  for (const k of ['w', 'd', 'h'])
-    if (!pos(item[k]) || item[k] > LIMITS.maxSize)
+export function checkItem(value: unknown): string[] {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return ['the item must be a JSON object'];
+  const item = value as Fields & object;
+  const errors: string[] = [];
+  for (const k of ['w', 'd', 'h']) {
+    const size = item[k];
+    if (!pos(size) || size > LIMITS.maxSize)
       errors.push(`${k} must be a number in meters, 0–${LIMITS.maxSize}`);
-  const mats =
-      item.materials && typeof item.materials === 'object' && !Array.isArray(item.materials)
-        ? item.materials
-        : {},
-    names = Object.keys(mats);
+  }
+  const materials = item.materials;
+  const mats = materials && typeof materials === 'object' && !Array.isArray(materials) ? materials : {};
+  const names = Object.keys(mats);
   if (!names.length) errors.push('materials: at least one material is needed');
   if (names.length > LIMITS.materials)
     errors.push(`materials: at most ${LIMITS.materials} (got ${names.length})`);
-  for (const [n, m] of Object.entries(mats)) {
-    if (!HEX.test(m?.color || '')) errors.push(`materials.${n}: color must be "#rrggbb"`);
-    for (const k of ['rough', 'metal'])
-      if (m?.[k] != null && !(num(m[k]) && m[k] >= 0 && m[k] <= 1))
+  for (const [n, value] of Object.entries(mats)) {
+    const m = value as Fields;
+    if (!HEX.test(String(m?.color || ''))) errors.push(`materials.${n}: color must be "#rrggbb"`);
+    for (const k of ['rough', 'metal']) {
+      const amount = m?.[k];
+      if (amount != null && !(num(amount) && amount >= 0 && amount <= 1))
         errors.push(`materials.${n}: ${k} must be 0–1`);
+    }
   }
-  for (const k of ['under', 'table'])
-    if (item[k] != null && item[k] !== true && !(num(item[k]) && item[k] > 0 && item[k] <= LIMITS.maxSize))
+  for (const k of ['under', 'table']) {
+    const height = item[k];
+    if (height != null && height !== true && !(num(height) && height > 0 && height <= LIMITS.maxSize))
       errors.push(`${k} must be true or a height in meters`);
-  if (!Array.isArray(item.parts) || !item.parts.length) {
+  }
+  const parts = item.parts;
+  if (!isList(parts) || !parts.length) {
     errors.push('parts: at least one part is needed');
     return errors;
   }
-  item.parts.forEach((p, i) => checkPart(p, `parts[${i}]`, mats, errors));
-  const n = expand(item.parts).length;
+  parts.forEach((p, i) => checkPart(p, `parts[${i}]`, mats, errors));
+  const n = expand(parts).length;
   if (n > LIMITS.parts) errors.push(`parts: at most ${LIMITS.parts} after expanding repeat (got ${n})`);
   return errors;
 }
 
-const rad = d => (d * Math.PI) / 180;
-function geometry(p) {
+const rad = (d: number): number => (d * Math.PI) / 180;
+const isMesh = (o: THREE.Object3D): o is THREE.Mesh => (o as THREE.Mesh).isMesh === true;
+function geometry(p: ShapePart): THREE.BufferGeometry {
   switch (p.kind) {
     case 'box': {
-      const [w, h, d] = p.size,
-        r = Math.min(p.round || 0, w / 2 - 1e-4, h / 2 - 1e-4, d / 2 - 1e-4);
+      const [w, h, d] = p.size;
+      const r = Math.min(p.round || 0, w / 2 - 1e-4, h / 2 - 1e-4, d / 2 - 1e-4);
       const g = r > 0.001 ? new RoundedBoxGeometry(w, h, d, 2, r) : new THREE.BoxGeometry(w, h, d);
       g.translate(0, h / 2, 0);
       return g;
@@ -135,8 +171,8 @@ function geometry(p) {
       return g;
     }
     case 'sphere': {
-      const g = new THREE.SphereGeometry(p.r, 28, 18),
-        s = p.scale || [1, 1, 1];
+      const g = new THREE.SphereGeometry(p.r, 28, 18);
+      const s = p.scale || [1, 1, 1];
       g.scale(s[0], s[1], s[2]);
       g.translate(0, p.r * s[1], 0);
       return g;
@@ -156,7 +192,7 @@ function geometry(p) {
 }
 // The part's at is its pivot: box, cyl and sphere stand on it (bottom center); profile and lathe use their own coordinates around it.
 // tilt rotates the part around at.
-function partObject(p, material) {
+function partObject(p: ShapePart, material: THREE.Material): THREE.Group {
   const mesh = new THREE.Mesh(geometry(p), material);
   mesh.castShadow = mesh.receiveShadow = true;
   const pivot = new THREE.Group();
@@ -168,10 +204,13 @@ function partObject(p, material) {
 
 // A group at the item's own size (item.w × item.h × item.d). material(m) makes a material from {color, rough, metal}:
 // the editor passes its shared cache (furniture3d.js), so equal materials of different items are one.
-const ownMaterial = m =>
+const ownMaterial = (m: PartMaterial): THREE.MeshStandardMaterial =>
   new THREE.MeshStandardMaterial({color: m.color, roughness: m.rough ?? 0.6, metalness: m.metal ?? 0});
-export function buildItem(item, material = ownMaterial) {
-  const mats = {};
+export function buildItem(
+  item: PartsItem,
+  material: (m: PartMaterial) => THREE.Material = ownMaterial,
+): THREE.Group {
+  const mats: Record<string, THREE.Material> = {};
   for (const [n, m] of Object.entries(item.materials)) mats[n] = material(m);
   const group = new THREE.Group();
   for (const {part, path} of expand(item.parts)) {
@@ -184,18 +223,19 @@ export function buildItem(item, material = ownMaterial) {
 
 // Full check: structure, then geometry — every part must stay inside the item's box (w × h × d) within the tolerance.
 // Warnings do not stop drawing; errors do.
-export function validateItem(item) {
-  const errors = checkItem(item);
+export function validateItem(value: unknown): ItemCheck {
+  const errors = checkItem(value);
   if (errors.length) return {errors, warnings: []};
-  const warnings = [],
-    t = LIMITS.tolerance,
-    {w, d, h} = item,
-    group = buildItem(item),
-    all = new THREE.Box3();
+  const item = value as PartsItem; // checkItem found nothing wrong
+  const warnings: string[] = [];
+  const t = LIMITS.tolerance;
+  const {w, d, h} = item;
+  const group = buildItem(item);
+  const all = new THREE.Box3();
   group.updateMatrixWorld(true);
   for (const o of group.children) {
-    const b = new THREE.Box3().setFromObject(o),
-      out = [];
+    const b = new THREE.Box3().setFromObject(o);
+    const out: string[] = [];
     all.union(b);
     if (b.min.x < -w / 2 - t || b.max.x > w / 2 + t)
       out.push(`x ${b.min.x.toFixed(3)}…${b.max.x.toFixed(3)} (allowed ±${(w / 2).toFixed(3)})`);
@@ -206,23 +246,24 @@ export function validateItem(item) {
     if (out.length) warnings.push(`${o.userData.path} sticks out of the item box: ${out.join('; ')}`);
   }
   const s = all.getSize(new THREE.Vector3());
-  for (const [k, got, want] of [
+  const extents: Array<[string, number, number]> = [
     ['width', s.x, w],
     ['height', s.y, h],
     ['depth', s.z, d],
-  ])
+  ];
+  for (const [k, got, want] of extents)
     if (got < want * 0.9)
       warnings.push(
         `the parts fill only ${got.toFixed(2)} m of the ${k} ${want.toFixed(2)} m — the item will look smaller than its size`,
       );
-  group.traverse(o => o.isMesh && o.geometry.dispose());
+  group.traverse(o => isMesh(o) && o.geometry.dispose());
   return {errors: [], warnings, parts: expand(item.parts).length};
 }
 
 // A short stable key of the parts for the 3D cache (scene.js rebuilds an item when its key changes): another plan may have an item
 // with the same id and size but other parts. Computed once per parts object.
-const keys = new WeakMap();
-export function partsKey(parts) {
+const keys = new WeakMap<object, string>();
+export function partsKey(parts: unknown): string {
   if (!parts || typeof parts !== 'object') return '';
   let k = keys.get(parts);
   if (k == null) {

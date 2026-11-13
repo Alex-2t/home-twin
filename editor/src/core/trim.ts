@@ -1,9 +1,25 @@
-// @ts-nocheck
 // Skirting boards and door and window trim in the 3D view (D-080). A room read flat without them: one even colour from floor
 // to ceiling, nothing to tell where a wall ends and a door begins. Each room gets its own on its own face of the walls, so a
 // wall between two rooms has trim on both sides. No trim where there is no wall: an edge whose wall is taken away (wt 0) or a
 // railing (rail).
 import {WALL, area, offset} from './geometry.ts';
+import type {OpeningKind, Point, Room, TrimBox, Vector} from './types.ts';
+
+// An opening as the trim reads it: its ends now (openingCoords), its kind and heights.
+export interface TrimOpening {
+  a?: Point;
+  b?: Point;
+  kind: OpeningKind;
+  bottom?: number;
+  top?: number;
+}
+// An opening on one wall: from s0 to s1 along the wall's face, and its index in the list handed in.
+interface OpeningSpan {
+  opening: TrimOpening;
+  index: number;
+  s0: number;
+  s1: number;
+}
 
 /** The sizes of the trim, metres. */
 export const TRIM = {
@@ -22,16 +38,24 @@ const FLOOR_WINDOW_METRES = 0.1;
 // Shorter than this, a piece of skirting is left out.
 const SHORTEST_METRES = 0.05;
 
-const minus = (a, b) => [a[0] - b[0], a[1] - b[1]];
-const plus = (a, b) => [a[0] + b[0], a[1] + b[1]];
-const times = (a, k) => [a[0] * k, a[1] * k];
-const dot = (a, b) => a[0] * b[0] + a[1] * b[1];
+const minus = (a: Point, b: Point): Vector => [a[0] - b[0], a[1] - b[1]];
+const plus = (a: Point, b: Vector): Point => [a[0] + b[0], a[1] + b[1]];
+const times = (a: Vector, k: number): Vector => [a[0] * k, a[1] * k];
+const dot = (a: Vector, b: Vector): number => a[0] * b[0] + a[1] * b[1];
 
 /**
  * A box standing on the plan: its footprint (a closed ring, as the 3D view's prism takes it), its bottom and its top, and the
  * opening it frames (its index; null for skirting).
  */
-function box(start, end, inward, depth, bottom, top, opening = null) {
+function box(
+  start: Point,
+  end: Point,
+  inward: Vector,
+  depth: number,
+  bottom: number,
+  top: number,
+  opening: number | null = null,
+): TrimBox {
   const ring = [start, end, plus(end, times(inward, depth)), plus(start, times(inward, depth)), start];
   return {mp: [[ring]], bottom, top, opening};
 }
@@ -41,8 +65,8 @@ function box(start, end, inward, depth, bottom, top, opening = null) {
  * `opening`: the index of the opening a casing frames, so it hides with its facade).
  * rooms: the plan's rooms; openings: with their ends a, b, kind, bottom and top (openingCoords).
  */
-export function trimBoxes(rooms, openings) {
-  const boxes = [];
+export function trimBoxes(rooms: Room[], openings: ReadonlyArray<TrimOpening | null>): TrimBox[] {
+  const boxes: TrimBox[] = [];
   for (const room of rooms) {
     if (room.solid || room.polygon.length < 3) continue;
     const face = offset(room.polygon, -WALL.inner);
@@ -50,7 +74,7 @@ export function trimBoxes(rooms, openings) {
     if (face.length !== room.polygon.length) continue;
     const turning = area(room.polygon) > 0 ? 1 : -1;
     for (let i = 0; i < room.polygon.length; i++) {
-      if (room.wt?.[i] === 0 || room.rail?.[i] > 0) continue;
+      if (room.wt?.[i] === 0 || (room.rail?.[i] ?? 0) > 0) continue;
       const next = (i + 1) % room.polygon.length;
       boxes.push(...edgeTrim(room.polygon[i], room.polygon[next], face[i], face[next], turning, openings));
     }
@@ -59,16 +83,24 @@ export function trimBoxes(rooms, openings) {
 }
 
 /** One wall's trim on one room's side: the skirting with its doors left out, and each opening's casing. */
-function edgeTrim(axisStart, axisEnd, faceStart, faceEnd, turning, openings) {
+function edgeTrim(
+  axisStart: Point,
+  axisEnd: Point,
+  faceStart: Point,
+  faceEnd: Point,
+  turning: number,
+  openings: ReadonlyArray<TrimOpening | null>,
+): TrimBox[] {
   const length = Math.hypot(...minus(faceEnd, faceStart));
   if (length < SHORTEST_METRES) return [];
   const along = times(minus(faceEnd, faceStart), 1 / length);
-  const inward = [-along[1] * turning, along[0] * turning];
+  const inward: Vector = [-along[1] * turning, along[0] * turning];
   const axisLength = Math.hypot(...minus(axisEnd, axisStart));
   const axisAlong = times(minus(axisEnd, axisStart), 1 / axisLength);
-  const offLine = point => Math.abs(dot(minus(point, axisStart), [-axisAlong[1], axisAlong[0]]));
-  const at = s => plus(faceStart, times(along, s));
-  const spans = [];
+  const offLine = (point: Point): number =>
+    Math.abs(dot(minus(point, axisStart), [-axisAlong[1], axisAlong[0]]));
+  const at = (s: number): Point => plus(faceStart, times(along, s));
+  const spans: OpeningSpan[] = [];
   for (const [index, opening] of openings.entries()) {
     if (!opening?.a || !opening?.b) continue;
     if (Math.max(offLine(opening.a), offLine(opening.b)) > ON_EDGE_METRES) continue;
@@ -77,14 +109,15 @@ function edgeTrim(axisStart, axisEnd, faceStart, faceEnd, turning, openings) {
     if (s1 < 0 || s0 > length) continue;
     spans.push({opening, index, s0: Math.max(0, s0), s1: Math.min(length, s1)});
   }
-  const boxes = [];
+  const boxes: TrimBox[] = [];
   // The skirting: the whole wall but its doors and the windows down to the floor, each with its casing's width.
   const gaps = spans
     .filter(({opening}) => opening.kind !== 'window' || (opening.bottom ?? 0) < FLOOR_WINDOW_METRES)
-    .map(({s0, s1}) => [s0 - TRIM.casingWidth, s1 + TRIM.casingWidth])
+    .map(({s0, s1}): [number, number] => [s0 - TRIM.casingWidth, s1 + TRIM.casingWidth])
     .sort((a, b) => a[0] - b[0]);
   let from = 0;
-  for (const [gapStart, gapEnd] of [...gaps, [length, length]]) {
+  const ends: Array<[number, number]> = [...gaps, [length, length]];
+  for (const [gapStart, gapEnd] of ends) {
     if (gapStart - from >= SHORTEST_METRES)
       boxes.push(box(at(from), at(gapStart), inward, TRIM.skirtingDepth, 0, TRIM.skirtingHeight));
     from = Math.max(from, gapEnd);

@@ -1,4 +1,3 @@
-// @ts-nocheck
 import {test} from 'node:test';
 import assert from 'node:assert/strict';
 import {
@@ -54,6 +53,18 @@ import {
   tuck,
 } from './layout.ts';
 import {sideWall, roomWall, bakeFinish, WALL_KINDS} from './surfaces.ts';
+import type {
+  EdgeRef,
+  FurnitureItem,
+  MultiPolygon,
+  Outline,
+  PartsItem,
+  PlanCore,
+  PlanLight,
+  Point,
+  Segment,
+  WallSnap,
+} from './types.ts';
 
 // Two rooms with a 10 cm wall and a door between them.
 const two = () =>
@@ -90,7 +101,7 @@ test('the plan passes validation and builds walls', () => {
   assert.ok(p.openings[0].at, 'the door is attached to a wall');
   const g = buildPlan2d(
     p.rooms,
-    p.openings.map(o => openingCoords(p.rooms, o)),
+    p.openings.map(o => openingCoords(p.rooms, o)!), // the door fits its wall
   );
   assert.ok(g.footprint.length && g.interior.length);
 });
@@ -101,77 +112,87 @@ test('room overlap is reported', () => {
   assert.match(validate(p.rooms)[0].text, /overlaps/);
 });
 test('a shared wall moves in both rooms', () => {
-  const p = two(),
-    a = p.rooms[0],
-    edges = [[a, 1], ...linkedEdges(p, a, 1)];
+  const p = two();
+  const a = p.rooms[0];
+  const edges: EdgeRef[] = [[a, 1], ...linkedEdges(p, a, 1)];
   assert.equal(edges.length, 2);
   moveEdges(edges, snapshot(p), [1, 0], 0.5);
   assert.equal(a.polygon[1][0], 3.5);
   assert.equal(p.rooms[1].polygon[0][0], 3.6);
 });
 test('edge length keeps the right angle', () => {
-  const p = two(),
-    a = p.rooms[0];
+  const p = two();
+  const a = p.rooms[0];
   setEdgeLength(p, a, 0, 2.5);
   assert.equal(a.polygon[1][0], 2.5);
   assert.equal(a.polygon[2][0], 2.5);
 });
 test('furniture snaps back-first to a wall and detects overlap', () => {
-  const p = two(),
-    f = {id: 'w', model: 'wardrobe', w: 2, d: 0.6, h: 2.4, rot: 0, x: 0, y: 0};
+  const p = two();
+  const f: FurnitureItem = {id: 'w', model: 'wardrobe', w: 2, d: 0.6, h: 2.4, rot: 0, x: 0, y: 0};
   Object.assign(f, snapToWall(p, f, [1.5, 0.4]));
   assert.equal(f.rot, 180);
   assert.ok(Math.abs(f.y - 0.353) < 0.01);
   p.furniture.push(f, {...f, id: 'w2', x: f.x + 0.5});
-  assert.match(furnitureConflicts(p).get('w2'), /overlaps/);
+  assert.match(furnitureConflicts(p).get('w2')!, /overlaps/);
 });
 test('a chair from parts at a table from parts is tucked under it when both say so, as catalog ones are', () => {
-  const box = (w, d, h) => ({
+  const box = (w: number, d: number, h: number): PartsItem => ({
     w,
     d,
     h,
     materials: {m: {color: '#777777'}},
     parts: [{kind: 'box', mat: 'm', size: [w, h, d], at: [0, 0, 0]}],
   });
-  const p = two(),
-    table = {id: 't', model: 'parts', w: 1, d: 1, h: 0.75, rot: 0, x: 1.5, y: 1.5, parts: box(1, 1, 0.75)},
-    chair = {
-      id: 'c',
-      model: 'parts',
-      w: 0.5,
-      d: 0.5,
-      h: 0.85,
-      rot: 0,
-      x: 1.5,
-      y: 1.05,
-      parts: box(0.5, 0.5, 0.85),
-    };
+  const p = two();
+  const table = {
+    id: 't',
+    model: 'parts',
+    w: 1,
+    d: 1,
+    h: 0.75,
+    rot: 0,
+    x: 1.5,
+    y: 1.5,
+    parts: box(1, 1, 0.75),
+  };
+  const chair = {
+    id: 'c',
+    model: 'parts',
+    w: 0.5,
+    d: 0.5,
+    h: 0.85,
+    rot: 0,
+    x: 1.5,
+    y: 1.05,
+    parts: box(0.5, 0.5, 0.85),
+  };
   p.furniture.push(table, chair);
-  assert.match(furnitureConflicts(p).get('c'), /overlaps/, 'without a word: overlapping');
+  assert.match(furnitureConflicts(p).get('c')!, /overlaps/, 'without a word: overlapping');
   table.parts.table = true;
   chair.parts.under = 0.48;
   assert.equal(furnitureConflicts(p).size, 0, 'a seat at 0.48 m under a 0.75 m top: tucked');
   chair.parts.under = 0.8;
-  assert.match(furnitureConflicts(p).get('c'), /overlaps/, 'arms higher than the top: overlapping');
+  assert.match(furnitureConflicts(p).get('c')!, /overlaps/, 'arms higher than the top: overlapping');
   assert.deepEqual(checkItem({...box(1, 1, 0.75), table: 'high'}), [
     'table must be true or a height in meters',
   ]);
 });
 test('a radiator under the window goes under the top of a table standing at it; one reaching above the top does not', () => {
-  const p = two(),
-    table = {id: 't', model: 'diningTable', w: 1.2, d: 0.8, h: 0.75, rot: 0, x: 1.5, y: 0.6},
-    radiator = {id: 'r', model: 'radiator', w: 1, d: 0.1, h: 0.5, rot: 0, x: 1.5, y: 0.3};
+  const p = two();
+  const table = {id: 't', model: 'diningTable', w: 1.2, d: 0.8, h: 0.75, rot: 0, x: 1.5, y: 0.6};
+  const radiator = {id: 'r', model: 'radiator', w: 1, d: 0.1, h: 0.5, rot: 0, x: 1.5, y: 0.3};
   p.furniture.push(table, radiator);
   assert.equal(furnitureConflicts(p).size, 0, 'its top at 0.62 m under a 0.75 m top: tucked');
   radiator.h = 0.7;
-  assert.match(furnitureConflicts(p).get('r'), /overlaps/, 'its top at 0.82 m: overlapping');
+  assert.match(furnitureConflicts(p).get('r')!, /overlaps/, 'its top at 0.82 m: overlapping');
   assert.equal(tuck(radiator, {...table, h: 0.9}), true, 'under a higher top');
 });
 test('furniture at a wall: snaps to the corner and the middle within snap (depends on zoom)', () => {
-  const p = two(),
-    b = {id: 'b', model: 'bed', w: 1.6, d: 2.1, h: 1, rot: 0, x: 0, y: 0},
-    at = (x, snap) => snapToWall(p, b, [x, 0.4], false, snap),
-    lo = at(1, 0.25).x;
+  const p = two();
+  const b = {id: 'b', model: 'bed', w: 1.6, d: 2.1, h: 1, rot: 0, x: 0, y: 0};
+  const at = (x: number, snap: number): WallSnap => snapToWall(p, b, [x, 0.4], false, snap);
+  const lo = at(1, 0.25).x;
   assert.equal(at(lo + 0.15, 0.25).x, lo, 'zoomed out: pulled into the corner, as before');
   assert.ok(Math.abs(at(lo + 0.15, 0.03).x - lo - 0.15) < 0.026, 'zoomed in: stays where it was put');
   const c = at(1.6, 0.25);
@@ -179,15 +200,15 @@ test('furniture at a wall: snaps to the corner and the middle within snap (depen
   assert.ok(!at(1.6, 0.03).mid);
 });
 test('kitchen modules: flush with a neighbor along the wall; a wall-hung one conflicts only if it overlaps in height too', () => {
-  const p = two(),
-    a = {id: 'a', model: 'kitchenBase', w: 1.2, d: 0.6, h: 0.9, rot: 0, x: 0, y: 0};
+  const p = two();
+  const a = {id: 'a', model: 'kitchenBase', w: 1.2, d: 0.6, h: 0.9, rot: 0, x: 0, y: 0};
   Object.assign(a, snapToWall(p, a, [1.2, 0.4], false, 0.03));
   p.furniture.push(a);
-  const s = {id: 's', model: 'kitchenSink', w: 0.6, d: 0.6, h: 0.9, rot: 0, x: 0, y: 0},
-    r = snapToWall(p, s, [a.x + 0.92, 0.4], false, 0.05);
+  const s = {id: 's', model: 'kitchenSink', w: 0.6, d: 0.6, h: 0.9, rot: 0, x: 0, y: 0};
+  const r = snapToWall(p, s, [a.x + 0.92, 0.4], false, 0.05);
   assert.ok(Math.abs(r.x - (a.x + 0.9)) < 0.004 && r.edge, 'snaps flush on the right');
-  const tall = {id: 't', model: 'fridge', w: 0.6, d: 0.65, h: 1.85, rot: 0, x: a.x, y: a.y},
-    up = {id: 'u', model: 'kitchenWall', w: 1.2, d: 0.35, h: 0.7, rot: 0, x: a.x, y: a.y};
+  const tall = {id: 't', model: 'fridge', w: 0.6, d: 0.65, h: 1.85, rot: 0, x: a.x, y: a.y};
+  const up: FurnitureItem = {id: 'u', model: 'kitchenWall', w: 1.2, d: 0.35, h: 0.7, rot: 0, x: a.x, y: a.y};
   p.furniture.push(up);
   assert.ok(!furnitureConflicts(p).has('u'), 'wall cabinets above base cabinets are fine');
   p.furniture = [tall, up];
@@ -211,8 +232,8 @@ test('corner sofa is L-shaped on the plan: a table in the recess does not overla
     ],
     openings: [{kind: 'window', a: [1.5, 4], b: [3.5, 4]}],
   });
-  const sc = {id: 's', model: 'sofaCorner', w: 2.7, d: 1.65, h: 0.85, rot: 0, x: 2, y: 1.2},
-    tc = {id: 't', model: 'tableCoffee', w: 0.8, d: 0.5, h: 0.42, rot: 0, x: 2.6, y: 0.8};
+  const sc: FurnitureItem = {id: 's', model: 'sofaCorner', w: 2.7, d: 1.65, h: 0.85, rot: 0, x: 2, y: 1.2};
+  const tc = {id: 't', model: 'tableCoffee', w: 0.8, d: 0.5, h: 0.42, rot: 0, x: 2.6, y: 0.8};
   assert.equal(footRects(sc).length, 2);
   p.furniture = [sc, tc];
   assert.equal(furnitureConflicts(p).size, 0, 'the recess is free');
@@ -220,10 +241,10 @@ test('corner sofa is L-shaped on the plan: a table in the recess does not overla
   assert.ok(furnitureConflicts(p).has('t'), 'on the chaise: overlaps');
   sc.mx = true;
   assert.ok(!furnitureConflicts(p).has('t'), 'mirrored: the chaise is on the right');
-  const cu = {id: 'c', model: 'curtains', w: 2, d: 0.14, h: 2.55, rot: 0, x: 0, y: 0},
-    r = snapToWall(p, cu, [2.55, 3.8], false, 0.1);
+  const cu = {id: 'c', model: 'curtains', w: 2, d: 0.14, h: 2.55, rot: 0, x: 0, y: 0};
+  const r = snapToWall(p, cu, [2.55, 3.8], false, 0.1);
   assert.ok(
-    Math.abs(r.x - 2.5) < 1e-3 && Math.abs(r.win - 2) < 1e-6,
+    Math.abs(r.x - 2.5) < 1e-3 && Math.abs(r.win! - 2) < 1e-6,
     'centered on the window, the window width is known',
   );
   Object.assign(cu, r);
@@ -249,8 +270,8 @@ test('U-shaped sofa: three arms, the table inside is free; a rug under furniture
     ],
     openings: [],
   });
-  const u = {id: 'u', model: 'sofaU', w: 3.4, d: 1.7, h: 0.85, rot: 0, x: 3, y: 1.2},
-    t = {id: 't', model: 'tableCoffee', w: 1, d: 0.55, h: 0.42, rot: 0, x: 3, y: 0.8};
+  const u = {id: 'u', model: 'sofaU', w: 3.4, d: 1.7, h: 0.85, rot: 0, x: 3, y: 1.2};
+  const t = {id: 't', model: 'tableCoffee', w: 1, d: 0.55, h: 0.42, rot: 0, x: 3, y: 0.8};
   assert.equal(footRects(u).length, 3);
   p.furniture = [u, t, {id: 'g', model: 'rug', w: 2.5, d: 2, h: 0.012, rot: 0, x: 3, y: 1.5}];
   assert.equal(furnitureConflicts(p).size, 0);
@@ -258,8 +279,18 @@ test('U-shaped sofa: three arms, the table inside is free; a rug under furniture
   assert.ok(furnitureConflicts(p).has('t'), 'on the left chaise: overlaps');
 });
 test('door: conflicts only on the leaf side; an air conditioner above the door does not', () => {
-  const p = two(),
-    F = (id, model, x, o = {}) => ({id, model, w: 0.5, d: 0.4, h: 0.5, rot: 0, x, y: 1.4, ...o});
+  const p = two();
+  const F = (id: string, model: string, x: number, o: Partial<FurnitureItem> = {}): FurnitureItem => ({
+    id,
+    model,
+    w: 0.5,
+    d: 0.4,
+    h: 0.5,
+    rot: 0,
+    x,
+    y: 1.4,
+    ...o,
+  });
   p.furniture = [F('l', 'nightstand', 2.5), F('r', 'nightstand', 3.6)];
   const c = furnitureConflicts(p);
   assert.equal(
@@ -271,8 +302,8 @@ test('door: conflicts only on the leaf side; an air conditioner above the door d
   assert.ok(!furnitureConflicts(p).has('a'));
 });
 test('wall finish: by name, per room, per edge; the edge follows corners and splits; edge map', () => {
-  const p = two(),
-    [a, b] = p.rooms;
+  const p = two();
+  const [a, b] = p.rooms;
   b.name = 'Bathroom';
   assert.equal(roomWall(a).k, 'paintWarm');
   assert.equal(roomWall(b).k, 'tileWhite', 'bathroom: tiles');
@@ -283,19 +314,19 @@ test('wall finish: by name, per room, per edge; the edge follows corners and spl
   addCorner(p, a, 0, 0.5);
   assert.equal(a.wf.length, a.polygon.length);
   assert.equal(a.wf[4]?.k, 'brickRed', 'brick stays on the same edge after a new corner');
-  const f = bakeFinish(p.rooms),
-    [x0, y0, sx, sy] = f.box,
-    W = f.tex.image.width,
-    at = (x, y) =>
-      f.tex.image.data[
-        (Math.floor((y - y0) * sy * f.tex.image.height) * W + Math.floor((x - x0) * sx * W)) * 4
-      ],
-    tab = f.tab.image.data;
-  const stacks = f.stk.image.data,
-    col = stack => {
-      const id = stacks[stack * 4];
-      return [tab[id * 4], tab[id * 4 + 1], tab[id * 4 + 2]].join(',');
-    }; // the stack's lowest finish
+  const f = bakeFinish(p.rooms)!;
+  const [x0, y0, sx, sy] = f.box;
+  const W = f.tex.image.width;
+  // the maps are filled in (a texture made from data)
+  const map = f.tex.image.data!;
+  const at = (x: number, y: number): number =>
+    map[(Math.floor((y - y0) * sy * f.tex.image.height) * W + Math.floor((x - x0) * sx * W)) * 4];
+  const tab = f.tab.image.data!;
+  const stacks = f.stk.image.data!;
+  const col = (stack: number): string => {
+    const id = stacks[stack * 4];
+    return [tab[id * 4], tab[id * 4 + 1], tab[id * 4 + 2]].join(',');
+  }; // the stack's lowest finish
   assert.equal(
     col(at(1.5, 4 - 0.14)),
     WALL_KINDS.brickRed.base.join(','),
@@ -306,9 +337,18 @@ test('wall finish: by name, per room, per edge; the edge follows corners and spl
   assert.equal(at(1.5, 2), 0, 'no finish in the middle of the room');
 });
 test('under a desk: a chair and a mobile pedestal slide in, a monitor stands on the desk, a loft bed goes above the desk', () => {
-  const p = two(),
-    desk = {id: 'd', model: 'desk', w: 1.2, d: 0.6, h: 0.75, rot: 0, x: 1.5, y: 0.4},
-    F = (id, model, w, d, h, x, y, o = {}) => ({id, model, w, d, h, rot: 0, x, y, ...o});
+  const p = two();
+  const desk = {id: 'd', model: 'desk', w: 1.2, d: 0.6, h: 0.75, rot: 0, x: 1.5, y: 0.4};
+  const F = (
+    id: string,
+    model: string,
+    w: number,
+    d: number,
+    h: number,
+    x: number,
+    y: number,
+    o: Partial<FurnitureItem> = {},
+  ): FurnitureItem => ({id, model, w, d, h, rot: 0, x, y, ...o});
   p.furniture = [
     desk,
     F('c', 'chairDesk', 0.62, 0.62, 1.05, 1.3, 0.6),
@@ -322,25 +362,25 @@ test('under a desk: a chair and a mobile pedestal slide in, a monitor stands on 
   assert.ok(!furnitureConflicts(p).has('l'), 'loft bed above the desk');
 });
 test('a new room is counterclockwise', () => {
-  const p = two(),
-    r = addRoom(p, [
-      [0, 5],
-      [0, 8],
-      [3, 8],
-      [3, 5],
-    ]);
+  const p = two();
+  const r = addRoom(p, [
+    [0, 5],
+    [0, 8],
+    [3, 8],
+    [3, 5],
+  ]);
   assert.equal(r.polygon[1][0], 3);
 });
 
 // ---------- wall thickness ----------
-const mpA = mp =>
+const mpA = (mp: MultiPolygon): number =>
   mp.reduce(
     (s, [o, ...h]) =>
       s + Math.abs(area(o.slice(0, -1))) - h.reduce((t, r) => t + Math.abs(area(r.slice(0, -1))), 0),
     0,
   );
-const pair = () => {
-  const p = {rooms: [], openings: [], furniture: [], lights: []};
+const pair = (): PlanCore => {
+  const p: PlanCore = {rooms: [], openings: [], furniture: [], lights: []};
   add2(p, [
     [0, 0],
     [3, 0],
@@ -356,23 +396,23 @@ const pair = () => {
   return p;
 };
 test('shared wall: 10 cm when flush, a 20 cm thickness pushes both rooms apart equally', () => {
-  const p = pair(),
-    A = p.rooms[0],
-    i = A.polygon.findIndex((v, k) => v[0] === 3 && A.polygon[(k + 1) % 4][0] === 3);
+  const p = pair();
+  const A = p.rooms[0];
+  const i = A.polygon.findIndex((v, k) => v[0] === 3 && A.polygon[(k + 1) % 4][0] === 3);
   const w = wallInfo(p, A, i);
   assert.equal(w.interior, true);
   assert.ok(Math.abs(w.t - 0.1) < 1e-6);
   setWallThickness(p, w, 0.2);
   const w2 = wallInfo(p, A, i);
-  assert.ok(Math.abs(w2.t - 0.2) < 1e-6, w2.t);
+  assert.ok(Math.abs(w2.t - 0.2) < 1e-6, `${w2.t}`);
   assert.ok(Math.abs(Math.max(...A.polygon.map(v => v[0])) - 2.95) < 1e-6);
   assert.ok(Math.abs(Math.min(...p.rooms[1].polygon.map(v => v[0])) - 3.05) < 1e-6);
 });
 test('a thicker exterior wall adds wall area, rooms stay the same', () => {
-  const p = pair(),
-    A = p.rooms[0],
-    before = JSON.stringify(A.polygon),
-    w0 = mpA(wallsAt(buildPlan2d(p.rooms, [])));
+  const p = pair();
+  const A = p.rooms[0];
+  const before = JSON.stringify(A.polygon);
+  const w0 = mpA(wallsAt(buildPlan2d(p.rooms, [])));
   const i = A.polygon.findIndex((v, k) => v[1] === 0 && A.polygon[(k + 1) % 4][1] === 0);
   setWallThickness(p, wallInfo(p, A, i), 0.64);
   assert.equal(JSON.stringify(A.polygon), before);
@@ -380,10 +420,10 @@ test('a thicker exterior wall adds wall area, rooms stay the same', () => {
   assert.ok(mpA(wallsAt(buildPlan2d(p.rooms, []))) > w0 + 0.9, 'walls grew by ~3 m × 0.34 m');
 });
 test('remove the wall between rooms and restore it', () => {
-  const p = pair(),
-    A = p.rooms[0],
-    i = A.polygon.findIndex((v, k) => v[0] === 3 && A.polygon[(k + 1) % 4][0] === 3),
-    w0 = mpA(wallsAt(buildPlan2d(p.rooms, [])));
+  const p = pair();
+  const A = p.rooms[0];
+  const i = A.polygon.findIndex((v, k) => v[0] === 3 && A.polygon[(k + 1) % 4][0] === 3);
+  const w0 = mpA(wallsAt(buildPlan2d(p.rooms, [])));
   setWallOpen(p, wallInfo(p, A, i), true);
   const w1 = mpA(wallsAt(buildPlan2d(p.rooms, [])));
   assert.ok(w0 - w1 > 0.25, `${w0} → ${w1}`);
@@ -392,16 +432,16 @@ test('remove the wall between rooms and restore it', () => {
   assert.equal(A.wt, undefined);
 });
 test('an exterior edge without a wall gets its wall back; between rooms it stays open', () => {
-  const p = pair(),
-    A = p.rooms[0],
-    B = p.rooms[1],
-    i = A.polygon.findIndex((v, k) => v[0] === 3 && A.polygon[(k + 1) % 4][0] === 3),
-    o = A.polygon.findIndex((v, k) => v[1] === 0 && A.polygon[(k + 1) % 4][1] === 0);
+  const p = pair();
+  const A = p.rooms[0];
+  const B = p.rooms[1];
+  const i = A.polygon.findIndex((v, k) => v[0] === 3 && A.polygon[(k + 1) % 4][0] === 3);
+  const o = A.polygon.findIndex((v, k) => v[1] === 0 && A.polygon[(k + 1) % 4][1] === 0);
   setWallOpen(p, wallInfo(p, A, i), true);
-  A.wt[o] = 0;
+  A.wt![o] = 0; // the open wall gave the room its thicknesses
   assert.equal(closeOuterOpen(p), 1);
-  assert.equal(A.wt[i], 0);
-  assert.notEqual(A.wt[o], 0);
+  assert.equal(A.wt![i], 0);
+  assert.notEqual(A.wt![o], 0);
   p.rooms = p.rooms.filter(r => r !== B);
   assert.equal(closeOuterOpen(p), 1);
   assert.equal(A.wt, undefined);
@@ -434,7 +474,7 @@ test('rotating the whole plan by 90°: same areas and thicknesses, furniture rot
   assert.equal(validate(p.rooms).length, 0);
 });
 test('new room: an edge almost in line with the neighboring one (23 cm) snaps into line', () => {
-  const p = {rooms: [], openings: [], furniture: [], lights: []};
+  const p: PlanCore = {rooms: [], openings: [], furniture: [], lights: []};
   add2(p, [
     [0, 0],
     [2.3, 0],
@@ -442,12 +482,12 @@ test('new room: an edge almost in line with the neighboring one (23 cm) snaps in
     [0, 4.2],
   ]);
   const B = add2(p, [
-      [2.4, 1],
-      [5, 1],
-      [5, 3.97],
-      [2.4, 3.97],
-    ]),
-    adj = settleRoom(p, B);
+    [2.4, 1],
+    [5, 1],
+    [5, 3.97],
+    [2.4, 3.97],
+  ]);
+  const adj = settleRoom(p, B);
   assert.ok(Math.abs(Math.max(...B.polygon.map(v => v[1])) - 4.2) < 1e-6, JSON.stringify(B.polygon));
   assert.equal(adj.filter(x => x.kind === 'align').length, 1);
   assert.ok(Math.abs(adj[0].d - 0.23) < 1e-6);
@@ -455,7 +495,7 @@ test('new room: an edge almost in line with the neighboring one (23 cm) snaps in
   assert.ok(Math.abs(Math.min(...B.polygon.map(v => v[1])) - 1) < 1e-6);
 });
 test('split a room with a line: two flush rooms, a 10 cm partition, areas add up', () => {
-  const p = {rooms: [], openings: [], furniture: [], lights: []};
+  const p: PlanCore = {rooms: [], openings: [], furniture: [], lights: []};
   const A = add2(p, [
     [0, 0],
     [6, 0],
@@ -467,7 +507,7 @@ test('split a room with a line: two flush rooms, a 10 cm partition, areas add up
     [2, 0],
     [2, 3],
   ]);
-  const [a, b] = splitRoom(p, A, ...ch);
+  const [a, b] = splitRoom(p, A, ...ch!)!;
   assert.equal(p.rooms.length, 2);
   assert.deepEqual(
     [Math.abs(area(a.polygon)), Math.abs(area(b.polygon))].sort((x, y) => x - y),
@@ -480,7 +520,7 @@ test('split a room with a line: two flush rooms, a 10 cm partition, areas add up
   assert.ok(Math.abs(w.t - 0.1) < 1e-6);
 });
 test('add a corner and drag half the wall: a right-angle step, the other half stays put', () => {
-  const p = {rooms: [], openings: [], furniture: [], lights: []};
+  const p: PlanCore = {rooms: [], openings: [], furniture: [], lights: []};
   const A = add2(p, [
     [0, 0],
     [4, 0],
@@ -491,15 +531,15 @@ test('add a corner and drag half the wall: a right-angle step, the other half st
   const k = addCorner(p, A, top, 0.5);
   assert.equal(validate(p.rooms).length, 0, 'a double point is not an error');
   // the half after the double point: edge k → k+1 (zero length), then k+1 → k+2
-  const half = k + 1,
-    edges = [[A, half], ...linkedEdges(p, A, half)];
+  const half = k + 1;
+  const edges: EdgeRef[] = [[A, half], ...linkedEdges(p, A, half)];
   assert.equal(edges.length, 1, 'the other half is not linked');
   moveEdges(edges, snapshot(p), [0, 1], -1);
   assert.equal(validate(p.rooms).length, 0);
   assert.ok(Math.abs(Math.abs(area(A.polygon)) - 10) < 1e-6, '4×3 minus 2×1');
 });
 test('merge two rooms across a shared wall: one L-shaped room, named after the larger one', () => {
-  const p = {rooms: [], openings: [], furniture: [], lights: []};
+  const p: PlanCore = {rooms: [], openings: [], furniture: [], lights: []};
   const big = add2(
     p,
     [
@@ -532,26 +572,26 @@ test('merge two rooms across a shared wall: one L-shaped room, named after the l
   assert.equal(validate(p.rooms).length, 0);
 });
 test('fit the plan to the photo scale: area scales by k², the wall between rooms stays the same', () => {
-  const p = {rooms: [], openings: [], furniture: [], lights: []};
+  const p: PlanCore = {rooms: [], openings: [], furniture: [], lights: []};
   const A = add2(p, [
-      [0, 0],
-      [12, 0],
-      [12, 9],
-      [0, 9],
-    ]),
-    B = add2(p, [
-      [12, 0],
-      [20, 0],
-      [20, 9],
-      [12, 9],
-    ]);
+    [0, 0],
+    [12, 0],
+    [12, 9],
+    [0, 9],
+  ]);
+  const B = add2(p, [
+    [12, 0],
+    [20, 0],
+    [20, 9],
+    [12, 9],
+  ]);
   scalePlan(p, [0, 0], 1 / 3);
   assert.ok(Math.abs(Math.abs(area(A.polygon)) - 12) < 1e-6);
   const i = A.polygon.findIndex((v, k) => v[0] === 4 && A.polygon[(k + 1) % 4][0] === 4);
   assert.ok(Math.abs(wallInfo(p, A, i).t - 0.1) < 1e-6);
 });
 test('wall segment: on a wall with two neighbors “Remove wall” joins only the one under the cursor', () => {
-  const p = {rooms: [], openings: [], furniture: [], lights: []};
+  const p: PlanCore = {rooms: [], openings: [], furniture: [], lights: []};
   const A = add2(
     p,
     [
@@ -584,16 +624,16 @@ test('wall segment: on a wall with two neighbors “Remove wall” joins only th
   );
   const i = A.polygon.findIndex((v, k) => v[1] === 3 && A.polygon[(k + 1) % 4][1] === 3);
   assert.equal(new Set(wallInfo(p, A, i).B.map(([r]) => r)).size, 2, 'the whole wall borders two rooms');
-  const tLeft = A.polygon[i][0] > A.polygon[(i + 1) % 4][0] ? 0.75 : 0.25,
-    w = wallAt(p, A, i, tLeft);
-  assert.equal(w.neighbor.name, 'Left');
+  const tLeft = A.polygon[i][0] > A.polygon[(i + 1) % 4][0] ? 0.75 : 0.25;
+  const w = wallAt(p, A, i, tLeft);
+  assert.equal(w.neighbor!.name, 'Left');
   const r = mergeRooms(p, w);
   assert.ok(r);
   assert.equal(p.rooms.length, 2);
   assert.equal(validate(p.rooms).length, 0);
 });
 test('deleting an enclosed strip gives its area to a neighbor, no hole', () => {
-  const p = {rooms: [], openings: [], furniture: [], lights: []};
+  const p: PlanCore = {rooms: [], openings: [], furniture: [], lights: []};
   add2(
     p,
     [
@@ -629,7 +669,7 @@ test('deleting an enclosed strip gives its area to a neighbor, no hole', () => {
   assert.equal(p.rooms.length, 2);
   assert.equal(validate(p.rooms).length, 0);
   // a balcony (one shared wall out of four) is not a “leftover piece”: it is deleted as usual
-  const b = {rooms: [], openings: [], furniture: [], lights: []};
+  const b: PlanCore = {rooms: [], openings: [], furniture: [], lights: []};
   add2(
     b,
     [
@@ -651,7 +691,7 @@ test('deleting an enclosed strip gives its area to a neighbor, no hole', () => {
     'Balcony',
   );
   assert.equal(absorbRoom(b, bal), null);
-  const q = {rooms: [], openings: [], furniture: [], lights: []};
+  const q: PlanCore = {rooms: [], openings: [], furniture: [], lights: []};
   add2(
     q,
     [
@@ -708,7 +748,7 @@ test('deleting an enclosed strip gives its area to a neighbor, no hole', () => {
   assert.equal(validate(q.rooms).length, 0);
 });
 test('a wall does not “see” a neighbor through a narrow room between them', () => {
-  const p = {rooms: [], openings: [], furniture: [], lights: []};
+  const p: PlanCore = {rooms: [], openings: [], furniture: [], lights: []};
   const top = add2(
     p,
     [
@@ -739,13 +779,13 @@ test('a wall does not “see” a neighbor through a narrow room between them', 
     ],
     'Bottom',
   );
-  const i = top.polygon.findIndex((v, k) => v[1] === 1 && top.polygon[(k + 1) % 4][1] === 1),
-    names = linkedEdges(p, top, i).map(([r]) => r.name);
+  const i = top.polygon.findIndex((v, k) => v[1] === 1 && top.polygon[(k + 1) % 4][1] === 1);
+  const names = linkedEdges(p, top, i).map(([r]) => r.name);
   assert.deepEqual(names, ['Narrow']);
-  assert.equal(wallAt(p, top, i, 0.5).neighbor.name, 'Narrow');
+  assert.equal(wallAt(p, top, i, 0.5).neighbor!.name, 'Narrow');
 });
 test('a solid room (shaft) stays wall mass: walls grow by exactly its area', () => {
-  const p = {rooms: [], openings: [], furniture: [], lights: []};
+  const p: PlanCore = {rooms: [], openings: [], furniture: [], lights: []};
   add2(
     p,
     [
@@ -772,12 +812,12 @@ test('a solid room (shaft) stays wall mass: walls grow by exactly its area', () 
   assert.ok(w1 - w0 > 0.5 && w1 - w0 < 0.8 + 0.01, `${w0} → ${w1}`);
 });
 test('window and door: placed at the click point, never overlap each other or extend past the wall', () => {
-  const p = pair(),
-    A = p.rooms[0],
-    B = p.rooms[1];
-  const bot = A.polygon.findIndex((v, k) => v[1] === 0 && A.polygon[(k + 1) % 4][1] === 0),
-    mid = A.polygon.findIndex((v, k) => v[0] === 3 && A.polygon[(k + 1) % 4][0] === 3);
-  const sAt = x => (A.polygon[bot][0] < x ? x - A.polygon[bot][0] : A.polygon[bot][0] - x);
+  const p = pair();
+  const A = p.rooms[0];
+  const B = p.rooms[1];
+  const bot = A.polygon.findIndex((v, k) => v[1] === 0 && A.polygon[(k + 1) % 4][1] === 0);
+  const mid = A.polygon.findIndex((v, k) => v[0] === 3 && A.polygon[(k + 1) % 4][0] === 3);
+  const sAt = (x: number): number => (A.polygon[bot][0] < x ? x - A.polygon[bot][0] : A.polygon[bot][0] - x);
   // a 140 cm window centered on the click; right at a corner it shifts to fit
   const w = addOpening(p, A, bot, sAt(1.5), 'window', {outer: true});
   assert.ok(w);
@@ -804,7 +844,7 @@ test('window and door: placed at the click point, never overlap each other or ex
   assert.equal(+(d.at.s1 - d.at.s0).toFixed(3), 0.9);
   assert.equal(+((d.at.s0 + d.at.s1) / 2).toFixed(3), 1.5);
   setOpeningWidth(p, d, 10);
-  const g = openingGap(p, d);
+  const g = openingGap(p, d)!;
   assert.ok(Math.abs(d.at.s1 - d.at.s0 - (g[1] - g[0])) < 1e-6);
   // the door leaf cycles through 4 positions
   const s0 = d.swing;
@@ -819,18 +859,18 @@ test('window and door: placed at the click point, never overlap each other or ex
   assert.ok(migrate(p).openings.every(o => o.id));
 });
 test('name and HA area: lights are not placed by themselves; auto-placed ones are removed on change; a repeated name becomes “Bedroom 2”', () => {
-  const p = pair(),
-    [A, B] = p.rooms,
-    lamp = (id, area) => ({
-      id,
-      area,
-      kind: 'point',
-      h: 2.5,
-      placed: false,
-      points: [],
-      segments: [],
-      room: null,
-    });
+  const p = pair();
+  const [A, B] = p.rooms;
+  const lamp = (id: string, area: string): PlanLight => ({
+    id,
+    area,
+    kind: 'point',
+    h: 2.5,
+    placed: false,
+    points: [],
+    segments: [],
+    room: null,
+  });
   p.lights = [lamp('k1', 'kitchen'), lamp('k2', 'kitchen'), lamp('b1', 'bedroom')];
   setRoomArea(p, A, 'kitchen', 'Kitchen');
   assert.equal(A.name, 'Kitchen');
@@ -853,29 +893,29 @@ test('name and HA area: lights are not placed by themselves; auto-placed ones ar
   assert.equal(B.area, undefined);
 });
 test('two areas in a room: the boundary divides it, moves, and is recomputed when the room is edited', () => {
-  const p = {rooms: [], openings: [], furniture: [], lights: []},
-    r = add2(
-      p,
-      [
-        [0, 0],
-        [6, 0],
-        [6, 4],
-        [0, 4],
-      ],
-      'Kitchen-living room',
-    );
+  const p: PlanCore = {rooms: [], openings: [], furniture: [], lights: []};
+  const r = add2(
+    p,
+    [
+      [0, 0],
+      [6, 0],
+      [6, 4],
+      [0, 4],
+    ],
+    'Kitchen-living room',
+  );
   const zp = setZone(r, [
     [2, 0],
     [2, 4],
   ]);
   assert.ok(zp);
-  const A = x => Math.abs(area(x));
+  const A = (x: Outline): number => Math.abs(area(x));
   assert.ok(Math.abs(A(zp.zone) + A(zp.main) - 24) < 1e-6);
   assert.ok([8, 16].includes(Math.round(A(zp.zone))));
-  const z0 = {...r.zone},
-    was = Math.round(A(zp.zone));
+  const z0 = {...r.zone!};
+  const was = Math.round(A(zp.zone));
   assert.ok(moveZone(r, z0, 1));
-  const z1 = zoneParts(r);
+  const z1 = zoneParts(r)!;
   assert.ok(Math.abs(A(z1.zone) - was) > 3.9, 'the boundary moved by 1 m');
   assert.equal(moveZone(r, z0, 10), false, 'not beyond the room');
   // the room was narrowed: the boundary still divides it
@@ -897,20 +937,20 @@ test('two areas in a room: the boundary divides it, moves, and is recomputed whe
   assert.equal(zoneParts(r), null);
 });
 test('dragging a region edge: the strip cut off along the edge is the second part', () => {
-  const p = {rooms: [], openings: [], furniture: [], lights: []},
-    r = add2(
-      p,
-      [
-        [0, 0],
-        [6, 0],
-        [6, 4],
-        [0, 4],
-      ],
-      'Kitchen-living room',
-    );
+  const p: PlanCore = {rooms: [], openings: [], furniture: [], lights: []};
+  const r = add2(
+    p,
+    [
+      [0, 0],
+      [6, 0],
+      [6, 4],
+      [0, 4],
+    ],
+    'Kitchen-living room',
+  );
   const top = r.polygon.findIndex((v, k) => v[1] === 4 && r.polygon[(k + 1) % 4][1] === 4);
   assert.ok(zoneFromEdge(r, top, 1.5));
-  const zp = zoneParts(r);
+  const zp = zoneParts(r)!;
   assert.ok(Math.abs(Math.abs(area(zp.zone)) - 9) < 1e-6, 'a 6×1.5 strip along the top edge');
   assert.ok(zp.zone.every(q => q[1] >= 2.5 - 1e-6));
   assert.equal(zoneFromEdge(r, top, 0.1), true);
@@ -919,7 +959,7 @@ test('dragging a region edge: the strip cut off along the edge is the second par
 });
 
 test('splitting can carve out a 10 × 10 cm column', () => {
-  const p = {rooms: [], openings: [], furniture: [], lights: []};
+  const p: PlanCore = {rooms: [], openings: [], furniture: [], lights: []};
   const r = add2(p, [
     [0, 0],
     [2, 0],
@@ -928,13 +968,14 @@ test('splitting can carve out a 10 × 10 cm column', () => {
   ]);
   const first = splitRoom(p, r, [0.1, 0], [0.1, 2]);
   assert.ok(first);
-  const strip = first.find(r => Math.abs(area(r.polygon)) < 0.21);
+  const strip = first.find(r => Math.abs(area(r.polygon)) < 0.21)!;
   const second = splitRoom(p, strip, [0, 0.1], [0.1, 0.1]);
   assert.ok(second);
   assert.ok(second.some(r => Math.abs(Math.abs(area(r.polygon)) - 0.01) < 1e-8));
 });
 
-const clear = (p, q, holes = []) =>
+// How far a point is from the nearest edge of an outline and its holes.
+const clear = (p: Outline, q: Point, holes: Outline[] = []): number =>
   Math.min(...[p, ...holes].flatMap(g => g.map((a, i) => sdist(q, g[(i + g.length - 1) % g.length], a)[0])));
 test('room label: centered in a simple room; in an L-shaped room or one with a shaft, in the roomy part, not in a wall', () => {
   assert.deepEqual(
@@ -947,39 +988,39 @@ test('room label: centered in a simple room; in an L-shaped room or one with a s
     [3, 1],
   );
   // L: the wide part on the left, a narrow tail at the top right; the vertex average lies near the inner corner
-  const L = [
-      [0, 0],
-      [4, 0],
-      [4, 1],
-      [1.2, 1],
-      [1.2, 4],
-      [0, 4],
-    ],
-    q = labelPoint(L);
+  const L: Outline = [
+    [0, 0],
+    [4, 0],
+    [4, 1],
+    [1.2, 1],
+    [1.2, 4],
+    [0, 4],
+  ];
+  const q = labelPoint(L);
   assert.ok(inside(q, L) && clear(L, q) > 0.5, `L: ${q}`);
   // a 1×1 shaft in the middle of a 4×3 room: the label is neither on the shaft nor right next to it
-  const R = [
-      [0, 0],
-      [4, 0],
-      [4, 3],
-      [0, 3],
-    ],
-    S = [
-      [1.5, 1],
-      [2.5, 1],
-      [2.5, 2],
-      [1.5, 2],
-    ],
-    w = labelPoint(R, [S]);
+  const R: Outline = [
+    [0, 0],
+    [4, 0],
+    [4, 3],
+    [0, 3],
+  ];
+  const S: Outline = [
+    [1.5, 1],
+    [2.5, 1],
+    [2.5, 2],
+    [1.5, 2],
+  ];
+  const w = labelPoint(R, [S]);
   assert.ok(!inside(w, S) && clear(R, w, [S]) > 0.4, `shaft: ${w}`);
 });
 test('stacked: wall cabinets above base cabinets get a switcher in the panel; a sofa on a rug and side-by-side nightstands do not', () => {
-  const p = two(),
-    base = {id: 'b', model: 'kitchenBase', w: 1.2, d: 0.6, h: 0.9, rot: 0, x: 1.5, y: 0.35},
-    up = {id: 'u', model: 'kitchenWall', w: 1.2, d: 0.35, h: 0.7, rot: 0, x: 1.5, y: 0.23};
-  const mw = {id: 'm', model: 'microwave', w: 0.5, d: 0.38, h: 0.3, rot: 0, x: 1.2, y: 0.3},
-    n1 = {id: 'n1', model: 'nightstand', w: 0.5, d: 0.4, h: 0.55, rot: 0, x: 0.5, y: 3},
-    n2 = {id: 'n2', model: 'nightstand', w: 0.5, d: 0.4, h: 0.55, rot: 0, x: 1, y: 3};
+  const p = two();
+  const base = {id: 'b', model: 'kitchenBase', w: 1.2, d: 0.6, h: 0.9, rot: 0, x: 1.5, y: 0.35};
+  const up = {id: 'u', model: 'kitchenWall', w: 1.2, d: 0.35, h: 0.7, rot: 0, x: 1.5, y: 0.23};
+  const mw = {id: 'm', model: 'microwave', w: 0.5, d: 0.38, h: 0.3, rot: 0, x: 1.2, y: 0.3};
+  const n1 = {id: 'n1', model: 'nightstand', w: 0.5, d: 0.4, h: 0.55, rot: 0, x: 0.5, y: 3};
+  const n2 = {id: 'n2', model: 'nightstand', w: 0.5, d: 0.4, h: 0.55, rot: 0, x: 1, y: 3};
   p.furniture = [
     up,
     base,
@@ -1006,9 +1047,9 @@ test('stacked: wall cabinets above base cabinets get a switcher in the panel; a 
   );
 });
 test('a chair and a table snap to a wall only when almost touching; a wardrobe snaps from afar, as before', () => {
-  const p = two(),
-    ch = {id: 'c', model: 'chairCushion', w: 0.45, d: 0.52, h: 0.85, rot: 30, x: 0, y: 0},
-    wd = {id: 'w', model: 'wardrobe', w: 1, d: 0.6, h: 2, rot: 0, x: 0, y: 0};
+  const p = two();
+  const ch = {id: 'c', model: 'chairCushion', w: 0.45, d: 0.52, h: 0.85, rot: 30, x: 0, y: 0};
+  const wd = {id: 'w', model: 'wardrobe', w: 1, d: 0.6, h: 2, rot: 0, x: 0, y: 0};
   let r = snapToWall(p, ch, [1.5, 0.05 + 0.26 + 0.4], false);
   assert.equal(r.rot, 30, '40 cm from the wall: stays as it was');
   assert.ok(!r.wall);
@@ -1018,9 +1059,9 @@ test('a chair and a table snap to a wall only when almost touching; a wardrobe s
   assert.ok(r.wall, 'a wardrobe is pulled to the wall even from 40 cm');
 });
 test('a light near the room center: pulled to the center within 12 px on screen, but no farther than 25 cm', () => {
-  const p = two(),
-    L = {points: [[0, 0]]},
-    c = [1.5, 2]; // center of the 3×4 room A
+  const p = two();
+  const L: Pick<PlanLight, 'points'> = {points: [[0, 0]]};
+  const c: Point = [1.5, 2]; // center of the 3×4 room A
   const far = snapLightPoint(p, L, [1.5 + 0.2, 2], {tol: 8 / 40}); // zoomed out (40 px/m): 12 px = 30 cm → capped at 25 cm
   assert.deepEqual(far.p, c, 'zoomed out: pulled in from 20 cm off center');
   const near = snapLightPoint(p, L, [1.5 + 0.2, 2], {tol: 8 / 200}); // zoomed in (200 px/m): 12 px = 6 cm
@@ -1034,7 +1075,7 @@ test('a light near the room center: pulled to the center within 12 px on screen,
 
 test('a door in the middle of a thick wall opens to the side its room is on, whatever the order of its ends (homes check, D-061)', () => {
   // living room and balcony 25 cm apart: the door sits 12.5 cm from the living room's edge
-  for (const ends of [
+  const bothWays: Segment[] = [
     [
       [0.9, -0.125],
       [1.6, -0.125],
@@ -1043,7 +1084,8 @@ test('a door in the middle of a thick wall opens to the side its room is on, wha
       [1.6, -0.125],
       [0.9, -0.125],
     ],
-  ]) {
+  ];
+  for (const ends of bothWays) {
     const p = migrate({
       rooms: [
         {
@@ -1072,7 +1114,7 @@ test('a door in the middle of a thick wall opens to the side its room is on, wha
     });
     const o = p.openings[0];
     assert.equal(o.at.room, 'liv');
-    const n = openingOut(p.rooms, openingCoords(p.rooms, o));
+    const n = openingOut(p.rooms, openingCoords(p.rooms, o)!);
     assert.ok(n[1] < 0, 'outward points to the balcony');
     assert.equal(furnitureConflicts(p).size, 0, 'the chair on the balcony is not in the leaf’s way');
   }

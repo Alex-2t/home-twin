@@ -1,4 +1,3 @@
-// @ts-nocheck
 import {test} from 'node:test';
 import assert from 'node:assert/strict';
 import {
@@ -13,13 +12,15 @@ import {
   localRoomName,
   numberAlike,
 } from './overview.ts';
+import type {HaArea, HaSensor, HassEntityState, Outline, Plan, SensorContext} from './types.ts';
 
-const sq = (x, y, w, h) => [
+const sq = (x: number, y: number, w: number, h: number): Outline => [
   [x, y],
   [x + w, y],
   [x + w, y + h],
   [x, y + h],
 ];
+// HA's sensors as the overview reads them (without the names it does not read)
 const sensors = [
   {entity: 'sensor.bed_t', area: 'bedroom', device: 'd1', cls: 'temperature', unit: '°C'},
   {entity: 'sensor.bed_h', area: 'bedroom', device: 'd1', cls: 'humidity', unit: '%'},
@@ -27,8 +28,8 @@ const sensors = [
   {entity: 'sensor.wall_t', area: 'kitchen', device: 'd3', cls: 'temperature', unit: '°C'},
   {entity: 'sensor.kitchen_t', area: 'kitchen', device: 'd4', cls: 'temperature', unit: '°C'},
   {entity: 'sensor.fridge_t', area: 'kitchen', device: 'd5', cls: 'temperature', unit: '°C'},
-];
-const states = {
+] as HaSensor[];
+const states: Partial<Record<string, number>> = {
   'sensor.bed_t': 21.46,
   'sensor.bed_h': 37,
   'sensor.bed_co2': 1200,
@@ -36,26 +37,33 @@ const states = {
   'sensor.kitchen_t': 22,
   'sensor.fridge_t': 4,
 };
-const ctx = {sensors, areas: [{area_id: 'bedroom'}, {area_id: 'kitchen'}], state: e => states[e] ?? null};
-const plan = () => ({
-  rooms: [
-    {id: 'r1', name: 'Bedroom', area: 'bedroom', polygon: sq(0, 0, 4, 3)},
-    {id: 'r2', area: 'kitchen', polygon: sq(4, 0, 3, 3)},
-    {id: 'r3', solid: true, polygon: sq(7, 0, 1, 1)},
-    {id: 'r4', polygon: sq(8, 0, 1, 1)},
-  ],
-  lights: [
-    {id: 'a', room: 'r1', placed: true, h: 2.6, on: true},
-    {id: 'b', room: 'r1', placed: true, kind: 'strip', on: false},
-    {id: 'c', room: 'r1', placed: true, with: 'a'},
-    {id: 'd', room: 'r2', placed: true, draft: true},
-    {id: 'e', room: 'r2', placed: false},
-  ],
-  sensors: [{id: 's1', entity: 'sensor.wall_t', room: 'r2'}],
-});
+const ctx: SensorContext = {
+  sensors,
+  areas: [{area_id: 'bedroom'}, {area_id: 'kitchen'}] as HaArea[], // without the names the overview does not read
+  state: e => states[e] ?? null,
+};
+// The lists the overview reads; the lamps leave out their points and segments, which it does not read.
+const plan = (): Pick<Plan, 'rooms' | 'lights' | 'sensors'> =>
+  ({
+    rooms: [
+      {id: 'r1', name: 'Bedroom', area: 'bedroom', polygon: sq(0, 0, 4, 3)},
+      {id: 'r2', area: 'kitchen', polygon: sq(4, 0, 3, 3)},
+      {id: 'r3', solid: true, polygon: sq(7, 0, 1, 1)},
+      {id: 'r4', polygon: sq(8, 0, 1, 1)},
+    ],
+    lights: [
+      {id: 'a', room: 'r1', placed: true, h: 2.6, on: true},
+      {id: 'b', room: 'r1', placed: true, kind: 'strip', on: false},
+      {id: 'c', room: 'r1', placed: true, with: 'a'},
+      {id: 'd', room: 'r2', placed: true, draft: true},
+      {id: 'e', room: 'r2', placed: false},
+    ],
+    sensors: [{id: 's1', entity: 'sensor.wall_t', room: 'r2'}],
+  }) as Pick<Plan, 'rooms' | 'lights' | 'sensors'>;
+const AREA_NAMES: Partial<Record<string, string>> = {kitchen: 'Kitchen'};
 
 test('overview: rooms in plan order, without solid and unnamed ones; lights: placed ones, without parts and drafts', () => {
-  const o = overview(plan(), ctx, id => ({kitchen: 'Kitchen'})[id]);
+  const o = overview(plan(), ctx, id => (id ? AREA_NAMES[id] : undefined));
   assert.deepEqual(
     o.map(r => [r.id, r.name, r.kind]),
     [
@@ -75,20 +83,20 @@ test('overview: rooms in plan order, without solid and unnamed ones; lights: pla
 });
 
 test('room climate: a sensor on this room’s wall comes first, otherwise the best sensor of the area; the fridge is never picked', () => {
-  const p = plan(),
-    [r1, r2] = p.rooms;
+  const p = plan();
+  const [r1, r2] = p.rooms;
   const c1 = roomClimate(p, r1, ctx);
-  assert.equal(c1.t.entity, 'sensor.bed_t');
-  assert.equal(c1.h.text, '37%');
-  assert.equal(c1.co2.lvl, 1);
-  assert.equal(roomClimate(p, r2, ctx).t.entity, 'sensor.wall_t'); // placed on the kitchen wall
+  assert.equal(c1.t!.entity, 'sensor.bed_t');
+  assert.equal(c1.h!.text, '37%');
+  assert.equal(c1.co2!.lvl, 1);
+  assert.equal(roomClimate(p, r2, ctx).t!.entity, 'sensor.wall_t'); // placed on the kitchen wall
   p.sensors = [];
-  assert.notEqual(roomClimate(p, r2, ctx).t.entity, 'sensor.fridge_t');
+  assert.notEqual(roomClimate(p, r2, ctx).t!.entity, 'sensor.fridge_t');
   assert.deepEqual(roomClimate(p, {id: 'x', area: 'none', polygon: []}, ctx), {});
 });
 
 test('a room outdoors is named by what it is, not all "Balcony"; names that read the same are numbered', () => {
-  const asIs = text => text;
+  const asIs = (text: string): string => text;
   assert.equal(kindName('front garden', asIs), 'Garden');
   assert.equal(kindName('rear terrace', asIs), 'Terrace');
   assert.equal(kindName('balcony', asIs), 'Balcony');
@@ -139,7 +147,7 @@ test('room devices: an air conditioner and a thermostat with a setpoint, covers 
     {entity: 'binary_sensor.w', name: 'Window', area: 'bedroom', domain: 'binary_sensor', cls: 'window'},
     {entity: 'climate.k', name: 'Kitchen', area: 'kitchen', domain: 'climate'},
   ];
-  const E = {
+  const E: Partial<Record<string, HassEntityState>> = {
     'climate.a': {state: 'cool', attributes: {hvac_modes: ['off', 'cool'], temperature: 22}},
     'climate.f': {state: 'heat', attributes: {hvac_modes: ['off', 'heat'], temperature: 27}},
     'cover.1': {state: 'open', attributes: {current_position: 100}},

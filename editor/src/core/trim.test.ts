@@ -1,11 +1,12 @@
-// @ts-nocheck
 // Skirting boards and door and window trim (trim.js, D-080).
 import {test} from 'node:test';
 import assert from 'node:assert/strict';
 import {trimBoxes, TRIM} from './trim.ts';
+import type {TrimOpening} from './trim.ts';
+import type {Room, TrimBox} from './types.ts';
 
 // A 4 × 3 m room, counter-clockwise from the bottom left: a door in the bottom wall, a window in the top one.
-const room = {
+const room: Room = {
   id: 'r1',
   polygon: [
     [0, 0],
@@ -14,10 +15,10 @@ const room = {
     [0, 3],
   ],
 };
-const door = {kind: 'door', a: [1, 0], b: [1.9, 0], bottom: 0, top: 2.05};
-const window_ = {kind: 'window', a: [1.5, 3], b: [2.7, 3], bottom: 0.85, top: 2.3};
-const xs = box => box.mp[0][0].map(point => point[0]);
-const ys = box => box.mp[0][0].map(point => point[1]);
+const door: TrimOpening = {kind: 'door', a: [1, 0], b: [1.9, 0], bottom: 0, top: 2.05};
+const window_: TrimOpening = {kind: 'window', a: [1.5, 3], b: [2.7, 3], bottom: 0.85, top: 2.3};
+const xs = (box: TrimBox): number[] => box.mp[0][0].map(point => point[0]);
+const ys = (box: TrimBox): number[] => box.mp[0][0].map(point => point[1]);
 
 test('the skirting runs round the walls and stops at the door; the door and the window get casings, the window a sill', () => {
   const boxes = trimBoxes([room], [door, window_]);

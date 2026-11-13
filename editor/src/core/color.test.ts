@@ -1,18 +1,19 @@
-// @ts-nocheck
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import * as THREE from 'three';
 import {isHex, lab, deltaE, snapColor, shadeHex} from './color.ts';
 import {COLORS, hexOf} from './catalog.ts';
 
-const near = (a, b, eps = 0.02) => a.every((x, i) => Math.abs(x - b[i]) < eps);
+const near = (a: number[], b: number[], eps = 0.02): boolean => a.every((x, i) => Math.abs(x - b[i]) < eps);
+// A named swatch's colour: catalog COLORS holds [name, 0xrrggbb] by key.
+const swatch = (key: string): number => (COLORS as Record<string, unknown[]>)[key][1] as number;
 test('Lab and ΔE as the AI build measures them: white, black, the bedroom rug and linen', () => {
   assert.ok(near(lab(0xffffff), [100, 0, 0]));
   assert.ok(near(lab(0), [0, 0, 0]));
-  assert.equal(+deltaE(0xb8b1a5, COLORS.linen[1]).toFixed(1), 11.7);
+  assert.equal(+deltaE(0xb8b1a5, swatch('linen')).toFixed(1), 11.7);
 });
 test('a picked color practically equal to a swatch (ΔE < 3) selects it; otherwise it stays custom', () => {
-  const sw = ['oak', 'walnut', 'white', 'graphite'].map(k => [k, COLORS[k][1]]);
+  const sw = ['oak', 'walnut', 'white', 'graphite'].map((k): [string, number] => [k, swatch(k)]);
   assert.equal(snapColor('#c9a578', sw), 'oak');
   assert.equal(snapColor('#EEEBE7', sw), 'white');
   assert.equal(snapColor('#D0AA70', sw), '#d0aa70');

@@ -1,4 +1,3 @@
-// @ts-nocheck
 // Items from parts (model 'parts'): validation, building at the plan's size, merging, and the plan file round trip.
 // parts.examples.json — real items written by the AI build (a sofa, a round table, an office chair, a plant, a lit mirror, a TV).
 import {test} from 'node:test';
@@ -10,18 +9,33 @@ import {makeObject} from './furniture3d.ts';
 import {byId, nameOf, zOf} from './catalog.ts';
 import {migrate} from './plan.ts';
 import {readPlan} from './plan-file.ts';
+import type {BoxPart, CatalogEntry, FurnitureItem, PartsItem, Plan, Vec3} from './types.ts';
 
-const EX = JSON.parse(fs.readFileSync(new URL('./parts.examples.json', import.meta.url), 'utf8'));
-const tiny = (parts, extra = {}) => ({w: 1, d: 1, h: 1, materials: {m: {color: '#aabbcc'}}, parts, ...extra});
-const block = (size, at = [0, 0, 0]) => ({kind: 'box', mat: 'm', size, at});
-const sizeOf = o => {
+const EX: Record<string, PartsItem> = JSON.parse(
+  fs.readFileSync(new URL('./parts.examples.json', import.meta.url), 'utf8'),
+);
+// An item from parts with one material; its parts (and the extra fields) may be broken on purpose.
+const tiny = (parts: unknown[], extra: Record<string, unknown> = {}): Record<string, unknown> => ({
+  w: 1,
+  d: 1,
+  h: 1,
+  materials: {m: {color: '#aabbcc'}},
+  parts,
+  ...extra,
+});
+const block = (size: Vec3, at: Vec3 = [0, 0, 0]): BoxPart => ({kind: 'box', mat: 'm', size, at});
+// An item from parts at a size, as the 3D view takes it; its parts may be broken on purpose.
+const partsAt = (parts: unknown, size: {w: number; d: number; h: number; z?: number}): FurnitureItem =>
+  ({model: 'parts', parts, ...size}) as FurnitureItem;
+const sizeOf = (o: THREE.Object3D): THREE.Box3 => {
   o.updateMatrixWorld(true);
   return new THREE.Box3().setFromObject(o);
 };
-const near = (a, b, eps = 1e-6) => Math.abs(a - b) <= eps;
-const meshes = o => {
-  const out = [];
-  o.traverse(x => x.isMesh && out.push(x));
+const near = (a: number, b: number, eps = 1e-6): boolean => Math.abs(a - b) <= eps;
+const isMesh = (x: THREE.Object3D): x is THREE.Mesh => (x as THREE.Mesh).isMesh === true;
+const meshes = (o: THREE.Object3D): THREE.Mesh[] => {
+  const out: THREE.Mesh[] = [];
+  o.traverse(x => isMesh(x) && out.push(x));
   return out;
 };
 
@@ -31,12 +45,12 @@ test('parts: the AI build examples are valid and fit their box', () => {
     const r = validateItem(item);
     assert.deepEqual(r.errors, [], k);
     assert.ok(!r.warnings.some(w => w.includes('sticks out')), k + ': ' + r.warnings.join('; '));
-    assert.ok(r.parts <= LIMITS.parts, k);
+    assert.ok(r.parts! <= LIMITS.parts, k); // a valid item has its count
   }
 });
 
 test('parts: typical mistakes are caught and named by path', () => {
-  const has = (item, ...words) => {
+  const has = (item: unknown, ...words: string[]): void => {
     const e = checkItem(item);
     assert.ok(
       e.some(x => words.every(w => x.includes(w))),
@@ -145,7 +159,7 @@ test('parts: built at its own size, stretched to the plan size along each axis',
     [2.2, 0.95, 0.82],
     [0.3, 1.6, 2.4],
   ]) {
-    const b = sizeOf(makeObject({model: 'parts', parts: full, w, d, h}));
+    const b = sizeOf(makeObject(partsAt(full, {w, d, h})));
     assert.ok(
       near(b.min.x, -w / 2) &&
         near(b.max.x, w / 2) &&
@@ -158,9 +172,9 @@ test('parts: built at its own size, stretched to the plan size along each axis',
   }
   // the examples: at their own size they match their box; resized, they stretch exactly by the ratio
   for (const [k, P] of Object.entries(EX)) {
-    const own = sizeOf(makeObject({model: 'parts', parts: P, w: P.w, d: P.d, h: P.h})),
-      s = own.getSize(new THREE.Vector3()),
-      t = LIMITS.tolerance;
+    const own = sizeOf(makeObject(partsAt(P, {w: P.w, d: P.d, h: P.h})));
+    const s = own.getSize(new THREE.Vector3());
+    const t = LIMITS.tolerance;
     assert.ok(
       s.x <= P.w + 2 * t &&
         s.x >= P.w * 0.9 &&
@@ -170,13 +184,14 @@ test('parts: built at its own size, stretched to the plan size along each axis',
         s.z >= P.d * 0.9,
       `${k}: ${s.toArray().map(x => x.toFixed(3))}`,
     );
-    const [kw, kd, kh] = [1.3, 0.8, 1.15],
-      big = sizeOf(makeObject({model: 'parts', parts: P, w: P.w * kw, d: P.d * kd, h: P.h * kh}));
-    for (const [a, kk] of [
+    const [kw, kd, kh] = [1.3, 0.8, 1.15];
+    const big = sizeOf(makeObject(partsAt(P, {w: P.w * kw, d: P.d * kd, h: P.h * kh})));
+    const stretch: Array<['x' | 'y' | 'z', number]> = [
       ['x', kw],
       ['y', kh],
       ['z', kd],
-    ])
+    ];
+    for (const [a, kk] of stretch)
       assert.ok(
         near(big.min[a], own.min[a] * kk, 1e-5) && near(big.max[a], own.max[a] * kk, 1e-5),
         `${k} ${a}`,
@@ -185,18 +200,14 @@ test('parts: built at its own size, stretched to the plan size along each axis',
 });
 
 test('parts: merged by material, materials shared between items, the height above the floor kept', () => {
-  const P = EX.sofa,
-    o = makeObject({model: 'parts', parts: P, w: P.w, d: P.d, h: P.h, z: 0.3}),
-    M = meshes(o);
+  const P = EX.sofa;
+  const o = makeObject(partsAt(P, {w: P.w, d: P.d, h: P.h, z: 0.3}));
+  const M = meshes(o);
   assert.ok(M.length <= Object.keys(P.materials).length * 2, `${M.length} meshes`); // one per material (and per shadow casting)
   assert.ok(
-    near(
-      sizeOf(o).min.y,
-      0.3 + sizeOf(makeObject({model: 'parts', parts: P, w: P.w, d: P.d, h: P.h})).min.y,
-      1e-6,
-    ),
+    near(sizeOf(o).min.y, 0.3 + sizeOf(makeObject(partsAt(P, {w: P.w, d: P.d, h: P.h}))).min.y, 1e-6),
   );
-  const again = meshes(makeObject({model: 'parts', parts: structuredClone(P), w: 1, d: 1, h: 1}));
+  const again = meshes(makeObject(partsAt(structuredClone(P), {w: 1, d: 1, h: 1})));
   assert.ok(
     again.every(m => M.some(x => x.material === m.material)),
     'the same colors use the same materials',
@@ -213,21 +224,21 @@ test('parts: broken or missing parts draw a plain box of the item size instead o
     tiny([{kind: 'blob'}]),
     tiny([{...block([1, 1, 1]), mat: 'constructor'}]),
   ]) {
-    const b = sizeOf(makeObject({model: 'parts', parts, w: 0.8, d: 0.5, h: 1.2})).getSize(
-      new THREE.Vector3(),
-    );
+    const b = sizeOf(makeObject(partsAt(parts, {w: 0.8, d: 0.5, h: 1.2}))).getSize(new THREE.Vector3());
     assert.ok(near(b.x, 0.8, 1e-3) && near(b.y, 1.2, 1e-3) && near(b.z, 0.5, 1e-3), JSON.stringify(parts));
   }
 });
 
 test('parts: a hidden catalog entry — defaults, the item name, never in the picker', () => {
-  const c = byId('parts');
+  const c = byId('parts') as CatalogEntry | undefined;
   assert.ok(c && c.hidden && c.kind === 'gen' && !c.color && !c.vars && !c.mirror);
-  assert.equal(nameOf({model: 'parts', name: 'Sofa'}), 'Sofa');
-  assert.equal(zOf({model: 'parts'}), 0);
-  assert.equal(zOf({model: 'parts', z: 1.2}), 1.2);
+  // items with only the fields these read
+  assert.equal(nameOf({model: 'parts', name: 'Sofa'} as FurnitureItem), 'Sofa');
+  assert.equal(zOf({model: 'parts'} as FurnitureItem), 0);
+  assert.equal(zOf({model: 'parts', z: 1.2} as FurnitureItem), 1.2);
+  const sizes: Array<'w' | 'd' | 'h'> = ['w', 'd', 'h'];
   for (const P of Object.values(EX))
-    for (const [i, k] of ['w', 'd', 'h'].entries()) assert.ok(P[k] >= c.min[i] && P[k] <= c.max[i]);
+    for (const [i, k] of sizes.entries()) assert.ok(P[k] >= c.min[i] && P[k] <= c.max[i]);
 });
 
 test('parts: the key changes with the parts, not with the copy', () => {
@@ -237,7 +248,7 @@ test('parts: the key changes with the parts, not with the copy', () => {
   assert.notEqual(partsKey(P), partsKey({...P, materials: {...P.materials, tv: {color: '#000000'}}}));
 });
 
-const plan = furniture =>
+const plan = (furniture: FurnitureItem[]): Plan =>
   migrate({
     rooms: [
       {
@@ -253,19 +264,21 @@ const plan = furniture =>
     ],
     furniture,
   });
-const item = (parts, extra = {}) => ({
-  id: 'f12',
-  model: 'parts',
-  name: 'Sofa',
-  x: 2.4,
-  y: 0.6,
-  w: 2.2,
-  d: 0.95,
-  h: 0.82,
-  rot: 0,
-  parts,
-  ...extra,
-});
+// An item from parts on the plan; its parts may be broken on purpose.
+const item = (parts: unknown, extra: Partial<FurnitureItem> = {}): FurnitureItem =>
+  ({
+    id: 'f12',
+    model: 'parts',
+    name: 'Sofa',
+    x: 2.4,
+    y: 0.6,
+    w: 2.2,
+    d: 0.95,
+    h: 0.82,
+    rot: 0,
+    parts,
+    ...extra,
+  }) as FurnitureItem;
 test('parts: a plan file keeps parts unchanged; an invalid item rejects the file and names it', () => {
   const p = plan([
     item(EX.sofa),
@@ -289,7 +302,9 @@ test('parts: a plan file keeps parts unchanged; an invalid item rejects the file
     () =>
       readPlan(
         JSON.stringify(
-          plan([{id: 'f1', model: 'custom', x: 1, y: 1, w: 1, d: 1, h: 1, rot: 0, parts: {w: 1}}]),
+          plan([
+            {id: 'f1', model: 'custom', x: 1, y: 1, w: 1, d: 1, h: 1, rot: 0, parts: {w: 1}} as FurnitureItem,
+          ]),
         ),
       ),
     /furniture "f1"/,

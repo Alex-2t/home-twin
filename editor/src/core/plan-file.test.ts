@@ -1,8 +1,8 @@
-// @ts-nocheck
 import {test} from 'node:test';
 import assert from 'node:assert/strict';
 import {emptyPlan, migrate} from './plan.ts';
 import {readPlan} from './plan-file.ts';
+import type {Plan} from './types.ts';
 
 const plan = () =>
   migrate({
@@ -52,7 +52,8 @@ test('the file keeps finishes, the lights draft, sensors, the view and wizard st
   p.sensors = [{id: 's', entity: 'sensor.temp', room: 'r', at: [1, 0], under: 'another', label: 'T', k: 1.5}];
   p.sensorSkip = ['sensor.humidity'];
   p.view = {t: [1, 0, 2], theta: 0.2, phi: 0.8, fit: [8, 5]};
-  p.onboarding = {steps: {lights: {status: 'in_progress'}}};
+  // an object form no code writes: the file keeps whatever its steps hold
+  Object.assign(p, {onboarding: {steps: {lights: {status: 'in_progress'}}}});
   assert.deepEqual(readPlan(JSON.stringify(p)), p);
 });
 test('old files with coordinate openings and an empty plan are supported', () => {
@@ -79,22 +80,23 @@ test('old files with coordinate openings and an empty plan are supported', () =>
 test('foreign JSON, invalid data and future versions are rejected before opening', () => {
   for (const text of ['{', 'null', 'true', '42', '"hello"', '[]', '{}', '{"hello":"world"}'])
     assert.throws(() => readPlan(text), text);
-  const bad = [
+  // Each change breaks the plan; Object.assign puts in the values a plan's type does not allow.
+  const bad: Array<(p: Plan) => unknown> = [
     p => (p.version = 2),
-    p => (p.units = 'cm'),
-    p => (p.rooms = null),
+    p => Object.assign(p, {units: 'cm'}),
+    p => Object.assign(p, {rooms: null}),
     p => p.rooms.push({...p.rooms[0]}),
     p => (p.rooms[0].polygon = [[0, 0]]),
-    p => (p.rooms[0].polygon[0] = ['0', 0]),
-    p => (p.furniture = [null]),
-    p => (p.furniture = [{id: 'f', model: 'bed', x: '2', y: 1, w: 2, d: 1, h: 1}]),
-    p => (p.lights = [{id: 'l', points: [null]}]),
-    p => (p.lights = [{id: 'l', was: {s: 'broken'}}]),
+    p => Object.assign(p.rooms[0].polygon, {0: ['0', 0]}),
+    p => Object.assign(p, {furniture: [null]}),
+    p => Object.assign(p, {furniture: [{id: 'f', model: 'bed', x: '2', y: 1, w: 2, d: 1, h: 1}]}),
+    p => Object.assign(p, {lights: [{id: 'l', points: [null]}]}),
+    p => Object.assign(p, {lights: [{id: 'l', was: {s: 'broken'}}]}),
     p => (p.openings[0].at.edge = 99),
-    p => (p.openings[0].at.s0 = null),
-    p => (p.sensors = [{id: 's', at: 1}]),
-    p => (p.onboarding = {steps: null}),
-    p => (p.view = {t: [0, 0, 0], fit: 2}),
+    p => Object.assign(p.openings[0].at, {s0: null}),
+    p => Object.assign(p, {sensors: [{id: 's', at: 1}]}),
+    p => Object.assign(p, {onboarding: {steps: null}}),
+    p => Object.assign(p, {view: {t: [0, 0, 0], fit: 2}}),
   ];
   for (const change of bad) {
     const p = plan();
@@ -103,8 +105,8 @@ test('foreign JSON, invalid data and future versions are rejected before opening
   }
 });
 test('furniture colors: named and custom #rrggbb (a rug also has a border color) are kept; malformed ones are rejected', () => {
-  const rug = {id: 'f', model: 'rug', x: 2, y: 2, w: 2, d: 1.4, h: 0.012, rot: 0},
-    p = plan();
+  const rug = {id: 'f', model: 'rug', x: 2, y: 2, w: 2, d: 1.4, h: 0.012, rot: 0};
+  const p = plan();
   p.furniture = [
     {...rug, color: '#b8b1a5', color2: '#978E80'},
     {...rug, id: 'g', model: 'bed', color: 'oak'},
