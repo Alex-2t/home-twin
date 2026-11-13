@@ -203,7 +203,7 @@ if (process.argv.includes('--serve')) {
   // the demo homes (demo/): regenerated in a child process, esbuild then sees src/gen/ change and rebuilds
   let dt: NodeJS.Timeout | number = 0;
   fs.watch('demo', {recursive: true}, (_e, f) => {
-    if (!String(f).endsWith('.mjs')) return;
+    if (!String(f).endsWith('.ts')) return;
     clearTimeout(dt);
     dt = setTimeout(() => {
       execFile(process.execPath, ['build.ts', '--gen-demo', ...(demoArg ? [demoArg] : [])], (e, out, err) => {
