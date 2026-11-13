@@ -1,4 +1,3 @@
-// @ts-nocheck
 // The ten typical homes (demo/homes.ts, D-030) through the editor's own code: what a person would meet opening each of them.
 // Rooms, openings and walls are built as the editor builds them; the furniture is in the catalog and nothing reports “overlaps”,
 // “blocks a door” or “goes into a wall” where the layout is a normal one; after the wizard's steps (rooms get their HA areas,
@@ -18,18 +17,33 @@ import {recommend, orphans, isClimate, fitsAuto, roomOfArea} from './sensors.ts'
 import {autoPlace as autoDevices, deviceKind, PLACEABLE, recOf, isCentral} from './devices.ts';
 import {planWalls, planSpots} from './plan-scene.ts';
 import {mockHA, haPlanLights, mergePlanLights} from '../editor/ha.ts';
+import type {
+  DemoHaData,
+  DemoHaLayer,
+  Opening,
+  OpeningInput,
+  Outline,
+  Plan,
+  PlanInput,
+  Point,
+  Room,
+  SensorContext,
+} from './types.ts';
 
-const near = (p, poly, d = 0.02) =>
+// (The demo's data and HA's switches are handed to ha.ts as its own parameters take them: the Parameters<…> casts below.
+// The ! below: every home has openings, and what a check found is there.)
+
+const near = (p: Point, poly: Outline, d = 0.02): boolean =>
   pointIn(p, poly) ||
   poly.some((a, i) => {
-    const b = poly[(i + 1) % poly.length],
-      dx = b[0] - a[0],
-      dy = b[1] - a[1],
-      l2 = dx * dx + dy * dy || 1,
-      t = Math.max(0, Math.min(1, ((p[0] - a[0]) * dx + (p[1] - a[1]) * dy) / l2));
+    const b = poly[(i + 1) % poly.length];
+    const dx = b[0] - a[0];
+    const dy = b[1] - a[1];
+    const l2 = dx * dx + dy * dy || 1;
+    const t = Math.max(0, Math.min(1, ((p[0] - a[0]) * dx + (p[1] - a[1]) * dy) / l2));
     return Math.hypot(p[0] - a[0] - t * dx, p[1] - a[1] - t * dy) <= d;
   });
-const conflicts = plan =>
+const conflicts = (plan: Plan): string[] =>
   [...furnitureConflicts(plan)].map(([id, why]) => {
     const f = plan.furniture.find(f => f.id === id);
     return `${id} ${f?.name || f?.model}: ${why}`;
@@ -37,10 +51,10 @@ const conflicts = plan =>
 
 for (const h of HOMES)
   test(h.title, async t => {
-    const {HA, DEMO} = await h.load(),
-      given = structuredClone(DEMO),
-      plan = migrate(structuredClone(DEMO)),
-      ha = mockHA(structuredClone(HA));
+    const {HA, DEMO}: {HA: DemoHaData; DEMO: PlanInput} = await h.load();
+    const given = structuredClone(DEMO);
+    const plan = migrate(structuredClone(DEMO));
+    const ha: DemoHaLayer = mockHA(structuredClone(HA) as Parameters<typeof mockHA>[0]);
     const rooms = new Map(plan.rooms.map(r => [r.id, r]));
 
     await t.test('rooms', () => {
@@ -57,10 +71,10 @@ for (const h of HOMES)
 
     await t.test('openings and walls', () => {
       // an opening that finds no wall is dropped on load; one whose wall is too short for it is not drawn
-      const key = o => JSON.stringify([o.a, o.b]),
-        lost = given.openings
-          .filter(o => !plan.openings.some(p => key(p) === key(o)))
-          .map(o => `${o.kind} ${JSON.stringify(o.a)}–${JSON.stringify(o.b)}: no wall`);
+      const key = (o: Opening | OpeningInput): string => JSON.stringify([o.a, o.b]);
+      const lost = given
+        .openings!.filter(o => !plan.openings.some(p => key(p) === key(o)))
+        .map(o => `${o.kind} ${JSON.stringify(o.a)}–${JSON.stringify(o.b)}: no wall`);
       const hidden = plan.openings
         .filter(o => !openingCoords(plan.rooms, o))
         .map(o => `${o.kind} ${o.id}: does not fit its wall`);
@@ -79,11 +93,11 @@ for (const h of HOMES)
           continue;
         }
         if (c.min && c.max)
-          ['w', 'd', 'h'].forEach((k, i) => {
+          (['w', 'd', 'h'] as const).forEach((k, i) => {
             if (f[k] < c.min[i] - 1e-6 || f[k] > c.max[i] + 1e-6)
               bad.push(`${f.id} ${f.model}: ${k}=${f[k]} outside ${c.min[i]}…${c.max[i]}`);
           });
-        for (const k of ['color', 'color2'])
+        for (const k of ['color', 'color2'] as const)
           if (f[k] && !isHex(f[k]) && !colorsOf(c).includes(f[k]))
             bad.push(`${f.id} ${f.model}: no color “${f[k]}”`); // or a custom #rrggbb
         if (f.color2 && !c.color2) bad.push(`${f.id} ${f.model}: no second color`);
@@ -98,16 +112,20 @@ for (const h of HOMES)
     // the wizard: rooms get their HA areas (here the area id is the room id; the other part of a room, its zone, has its own in the plan),
     // then lights, sensors and devices are placed. on(a) — the room of area a
     for (const r of plan.rooms) if (HA.areas[r.id]) setRoomArea(plan, r, r.id, HA.areas[r.id]);
-    const on = a => roomOfArea(plan, a);
-    plan.lights = mergePlanLights(plan.lights, haPlanLights(ha), ha.switches());
+    const on = (a: string | null | undefined): Room | null => roomOfArea(plan, a);
+    plan.lights = mergePlanLights(
+      plan.lights,
+      haPlanLights(ha),
+      ha.switches() as Parameters<typeof mergePlanLights>[2],
+    );
 
     await t.test('lights', () => {
       const bad = [];
       // an area that is not a room on the plan (“Outside”) is fine: its lights wait for a room (wizard-state.js: lampWaits); a typo is not
-      for (const a of new Set(HA.lights.map(l => l.area).filter(Boolean)))
+      for (const a of new Set(HA.lights.map(l => l.area).filter((a): a is string => Boolean(a))))
         if (!HA.areas[a]) bad.push(`area “${a}” has lights but is not in HA.areas`);
       for (const L of plan.lights.filter(L => L.placed)) {
-        const r = rooms.get(L.room);
+        const r = rooms.get(L.room ?? ''); // a light without a room finds none
         if (!r) {
           bad.push(`${L.id}: no room “${L.room}”`);
           continue;
@@ -121,7 +139,7 @@ for (const h of HOMES)
       autoLights(plan);
       bad.push(
         ...todo
-          .filter(id => !plan.lights.find(L => L.id === id).placed)
+          .filter(id => !plan.lights.find(L => L.id === id)!.placed)
           .map(id => `${id}: “Auto-place” left it out`),
       );
       assert.deepEqual(bad, []);
@@ -132,14 +150,18 @@ for (const h of HOMES)
     await t.test('lights from scratch', () => {
       const p = migrate(structuredClone(DEMO));
       for (const r of p.rooms) if (HA.areas[r.id]) setRoomArea(p, r, r.id, HA.areas[r.id]);
-      p.lights = mergePlanLights([], haPlanLights(ha), ha.switches()).map(L => ({
+      p.lights = mergePlanLights(
+        [],
+        haPlanLights(ha),
+        ha.switches() as Parameters<typeof mergePlanLights>[2],
+      ).map(L => ({
         ...L,
         placed: false,
         points: [],
         segments: [],
       }));
-      const before = new Set(furnitureConflicts(p).keys()),
-        bad = [];
+      const before = new Set(furnitureConflicts(p).keys());
+      const bad = [];
       autoLights(p);
       for (const L of p.lights) {
         const r = p.rooms.find(r => r.id === L.room);
@@ -159,14 +181,14 @@ for (const h of HOMES)
       assert.deepEqual(bad, []);
     });
 
-    const ctx = {sensors: ha.sensors(), areas: ha.areas(), state: e => ha.state(e)};
+    const ctx: SensorContext = {sensors: ha.sensors(), areas: ha.areas(), state: e => ha.state(e)};
     await t.test('sensors', () => {
       plan.sensors = recommend(plan, ctx).map((x, i) => ({id: 's' + i, ...x}));
       const bad = [];
       // every room whose area has room-air sensors gets them on its wall; a sensor with no room is asked about (orphans), not lost
       for (const s of ctx.sensors.filter(s => isClimate(s) && fitsAuto(s) && on(s.area)))
-        if (!plan.sensors.some(S => S.room === on(s.area).id))
-          bad.push(`“${on(s.area).name}” has ${s.entity}, nothing suggested`);
+        if (!plan.sensors.some(S => S.room === on(s.area)!.id))
+          bad.push(`“${on(s.area)!.name}” has ${s.entity}, nothing suggested`);
       const spots = planSpots(plan, ctx, {cam: [0.53, -0.85]});
       for (const S of plan.sensors)
         if (!spots.some(sp => sp.id === S.id))
@@ -178,9 +200,9 @@ for (const h of HOMES)
     });
 
     await t.test('devices', () => {
-      const devs = ha.devices(),
-        ent = e => ha.entity(e),
-        before = new Set(furnitureConflicts(plan).keys());
+      const devs = ha.devices();
+      const ent = (e: string) => ha.entity(e);
+      const before = new Set(furnitureConflicts(plan).keys());
       autoDevices(plan, devs, ent);
       const bad = devs
         .filter(

@@ -1,20 +1,21 @@
-// @ts-nocheck
 // Railings in place of exterior walls (D-071): an open balcony or terrace — and glazed doors; glass railings (D-075).
 import {test} from 'node:test';
 import assert from 'node:assert/strict';
 import {buildPlan2d, wallsAt, area, pointIn, RAIL, KERB} from './geometry.ts';
 import {insertVertex, splitRoom, setRail, wallInfo, emptyPlan} from './plan.ts';
 import {readPlan} from './plan-file.ts';
+import type {MultiPolygon, Plan, Point, WallPlan} from './types.ts';
 
-const mpArea = mp =>
+const mpArea = (mp: MultiPolygon): number =>
   mp.reduce(
     (s, [o, ...h]) =>
       s + Math.abs(area(o.slice(0, -1))) - h.reduce((t, r) => t + Math.abs(area(r.slice(0, -1))), 0),
     0,
   );
-const inMP = (p, mp) => mp.some(([o, ...h]) => pointIn(p, o) && !h.some(r => pointIn(p, r)));
+const inMP = (p: Point, mp: MultiPolygon): boolean =>
+  mp.some(([o, ...h]) => pointIn(p, o) && !h.some(r => pointIn(p, r)));
 // A room and its balcony across a 30 cm wall; the balcony's three outer edges are railings.
-const home = (rail = [null, RAIL, RAIL, RAIL]) => ({
+const home = (rail: Array<number | null> | null = [null, RAIL, RAIL, RAIL]): Plan => ({
   ...emptyPlan(),
   rooms: [
     {
@@ -42,9 +43,9 @@ const home = (rail = [null, RAIL, RAIL, RAIL]) => ({
 });
 
 test('a railing: the wall at that edge becomes a parapet as high as the railing; walls and parapets keep the same footprint', () => {
-  const g = buildPlan2d(home().rooms, []),
-    g0 = buildPlan2d(home(null).rooms, []);
-  const all = g =>
+  const g = buildPlan2d(home().rooms, []);
+  const g0 = buildPlan2d(home(null).rooms, []);
+  const all = (g: WallPlan): number =>
     mpArea(g.interior[0].mp) +
     g.sides.reduce((s, x) => s + mpArea(x.bands[0].mp), 0) +
     (g.rails || []).reduce((s, b) => s + mpArea(b.mp), 0);
@@ -70,13 +71,13 @@ test('railings follow the corners: a new corner, a split room; setRail sets and 
   const b = p.rooms[1];
   insertVertex(p, b, 2, [2.5, 8]);
   assert.deepEqual(b.rail, [null, RAIL, RAIL, RAIL, RAIL]);
-  const [big, small] = splitRoom(p, b, [2.5, 6.3], [2.5, 8]);
-  assert.ok(big.rail.filter(Boolean).length >= 2 && small.rail.filter(Boolean).length >= 2);
-  const q = home(null),
-    w = wallInfo(q, q.rooms[1], 2);
+  const [big, small] = splitRoom(p, b, [2.5, 6.3], [2.5, 8])!; // the line splits the balcony
+  assert.ok(big.rail!.filter(Boolean).length >= 2 && small.rail!.filter(Boolean).length >= 2);
+  const q = home(null);
+  const w = wallInfo(q, q.rooms[1], 2);
   assert.equal(w.rail, 0);
   setRail(q, w, RAIL);
-  assert.equal(q.rooms[1].rail[2], RAIL);
+  assert.equal(q.rooms[1].rail![2], RAIL);
   assert.equal(wallInfo(q, q.rooms[1], 2).rail, RAIL);
   setRail(q, wallInfo(q, q.rooms[1], 2), 0);
   assert.equal(q.rooms[1].rail, undefined);

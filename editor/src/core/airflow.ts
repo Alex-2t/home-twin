@@ -1,9 +1,23 @@
-// @ts-nocheck
 // Air conditioner airflow (D-048): ribbons and dust particles from under the body, forward and down. One draw call for the ribbons and one for
 // the particles; geometry lives on the GPU, only uniforms change. Taken from the 3d_floor card (ac-airflow.js), not tied to its model:
 // the scene decides where the unit stands (group.position, rotation.y; the stream runs along local −Z).
 //   set({on, tone, fan}): whether it is on, the mode tone (cool, heat, auto, dry, fan) and fan speed; tick(dt): a frame
 import * as THREE from 'three';
+
+/** An air conditioner's state for its airflow: on, the mode's tone (cool, heat, auto, dry, fan) and the fan speed (HA's fan mode). */
+export interface AirflowState {
+  on: boolean;
+  tone?: string;
+  fan?: string;
+}
+/** One air conditioner's airflow (createAirflow): the group the scene places, and how to set, animate and dispose of it. */
+export interface Airflow {
+  group: THREE.Group;
+  set(state: AirflowState): void;
+  /** A frame: dt seconds since the last one. */
+  tick(dt: number): void;
+  dispose(): void;
+}
 
 const field = `
   uniform float uTime,uSpeed,uSwing,uStrength;
@@ -68,10 +82,20 @@ const moteFragment = `
     #include <colorspace_fragment>
   }
 `;
-const fanSpeed = fan => ({low: 0.18, quiet: 0.12, silent: 0.12, medium: 0.5, high: 1, turbo: 1})[fan] ?? 0.48;
-const TONE = {heat: 0xffb16d, dry: 0xc5acff, fan: 0x9fe5d5, auto: 0xa8e6a1, cool: 0x88d7ff};
+// (A fan or a tone that is not set looks up '': no such entry, as with undefined.)
+const fanSpeed = (fan: string | undefined): number =>
+  (({low: 0.18, quiet: 0.12, silent: 0.12, medium: 0.5, high: 1, turbo: 1}) as Record<string, number>)[
+    fan ?? ''
+  ] ?? 0.48;
+const TONE: Record<string, number> = {
+  heat: 0xffb16d,
+  dry: 0xc5acff,
+  fan: 0x9fe5d5,
+  auto: 0xa8e6a1,
+  cool: 0x88d7ff,
+};
 
-export function createAirflow() {
+export function createAirflow(): Airflow {
   const group = new THREE.Group();
   group.visible = false;
   const uniforms = {
@@ -81,14 +105,14 @@ export function createAirflow() {
     uStrength: {value: 0},
     uColor: {value: new THREE.Color(TONE.cool)},
   };
-  const geometry = new THREE.BufferGeometry(),
-    positions = [],
-    ts = [],
-    sides = [],
-    lanes = [],
-    seeds = [],
-    indices = [],
-    segments = 40;
+  const geometry = new THREE.BufferGeometry();
+  const positions: number[] = [];
+  const ts: number[] = [];
+  const sides: number[] = [];
+  const lanes: number[] = [];
+  const seeds: number[] = [];
+  const indices: number[] = [];
+  const segments = 40;
   for (let lane = 0; lane < 7; lane++) {
     const base = positions.length / 3;
     for (let j = 0; j <= segments; j++)
@@ -110,10 +134,10 @@ export function createAirflow() {
     ['aSide', sides, 1],
     ['aLane', lanes, 1],
     ['aSeed', seeds, 1],
-  ])
+  ] satisfies Array<[string, number[], number]>)
     geometry.setAttribute(name, new THREE.Float32BufferAttribute(data, size));
   geometry.setIndex(indices);
-  const material = (vertexShader, fragmentShader) =>
+  const material = (vertexShader: string, fragmentShader: string): THREE.ShaderMaterial =>
     new THREE.ShaderMaterial({
       uniforms,
       vertexShader,
@@ -128,14 +152,14 @@ export function createAirflow() {
   const ribbons = new THREE.Mesh(geometry, material(ribbonVertex, ribbonFragment));
   ribbons.frustumCulled = false;
   group.add(ribbons);
-  const points = new THREE.BufferGeometry(),
-    count = 56;
+  const points = new THREE.BufferGeometry();
+  const count = 56;
   points.setAttribute('position', new THREE.Float32BufferAttribute(new Float32Array(count * 3), 3));
   for (const [name, fn] of [
     ['aLane', i => Math.sin(i * 2.399)],
     ['aSeed', i => i * 1.618],
     ['aPhase', i => (i * 0.61803398875) % 1],
-  ])
+  ] satisfies Array<[string, (i: number) => number]>)
     points.setAttribute(
       name,
       new THREE.Float32BufferAttribute(
@@ -146,15 +170,15 @@ export function createAirflow() {
   const motes = new THREE.Points(points, material(moteVertex, moteFragment));
   motes.frustumCulled = false;
   group.add(motes);
-  let strength = 0,
-    speed = 0.48;
+  let strength = 0;
+  let speed = 0.48;
   const color = new THREE.Color(TONE.cool);
   return {
     group,
     set({on, tone, fan}) {
       strength = on ? 1 : 0;
       speed = fanSpeed(fan);
-      color.set(TONE[tone] ?? TONE.cool);
+      color.set(TONE[tone ?? ''] ?? TONE.cool);
       if (on) group.visible = true;
     },
     tick(dt) {

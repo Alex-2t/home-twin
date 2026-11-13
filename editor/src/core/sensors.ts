@@ -1,4 +1,3 @@
-// @ts-nocheck
 // Sensor readings on walls (D-033): large digits painted on a free spot of a wall, with no backing.
 // The user decides what to show, as with lights: the “Sensors” mode, each sensor has its own spot (plan.sensors:
 // [{id, entity, room, at?, label?, k?, under?, sc?}]; at is the point on the wall where it was placed (sc is the squeeze it was pinned with); without it the spot is automatic, next to the room's other
@@ -12,12 +11,131 @@ import {t, num} from '../i18n/i18n.ts';
 import {WALL, area} from './geometry.ts';
 import {zOf} from './catalog.ts';
 import {formFor} from './fixtures.ts';
+import type {
+  FurnitureItem,
+  HaSensor,
+  Metric,
+  Plan,
+  PlanLight,
+  PlanSensor,
+  Point,
+  Room,
+  SensorContext,
+  Vector,
+} from './types.ts';
 
-const dec = (v, d) => num(v, d); // per language: 23,1 or 23.1
-const toC = (v, u) => (u === '°F' ? (v - 32) / 1.8 : u === 'K' ? v - 273.15 : v);
+/** What a sensor's label says (sensorItem): its caption, the number as written, its level, the digits' size and colour. */
+export interface SensorItem {
+  label: string;
+  text: string;
+  lvl: number;
+  k: number;
+  c?: string;
+}
+/** A stretch of a wall taken by a hand-placed label: on edge i, from t0 to t1 metres along it. */
+export interface TakenStretch {
+  i: number;
+  t0: number;
+  t1: number;
+}
+/**
+ * What a label's spot on the wall depends on (wallSpot): the openings with their ends now, the furniture, the room's placed
+ * lights, the stretches hand-placed labels take, and the home view's direction (none: CAM).
+ */
+export interface WallSpotContext {
+  openings?: Array<{a: Point; b: Point; bottom?: number; top?: number}>;
+  /** Items: their place, size, model and lift are read. */
+  furniture?: Array<
+    Pick<FurnitureItem, 'x' | 'y' | 'w' | 'd' | 'h' | 'rot' | 'model'> & Partial<FurnitureItem>
+  >;
+  lights?: PlanLight[];
+  taken?: TakenStretch[];
+  cam?: Vector | null;
+}
+/** A room edge as wallSpot reads it: its ends, length, direction and inward normal. */
+interface WallSide {
+  i: number;
+  a: Point;
+  b: Point;
+  L: number;
+  u: Vector;
+  n: Vector;
+}
+/**
+ * A label's spot (wallSpot): on edge i (its direction u, inward normal n, length L), at t metres along it, w wide, scaled by
+ * scale, its centre c on the wall face; fit: how well it fits; own: placed by hand.
+ */
+export interface WallSpot {
+  i: number;
+  u: Vector;
+  n: Vector;
+  t: number;
+  w: number;
+  L: number;
+  scale: number;
+  c: Point;
+  fit: number;
+  own?: boolean;
+}
+/** What the plan's labels need besides the plan (layoutSensors). */
+export interface SensorEnv {
+  openings?: WallSpotContext['openings'];
+  /** The wall's colour at edge i of a room, '#rrggbb'. */
+  baseOf?: (room: Room, i: number) => string;
+  cam?: Vector | null;
+  /** The id of the sensor being moved. */
+  moving?: string;
+}
+/** A label on the plan (layoutSensors): one sensor, where it is on its wall, its row (group), column (col) and place in the row (k). */
+export interface PlacedSensor extends WallSpot {
+  id: string;
+  room: string;
+  items: SensorItem[];
+  size: {w: number; h: number; ws: number[]};
+  group: string;
+  k: number;
+  col: string;
+  /** The vertical centre, metres above the floor. */
+  y: number;
+  /** The wall's colour behind it. */
+  base?: string;
+}
+/** A sensor of the plan with what its label says. */
+interface SensorEntry {
+  S: PlanSensor;
+  it: SensorItem;
+}
+/** A column of labels (stackOf): the sensors top to bottom, their widths and heights, the column's width and height. */
+interface Column {
+  col: SensorEntry[];
+  ws: number[];
+  hs: number[];
+  w: number;
+  h: number;
+}
+/** A label in a row: its sensor, its column's index k and top sensor col, its offset along the row, its centre's height y, its size. */
+interface RowItem {
+  e: SensorEntry;
+  k: number;
+  col: string;
+  off: number;
+  y: number;
+  w: number;
+  h: number;
+}
+/** A row of columns: its width, its height band [bottom, top], and its labels. */
+interface Row {
+  W: number;
+  band: [number, number];
+  items: RowItem[];
+}
+
+const dec = (v: number, d: number): string => num(v, d); // per language: 23,1 or 23.1
+const toC = (v: number, u: string | null | undefined): number =>
+  u === '°F' ? (v - 32) / 1.8 : u === 'K' ? v - 273.15 : v;
 // lvl: 0 is normal, 1 is attention, 2 is bad. CO₂: Umweltbundesamt: up to 1000 ppm is normal, 1000–2000 means ventilate, above is bad.
 // Humidity: ASHRAE: 30–60%. PM2.5: WHO, 24 h: 15 µg/m³; above 35 (EPA, 24 h) is bad. Temperature is not rated.
-export const METRICS = [
+export const METRICS: Metric[] = [
   {
     k: 't',
     cls: 'temperature',
@@ -62,9 +180,9 @@ export const METRICS = [
   },
 ];
 const CLASSES = new Set(METRICS.map(m => m.cls));
-export const isClimate = s => CLASSES.has(s.cls);
+export const isClimate = (s: Pick<HaSensor, 'cls'>): boolean => CLASSES.has(s.cls);
 // other numeric sensors: a caption from the sensor class, the number with its unit
-const GEN = {
+const GEN: Record<string, string> = {
   power: t('POWER'),
   energy: t('ENERGY'),
   illuminance: t('LIGHT'),
@@ -82,12 +200,12 @@ const GEN = {
   moisture: t('MOISTURE'),
   battery: t('BATTERY'),
 };
-const num1 = v => (Math.abs(v) < 10 && v % 1 ? dec(v, 1) : String(Math.round(v))); // whole numbers without digit grouping: “1840 W” on the wall
-export const metricOf = s =>
+const num1 = (v: number): string => (Math.abs(v) < 10 && v % 1 ? dec(v, 1) : String(Math.round(v))); // whole numbers without digit grouping: “1840 W” on the wall
+export const metricOf = (s: Pick<HaSensor, 'cls' | 'name'>): Metric =>
   METRICS.find(m => m.cls === s.cls) || {
     k: s.cls || 'x',
     cls: s.cls,
-    label: GEN[s.cls] || '',
+    label: (s.cls && GEN[s.cls]) || '',
     name: s.name,
     text: (v, u) => num1(v) + (u ? (u === '%' ? '' : ' ') + u : ''),
     lvl: () => 0,
@@ -97,18 +215,21 @@ const SERVICE =
   /device_temp|internal|chip|cpu|\bsoc\b|processor|battery|устройств|внутрен|процессор|чип|батаре|gerätetemp|geräte|intern|akku|batterie|appareil|interne|apparaat|batterij|dispositivo|batería|batteria|urządzeni|bateria|设备|芯片|电池/i;
 const ELSEWHERE =
   /fridge|freezer|refrig|холодил|морозил|boiler|water|бойлер|кот[её]л|вод[аы]|outdoor|outside|улиц|наружн|aquarium|аквариум|soil|почв|underfloor|floor_temp|т[её]пл\S* пол|radiator|радиатор|pipe|труб|kühlschrank|gefrier|kessel|wasser|außen|aussen|draußen|bodenfeucht|fußbodenheiz|heizkörper|rohr|réfrigérateur|frigo|congélateur|chaudière|eau|extérieur|plancher chauffant|radiateur|tuyau|koelkast|vriezer|ketel|buiten|vloerverwarming|leiding|nevera|frigorífico|congelador|caldera|agua|exterior|suelo radiante|radiador|tubería|frigorifero|congelatore|caldaia|acqua|esterno|riscaldamento a pavimento|radiatore|lodówk|zamrażark|kocioł|wod[ay]|zewnętrzn|ogrzewanie podłogowe|grzejnik|kaloryfer|geladeira|caldeira|água|externo|piso radiante|冰箱|锅炉|水温|室外|户外|地暖|暖气/i;
-export const whyNot = s =>
+export const whyNot = (s: Pick<HaSensor, 'cat' | 'hidden' | 'entity' | 'name'>): string =>
   s.cat || s.hidden || SERVICE.test(s.entity + ' ' + s.name)
     ? t('diagnostic')
     : ELSEWHERE.test(s.entity + ' ' + s.name)
       ? t('not room air')
       : '';
-export const fitsAuto = s => !whyNot(s);
+export const fitsAuto = (s: Pick<HaSensor, 'cat' | 'hidden' | 'entity' | 'name'>): boolean => !whyNot(s);
 // a sensor's room: HA area → the room (or the second part of a room, its zone) of that area
-export const roomOfArea = (plan, a) =>
+export const roomOfArea = (plan: Pick<Plan, 'rooms'>, a: string | null | undefined): Room | null =>
   a ? plan.rooms.find(r => !r.solid && (r.area === a || r.zone?.area === a)) || null : null;
 // climate sensors without a room on the plan: not on a wall, not “Don't show” (plan.sensorSkip), not diagnostic
-export const orphans = (plan, ctx) =>
+export const orphans = (
+  plan: Pick<Plan, 'rooms' | 'sensors'> & Partial<Pick<Plan, 'sensorSkip'>>,
+  ctx: Pick<SensorContext, 'sensors'>,
+): HaSensor[] =>
   ctx.sensors.filter(
     s =>
       isClimate(s) &&
@@ -120,17 +241,19 @@ export const orphans = (plan, ctx) =>
 
 // ctx: {sensors:[{entity,name,area,device,cls,unit,cat,hidden}], areas:[{area_id, temperature_entity_id?, humidity_entity_id?}], state:e=>number|null}
 // The best sensor of quantity m for area a (or null).
-export function pickAuto(m, a, ctx) {
+// m is a room-air quantity (METRICS): each has its area setting's name and sane!.
+export function pickAuto(m: Metric, a: string | null | undefined, ctx: SensorContext): HaSensor | null {
   if (!a) return null;
-  const set = ctx.areas.find(x => x.area_id === a)?.[m.area],
-    s0 = set && ctx.sensors.find(x => x.entity === set);
+  const set = m.area && ctx.areas.find(x => x.area_id === a)?.[m.area];
+  const s0 = set && ctx.sensors.find(x => x.entity === set);
   if (s0) return s0;
-  const dev = new Map();
+  const dev = new Map<string, Set<string | null>>();
   for (const s of ctx.sensors)
     if (s.device && CLASSES.has(s.cls)) dev.set(s.device, (dev.get(s.device) || new Set()).add(s.cls));
-  const score = s => {
+  // (a sensor without a device finds no entry, as looking up null did)
+  const score = (s: HaSensor): number => {
     const v = ctx.state(s.entity);
-    return (dev.get(s.device)?.size > 1 ? 2 : 0) + (v != null && m.sane(v, s.unit) ? 1 : 0);
+    return ((dev.get(s.device ?? '')?.size ?? 0) > 1 ? 2 : 0) + (v != null && m.sane!(v, s.unit) ? 1 : 0);
   };
   return (
     ctx.sensors
@@ -139,8 +262,11 @@ export function pickAuto(m, a, ctx) {
   );
 }
 // The suggestion for a plan: for each room with an area, temperature, humidity and CO₂, if there is a sensor.
-export function recommend(plan, ctx) {
-  const out = [];
+export function recommend(
+  plan: Pick<Plan, 'rooms'>,
+  ctx: SensorContext,
+): Array<{entity: string; room: string}> {
+  const out: Array<{entity: string; room: string}> = [];
   for (const r of plan.rooms) {
     if (r.solid) continue;
     for (const a of [r.area, r.zone?.area].filter(Boolean))
@@ -153,11 +279,14 @@ export function recommend(plan, ctx) {
   return out;
 }
 // What to write: a caption and a number. The sensor is gone from HA: nothing; no number: a dash.
-export function sensorItem(S, ctx) {
+export function sensorItem(
+  S: Pick<PlanSensor, 'entity' | 'label' | 'k' | 'c'>,
+  ctx: Pick<SensorContext, 'sensors' | 'state'>,
+): SensorItem | null {
   const s = ctx.sensors.find(x => x.entity === S.entity);
   if (!s) return null;
-  const m = metricOf(s),
-    v = ctx.state(s.entity);
+  const m = metricOf(s);
+  const v = ctx.state(s.entity);
   return {
     label: (S.label || m.label || s.name).toUpperCase().slice(0, 22),
     text: v == null ? '—' : m.text(v, s.unit),
@@ -173,8 +302,12 @@ export const INKS = ['#f4f2ec', '#2a322d', '#3d7be0', '#1f9e8f', '#8a63d2'];
 // Label size (m): a small caption on top, a large number below; several go in a row. The center is at height y.
 export const LABEL = {y: 1.85, vs: 0.26, ls: 0.075, gap: 0.2, pad: 0.06};
 // k is a sensor's digit size: different sizes in a row align at the bottom edge, the row height follows the largest.
-export const itemH = k => k * (LABEL.vs * 1.12 + LABEL.ls * 1.3);
-export function labelSize(items) {
+export const itemH = (k: number): number => k * (LABEL.vs * 1.12 + LABEL.ls * 1.3);
+export function labelSize(items: Array<Pick<SensorItem, 'text' | 'label' | 'k'>>): {
+  w: number;
+  h: number;
+  ws: number[];
+} {
   const ws = items.map(
     it => Math.max(it.text.length * 0.6 * LABEL.vs, it.label.length * 0.7 * LABEL.ls) * (it.k || 1),
   );
@@ -190,32 +323,32 @@ export function labelSize(items) {
 // faces the camera and the stretch fits the whole label. The spot is static: the label does not jump when the 3D view rotates (2026-11-07).
 // at is the point where the user placed the label: the edge nearest to it, without checking for free space.
 // ctx: {openings:[{a,b,bottom,top}], furniture, lights, taken:[{i, t0, t1}]}.
-export const CAM = [0.53, -0.85];
-export const spotScore = (sp, cam) => {
+export const CAM: Vector = [0.53, -0.85];
+export const spotScore = (sp: Pick<WallSpot, 'n' | 'fit'>, cam: Vector): number => {
   const vis = sp.n[0] * cam[0] + sp.n[1] * cam[1];
   return (vis > -0.1 ? 2 + vis : vis) + sp.fit;
 };
 // band is the label's height band [bottom, top], m.
 export function wallSpot(
-  room,
-  ctx,
-  W,
-  at,
-  band = [LABEL.y - itemH(1) / 2 - LABEL.pad, LABEL.y + itemH(1) / 2 + LABEL.pad],
-) {
-  const P = room.polygon,
-    N = P.length,
-    s = area(P) > 0 ? 1 : -1,
-    y0 = band[0] - 0.05,
-    y1 = band[1] + 0.05;
-  const side = i => {
-    const a = P[i],
-      b = P[(i + 1) % N],
-      L = Math.hypot(b[0] - a[0], b[1] - a[1]),
-      u = [(b[0] - a[0]) / L, (b[1] - a[1]) / L];
+  room: Room,
+  ctx: WallSpotContext,
+  W: number,
+  at?: Point | null,
+  band: [number, number] = [LABEL.y - itemH(1) / 2 - LABEL.pad, LABEL.y + itemH(1) / 2 + LABEL.pad],
+): WallSpot | null {
+  const P = room.polygon;
+  const N = P.length;
+  const s = area(P) > 0 ? 1 : -1;
+  const y0 = band[0] - 0.05;
+  const y1 = band[1] + 0.05;
+  const side = (i: number): WallSide => {
+    const a = P[i];
+    const b = P[(i + 1) % N];
+    const L = Math.hypot(b[0] - a[0], b[1] - a[1]);
+    const u: Vector = [(b[0] - a[0]) / L, (b[1] - a[1]) / L];
     return {i, a, b, L, u, n: [-u[1] * s, u[0] * s]};
   };
-  const spot = (S, t, w) => ({
+  const spot = (S: WallSide, t: number, w: number): Omit<WallSpot, 'fit'> => ({
     i: S.i,
     u: S.u,
     n: S.n,
@@ -225,9 +358,9 @@ export function wallSpot(
     scale: w / W,
     c: [S.a[0] + S.u[0] * t + S.n[0] * WALL.inner, S.a[1] + S.u[1] * t + S.n[1] * WALL.inner],
   });
-  const sides = [];
+  const sides: WallSide[] = [];
   for (let i = 0; i < N; i++) {
-    if (room.wt?.[i] === 0 || room.rail?.[i] > 0) continue;
+    if (room.wt?.[i] === 0 || (room.rail?.[i] ?? 0) > 0) continue;
     const S = side(i);
     if (S.L >= 0.6) sides.push(S);
   }
@@ -241,13 +374,14 @@ export function wallSpot(
         return {S, t, d: Math.hypot(S.a[0] + S.u[0] * t - at[0], S.a[1] + S.u[1] * t - at[1])};
       })
       .sort((x, y) => x.d - y.d);
-    const fitOn = ({S, t: t0}) => {
-      const w = Math.min(W, S.L - 0.1),
-        lo = w / 2 + 0.05,
-        hi = S.L - w / 2 - 0.05,
-        clamp = t => Math.max(lo, Math.min(hi, t)),
-        ks = (ctx.taken || []).filter(k => k.i === S.i);
-      const free = t => ks.every(k => t + w / 2 <= k.t0 - 0.02 || t - w / 2 >= k.t1 + 0.02);
+    const fitOn = ({S, t: t0}: {S: WallSide; t: number}): {S: WallSide; w: number; t: number} | null => {
+      const w = Math.min(W, S.L - 0.1);
+      const lo = w / 2 + 0.05;
+      const hi = S.L - w / 2 - 0.05;
+      const clamp = (t: number): number => Math.max(lo, Math.min(hi, t));
+      const ks = (ctx.taken || []).filter(k => k.i === S.i);
+      const free = (t: number): boolean =>
+        ks.every(k => t + w / 2 <= k.t0 - 0.02 || t - w / 2 >= k.t1 + 0.02);
       if (free(clamp(t0))) return {S, w, t: clamp(t0)};
       const cs = ks
         .flatMap(k => [k.t0 - 0.05 - w / 2, k.t1 + 0.05 + w / 2])
@@ -259,42 +393,43 @@ export function wallSpot(
     const ok =
       near.slice(0, 4).map(fitOn).find(Boolean) ||
       (() => {
-        const {S, t} = near[0],
-          w = Math.min(W, S.L - 0.1);
+        const {S, t} = near[0];
+        const w = Math.min(W, S.L - 0.1);
         return {S, w, t: Math.max(w / 2 + 0.05, Math.min(S.L - w / 2 - 0.05, t))};
       })();
     return {...spot(ok.S, ok.t, ok.w), fit: 0, own: true};
   }
-  const alts = [];
+  const alts: WallSpot[] = [];
   for (const S of sides) {
-    let best = null;
+    let best: {fit: number; S: WallSide; t: number; w: number} | null = null;
     // a stretch along the edge [t0, t1] that is occupied within the label band
-    const blocks = [],
-      near = (q, lim, back = 0.3) => {
-        const d = (q[0] - S.a[0]) * S.n[0] + (q[1] - S.a[1]) * S.n[1];
-        return d > -back && d < lim;
-      },
-      tOf = q => (q[0] - S.a[0]) * S.u[0] + (q[1] - S.a[1]) * S.u[1];
+    const blocks: Array<[number, number]> = [];
+    const near = (q: Point, lim: number, back = 0.3): boolean => {
+      const d = (q[0] - S.a[0]) * S.n[0] + (q[1] - S.a[1]) * S.n[1];
+      return d > -back && d < lim;
+    };
+    const tOf = (q: Point): number => (q[0] - S.a[0]) * S.u[0] + (q[1] - S.a[1]) * S.u[1];
+    // (Number(…) compares a height as the operator does: an opening or a lamp without one, undefined, overlaps nothing)
     for (const o of ctx.openings || [])
-      if (near(o.a, 0.3) && near(o.b, 0.3) && o.top > y0 && o.bottom < y1) {
+      if (near(o.a, 0.3) && near(o.b, 0.3) && Number(o.top) > y0 && Number(o.bottom) < y1) {
         const t = [tOf(o.a), tOf(o.b)].sort((x, y) => x - y);
         blocks.push([t[0] - 0.15, t[1] + 0.15]);
       }
     for (const f of ctx.furniture || []) {
       const z = zOf(f);
       if (z + f.h <= y0 || z >= y1) continue;
-      const r = (f.rot * Math.PI) / 180,
-        c = Math.cos(r),
-        sn = Math.sin(r),
-        cs = [
-          [-1, -1],
-          [1, -1],
-          [1, 1],
-          [-1, 1],
-        ].map(([x, y]) => [
-          f.x + ((x * f.w) / 2) * c - ((y * f.d) / 2) * sn,
-          f.y + ((x * f.w) / 2) * sn + ((y * f.d) / 2) * c,
-        ]);
+      const r = (f.rot * Math.PI) / 180;
+      const c = Math.cos(r);
+      const sn = Math.sin(r);
+      const cs = [
+        [-1, -1],
+        [1, -1],
+        [1, 1],
+        [-1, 1],
+      ].map(([x, y]): Point => [
+        f.x + ((x * f.w) / 2) * c - ((y * f.d) / 2) * sn,
+        f.y + ((x * f.w) / 2) * sn + ((y * f.d) / 2) * c,
+      ]);
       // furniture only on this side of the wall: the neighbor's wardrobe behind a 10 cm partition does not take this wall
       // (an opening sits in the middle of the wall, so for openings 30 cm behind the face still count)
       if (!cs.some(q => near(q, 0.35, 0.05))) continue;
@@ -302,35 +437,37 @@ export function wallSpot(
       blocks.push([Math.min(...t) - 0.1, Math.max(...t) + 0.1]);
     }
     for (const L of ctx.lights || [])
-      if (formFor(L) === 'wall' && L.h > y0 - 0.2 && L.h < y1 + 0.2)
+      if (formFor(L) === 'wall' && Number(L.h) > y0 - 0.2 && Number(L.h) < y1 + 0.2)
         for (const p of L.points || [])
           if (near(p, 0.35)) {
             const t = tOf(p);
             blocks.push([t - 0.3, t + 0.3]);
           }
     for (const k of ctx.taken || []) if (k.i === S.i) blocks.push([k.t0 - 0.1, k.t1 + 0.1]);
-    let free = [[0.2, S.L - 0.2]];
+    let free: Array<[number, number]> = [[0.2, S.L - 0.2]];
     for (const [b0, b1] of blocks)
-      free = free.flatMap(([f0, f1]) =>
+      free = free.flatMap(([f0, f1]): Array<[number, number]> =>
         b1 <= f0 || b0 >= f1
           ? [[f0, f1]]
-          : [
-              [f0, b0],
-              [b1, f1],
-            ].filter(([x, y]) => y - x > 0.05),
+          : (
+              [
+                [f0, b0],
+                [b1, f1],
+              ] satisfies Array<[number, number]>
+            ).filter(([x, y]) => y - x > 0.05),
       );
     for (const [f0, f1] of free) {
       const len = f1 - f0;
       if (len < 0.6) continue;
-      const w = Math.min(W, len),
-        fit = (2 * w) / W + Math.min(len, 6) / 12;
+      const w = Math.min(W, len);
+      const fit = (2 * w) / W + Math.min(len, 6) / 12;
       if (!best || fit > best.fit) best = {fit, S, t: (f0 + f1) / 2, w};
     }
     if (best) alts.push({...spot(best.S, best.t, best.w), fit: best.fit});
   }
   if (!alts.length) return null;
-  const cam = ctx.cam || CAM,
-    best = alts.reduce((a, b) => (spotScore(b, cam) > spotScore(a, cam) ? b : a));
+  const cam = ctx.cam || CAM;
+  const best = alts.reduce((a, b) => (spotScore(b, cam) > spotScore(a, cam) ? b : a));
   return best;
 }
 
@@ -341,22 +478,22 @@ export function wallSpot(
 // Columns hang from a common top: the top items are centered at height LABEL.y (no higher than 2.45 m), lower ones below them.
 // Output: [{id, room, items, size, y: the vertical center, group, k: the column index in the row, col: the top sensor, ...spot}].
 // env: {openings, baseOf(room, i): the wall color, cam: the home view, moving: the id of the sensor being moved}.
-export const VGAP = 0.06,
-  TOP_MAX = 2.45;
-export function stackOf(list) {
+export const VGAP = 0.06;
+export const TOP_MAX = 2.45;
+export function stackOf<Entry extends {S: Pick<PlanSensor, 'id' | 'under'>}>(list: Entry[]): Entry[][] {
   // columns: [[top, below it, …], …]; loops and missing “under” targets are broken
-  const ids = new Set(list.map(x => x.S.id)),
-    kids = new Map(),
-    cols = [],
-    seen = new Set();
+  const ids = new Set(list.map(x => x.S.id));
+  const kids = new Map<string, Entry[]>();
+  const cols: Entry[][] = [];
+  const seen = new Set<Entry>();
   for (const x of list) {
     const u = x.S.under;
     if (u && ids.has(u) && u !== x.S.id) {
       if (!kids.has(u)) kids.set(u, []);
-      kids.get(u).push(x);
+      kids.get(u)!.push(x); // set just above
     }
   }
-  const walk = (x, col) => {
+  const walk = (x: Entry, col: Entry[]): void => {
     if (seen.has(x)) return;
     seen.add(x);
     col.push(x);
@@ -364,51 +501,58 @@ export function stackOf(list) {
   };
   for (const x of list)
     if (!x.S.under || !ids.has(x.S.under) || x.S.under === x.S.id) {
-      const col = [];
+      const col: Entry[] = [];
       walk(x, col);
       cols.push(col);
     }
   for (const x of list)
     if (!seen.has(x)) {
-      const col = [];
+      const col: Entry[] = [];
       walk(x, col);
       cols.push(col);
     } // a loop: A under B, B under A
   return cols;
 }
-export function layoutSensors(plan, ctx, env = {}) {
-  const out = [],
-    byRoom = new Map(),
-    P = LABEL.pad;
+export function layoutSensors(
+  plan: Pick<Plan, 'rooms' | 'furniture' | 'lights'> & Partial<Pick<Plan, 'sensors'>>,
+  ctx: Pick<SensorContext, 'sensors' | 'state'>,
+  env: SensorEnv = {},
+): PlacedSensor[] {
+  const out: PlacedSensor[] = [];
+  const byRoom = new Map<Room, SensorEntry[]>();
+  const P = LABEL.pad;
   for (const S of plan.sensors || []) {
     const r = plan.rooms.find(x => x.id === S.room);
     if (!r || r.solid) continue;
     const it = sensorItem(S, ctx);
     if (!it) continue;
     if (!byRoom.has(r)) byRoom.set(r, []);
-    byRoom.get(r).push({S, it});
+    byRoom.get(r)!.push({S, it}); // set just above
   }
   for (const [r, list] of byRoom) {
-    const wctx = {
+    const wctx: WallSpotContext & {taken: TakenStretch[]} = {
       openings: env.openings,
       furniture: plan.furniture,
       lights: plan.lights.filter(l => l.placed && l.room === r.id),
       taken: [],
       cam: env.cam,
     };
-    const tag = sp => ({...sp, base: env.baseOf?.(r, sp.i)});
-    const cols = stackOf(list).map(col => {
-      const ws = col.map(x => labelSize([x.it]).ws[0]),
-        hs = col.map(x => itemH(x.it.k || 1));
+    const tag = <Spot extends WallSpot>(sp: Spot): Spot & {base: string | undefined} => ({
+      ...sp,
+      base: env.baseOf?.(r, sp.i),
+    });
+    const cols = stackOf(list).map((col): Column => {
+      const ws = col.map(x => labelSize([x.it]).ws[0]);
+      const hs = col.map(x => itemH(x.it.k || 1));
       return {col, ws, hs, w: Math.max(...ws), h: hs.reduce((a, b) => a + b, 0) + VGAP * (col.length - 1)};
     });
     // a row of columns: width, height, top; each sensor gets an offset along the row (from its center) and a vertical center
     // the top items of the columns are centered at height LABEL.y (when something is placed under one, it does not jump), lower ones go below
-    const row = cs => {
-      const W = cs.reduce((a, c) => a + c.w, 0) + LABEL.gap * (cs.length - 1) + 2 * P,
-        H = Math.max(...cs.map(c => c.h)),
-        top = Math.min(TOP_MAX, LABEL.y + Math.max(...cs.map(c => c.hs[0])) / 2),
-        items = [];
+    const row = (cs: Column[]): Row => {
+      const W = cs.reduce((a, c) => a + c.w, 0) + LABEL.gap * (cs.length - 1) + 2 * P;
+      const H = Math.max(...cs.map(c => c.h));
+      const top = Math.min(TOP_MAX, LABEL.y + Math.max(...cs.map(c => c.hs[0])) / 2);
+      const items: RowItem[] = [];
       let x = -W / 2 + P;
       cs.forEach((c, k) => {
         const cx = x + c.w / 2;
@@ -422,20 +566,20 @@ export function layoutSensors(plan, ctx, env = {}) {
       return {W, band: [top - H - P, top + P], items};
     };
     // the row reads left to right for whoever looks at the wall: right is the normal rotated by 90°, not the room traversal direction
-    const emit = (R, sp, group, own) => {
+    const emit = (R: Row, sp: WallSpot, group: string, own: boolean): void => {
       for (const it of R.items) {
-        const size = {w: it.w + 2 * P, h: it.h + 2 * P, ws: [it.w]},
-          shift = a => {
-            const rt = [-a.n[1], a.n[0]],
-              d = it.off * a.scale;
-            return tag({
-              ...a,
-              c: [a.c[0] + rt[0] * d, a.c[1] + rt[1] * d],
-              w: size.w * a.scale,
-              t: a.t + d * (rt[0] * a.u[0] + rt[1] * a.u[1]),
-              y: R.band[1] - P - (R.band[1] - P - it.y) * a.scale,
-            });
-          };
+        const size = {w: it.w + 2 * P, h: it.h + 2 * P, ws: [it.w]};
+        const shift = (a: WallSpot): WallSpot & {y: number; base: string | undefined} => {
+          const rt: Vector = [-a.n[1], a.n[0]];
+          const d = it.off * a.scale;
+          return tag({
+            ...a,
+            c: [a.c[0] + rt[0] * d, a.c[1] + rt[1] * d],
+            w: size.w * a.scale,
+            t: a.t + d * (rt[0] * a.u[0] + rt[1] * a.u[1]),
+            y: R.band[1] - P - (R.band[1] - P - it.y) * a.scale,
+          });
+        };
         out.push({
           id: it.e.S.id,
           room: r.id,
@@ -458,9 +602,9 @@ export function layoutSensors(plan, ctx, env = {}) {
           Number(a.col.some(x => x.S.id === env.moving)) - Number(b.col.some(x => x.S.id === env.moving)),
       );
     for (const c of fixed) {
-      const R = row([c]),
-        k = c.col[0].S.sc || 1,
-        sp = wallSpot(r, wctx, R.W * k, c.col[0].S.at, R.band);
+      const R = row([c]);
+      const k = c.col[0].S.sc || 1;
+      const sp = wallSpot(r, wctx, R.W * k, c.col[0].S.at, R.band);
       if (!sp) continue;
       sp.scale *= k;
       wctx.taken.push({i: sp.i, t0: sp.t - sp.w / 2, t1: sp.t + sp.w / 2});
@@ -468,8 +612,8 @@ export function layoutSensors(plan, ctx, env = {}) {
     }
     const auto = cols.filter(c => !c.col[0].S.at);
     if (!auto.length) continue;
-    const R = row(auto),
-      sp = wallSpot(r, wctx, R.W, undefined, R.band);
+    const R = row(auto);
+    const sp = wallSpot(r, wctx, R.W, undefined, R.band);
     if (sp) emit(R, sp, r.id, false);
   }
   return out;

@@ -1,6 +1,29 @@
-// @ts-nocheck
 // Room glow: a copy of 3d_floor/apartment/smart-home/web/src/room-glow.js (D-049). Do not edit.
 import * as THREE from 'three';
+import type {Outline, Point} from './types.ts';
+
+/** A room as its glow needs it: its id, its outline and its centre on the plan. */
+export interface GlowRoom {
+  id: string;
+  polygon: Outline;
+  center: Point;
+}
+/** How a glow looks: the floor's height, how high the light rises, its colour, the curtains' and the floor's strength, the falloff. */
+export interface GlowOptions {
+  floorY?: number;
+  height?: number;
+  color?: THREE.ColorRepresentation;
+  curtain?: number;
+  floor?: number;
+  power?: number;
+}
+/** A room's glow (createRoomGlow): the group to add to the scene, its two materials, and how strong it is now. */
+export interface RoomGlow {
+  group: THREE.Group;
+  curtainMaterial: THREE.ShaderMaterial;
+  floorMaterial: THREE.ShaderMaterial;
+  set(amount: number, boost?: number): void;
+}
 
 // Room glow on hover from the panel: fake volumetric light, like the
 // highlight of a selected area in strategy games and the “light pillars” in other games:
@@ -25,26 +48,26 @@ export const GLOW_HEIGHT = 2.3;
  * normal, new vertices are intersections of neighboring edges. Rooms here are
  * simple polygons of right angles and shallow bends, so this is enough.
  */
-export function insetPolygon(points, d) {
+export function insetPolygon(points: Outline, d: number): Outline {
   const n = points.length;
-  if (n < 3 || !d) return points.map(p => [...p]);
+  if (n < 3 || !d) return points.map((p): Point => [...p]);
   let area = 0;
   for (let i = 0; i < n; i++) {
-    const [x1, y1] = points[i],
-      [x2, y2] = points[(i + 1) % n];
+    const [x1, y1] = points[i];
+    const [x2, y2] = points[(i + 1) % n];
     area += x1 * y2 - x2 * y1;
   }
   const sign = area > 0 ? 1 : -1; // counterclockwise: the inner normal is to the left of the edge
   const lines = points.map((p, i) => {
-    const q = points[(i + 1) % n],
-      dx = q[0] - p[0],
-      dy = q[1] - p[1],
-      len = Math.hypot(dx, dy) || 1;
-    const nx = (-dy / len) * sign,
-      ny = (dx / len) * sign;
+    const q = points[(i + 1) % n];
+    const dx = q[0] - p[0];
+    const dy = q[1] - p[1];
+    const len = Math.hypot(dx, dy) || 1;
+    const nx = (-dy / len) * sign;
+    const ny = (dx / len) * sign;
     return {x: p[0] + nx * d, y: p[1] + ny * d, dx, dy};
   });
-  return lines.map((b, i) => {
+  return lines.map((b, i): Point => {
     const a = lines[(i - 1 + n) % n];
     const det = a.dx * b.dy - a.dy * b.dx;
     // Neighboring edges on one line: the vertex just moves along the normal.
@@ -75,20 +98,27 @@ const floorShader = {
 
 /** Glow of one room: curtains along the perimeter and a spot on the floor. */
 export function createRoomGlow(
-  room,
-  {floorY = 0.03, height = GLOW_HEIGHT, color = GLOW_COLOR, curtain = 0.72, floor = 0.36, power = 1.25} = {},
-) {
+  room: GlowRoom,
+  {
+    floorY = 0.03,
+    height = GLOW_HEIGHT,
+    color = GLOW_COLOR,
+    curtain = 0.72,
+    floor = 0.36,
+    power = 1.25,
+  }: GlowOptions = {},
+): RoomGlow {
   const tint = new THREE.Color(color);
   const ring = insetPolygon(room.polygon, GLOW_INSET);
   // Plan (x, y) → world (x, z = −y), same as the light spot and the room outline.
-  const positions = [];
+  const positions: number[] = [];
   for (let i = 0; i < ring.length; i++) {
-    const [x1, y1] = ring[i],
-      [x2, y2] = ring[(i + 1) % ring.length];
-    const a = [x1, floorY, -y1],
-      b = [x2, floorY, -y2],
-      c = [x2, floorY + height, -y2],
-      d = [x1, floorY + height, -y1];
+    const [x1, y1] = ring[i];
+    const [x2, y2] = ring[(i + 1) % ring.length];
+    const a = [x1, floorY, -y1];
+    const b = [x2, floorY, -y2];
+    const c = [x2, floorY + height, -y2];
+    const d = [x1, floorY + height, -y1];
     positions.push(...a, ...b, ...c, ...a, ...c, ...d);
   }
   const geometry = new THREE.BufferGeometry();

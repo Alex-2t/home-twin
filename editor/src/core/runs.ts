@@ -1,4 +1,3 @@
-// @ts-nocheck
 // Items along walls (run:true in the catalog): a built-in wardrobe, kitchen base and wall cabinets. They follow the inner face of the room's walls from point a to point b
 // counterclockwise and can stretch as far as needed: at a corner they turn onto the adjacent wall (L, U, all around the perimeter).
 // The front is flat along each wall (the owner): recesses are filled, a column and a riser boxing are cut out of the carcass.
@@ -8,15 +7,126 @@ import pc from 'polygon-clipping';
 import {area, offsetVar, poly, openingCoords, WALL} from './geometry.ts';
 import {roomAt} from './plan.ts';
 import {byId, zOf} from './catalog.ts';
+import type {
+  ClipPolygon,
+  FurnitureItem,
+  MultiPolygon,
+  OpeningKind,
+  Outline,
+  Plan,
+  Point,
+  Room,
+  Segment,
+  Vector,
+} from './types.ts';
 
-export const isRun = f => !!byId(f?.model)?.run;
+/** An edge of the face as a tape (ring): its ends, length, start s (metres from the first corner) and direction. */
+export interface RingEdge {
+  a: Point;
+  b: Point;
+  l: number;
+  s: number;
+  u: Vector;
+}
+/** A room's face as a tape: its edges and its whole length P. */
+export interface Ring {
+  E: RingEdge[];
+  P: number;
+}
+/** The point of the tape nearest to a point: how far it is (d), where along the tape (s), and the point itself (q). */
+export interface RingPoint {
+  d: number;
+  s: number;
+  q: Point;
+}
+/** A piece of an edge (stretch): its ends, direction and length, the whole edge's length, its start along the tape. */
+interface EdgePiece {
+  a: Point;
+  b: Point;
+  u: Vector;
+  l: number;
+  full: number;
+  s: number;
+}
+/** One wall of a run (group): its direction and the pieces along it. */
+interface WallGroup {
+  u: Vector;
+  ps: EdgePiece[];
+}
+/** A wall of a run in its own axes (sideOf): u along it, n into the room, the main face ref, the deepest recess out, t0…t1 along u. */
+export interface RunWall {
+  u: Vector;
+  n: Vector;
+  ref: number;
+  out: number;
+  t0: number;
+  t1: number;
+}
+/** A wall's front at a depth (frontsOf): from fs to fe along u, the front's ends (null: too short), how far its strip reaches. */
+interface RunFront {
+  fs: number;
+  fe: number;
+  front: Segment | null;
+  range: [number, number];
+}
+/** A wall's carcass at a depth (bodies): its shape, its front and how far it reaches along u. */
+interface RunBody {
+  body: MultiPolygon;
+  front: Segment | null;
+  range: [number, number];
+}
+/** A run along one wall (runShape sides). */
+export interface RunSide {
+  u: Vector;
+  n: Vector;
+  ref: number;
+  /** Where it faces, radians (for 3D). */
+  ry: number;
+  body: MultiPolygon;
+  front: Segment | null;
+  /** The plinth, recessed by 5 cm. */
+  plinth: MultiPolygon;
+  /** The carcass and front at each depth layer (LAYERS: 2, 5, 9 cm less than the depth). */
+  layer: Record<number, {body: MultiPolygon; front: Segment | null}>;
+  /** The rectangle for the overlap check, 1 cm in; box: the exact one, for snapping neighbours. */
+  quad: Outline;
+  box: Outline;
+}
+/** Where a run's handles are: its two ends, and the depth handle on the longest front. */
+export interface RunHandles {
+  a: Point;
+  b: Point;
+  d: {p: Point; u: Vector; n: Vector; ref: number};
+}
+/** A run's shape on the face (runShape). */
+export interface RunShape {
+  sides: RunSide[];
+  outline: MultiPolygon;
+  /** Its length along the walls, metres. */
+  len: number;
+  handles: RunHandles | null;
+  R: Ring;
+  S: RunWall[];
+}
+/** A run item's shape as it stands (runGeo): its key in the cache, its room, its start and length along the face. */
+export type RunGeo = RunShape & {key: string; room: Room; sa: number; L: number};
+/** An opening on the face (runStops): from s0 to s1 along it, its kind, bottom and top. */
+type OpeningGap = [number, number, OpeningKind, number, number];
+/** Furniture along the wall at the run's height (runAt): from s0 to s1. */
+type FurnitureGap = [number, number, 'furn'];
+/** A free stretch of the wall (runAt span), or the opening the point is on. */
+type FreeStretch = {sa: number; L: number; gap?: undefined};
+type Stretch = FreeStretch | {gap: [number, number]; sa?: undefined; L?: undefined};
+
+export const isRun = (f: Pick<FurnitureItem, 'model'> | null | undefined): boolean => !!byId(f?.model)?.run;
 export const RUN_MIN = 0.4; // any shorter is no longer a cabinet
-const dot = (a, b) => a[0] * b[0] + a[1] * b[1];
-const mod = (s, P) => ((s % P) + P) % P;
-const r4 = v => +v.toFixed(4);
+const dot = (a: Vector, b: Vector): number => a[0] * b[0] + a[1] * b[1];
+const mod = (s: number, P: number): number => ((s % P) + P) % P;
+const r4 = (v: number): number => +v.toFixed(4);
+// (ringAt(…).map(r4) as Point below: map keeps both coordinates.)
 
 // The inner face of the room's walls (the outline minus half a partition), counterclockwise: inward is to the left of the direction of travel.
-export function faceOf(room) {
+export function faceOf(room: Pick<Room, 'polygon'>): Outline {
   const P = offsetVar(
     room.polygon,
     room.polygon.map(() => -WALL.inner),
@@ -24,19 +134,19 @@ export function faceOf(room) {
   return area(P) < 0 ? [...P].reverse() : P;
 }
 // The outline as a tape: edges with a start s (m from the first vertex) and the total length P.
-export function ring(face) {
-  const E = [];
+export function ring(face: Outline): Ring {
+  const E: RingEdge[] = [];
   let s = 0;
   face.forEach((a, i) => {
-    const b = face[(i + 1) % face.length],
-      l = Math.hypot(b[0] - a[0], b[1] - a[1]);
+    const b = face[(i + 1) % face.length];
+    const l = Math.hypot(b[0] - a[0], b[1] - a[1]);
     if (l < 1e-6) return;
     E.push({a, b, l, s, u: [(b[0] - a[0]) / l, (b[1] - a[1]) / l]});
     s += l;
   });
   return {E, P: s};
 }
-export function ringAt(R, s) {
+export function ringAt(R: Ring, s: number): Point {
   s = mod(s, R.P);
   for (const e of R.E)
     if (s <= e.s + e.l + 1e-9) {
@@ -45,28 +155,29 @@ export function ringAt(R, s) {
     }
   return [...R.E[0].a];
 }
-export function ringProject(R, p) {
-  let best = null;
+// null only for a tape without edges (a room with no length)
+export function ringProject(R: Ring, p: Point): RingPoint | null {
+  let best: RingPoint | null = null;
   for (const e of R.E) {
-    const t = Math.max(0, Math.min(e.l, dot([p[0] - e.a[0], p[1] - e.a[1]], e.u))),
-      q = [e.a[0] + e.u[0] * t, e.a[1] + e.u[1] * t],
-      d = Math.hypot(p[0] - q[0], p[1] - q[1]);
+    const t = Math.max(0, Math.min(e.l, dot([p[0] - e.a[0], p[1] - e.a[1]], e.u)));
+    const q: Point = [e.a[0] + e.u[0] * t, e.a[1] + e.u[1] * t];
+    const d = Math.hypot(p[0] - q[0], p[1] - q[1]);
     if (!best || d < best.d) best = {d, s: e.s + t, q};
   }
   return best;
 }
 // The piece of the outline from sa forward by L: pieces of edges; full is the length of the whole edge (a short edge is a protrusion, not a wall).
-function stretch(R, sa, L) {
-  const out = [],
-    n = R.E.length;
-  let left = L,
-    s = mod(sa, R.P),
-    i = R.E.findIndex(e => s < e.s + e.l - 1e-9);
+function stretch(R: Ring, sa: number, L: number): EdgePiece[] {
+  const out: EdgePiece[] = [];
+  const n = R.E.length;
+  let left = L;
+  let s = mod(sa, R.P);
+  let i = R.E.findIndex(e => s < e.s + e.l - 1e-9);
   if (i < 0) i = 0;
   let t0 = Math.max(0, s - R.E[i].s);
   for (let k = 0; left > 1e-6 && k <= 2 * n; k++) {
-    const e = R.E[i],
-      len = Math.min(e.l - t0, left);
+    const e = R.E[i];
+    const len = Math.min(e.l - t0, left);
     if (len > 1e-6)
       out.push({
         a: [e.a[0] + e.u[0] * t0, e.a[1] + e.u[1] * t0],
@@ -84,10 +195,10 @@ function stretch(R, sa, L) {
 }
 // The wardrobe's walls: long edges in one direction form one wall; the short ones between them (column, recess, riser) are its relief.
 // Short means less than the wardrobe depth with a margin: the wardrobe fills such a recess and goes around such a protrusion with a cutout.
-function group(ps, d) {
-  const T = Math.max(0.45, d + 0.15),
-    S = [];
-  let pre = [];
+function group(ps: EdgePiece[], d: number): WallGroup[] {
+  const T = Math.max(0.45, d + 0.15);
+  const S: WallGroup[] = [];
+  let pre: EdgePiece[] = [];
   for (const p of ps) {
     const cur = S[S.length - 1];
     if (p.full >= T) {
@@ -106,22 +217,22 @@ function group(ps, d) {
 }
 // A wardrobe wall in its own axes: u runs along it, n points into the room; ref is the main face (longest in total), out is the
 // deepest recess, t0…t1 runs from start to end along u.
-function sideOf(sd) {
-  const u = sd.u,
-    n = [-u[1], u[0]],
-    pts = sd.ps.flatMap(p => [p.a, p.b]),
-    g = new Map();
+function sideOf(sd: WallGroup): RunWall {
+  const u = sd.u;
+  const n: Vector = [-u[1], u[0]];
+  const pts = sd.ps.flatMap(p => [p.a, p.b]);
+  const g = new Map<number, {l: number; m: number}>();
   for (const p of sd.ps)
     if (dot(p.u, u) > 0.995) {
-      const m = dot(p.a, n),
-        k = Math.round(m * 100),
-        x = g.get(k) || {l: 0, m: 0};
+      const m = dot(p.a, n);
+      const k = Math.round(m * 100);
+      const x = g.get(k) || {l: 0, m: 0};
       x.l += p.l;
       x.m += m * p.l;
       g.set(k, x);
     }
-  let ref = dot(pts[0], n),
-    best = -1;
+  let ref = dot(pts[0], n);
+  let best = -1;
   for (const x of g.values())
     if (x.l > best) {
       best = x.l;
@@ -136,24 +247,24 @@ function sideOf(sd) {
     t1: dot(pts[pts.length - 1], u),
   };
 }
-const P2 = (u, n, t, m) => [u[0] * t + n[0] * m, u[1] * t + n[1] * m];
+const P2 = (u: Vector, n: Vector, t: number, m: number): Point => [u[0] * t + n[0] * m, u[1] * t + n[1] * m];
 // the intersection of the fronts of two adjacent walls (an inner corner of the wardrobe, or an outer one at a protruding room corner)
-function meet(A, B, d) {
+function meet(A: RunWall, B: RunWall, d: number): Point | null {
   const det = A.n[0] * B.n[1] - A.n[1] * B.n[0];
   if (Math.abs(det) < 1e-6) return null;
-  const ca = A.ref + d,
-    cb = B.ref + d;
+  const ca = A.ref + d;
+  const cb = B.ref + d;
   return [(ca * B.n[1] - cb * A.n[1]) / det, (A.n[0] * cb - B.n[0] * ca) / det];
 }
 // Fronts along the walls at depth d: on adjacent walls, up to the point where the fronts meet; range is how far the strip extends along u.
-function frontsOf(S, d) {
-  const J = S.slice(0, -1).map((A, i) => meet(A, S[i + 1], d)),
-    last = S.length - 1;
-  return S.map((s, i) => {
-    const jp = i ? J[i - 1] : null,
-      jn = i < last ? J[i] : null,
-      fs = jp ? dot(jp, s.u) : s.t0,
-      fe = jn ? dot(jn, s.u) : s.t1;
+function frontsOf(S: RunWall[], d: number): RunFront[] {
+  const J = S.slice(0, -1).map((A, i) => meet(A, S[i + 1], d));
+  const last = S.length - 1;
+  return S.map((s, i): RunFront => {
+    const jp = i ? J[i - 1] : null;
+    const jn = i < last ? J[i] : null;
+    const fs = jp ? dot(jp, s.u) : s.t0;
+    const fe = jn ? dot(jn, s.u) : s.t1;
     return {
       fs,
       fe,
@@ -164,18 +275,18 @@ function frontsOf(S, d) {
 }
 // The carcass along the walls at depth d: for each wall a strip from the recess to the front, clipped by the room face; strips do not overlap
 // each other (the corner goes to the first one).
-function bodies(F, S, d) {
-  let acc = null;
-  return frontsOf(S, d).map((fr, i) => {
-    const s = S[i],
-      [a, b] = fr.range;
+function bodies(F: ClipPolygon, S: RunWall[], d: number): RunBody[] {
+  let acc: MultiPolygon | null = null;
+  return frontsOf(S, d).map((fr, i): RunBody => {
+    const s = S[i];
+    const [a, b] = fr.range;
     const band = poly([
       P2(s.u, s.n, a, s.out - 0.02),
       P2(s.u, s.n, b, s.out - 0.02),
       P2(s.u, s.n, b, s.ref + d),
       P2(s.u, s.n, a, s.ref + d),
     ]);
-    let body = [];
+    let body: MultiPolygon = [];
     try {
       body = pc.intersection(F, band);
       if (acc && body.length) body = pc.difference(body, acc);
@@ -191,19 +302,19 @@ const LAYERS = [0.02, 0.05, 0.09];
 
 // A wardrobe on face: from sa forward by L, depth d. sides, per wall: body (the carcass multipolygon), plinth (the plinth
 // recessed by 5 cm), front [a,b] is the front, u/n, ry is where it faces (for 3D), quad is the rectangle for the overlap check.
-export function runShape(face, sa, L, d) {
+export function runShape(face: Outline, sa: number, L: number, d: number): RunShape | null {
   const R = ring(face);
   if (R.P < 0.5) return null;
   L = Math.max(0.05, Math.min(L, R.P - 0.05));
   const ps = stretch(R, sa, L);
   if (!ps.length) return null;
-  const S = group(ps, d).map(sideOf),
-    F = poly(face),
-    B = bodies(F, S, d),
-    Ls = Object.fromEntries(LAYERS.map(k => [k, bodies(F, S, Math.max(0.05, d - k))]));
-  const sides = S.map((s, i) => {
-    const [a, b] = B[i].range,
-      k = 0.01;
+  const S = group(ps, d).map(sideOf);
+  const F = poly(face);
+  const B = bodies(F, S, d);
+  const Ls = Object.fromEntries(LAYERS.map(k => [k, bodies(F, S, Math.max(0.05, d - k))]));
+  const sides = S.map((s, i): RunSide => {
+    const [a, b] = B[i].range;
+    const k = 0.01;
     return {
       u: s.u,
       n: s.n,
@@ -227,20 +338,21 @@ export function runShape(face, sa, L, d) {
       ],
     };
   }); // quad is shrunk by 1 cm for the overlap check; box is exact, for snapping neighbors
-  let outline = [];
+  let outline: MultiPolygon = [];
   try {
     const all = sides.filter(s => s.body.length).map(s => s.body);
-    outline = all.length ? pc.union(...all) : [];
+    outline = all.length ? pc.union(all[0], ...all.slice(1)) : [];
   } catch {
     outline = sides.flatMap(s => s.body);
   }
-  const len = S.reduce((t, s) => t + Math.max(0, s.t1 - s.t0), 0),
-    fr = sides.filter(s => s.front);
+  const len = S.reduce((t, s) => t + Math.max(0, s.t1 - s.t0), 0);
+  const fr = sides.filter((s): s is RunSide & {front: Segment} => !!s.front);
   // handles: the ends are at the middle of the end panels, the depth is at the middle of the longest front
-  const end = (s, q) => [q[0] - (s.n[0] * d) / 2, q[1] - (s.n[1] * d) / 2],
-    flen = s => Math.hypot(s.front[1][0] - s.front[0][0], s.front[1][1] - s.front[0][1]);
+  const end = (s: RunSide, q: Point): Point => [q[0] - (s.n[0] * d) / 2, q[1] - (s.n[1] * d) / 2];
+  const flen = (s: {front: Segment}): number =>
+    Math.hypot(s.front[1][0] - s.front[0][0], s.front[1][1] - s.front[0][1]);
   const ds = fr.length ? fr.reduce((a, b) => (flen(b) > flen(a) ? b : a)) : null;
-  const handles = fr.length
+  const handles: RunHandles | null = ds
     ? {
         a: end(fr[0], fr[0].front[0]),
         b: end(fr[fr.length - 1], fr[fr.length - 1].front[1]),
@@ -255,85 +367,94 @@ export function runShape(face, sa, L, d) {
   return {sides, outline, len, handles, R, S};
 }
 // Lines along the fronts at depth dd from the wall (light strips under the fronts and under wall cabinets), the ends are set back by e.
-export function runLines(g, dd, e = 0.02) {
-  const fr = frontsOf(g.S, dd),
-    last = fr.length - 1;
+// (Each line is its front's two ends moved along the wall: as Segment.)
+export function runLines(g: Pick<RunShape, 'S'>, dd: number, e = 0.02): Segment[] {
+  const fr = frontsOf(g.S, dd);
+  const last = fr.length - 1;
   return fr
     .map(
       (x, i) =>
         x.front &&
-        [
-          [x.front[0], i ? 0 : e],
-          [x.front[1], i < last ? 0 : e],
-        ].map(([q, k], j) => {
-          const s = g.S[i],
-            t = j ? -k : k;
+        ((
+          [
+            [x.front[0], i ? 0 : e],
+            [x.front[1], i < last ? 0 : e],
+          ] satisfies Array<[Point, number]>
+        ).map(([q, k], j): Point => {
+          const s = g.S[i];
+          const t = j ? -k : k;
           return [q[0] + s.u[0] * t, q[1] + s.u[1] * t];
-        }),
+        }) as Segment),
     )
-    .filter(Boolean);
+    .filter((line): line is Segment => Boolean(line));
 }
 
 // The wardrobe's room: its own, or if that is gone (split, merged), the one whose face is closest to the wardrobe's start.
-export function runRoom(plan, f) {
+export function runRoom(plan: Pick<Plan, 'rooms'>, f: Pick<FurnitureItem, 'room'> & {a: Point}): Room | null {
   const own = plan.rooms.find(r => r.id === f.room);
   if (own) return own;
-  let best = null;
+  let best: {d: number; r: Room} | null = null;
   for (const r of plan.rooms) {
     const pr = ringProject(ring(faceOf(r)), f.a);
     if (pr && (!best || pr.d < best.d)) best = {d: pr.d, r};
   }
   return best?.r || null;
 }
-const cache = new WeakMap();
-export function runGeo(plan, f) {
+// A run item with both its ends on the face (a and b).
+const hasEnds = (f: FurnitureItem | null | undefined): f is FurnitureItem & {a: Point; b: Point} =>
+  !!f?.a && !!f?.b;
+const cache = new WeakMap<FurnitureItem, {key: string; geo: RunGeo | null}>();
+export function runGeo(plan: Pick<Plan, 'rooms'>, f: FurnitureItem | null | undefined): RunGeo | null {
   if (f && (!f.a || !f.b)) fromRect(plan, f);
-  const r = f?.a && f?.b && runRoom(plan, f);
+  if (!hasEnds(f)) return null;
+  const r = runRoom(plan, f);
   if (!r) return null;
-  const key = JSON.stringify([r.polygon, f.a, f.b, f.d]),
-    c = cache.get(f);
+  const key = JSON.stringify([r.polygon, f.a, f.b, f.d]);
+  const c = cache.get(f);
   if (c?.key === key) return c.geo;
-  const face = faceOf(r),
-    R = ring(face),
-    sa = ringProject(R, f.a).s,
-    L = mod(ringProject(R, f.b).s - sa, R.P);
-  const geo = L > 0.01 ? runShape(face, sa, L, f.d) : null;
-  if (geo) Object.assign(geo, {key, room: r, sa, L});
+  const face = faceOf(r);
+  const R = ring(face);
+  // (A room's face has edges, so each ringProject! below finds its point.)
+  const sa = ringProject(R, f.a)!.s;
+  const L = mod(ringProject(R, f.b)!.s - sa, R.P);
+  const shape = L > 0.01 ? runShape(face, sa, L, f.d) : null;
+  const geo = shape && Object.assign(shape, {key, room: r, sa, L});
   cache.set(f, {key, geo});
   return geo;
 }
 // An old straight item (base and wall cabinets used to be a rectangle x, y, w, rot): the ends come from its back side.
-function fromRect(plan, f) {
+function fromRect(plan: Pick<Plan, 'rooms'>, f: FurnitureItem): void {
   if (![f.x, f.y, f.w, f.d].every(Number.isFinite)) return;
-  const t = ((f.rot || 0) * Math.PI) / 180,
-    ax = [Math.cos(t), Math.sin(t)],
-    fz = [Math.sin(t), -Math.cos(t)];
-  const bk = [f.x - (fz[0] * f.d) / 2, f.y - (fz[1] * f.d) / 2],
-    p0 = [bk[0] - (ax[0] * f.w) / 2, bk[1] - (ax[1] * f.w) / 2],
-    p1 = [bk[0] + (ax[0] * f.w) / 2, bk[1] + (ax[1] * f.w) / 2];
-  let room = roomAt(plan, [f.x, f.y]),
-    best = null;
+  const t = ((f.rot || 0) * Math.PI) / 180;
+  const ax: Vector = [Math.cos(t), Math.sin(t)];
+  const fz: Vector = [Math.sin(t), -Math.cos(t)];
+  const bk: Point = [f.x - (fz[0] * f.d) / 2, f.y - (fz[1] * f.d) / 2];
+  const p0: Point = [bk[0] - (ax[0] * f.w) / 2, bk[1] - (ax[1] * f.w) / 2];
+  const p1: Point = [bk[0] + (ax[0] * f.w) / 2, bk[1] + (ax[1] * f.w) / 2];
+  let room = roomAt(plan, [f.x, f.y]);
+  let best: {d: number; r: Room; R: Ring} | null = null;
   for (const r of room ? [room] : plan.rooms) {
-    const R = ring(faceOf(r)),
-      q = ringProject(R, bk);
+    const R = ring(faceOf(r));
+    const q = ringProject(R, bk);
     if (q && (!best || q.d < best.d)) best = {d: q.d, r, R};
   }
   if (!best) return;
-  const {r, R} = best,
-    s0 = ringProject(R, p0).s,
-    s1 = ringProject(R, p1).s,
-    fw = mod(s1 - s0, R.P),
-    [a, b] = Math.abs(fw - f.w) <= Math.abs(R.P - fw - f.w) ? [p0, p1] : [p1, p0];
+  const {r, R} = best;
+  // (best's tape found a point: it has edges, so each ringProject! below finds one too.)
+  const s0 = ringProject(R, p0)!.s;
+  const s1 = ringProject(R, p1)!.s;
+  const fw = mod(s1 - s0, R.P);
+  const [a, b] = Math.abs(fw - f.w) <= Math.abs(R.P - fw - f.w) ? [p0, p1] : [p1, p0];
   f.room = r.id;
-  f.a = ringAt(R, ringProject(R, a).s).map(r4);
-  f.b = ringAt(R, ringProject(R, b).s).map(r4);
+  f.a = ringAt(R, ringProject(R, a)!.s).map(r4) as Point;
+  f.b = ringAt(R, ringProject(R, b)!.s).map(r4) as Point;
 }
 // Derived fields (frame center, length along the walls) and the room, after any plan edit.
-export function syncRun(plan, f) {
+export function syncRun(plan: Pick<Plan, 'rooms'>, f: FurnitureItem): void {
   const g = runGeo(plan, f);
   if (!g) return;
-  const xs = [],
-    ys = [];
+  const xs: number[] = [];
+  const ys: number[] = [];
   for (const P of g.outline)
     for (const q of P[0]) {
       xs.push(q[0]);
@@ -347,44 +468,57 @@ export function syncRun(plan, f) {
   f.rot = 0;
   if (f.room !== g.room.id) f.room = g.room.id;
 }
-export const syncRuns = plan => {
+export const syncRuns = (plan: Pick<Plan, 'rooms' | 'furniture'>): void => {
   for (const f of plan.furniture) if (isRun(f)) syncRun(plan, f);
 };
 // Place a wardrobe: the room, a start sa and a length L along the outline of its face.
-export function runSet(plan, f, room, R, sa, L) {
+export function runSet(
+  plan: Pick<Plan, 'rooms'>,
+  f: FurnitureItem,
+  room: Room,
+  R: Ring,
+  sa: number,
+  L: number,
+): void {
   L = Math.max(RUN_MIN, Math.min(R.P - 0.05, L));
   f.room = room.id;
-  f.a = ringAt(R, sa).map(r4);
-  f.b = ringAt(R, sa + L).map(r4);
+  f.a = ringAt(R, sa).map(r4) as Point;
+  f.b = ringAt(R, sa + L).map(r4) as Point;
   syncRun(plan, f);
 }
 
 // Where the corners (wall starts) and openings are on the room face: the wardrobe ends snap to them.
-export function runStops(plan, room, R, d = 0.6) {
-  const out = [];
+export function runStops(
+  plan: Pick<Plan, 'rooms' | 'openings'>,
+  room: Room,
+  R: Ring,
+  d = 0.6,
+): {corners: number[]; gaps: OpeningGap[]; stops: number[]} {
+  const out: number[] = [];
   // walls around the whole outline, starting from the wall right after a turn: otherwise the first and last would be one wall split in two
-  const long = R.E.map(e => e.l >= Math.max(0.45, d + 0.15)),
-    k0 = Math.max(
-      0,
-      R.E.findIndex((e, i) => {
-        if (!long[i]) return false;
-        for (let j = 1; j < R.E.length; j++) {
-          const q = (i - j + R.E.length) % R.E.length;
-          if (long[q]) return dot(R.E[q].u, e.u) < 0.995;
-        }
-        return false;
-      }),
-    );
+  const long = R.E.map(e => e.l >= Math.max(0.45, d + 0.15));
+  const k0 = Math.max(
+    0,
+    R.E.findIndex((e, i) => {
+      if (!long[i]) return false;
+      for (let j = 1; j < R.E.length; j++) {
+        const q = (i - j + R.E.length) % R.E.length;
+        if (long[q]) return dot(R.E[q].u, e.u) < 0.995;
+      }
+      return false;
+    }),
+  );
   const corners = group(stretch(R, R.E[k0]?.s || 0, R.P), d).map(sd => sd.ps[0].s);
-  const gaps = [];
+  const gaps: OpeningGap[] = [];
   for (const o of plan.openings || []) {
     const c = openingCoords(plan.rooms, o);
     if (!c) continue;
-    const pa = ringProject(R, c.a),
-      pb = ringProject(R, c.b);
+    // (the face has edges: each ringProject! finds a point)
+    const pa = ringProject(R, c.a)!;
+    const pb = ringProject(R, c.b)!;
     if (pa.d > 0.45 || pb.d > 0.45) continue;
-    let s0 = pa.s,
-      s1 = pb.s;
+    let s0 = pa.s;
+    let s1 = pb.s;
     if (mod(s1 - s0, R.P) > R.P / 2) [s0, s1] = [s1, s0];
     gaps.push([
       s0,
@@ -400,14 +534,20 @@ export function runStops(plan, room, R, d = 0.6) {
 }
 // A new wardrobe at point p: along the whole free wall under the cursor, corner to corner, up to a door or window (the owner: “a wall-to-wall
 // wardrobe”). Too little free space: the catalog width, centered. Farther than 1.2 m from the walls: nowhere to put it.
-export function runAt(plan, p, w, d, {z0 = 0, z1 = 3, self = null} = {}) {
-  let room = roomAt(plan, p),
-    R = room && ring(faceOf(room)),
-    pr = R && ringProject(R, p);
+export function runAt(
+  plan: Pick<Plan, 'rooms' | 'openings' | 'furniture'>,
+  p: Point,
+  w: number,
+  d: number,
+  {z0 = 0, z1 = 3, self = null}: {z0?: number; z1?: number; self?: FurnitureItem | null} = {},
+): {room: Room; R: Ring; sa: number; L: number} | null {
+  let room = roomAt(plan, p);
+  let R = room && ring(faceOf(room));
+  let pr = R && ringProject(R, p);
   if (!room) {
     for (const r of plan.rooms) {
-      const Rr = ring(faceOf(r)),
-        q = ringProject(Rr, p);
+      const Rr = ring(faceOf(r));
+      const q = ringProject(Rr, p);
       if (q && (!pr || q.d < pr.d)) {
         room = r;
         R = Rr;
@@ -415,10 +555,13 @@ export function runAt(plan, p, w, d, {z0 = 0, z1 = 3, self = null} = {}) {
       }
     }
   }
-  if (!room || !pr || pr.d > 1.2 || R.P < 1) return null;
-  const st = runStops(plan, room, R, d),
-    corners = st.corners,
-    gaps = st.gaps.filter(([, , k, b, t]) => k === 'door' || (b < z1 - 0.01 && t > z0 + 0.01));
+  // (R is room's tape whenever room is there: !R adds nothing but tells the types)
+  if (!room || !R || !pr || pr.d > 1.2 || R.P < 1) return null;
+  const st = runStops(plan, room, R, d);
+  const corners = st.corners;
+  const gaps: Array<OpeningGap | FurnitureGap> = st.gaps.filter(
+    ([, , k, b, t]) => k === 'door' || (b < z1 - 0.01 && t > z0 + 0.01),
+  );
   // furniture along this wall at the same height (fridge, tall cabinet, range hood) is a boundary too: the cabinet stops at it
   for (const g of plan.furniture || []) {
     if (g === self || byId(g.model)?.soft) continue;
@@ -432,7 +575,7 @@ export function runAt(plan, p, w, d, {z0 = 0, z1 = 3, self = null} = {}) {
           [1, -1],
           [1, 1],
           [-1, 1],
-        ].map(([i, j]) => {
+        ].map(([i, j]): Point => {
           const t = ((g.rot || 0) * Math.PI) / 180;
           return [
             g.x + ((Math.cos(t) * g.w) / 2) * i + ((Math.sin(t) * g.d) / 2) * j,
@@ -440,22 +583,22 @@ export function runAt(plan, p, w, d, {z0 = 0, z1 = 3, self = null} = {}) {
           ];
         });
     const ss = cs
-      .map(q => ringProject(R, q))
+      .map(q => ringProject(R, q)!) // the face has edges
       .filter(q => q.d < d + 0.05)
       .map(q => q.s);
     if (ss.length < 2) continue;
-    const base = ss[0],
-      rel = ss.map(x => {
-        const v = mod(x - base, R.P);
-        return v > R.P / 2 ? v - R.P : v;
-      });
+    const base = ss[0];
+    const rel = ss.map(x => {
+      const v = mod(x - base, R.P);
+      return v > R.P / 2 ? v - R.P : v;
+    });
     gaps.push([base + Math.min(...rel), base + Math.max(...rel), 'furn']);
   }
   // the stretch at s: from the corner behind to the corner ahead, shortened by the nearest openings; on an opening, the opening itself (gap)
-  const span = s => {
-    const rel = x => mod(x - s, R.P);
-    let lo = -R.P,
-      hi = R.P;
+  const span = (s: number): Stretch => {
+    const rel = (x: number): number => mod(x - s, R.P);
+    let lo = -R.P;
+    let hi = R.P;
     for (const c of corners) {
       const f = rel(c);
       if (f < 1e-6) {
@@ -467,8 +610,8 @@ export function runAt(plan, p, w, d, {z0 = 0, z1 = 3, self = null} = {}) {
     }
     if (hi - lo > R.P - 0.05) hi = lo + R.P - 0.05;
     for (const [a, b] of gaps) {
-      const ra = rel(a),
-        end = ra + (b - a);
+      const ra = rel(a);
+      const end = ra + (b - a);
       if (ra < 1e-6 || end >= R.P)
         return {gap: [s + (ra < 1e-6 ? 0 : ra - R.P), s + (ra < 1e-6 ? 0 : ra - R.P) + (b - a)]};
       hi = Math.min(hi, ra - 0.02);
@@ -482,7 +625,7 @@ export function runAt(plan, p, w, d, {z0 = 0, z1 = 3, self = null} = {}) {
     r =
       [r.gap[0] - 0.05, r.gap[1] + 0.05]
         .map(span)
-        .filter(x => !x.gap)
+        .filter((x): x is FreeStretch => !x.gap)
         .sort((a, b) => b.L - a.L)[0] || r;
   if (r.gap || r.L < 0.6) {
     const L = Math.min(w, R.P - 0.05);
