@@ -5,9 +5,10 @@
 //              plan as they are read, each room of the video with the furniture found there, the pieces being made, time left
 //   review   — the finished home alone, full screen (ai-review.js), opened by itself when it is ready: pins where something is
 //              wrong, words, "All right". Confirmed, the home opens in the editor, theirs to change.
+// The address names the page: ?ai=new the upload, ?build=<id> a build; a sign-in or the checkout comes back to it.
 // The service is private; the editor talks to its API only (locally the harness's tools/build-server.ts serves this page):
 //   GET  <api>/api/health                         answers: the start screen offers the AI build
-//   POST <api>/api/builds                         ← multipart: plan, video… → {id}
+//   POST <api>/api/builds                         ← multipart: plan, video… → {id}; 401 SIGNED_OUT, 402 BALANCE_EMPTY
 //   GET  <api>/api/builds/<id>                    the status: steps, rooms, what the calls found so far (live), time left
 //   GET  <api>/api/builds/<id>/plan | home        the plan as read; the home
 //   GET  <api>/api/builds/<id>/photo | shot | frame/<room>   the plan photo; the home in 3D; a frame of a room
@@ -16,11 +17,14 @@
 //   POST <api>/api/builds/<id>/answer             {at: 'final', action: 'confirm' | 'correct', text?, pins?}
 //   POST <api>/api/builds/<id>/resume             start a stopped build again
 //   POST <api>/api/builds/<id>/feedback           {round, n}: a pin that came back goes to the developer
-//   POST <api>/api/builds/<id>/top-up             one more package on the build's own: a build waiting for it goes on
-// The package (what is left of what was bought, in percent; D-085): ai-wallet.js.
+// Accounts (D-088; ai-account.ts): a build is started by a signed-in account with something left of what it bought, is
+// charged to it, and is shown only to it (another browser gets 404, as for a build that is not there). A build whose balance
+// runs out waits (paused: 'balance') and goes on after a top-up; one whose payments service does not answer waits too
+// (paused: 'payments') and goes on by itself. Without the payments service (local work) there are no accounts.
 import {t, N, getLang} from '../i18n/i18n.ts';
 import {el, esc, find} from './ui.ts';
 import {icon} from './icons.ts';
+import {idb} from './idb.ts';
 import {readPlan} from '../core/plan-file.ts';
 import {emptyPlan} from '../core/plan.ts';
 import {kindName, localRoomName, numberAlike} from '../core/overview.ts';
@@ -29,15 +33,23 @@ import {openReview} from './ai-review.ts';
 import {changeCount, pinsToSend, pinsToRetry, refreshRetries} from './ai-pins.ts';
 import type {Pin, PinNotes, PinRetry, PinRound} from './ai-pins.ts';
 import {
-  buyPackage,
-  claimFromAddress,
-  ensureWallet,
-  priceText,
-  topUpWallet,
-  walletMeter,
-  walletOffer,
-} from './ai-wallet.ts';
-import type {Wallet, WalletOffer, WalletShare} from './ai-wallet.ts';
+  accountOffer,
+  balanceMeter,
+  buyLabel,
+  checkoutUrl,
+  claimPayment,
+  currentAccount,
+  forgetOldWallet,
+  isSignedOut,
+  pathOf,
+  readReturn,
+  refusalText,
+  signOut,
+  testTopUp,
+} from './ai-account.ts';
+import type {Account, Offer} from './ai-account.ts';
+import {accountBar, openSignIn, pausedCard} from './ai-account-ui.ts';
+import type {AccountBar, SignInReason, SignInSheet} from './ai-account-ui.ts';
 import type {Outline, Plan} from '../core/types.ts';
 import type {Editor, EditorFlows} from './editor-types.ts';
 
@@ -122,15 +134,14 @@ interface BuildStatus {
   error?: string;
   /** The error is in our code, not in the files. */
   ourCode?: boolean;
-  /** Waiting for a top-up. */
-  paused?: boolean;
+  /** The build waits: for a top-up ('balance'), or for the payments service to answer ('payments'). */
+  paused?: 'balance' | 'payments' | null;
   /** Its home was opened. */
   finished?: boolean;
   /** Seconds left. */
   eta?: number | null;
   /** How far the whole build is, 0–1. */
   share?: number;
-  wallet?: WalletShare | null;
   live?: BuildLive;
   lastRound?: PinRound | null;
   rounds?: PinRound[];
@@ -183,6 +194,14 @@ const targetOf = (e: Event): Element => e.target as Element;
 
 const POLL_MS = 2000;
 const START_POLL_MS = 3000;
+// The balance is asked again every this many polls of a build's status (it changes as the build spends), and at once
+// when the build starts or stops waiting.
+const POLLS_PER_ACCOUNT = 5;
+// The upload page asks the account again this often while the payments service does not answer.
+const ACCOUNT_RETRY_MS = 10_000;
+// The upload page's address: ?ai=new.
+const UPLOAD_PARAM = 'ai';
+const UPLOAD_VALUE = 'new';
 const NOTES = 'home-twin-editor:ai-notes:';
 // The build this browser started or opened last: the start screen shows how it goes until its home is opened.
 const FOLLOWED = 'home-twin-editor:ai-build';
@@ -374,6 +393,44 @@ export async function aiService(api = ''): Promise<boolean> {
   }
 }
 
+/** Whether the AI build has accounts here and this browser is signed out (an account's build is then not shown to it). */
+async function signedOutWithAccounts(api: string): Promise<boolean> {
+  try {
+    const offer = await accountOffer(api);
+    if (!offer) return false;
+    return !(await currentAccount(api));
+  } catch {
+    return false;
+  }
+}
+
+// ---------- the files chosen for a build, kept while the browser is away ----------
+
+// A provider's sign-in and the checkout leave the page: the files chosen are kept here meanwhile, and are back on the upload
+// page when the browser returns.
+const CHOSEN_FILES = 'ai-build:chosen-files';
+
+/** The files chosen, kept until the upload page opens again; nothing is kept when none are chosen. */
+async function keepChosen(files: ChosenFiles): Promise<void> {
+  if (!files.plan && !files.videos.length) return;
+  await idb('put', CHOSEN_FILES, {plan: files.plan, videos: files.videos});
+}
+
+/** The files kept before the browser left, taken out of the store (they are kept only once); null when there are none. */
+async function takeChosen(): Promise<ChosenFiles | null> {
+  try {
+    const saved = await idb('get', CHOSEN_FILES);
+    if (!saved) return null;
+    await idb('del', CHOSEN_FILES);
+    const fields = saved as {plan?: unknown; videos?: unknown};
+    const plan = fields.plan instanceof File ? fields.plan : null;
+    const videos = Array.isArray(fields.videos) ? fields.videos.filter(video => video instanceof File) : [];
+    return {plan, videos};
+  } catch {
+    return null;
+  }
+}
+
 // ---------- the build this browser follows ----------
 
 function followedBuild(): string | null {
@@ -522,7 +579,9 @@ export function aiStartCard(ed: Editor, card: HTMLElement, {api = ''}: {api?: st
     try {
       const res = await fetch(`${api}/api/builds/${encodeURIComponent(id)}`, {cache: 'no-store'});
       if (res.status === 404) {
-        follow(null);
+        // An account's build is not shown while this browser is signed out: it stays followed, and shows again once the
+        // owner signs in.
+        if (!(await signedOutWithAccounts(api))) follow(null);
         return show(null);
       }
       if (!res.ok) return;
@@ -543,39 +602,57 @@ export function aiStartCard(ed: Editor, card: HTMLElement, {api = ''}: {api?: st
 }
 
 /**
- * Opens the AI build over the editor: the upload screen, or a build's progress when its id is known (the page's ?build=<id>,
- * the start screen's card). flows — the start screen (flows.js): back to it, and the plan kept aside before a new one replaces it.
- */
-/**
- * The AI build the address asks for: ?build=<id> opens that build's progress. Back from the checkout (?payment_id=…), the
- * payment is counted first, then the build it was for opens, or the upload page.
+ * The AI build the address asks for: ?build=<id> opens that build's progress, ?ai=new the upload. Back from the checkout
+ * (?payment_id=…), the payment is counted first; back from a provider's sign-in that did not go through (?signin=failed),
+ * the sign-in opens again with why. What the address brought back is taken off it, so a reload does not read it again.
  */
 export async function openAiFromAddress(
   ed: Editor,
   {api = ''}: {api?: string} = {},
 ): Promise<AiBuildScreen | null> {
+  forgetOldWallet();
+  const back = readReturn(location.href);
+  if (back.found) history.replaceState(history.state, '', back.clean);
   const params = new URLSearchParams(location.search);
   const id = params.get('build');
-  if (!id && !params.has('payment_id') && !params.has('paid')) return null;
-  const claimed = await claimFromAddress(api);
-  const notice = claimed?.failed
-    ? t('The payment did not go through')
-    : claimed?.error
-      ? t('Could not check the payment: {0}', claimed.error)
-      : null;
-  return openAiBuild(ed, {api, id, notice});
+  const upload = params.get(UPLOAD_PARAM) === UPLOAD_VALUE;
+  if (!id && !upload && !back.found) return null;
+  let notice: string | null = null;
+  let claimed: Account | null = null;
+  const paymentFailed = !!back.paymentStatus && back.paymentStatus !== 'succeeded';
+  if (back.payment && paymentFailed) notice = t('The payment did not go through');
+  else if (back.payment) {
+    try {
+      claimed = await claimPayment(api, back.payment);
+    } catch (error) {
+      notice = t('Could not check the payment: {0}', refusalText(error));
+    }
+  }
+  const signInNotice = back.signIn === 'failed' ? t('Could not sign in. Try again or use your email.') : null;
+  return openAiBuild(ed, {api, id, notice, account: claimed, signInNotice});
 }
 
-// notice — a line for the owner on arrival (a payment that did not go through), on the package's place.
-export function openAiBuild(
-  ed: Editor,
-  {
-    api = '',
-    id = null,
-    flows = ed.flows,
-    notice = null,
-  }: {api?: string; id?: string | null; flows?: EditorFlows; notice?: string | null} = {},
-): AiBuildScreen {
+/** What openAiBuild is given besides the editor. */
+export interface AiBuildOptions {
+  api?: string;
+  /** The build to follow; none: the upload for a new one. */
+  id?: string | null;
+  /** The start screen (flows.js): back to it, and the plan kept aside before a new one replaces it. */
+  flows?: EditorFlows;
+  /** A line for the owner on arrival (a payment that did not go through), on the account's place. */
+  notice?: string | null;
+  /** The account as the payment's claim just gave it: shown at once. */
+  account?: Account | null;
+  /** A provider's sign-in did not go through: the sign-in opens again, saying so. */
+  signInNotice?: string | null;
+}
+
+/**
+ * Opens the AI build over the editor: the upload screen, or a build's progress when its id is known (the page's ?build=<id>,
+ * the start screen's card).
+ */
+export function openAiBuild(ed: Editor, options: AiBuildOptions = {}): AiBuildScreen {
+  const {api = '', id = null, flows = ed.flows, notice = null, signInNotice = null} = options;
   const root = el(`<div class="aib"></div>`);
   document.body.append(root);
   flows?.hideStart();
@@ -591,17 +668,8 @@ export function openAiBuild(
   let shownFinal = false;
   // The plan as read: its outline and what it holds, once the plan call is done.
   let planRead: PlanRead | null = null;
-  // Why the last top-up did not go through, in words, said on the card that offers it.
-  let topUpError = notice;
-  // How a package comes from the service (bought at a checkout, or given free) and its price; asked once.
-  let offer: WalletOffer | null = null;
-  const paid = (): boolean => offer?.payments === 'dodo';
-  walletOffer(api)
-    .then(found => {
-      offer = found;
-      if (screen === 'progress') renderProgress();
-    })
-    .catch(() => {});
+  // The files chosen on the upload page.
+  let chosen: ChosenFiles = {plan: null, videos: []};
   // The build's own pages are asked for once it has its id.
   const base = (): string => `${api}/api/builds/${encodeURIComponent(buildId as string)}`;
   // The status the progress shows: it is drawn only once there is one (renderProgress stops before without it), and the
@@ -611,11 +679,223 @@ export function openAiBuild(
 
   // ---------- the address and the editor underneath ----------
 
-  function setAddress(value: string | null): void {
+  // The address names the page shown: the upload, a build, or neither (the editor).
+  function setAddress(page: 'upload' | {build: string} | null): void {
     const url = new URL(location.href);
-    if (value) url.searchParams.set('build', value);
-    else url.searchParams.delete('build');
+    url.searchParams.delete('build');
+    url.searchParams.delete(UPLOAD_PARAM);
+    if (page === 'upload') url.searchParams.set(UPLOAD_PARAM, UPLOAD_VALUE);
+    else if (page) url.searchParams.set('build', page.build);
     history.replaceState(history.state, '', url);
+  }
+
+  // ---------- the account (D-088) ----------
+
+  // How a package comes and the sign-in ways; null where there are no accounts (local work) or before it is known.
+  let offer: Offer | null = null;
+  let account: Account | null = options.account || null;
+  // The offer is asked once, when the service first answers it.
+  let offerKnown = false;
+  // Asked the service at least once: until then the button that starts a build waits.
+  let accountKnown = false;
+  // Why the account could not be asked (the payments service does not answer), in words.
+  let accountTrouble: string | null = null;
+  // A line for the owner on the account's place: why a top-up or a payment did not go through, a build that could not start.
+  let accountLine: string | null = notice;
+  // The build is not shown to this browser: signed out, or signed in with another account (the service answers 404 to both).
+  let locked: 'signed-out' | 'other' | null = null;
+  // The owner signed out here: the build's page does not ask them to sign in again by itself.
+  let signedOutHere = false;
+  let signInSheet: SignInSheet | null = null;
+  let headBar: AccountBar | null = null;
+  // The account's place in the review, above its send button (the review fills it with this page's renderReviewAccount).
+  let reviewSlot: HTMLElement | null = null;
+  // How many polls since the account was asked last: the balance is asked again every few.
+  let pollsSinceAccount = 0;
+  let pausedBefore: BuildStatus['paused'] = null;
+  const accountReady = refreshAccount();
+
+  async function refreshAccount(): Promise<void> {
+    try {
+      if (!offerKnown) {
+        offer = await accountOffer(api);
+        offerKnown = true;
+      }
+      account = offer ? await currentAccount(api) : null;
+      accountTrouble = null;
+    } catch (error) {
+      accountTrouble = refusalText(error);
+    }
+    accountKnown = true;
+    pollsSinceAccount = 0;
+    renderAccount();
+    // The upload page waits for the account; it is asked again until the service answers.
+    if (accountTrouble && screen === 'upload')
+      setTimeout(() => !closed && refreshAccount(), ACCOUNT_RETRY_MS);
+  }
+
+  // The account drawn on every place of the page shown.
+  function renderAccount(): void {
+    headBar?.update({offer, account});
+    if (screen === 'upload') renderGo();
+    if (screen === 'progress') renderProgress();
+    if (reviewSlot) renderReviewAccount(reviewSlot);
+  }
+
+  // A new header for the page: its account part, drawn now and on every change (meter: the balance's bar beside it).
+  function newHeadBar(meter: boolean): HTMLElement {
+    headBar = accountBar({
+      meter,
+      onSignIn: () => askSignIn(screen === 'upload' ? 'build' : 'account'),
+      onBuy: () => buy(null),
+      onSignOut: signOutHere,
+    });
+    headBar.update({offer, account});
+    return headBar.element;
+  }
+
+  function askSignIn(reason: SignInReason, line: string | null = null): void {
+    if (!offer || signInSheet) return;
+    signInSheet = openSignIn(root, {
+      api,
+      offer,
+      reason,
+      notice: line,
+      returnPath: () => pathOf(location.href),
+      beforeLeave: () => (screen === 'upload' ? keepChosen(chosen) : Promise.resolve()),
+      onSignedIn: signedIn => {
+        signInSheet = null;
+        account = signedIn;
+        accountLine = null;
+        signedOutHere = false;
+        renderAccount();
+        if (locked) {
+          locked = null;
+          poll();
+        }
+      },
+      onClose: () => {
+        signInSheet = null;
+      },
+    });
+  }
+
+  function closeSignIn(): void {
+    signInSheet?.close();
+    signInSheet = null;
+  }
+
+  async function signOutHere(): Promise<void> {
+    try {
+      await signOut(api);
+    } catch {} // signed out on this page either way: the next call asks again
+    account = null;
+    signedOutHere = true;
+    if (screen === 'progress' || screen === 'review') lockOut('signed-out');
+    renderAccount();
+  }
+
+  // One more package: at the provider's checkout, which comes back to this page; or free where packages are given for
+  // testing. button — the one pressed, which says what happens meanwhile.
+  async function buy(button: HTMLButtonElement | null): Promise<void> {
+    if (!offer) return;
+    if (!account) return askSignIn(screen === 'upload' ? 'build' : 'account');
+    accountLine = null;
+    if (button) button.disabled = true;
+    try {
+      if (offer.payments === 'dodo') {
+        if (button) button.textContent = t('Opening the payment…');
+        const url = await checkoutUrl(api, pathOf(location.href));
+        // The files chosen come back with the page; a failure to keep them only loses the files.
+        if (screen === 'upload') await keepChosen(chosen).catch(() => {});
+        location.assign(url);
+        return;
+      }
+      account = await testTopUp(api);
+    } catch (error) {
+      if (isSignedOut(error)) {
+        account = null;
+        askSignIn('account');
+      } else if (offer.payments === 'dodo')
+        accountLine = t('Could not open the payment: {0}', refusalText(error));
+      else accountLine = t('Could not top up: {0}', refusalText(error));
+    }
+    renderAccount();
+  }
+
+  // The build answered 404: with accounts, it may be another account's, or this browser is signed out (the service says
+  // the same to both). Asked of the account; the page then says which and offers the way in.
+  async function explainMissing(): Promise<boolean> {
+    await accountReady;
+    if (!offer) return false;
+    let who: Account | null = null;
+    try {
+      who = await currentAccount(api);
+    } catch {
+      return false;
+    }
+    account = who;
+    lockOut(who ? 'other' : 'signed-out');
+    return true;
+  }
+
+  // The build is not shown here: the page says why and stops asking until the owner signs in.
+  function lockOut(why: 'signed-out' | 'other'): void {
+    locked = why;
+    clearTimeout(timer);
+    closeReview();
+    if (screen !== 'progress') showProgress();
+    status = status || {steps: [], rooms: [], has: {}};
+    renderAccount();
+    // Arriving signed out by the build's link: the sign-in opens at once (not after signing out here).
+    if (why === 'signed-out' && !signedOutHere) askSignIn('see');
+  }
+
+  // The account's place on the upload page, beside its button: the balance, or the package to buy first. Under them, on a
+  // line of its own: why a build could not start, or a payment did not go through.
+  function renderGo(): void {
+    const slot = root.querySelector<HTMLElement>('.aib-go-account');
+    const lineNode = root.querySelector<HTMLElement>('.aib-go-line');
+    if (!slot || !lineNode) return;
+    const balance = account?.balance;
+    let slotHtml = '';
+    if (offer && balance && !balance.empty) slotHtml = balanceMeter(balance);
+    else if (offer && balance?.empty) {
+      slotHtml = `<button class="primary" data-act="buy">${esc(buyLabel(offer))}</button>`;
+    }
+    slot.innerHTML = slotHtml;
+    const line = accountLine || accountTrouble;
+    lineNode.hidden = !line;
+    lineNode.textContent = line || '';
+    syncStart();
+  }
+
+  // The account's place in the review: the balance, and a top-up once it is used up (the changes wait for one).
+  function renderReviewAccount(slot: HTMLElement): void {
+    reviewSlot = slot;
+    const balance = account?.balance;
+    if (!offer || !balance) {
+      slot.innerHTML = '';
+      return;
+    }
+    const topUp = balance.empty
+      ? `<button class="soft" data-act="top-up">${esc(buyLabel(offer, {topUp: true}))}</button>`
+      : '';
+    const line = accountLine ? `<small class="aib-wallet-err">${esc(accountLine)}</small>` : '';
+    slot.innerHTML = balanceMeter(balance) + topUp + line;
+    const button = slot.querySelector<HTMLButtonElement>('[data-act=top-up]');
+    if (button) button.onclick = () => buy(button);
+  }
+
+  // The button that starts a build: on with a plan and a video, once the account is known and has something left (signed
+  // out, it opens the sign-in).
+  function syncStart(): void {
+    const start = root.querySelector<HTMLButtonElement>('[data-act=start]');
+    if (!start || start.dataset.sending) return;
+    const haveFiles = !!chosen.plan && chosen.videos.length > 0;
+    const accountReadyNow = accountKnown && !accountTrouble;
+    const nothingLeft = !!offer && !!account?.balance.empty;
+    start.disabled = !haveFiles || !accountReadyNow || nothingLeft;
   }
 
   // The service builds the home: the editor's own setup steps stay out of the way, without the "setup paused" note.
@@ -675,10 +955,20 @@ export function openAiBuild(
 
   // ---------- talking to the service ----------
 
+  // A failed answer of the build's own routes as an Error in its words. There, 404 with accounts means the build is not shown
+  // to this browser (signed out, or another account's): the page then says which and offers the way in (explainMissing).
+  async function failureOf(res: Response): Promise<Error> {
+    const data: unknown = await res.json().catch(() => ({}));
+    const message = (data as ServiceError).error || res.statusText;
+    if (res.status !== 404 || !(await explainMissing())) return new Error(message);
+    return new Error(
+      locked === 'signed-out' ? t('You are signed out. Sign in again.') : t('Not in this account'),
+    );
+  }
+
   async function getJson(path: string): Promise<unknown> {
     const res = await fetch(base() + path, {cache: 'no-store'});
-    if (!res.ok)
-      throw new Error(((await res.json().catch(() => ({}))) as ServiceError).error || res.statusText);
+    if (!res.ok) throw await failureOf(res);
     return res.json();
   }
 
@@ -689,8 +979,8 @@ export function openAiBuild(
       headers: {'content-type': blob.type || 'application/octet-stream'},
       body: blob,
     });
-    const data = (await res.json().catch(() => ({}))) as {file: string} & ServiceError;
-    if (!res.ok) throw new Error(data.error || res.statusText);
+    if (!res.ok) throw await failureOf(res);
+    const data = (await res.json()) as {file: string};
     return data.file;
   }
 
@@ -700,18 +990,18 @@ export function openAiBuild(
       headers: {'content-type': 'application/json'},
       body: JSON.stringify(body || {}),
     });
-    const data: unknown = await res.json().catch(() => ({}));
-    if (!res.ok) throw new Error((data as ServiceError).error || res.statusText);
-    return data;
+    if (!res.ok) throw await failureOf(res);
+    return res.json().catch(() => ({}));
   }
 
   async function poll(): Promise<void> {
     clearTimeout(timer);
-    if (closed || !buildId) return;
+    if (closed || !buildId || locked) return;
     try {
       const s = (await getJson('')) as BuildStatus;
       if (answered && s.waiting !== answered) answered = null;
       status = answered && s.waiting === answered ? {...s, waiting: null} : s;
+      noteSpending(status);
       if (status.has?.plan && !planRead) await loadPlanRead();
       if (status.waiting !== 'final') shownFinal = false;
       // The home is ready: straight to it, the pin in hand.
@@ -720,10 +1010,22 @@ export function openAiBuild(
         startReview();
       } else if (screen === 'progress') renderProgress();
     } catch (e) {
+      // Not shown to this browser: the page says why and waits for the owner to sign in (lockOut).
+      if (locked) return;
       status = {...(status || {steps: [], rooms: [], has: {}}), error: messageOf(e)};
       if (screen === 'progress') renderProgress();
     }
     timer = setTimeout(poll, POLL_MS);
+  }
+
+  // The balance changes as the build spends: asked again every few polls, and at once when the build starts or stops
+  // waiting for it.
+  function noteSpending(now: BuildStatus): void {
+    const pausedNow = now.paused || null;
+    pollsSinceAccount++;
+    const due = pollsSinceAccount >= POLLS_PER_ACCOUNT || pausedNow !== pausedBefore;
+    pausedBefore = pausedNow;
+    if (offer && due) refreshAccount();
   }
 
   async function loadPlanRead(): Promise<void> {
@@ -742,9 +1044,11 @@ export function openAiBuild(
   // ---------- the upload ----------
 
   function showUpload(): void {
+    closeSignIn();
     screen = 'upload';
     cover(true);
-    const files: ChosenFiles = {plan: null, videos: []};
+    setAddress('upload');
+    chosen = {plan: null, videos: []};
     const drop = (
       kind: string,
       ic: string,
@@ -778,88 +1082,41 @@ export function openAiBuild(
           </ul>
           <div class="aib-go">
             <span class="aib-time">${icon('clock', 15)}<span>${esc(t('About 15 minutes. You can close the page meanwhile.'))}</span></span>
-            <span class="aib-go-wallet"></span>
+            <span class="aib-go-account"></span>
             <button class="primary aib-big" data-act="start" disabled>${icon('sparkles', 16)}${esc(t('Build my home'))}</button>
+            <small class="aib-go-line" role="status" hidden></small>
           </div>
           <div class="aib-sending" hidden><i class="aib-meter"><i></i></i><span></span></div>
         </main>
       </div>`;
+    find(root, '.aib-head').append(newHeadBar(false));
     const start = find<HTMLButtonElement>(root, '[data-act=start]');
-    // The package the build spends from: a build starts only while something is left on it. Without one, or with it used up,
-    // it is bought here first (given free where the service takes no payments).
-    let wallet: Wallet | null = null;
-    const sync = (): void => {
-      start.disabled = !files.plan || !files.videos.length || !wallet || wallet.empty;
-    };
-    // The button that gets a package, if one is needed now: [what it does, its label].
-    const walletAction = (): [act: string, label: string] | null => {
-      const price = priceText(offer?.price);
-      if (!wallet) return paid() ? ['buy', t('Buy a package · {0}', price)] : null;
-      if (!wallet.empty) return null;
-      return ['top-up', paid() ? t('Top up · {0}', price) : t('Top up')];
-    };
-    // line: what to say under the package, already in words.
-    const showWallet = (line: string | null): void => {
-      const slot = find(root, '.aib-go-wallet');
-      const action = walletAction();
-      const button = action
-        ? `<button class="${wallet ? 'soft' : 'primary'}" data-act="${action[0]}">${esc(action[1])}</button>`
-        : '';
-      const why = line ? `<small class="aib-wallet-err">${esc(line)}</small>` : '';
-      slot.innerHTML = walletMeter(wallet) + button + why;
-      const node = slot.querySelector<HTMLButtonElement>('[data-act]');
-      if (node) node.onclick = () => getPackage(node);
-    };
-    const getPackage = async (node: HTMLButtonElement): Promise<void> => {
-      node.disabled = true;
-      if (paid()) {
-        node.textContent = t('Opening the payment…');
-        try {
-          await buyPackage(api, {wallet: wallet?.key || null});
-        } catch (e) {
-          showWallet(t('Could not open the payment: {0}', messageOf(e)));
-        }
-        return;
-      }
-      try {
-        // A free top-up is offered only on a package (walletAction).
-        wallet = await topUpWallet(api, wallet!.key);
-        showWallet(null);
-      } catch (e) {
-        showWallet(t('Could not top up: {0}', messageOf(e)));
-      }
-      sync();
-    };
-    Promise.resolve(offer || walletOffer(api))
-      .then(async found => {
-        offer = found;
-        wallet = await ensureWallet(api, offer);
-        showWallet(notice);
-        sync();
-      })
-      .catch((e: unknown) => showWallet(messageOf(e)));
+    find(root, '.aib-go-account').addEventListener('click', e => {
+      const button = targetOf(e).closest<HTMLButtonElement>('[data-act=buy]');
+      if (button) buy(button);
+    });
     const setFiles = (kind: string | undefined, list: File[]): void => {
       const label = find(root, `.aib-drop[data-kind=${kind}]`);
-      const shown = find(label, '.aib-drop-file');
+      const shownFile = find(label, '.aib-drop-file');
       if (kind === 'plan') {
         const image = list.find(f => f.type.startsWith('image/'));
         if (!image) return;
-        files.plan = image;
-        shown.innerHTML = `<img alt="">`;
-        find<HTMLImageElement>(shown, 'img').src = URL.createObjectURL(image);
+        chosen.plan = image;
+        shownFile.innerHTML = `<img alt="">`;
+        find<HTMLImageElement>(shownFile, 'img').src = URL.createObjectURL(image);
       } else {
         const videos = list.filter(f => f.type.startsWith('video/'));
         if (!videos.length) return;
-        files.videos = videos;
+        chosen.videos = videos;
         const megabytes = videos.reduce((sum, f) => sum + f.size, 0) / 1e6;
-        shown.innerHTML = `<video muted playsinline preload="metadata"></video><small></small>`;
-        find<HTMLVideoElement>(shown, 'video').src = URL.createObjectURL(videos[0]) + '#t=1';
-        find(shown, 'small').textContent =
+        shownFile.innerHTML = `<video muted playsinline preload="metadata"></video><small></small>`;
+        find<HTMLVideoElement>(shownFile, 'video').src = URL.createObjectURL(videos[0]) + '#t=1';
+        find(shownFile, 'small').textContent =
           t('{0, plural, one {# video} other {# videos}}', videos.length) + ` · ${Math.round(megabytes)} MB`;
       }
-      shown.hidden = false;
+      shownFile.hidden = false;
       label.classList.add('has');
-      sync();
+      syncStart();
     };
     for (const label of root.querySelectorAll<HTMLElement>('.aib-drop')) {
       const kind = label.dataset.kind;
@@ -878,27 +1135,39 @@ export function openAiBuild(
         setFiles(kind, [...e.dataTransfer!.files]);
       });
     }
+    // Back from a provider's sign-in or the checkout: the files chosen before are back in their places.
+    takeChosen().then(kept => {
+      if (!kept || screen !== 'upload') return;
+      if (kept.plan) setFiles('plan', [kept.plan]);
+      if (kept.videos.length) setFiles('video', kept.videos);
+    });
     find(root, '[data-act=exit]').onclick = exit;
-    // The button is on only with a plan, a video and something left on the package (sync).
-    start.onclick = () => send(files, wallet as Wallet);
+    // Signed out, the button opens the sign-in; else it is on only with a plan, a video and something left (syncStart).
+    start.onclick = () => {
+      if (offer && !account) askSignIn('build');
+      else send(chosen);
+    };
+    renderGo();
   }
 
-  // The files go up with a progress bar (fetch reports no upload progress); then the build's progress.
-  function send(files: ChosenFiles, wallet: Wallet): void {
+  // The files go up with a progress bar (fetch reports no upload progress); then the build's progress. A build that cannot
+  // start says why: signed out (the sign-in opens), or nothing left (the package to buy).
+  function send(files: ChosenFiles): void {
     const sending = find(root, '.aib-sending');
     const bar = find(sending, '.aib-meter>i');
     const line = find(sending, 'span');
     const start = find<HTMLButtonElement>(root, '[data-act=start]');
     start.disabled = true;
+    start.dataset.sending = '1';
     sending.hidden = false;
     sending.classList.remove('err');
     line.textContent = t('Uploading…');
+    accountLine = null;
+    renderGo();
     const form = new FormData();
     // The language the owner reads: the build names the rooms and the furniture in it.
     form.append('lang', getLang());
-    // The package the build spends from.
-    form.append('wallet', wallet.key);
-    // There is a plan: the button is on only with one (sync).
+    // There is a plan: the button is on only with one (syncStart).
     form.append('plan', files.plan as File);
     for (const video of files.videos) form.append('video', video);
     const xhr = new XMLHttpRequest();
@@ -909,10 +1178,14 @@ export function openAiBuild(
       bar.style.width = `${Math.round(share * 100)}%`;
       line.textContent = t('Uploading… {0}%', Math.round(share * 100));
     };
+    const stopped = (): void => {
+      delete start.dataset.sending;
+      syncStart();
+    };
     const failed = (message: string): void => {
       sending.classList.add('err');
       line.textContent = t('Could not upload: {0}', message);
-      start.disabled = false;
+      stopped();
     };
     xhr.onerror = () => failed(t('no connection'));
     xhr.onload = async () => {
@@ -920,6 +1193,19 @@ export function openAiBuild(
       try {
         data = JSON.parse(xhr.responseText) as {id?: string} & ServiceError;
       } catch {}
+      if (xhr.status === 401 || xhr.status === 402) {
+        sending.hidden = true;
+        stopped();
+        if (xhr.status === 401) {
+          account = null;
+          renderAccount();
+          askSignIn('build');
+          return;
+        }
+        accountLine = t('Nothing left on your account');
+        await refreshAccount();
+        return;
+      }
       if (xhr.status >= 300 || !data.id) return failed(data.error || xhr.statusText);
       // A new home: the plan open now is kept aside ("Restore previous plan"), the editor starts clean.
       await flows?.keepPrev?.();
@@ -928,7 +1214,7 @@ export function openAiBuild(
       quietSetup();
       buildId = data.id;
       follow(buildId);
-      setAddress(buildId);
+      setAddress({build: buildId});
       showProgress();
       poll();
     };
@@ -939,6 +1225,7 @@ export function openAiBuild(
 
   function showProgress(): void {
     closeReview();
+    closeSignIn();
     screen = 'progress';
     cover(true);
     root.innerHTML = `
@@ -946,7 +1233,6 @@ export function openAiBuild(
         <header class="aib-head">
           <span class="logo">${icon('sparkles', 15)}</span><b class="aib-title"></b>
           <span class="aib-eta"></span>
-          <span class="aib-head-wallet"></span>
           <button class="ib aib-exit" data-act="exit" title="${esc(t('Close'))}">${icon('x', 17)}</button>
         </header>
         <i class="aib-meter aib-overall"><i></i></i>
@@ -974,6 +1260,7 @@ export function openAiBuild(
           <button class="soft" data-act="copy">${esc(t('Copy link'))}</button>
         </footer>
       </div>`;
+    find(root, '.aib-exit').before(newHeadBar(true));
     find(root, '[data-act=exit]').onclick = exit;
     find(root, '[data-act=copy]').onclick = async e => {
       // The button the handler is on.
@@ -1018,7 +1305,8 @@ export function openAiBuild(
   // The line under a running stage: what it is working on right now.
   function stageLine(stage: Stage): string {
     const status = shown();
-    if (status.paused) return t('Waiting for a top-up');
+    if (status.paused === 'balance') return t('Waiting for a top-up');
+    if (status.paused === 'payments') return t('Waiting for payments');
     const live: BuildLive = status.live || {};
     if (stage.key === 'plan') return planLine();
     if (stage.key === 'rooms') {
@@ -1115,6 +1403,7 @@ export function openAiBuild(
   // The card at the top of the live part: what the owner can do now, or what the build is busy with for them.
   function ctaCard(): {key: string; html: string} {
     const s = shown();
+    if (locked) return lockedCard();
     if (s.error) {
       // An error of our own code is said in words; its message stays on hover, for us.
       const why = s.ourCode ? t('An error in our code, not in the files') : s.error;
@@ -1126,15 +1415,15 @@ export function openAiBuild(
           <button class="primary" data-act="resume">${esc(t('Try again'))}</button></div>`,
       };
     }
-    if (s.paused) {
-      const why = topUpError || t('The build waits. Top up and it goes on from where it stopped.');
-      const label = paid() ? t('Top up · {0}', priceText(offer?.price)) : t('Top up');
+    const paused = pausedCard(s.paused, {offer, line: accountLine});
+    if (paused.key) return paused;
+    if (accountLine) {
+      // A top-up asked for from the account's menu did not go through.
       return {
-        key: `paused:${why}:${label}`,
-        html: `<div class="aib-card asking">
+        key: `account:${accountLine}`,
+        html: `<div class="aib-card bad">
           <span class="aib-card-ic">${icon('wallet', 20)}</span>
-          <span class="aib-card-text"><b>${esc(t('The package is used up'))}</b><small>${esc(why)}</small></span>
-          <button class="primary" data-act="top-up">${esc(label)}</button></div>`,
+          <span class="aib-card-text"><b>${esc(accountLine)}</b></span></div>`,
       };
     }
     if (s.waiting === 'final') {
@@ -1166,6 +1455,29 @@ export function openAiBuild(
       };
     }
     return {key: '', html: ''};
+  }
+
+  // The build is not shown to this browser: the way in — signing in, or with the account that started it.
+  function lockedCard(): {key: string; html: string} {
+    if (locked === 'other') {
+      const who = account
+        ? t('Signed in as {0}. Sign in with the account that started it.', account.email)
+        : '';
+      return {
+        key: `locked:other:${who}`,
+        html: `<div class="aib-card asking">
+          <span class="aib-card-ic">${icon('user', 20)}</span>
+          <span class="aib-card-text"><b>${esc(t('Not in this account'))}</b><small>${esc(who)}</small></span>
+          <button class="primary" data-act="switch-account">${esc(t('Switch account'))}</button></div>`,
+      };
+    }
+    return {
+      key: 'locked:signed-out',
+      html: `<div class="aib-card asking">
+        <span class="aib-card-ic">${icon('user', 20)}</span>
+        <span class="aib-card-text"><b>${esc(t('Sign in to see this build'))}</b><small>${esc(t('It is shown only to the account that started it.'))}</small></span>
+        <button class="primary" data-act="sign-in">${esc(t('Sign in'))}</button></div>`,
+    };
   }
 
   // The plan: its photo with a line going over it and what the call has found so far; once read, a short card of what it holds.
@@ -1332,31 +1644,27 @@ export function openAiBuild(
     find(root, '.aib-found').hidden = !rooms.length;
   }
 
+  // The progress page's title: what the build is at, in a few words.
+  function progressTitle(s: BuildStatus | null): string {
+    if (locked) return t('AI build');
+    if (!s) return t('Building your home');
+    if (s.error) return t('The build stopped');
+    if (s.paused === 'balance') return t('Waiting for a top-up');
+    if (s.paused === 'payments') return t('Waiting for payments');
+    if (s.waiting || s.finished) return t('Your home is ready');
+    if (s.revising) return t('Changing your home…');
+    return t('Building your home');
+  }
+
   function renderProgress(): void {
     if (screen !== 'progress') return;
     const s = status;
-    const title = !s
-      ? t('Building your home')
-      : s.error
-        ? t('The build stopped')
-        : s.paused
-          ? t('Waiting for a top-up')
-          : s.waiting || s.finished
-            ? t('Your home is ready')
-            : s.revising
-              ? t('Changing your home…')
-              : t('Building your home');
-    find(root, '.aib-title').textContent = title;
-    find(root, '.aib-eta').textContent = s ? etaText(s.eta) : '';
-    // The package beside the time: drawn again only when its shares change (the bar would restart its motion).
-    const walletSlot = find(root, '.aib-head-wallet');
-    const meter = walletMeter(s?.wallet);
-    if (walletSlot.dataset.meter !== meter) {
-      walletSlot.dataset.meter = meter;
-      walletSlot.innerHTML = meter;
-    }
+    // Not shown to this browser: only the way in, without the stages and the link that would say nothing.
+    find(root, '.aib-screen').classList.toggle('aib-locked', !!locked);
+    find(root, '.aib-title').textContent = progressTitle(s);
+    find(root, '.aib-eta').textContent = s && !locked ? etaText(s.eta) : '';
     const overall = find(root, '.aib-overall');
-    overall.hidden = !s || !!s.error;
+    overall.hidden = !s || !!s.error || !!locked;
     barOf(overall).style.width = percent(s?.share || 0);
     if (!s) return;
     renderSteps();
@@ -1376,27 +1684,13 @@ export function openAiBuild(
     if (act === 'review') startReview();
     else if (act === 'open') openHome();
     else if (act === 'top-up') {
-      // The top-up button: act came from it.
-      const button = targetOf(e).closest('[data-act]') as HTMLButtonElement;
-      button.disabled = true;
-      if (paid()) {
-        // To the checkout; it comes back to this build, which goes on once the payment is counted.
-        button.textContent = t('Opening the payment…');
-        try {
-          await buyPackage(api, {build: buildId});
-        } catch (err) {
-          topUpError = t('Could not open the payment: {0}', messageOf(err));
-          renderProgress();
-        }
-        return;
-      }
-      try {
-        status = (await post('/top-up')) as BuildStatus;
-        topUpError = null;
-      } catch (err) {
-        topUpError = t('Could not top up: {0}', messageOf(err));
-      }
-      renderProgress();
+      // The top-up button: act came from it. Bought at the checkout, it comes back to this build, which goes on by itself
+      // once the payment is counted.
+      buy(targetOf(e).closest('[data-act]') as HTMLButtonElement);
+    } else if (act === 'sign-in') askSignIn('see');
+    else if (act === 'switch-account') {
+      await signOutHere();
+      askSignIn('see');
     } else if (act === 'resume') {
       try {
         status = (await post('/resume')) as BuildStatus;
@@ -1428,7 +1722,9 @@ export function openAiBuild(
       return;
     }
     screen = 'review';
+    closeSignIn();
     root.innerHTML = '';
+    headBar = null;
     review = openReview(ed, {
       host: root,
       photo: shown().has?.photo ? `${base()}/photo` : null,
@@ -1440,7 +1736,7 @@ export function openAiBuild(
       pictureUrl: file => `${base()}/owner/${encodeURIComponent(file)}`,
       lastRound: status?.lastRound || null,
       pastRounds: status?.rounds || [],
-      wallet: status?.wallet || null,
+      account: renderReviewAccount,
       // Only a pin that came back has the button (ai-review.ts report).
       onReport: pin =>
         post('/feedback', {round: (pin.retry as PinRetry).round, n: (pin.retry as PinRetry).n}),
@@ -1450,6 +1746,7 @@ export function openAiBuild(
   function closeReview(): void {
     review?.close();
     review = null;
+    reviewSlot = null;
   }
 
   // The owner's answer: changes go to the build and the progress shows them being made; "all right" opens the home.
@@ -1485,6 +1782,7 @@ export function openAiBuild(
     closed = true;
     clearTimeout(timer);
     closeReview();
+    closeSignIn();
     root.remove();
     cover(false);
     ed.setBare(null);
@@ -1510,9 +1808,11 @@ export function openAiBuild(
   }
 
   if (buildId) {
-    setAddress(buildId);
+    setAddress({build: buildId});
     showProgress();
     poll();
   } else showUpload();
+  // Back from a provider's sign-in that did not go through: the sign-in again, saying so, once the offer is known.
+  if (signInNotice) accountReady.then(() => askSignIn(buildId ? 'see' : 'build', signInNotice));
   return {close};
 }
