@@ -12,32 +12,55 @@ import {haPlanLights} from './editor/ha.js';
 import {createFlows} from './editor/flows.js';
 import {devPanel} from './editor/devpanel.js';
 import {translateDom} from './i18n/i18n.js';
-import {loadKenney,thumbnails} from './core/furniture3d.js';
+import {loadKenney, thumbnails} from './core/furniture3d.js';
 import {MODELS} from './gen/models.gen.js';
 
-export async function boot({ha,examples=[],example=null,router=null,plans=null,photos=undefined,onApp=null,dev=false}){
-  const haLights=()=>haPlanLights(ha);
+export async function boot({
+  ha,
+  examples = [],
+  example = null,
+  router = null,
+  plans = null,
+  photos = undefined,
+  onApp = null,
+  dev = false,
+}) {
+  const haLights = () => haPlanLights(ha);
   translateDom(document.body); // static markup — in the user's language
-  const ed=createApp({haLights,ha,photos});
+  const ed = createApp({haLights, ha, photos});
   onApp?.(ed);
-  const flows=createFlows(ed,{examples,example,router});
-  ed.flows=flows;
+  const flows = createFlows(ed, {examples, example, router});
+  ed.flows = flows;
   await loadKenney(MODELS);
-  ed.thumbs=thumbnails();
+  ed.thumbs = thumbnails();
   // plan: from HA (if available), otherwise the one saved in the browser; every browser save is sent there too
   // (plans.load gets the browser's plan: changes that did not reach HA last time — no connection — are not lost)
-  let saved=null;
-  if(plans){try{saved=(await plans.load(ed.history.load()))?.plan||null;}catch{}const local=ed.history.save;ed.history.save=p=>{plans.save(p);return local(p);};}
-  saved??=ed.history.load();
-  const canContinue=!!(saved&&Array.isArray(saved.rooms));
-  if(canContinue){await ed.underlay.load();if(!saved.rooms?.length)ed.wizard.set(saved.id,{open:false,names:false});ed.setPlan(saved);}
-  else ed.setPlan({});
+  let saved = null;
+  if (plans) {
+    try {
+      saved = (await plans.load(ed.history.load()))?.plan || null;
+    } catch {}
+    const local = ed.history.save;
+    ed.history.save = p => {
+      plans.save(p);
+      return local(p);
+    };
+  }
+  saved ??= ed.history.load();
+  const canContinue = !!(saved && Array.isArray(saved.rooms));
+  if (canContinue) {
+    await ed.underlay.load();
+    if (!saved.rooms?.length) ed.wizard.set(saved.id, {open: false, names: false});
+    ed.setPlan(saved);
+  } else ed.setPlan({});
   // undo steps from last time come from storage; the plan as it was at the end of last time becomes a version (if there is no such one yet)
-  await ed.history.ready;await ed.versions.ready();ed.versions.mark('auto',null,{at:ed.history.lastAt()});
+  await ed.history.ready;
+  await ed.versions.ready();
+  ed.versions.mark('auto', null, {at: ed.history.lastAt()});
   flows.resume(); // the “Furniture”, “Lights”, “Devices”, “Sensors” steps — in their own mode
   flows.showStart({canContinue});
-  if(dev)devPanel(ed,flows);
-  window.editor={ed,flows};
-  document.body.dataset.ready='true';
+  if (dev) devPanel(ed, flows);
+  window.editor = {ed, flows};
+  document.body.dataset.ready = 'true';
   return ed;
 }

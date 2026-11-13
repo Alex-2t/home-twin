@@ -146,7 +146,9 @@ export function refreshRetries(pins, lastRound) {
     const now =
       pin.retry.n != null
         ? roundPins.find(roundPin => roundPin.n === pin.retry.n)
-        : roundPins.find(roundPin => roundPin.text === pin.text && (roundPin.item || null) === (pin.item || null));
+        : roundPins.find(
+            roundPin => roundPin.text === pin.text && (roundPin.item || null) === (pin.item || null),
+          );
     if (!now) return [pin];
     if (now.made === 'yes') {
       const untouched = pin.text === now.text && (pin.photos || []).length === (now.photos || []).length;
@@ -160,4 +162,5 @@ export function refreshRetries(pins, lastRound) {
 }
 
 /** How many changes the owner asks for: each pin with words, and the note for the whole home. */
-export const changeCount = notes => notes.pins.filter(pin => pin.text.trim()).length + (notes.text.trim() ? 1 : 0);
+export const changeCount = notes =>
+  notes.pins.filter(pin => pin.text.trim()).length + (notes.text.trim() ? 1 : 0);

@@ -27,7 +27,15 @@ import {kindName, localRoomName, numberAlike} from '../core/overview.js';
 import {byId} from '../core/catalog.js';
 import {openReview} from './ai-review.js';
 import {changeCount, pinsToSend, pinsToRetry, refreshRetries} from './ai-pins.js';
-import {buyPackage, claimFromAddress, ensureWallet, priceText, topUpWallet, walletMeter, walletOffer} from './ai-wallet.js';
+import {
+  buyPackage,
+  claimFromAddress,
+  ensureWallet,
+  priceText,
+  topUpWallet,
+  walletMeter,
+  walletOffer,
+} from './ai-wallet.js';
 
 const POLL_MS = 2000;
 const START_POLL_MS = 3000;
@@ -40,11 +48,36 @@ const PHRASE_SECONDS = 5;
 // What the owner sees as stages; each is a few of the build's own steps (the harness's tools/steps.ts). The plan runs beside
 // the rooms, so two stages can run at once.
 const STAGES = [
-  {key: 'plan', steps: ['plan'], label: N('Reading the plan'), note: N('Rooms, doors and windows from the photo')},
-  {key: 'rooms', steps: ['split', 'frames', 'recon', 'rooms'], label: N('Rooms from the video'), note: N('The size of each room and what stands there')},
-  {key: 'furniture', steps: ['bind', 'ours', 'parts', 'colours'], label: N('Furniture'), note: N('The shape and colour of each piece')},
-  {key: 'assembly', steps: ['assemble', 'check'], label: N('Assembly'), note: N('Everything in its place, then checked')},
-  {key: 'final', steps: ['shot', 'report'], label: N('Final check'), note: N('A last look over the whole home')},
+  {
+    key: 'plan',
+    steps: ['plan'],
+    label: N('Reading the plan'),
+    note: N('Rooms, doors and windows from the photo'),
+  },
+  {
+    key: 'rooms',
+    steps: ['split', 'frames', 'recon', 'rooms'],
+    label: N('Rooms from the video'),
+    note: N('The size of each room and what stands there'),
+  },
+  {
+    key: 'furniture',
+    steps: ['bind', 'ours', 'parts', 'colours'],
+    label: N('Furniture'),
+    note: N('The shape and colour of each piece'),
+  },
+  {
+    key: 'assembly',
+    steps: ['assemble', 'check'],
+    label: N('Assembly'),
+    note: N('Everything in its place, then checked'),
+  },
+  {
+    key: 'final',
+    steps: ['shot', 'report'],
+    label: N('Final check'),
+    note: N('A last look over the whole home'),
+  },
 ];
 // What each step does while it has nothing new to show, named in turn: each line true of that step (a dry word now and then).
 const PHRASES = {
@@ -59,7 +92,11 @@ const PHRASES = {
     N('Working out the scale'),
   ],
   // The plan call again, with what our code found wrong in its plan.
-  planFix: [N('Checking that the walls meet'), N('Setting each window on its wall'), N('Double-checking the plan')],
+  planFix: [
+    N('Checking that the walls meet'),
+    N('Setting each window on its wall'),
+    N('Double-checking the plan'),
+  ],
   split: [
     N('Finding the rooms in your video'),
     N('Watching each second of the video'),
@@ -110,7 +147,11 @@ const PHRASES = {
     N('Fixing what does not look alike'),
     N('Board by board, leg by leg'),
   ],
-  colours: [N('Measuring the colours'), N('Taking the colours from the frames'), N('Telling beige from cream')],
+  colours: [
+    N('Measuring the colours'),
+    N('Taking the colours from the frames'),
+    N('Telling beige from cream'),
+  ],
   assemble: [
     N('Putting everything in its place'),
     N('Setting each piece along its wall'),
@@ -126,7 +167,12 @@ const PHRASES = {
     N('Checking the fixes landed'),
     N('Picking on the details'),
   ],
-  revise: [N('Making your changes'), N('Reading your pins'), N('Moving things as you asked'), N('Checking the changes landed')],
+  revise: [
+    N('Making your changes'),
+    N('Reading your pins'),
+    N('Moving things as you asked'),
+    N('Checking the changes landed'),
+  ],
   shot: [N('Taking pictures of your home'), N('Opening your home in the editor'), N('Finding a good angle')],
   report: [
     N('Final touches'),
@@ -141,11 +187,7 @@ const ROOM_PHRASES = [N('Looking…'), N('Walls, doors, windows…'), N('Listing
 // A room of the video: its name on the plan once matched (read off the plan, often in English), else what its guess in English
 // ("rear terrace") is — in the owner's language either way.
 const roomName = room =>
-  room.name
-    ? getLang() === 'en'
-      ? room.name
-      : localRoomName(room.name, t)
-    : kindName(room.guess, t);
+  room.name ? (getLang() === 'en' ? room.name : localRoomName(room.name, t)) : kindName(room.guess, t);
 
 // Each room of the video by its id, named (roomName); two that would read the same are numbered in video order.
 function videoRoomNames(rooms) {
@@ -192,7 +234,8 @@ function follow(id) {
 function stageState(status, stage) {
   if (!status?.steps?.length) return 'todo';
   if (status.waiting === 'final' && stage.key === 'final') return 'ask';
-  if (status.revising && (stage.key === 'assembly' || stage.key === 'final')) return stage.key === 'assembly' ? 'running' : 'todo';
+  if (status.revising && (stage.key === 'assembly' || stage.key === 'final'))
+    return stage.key === 'assembly' ? 'running' : 'todo';
   const states = stage.steps.map(name => status.steps.find(x => x.name === name)?.state || 'todo');
   if (states.some(x => x === 'running')) return 'running';
   if (states.every(x => x === 'done')) return 'done';
@@ -232,7 +275,8 @@ function planSvg(plan) {
   const y1 = Math.max(...ys);
   const w = Math.max(...xs) - x0;
   const h = y1 - Math.min(...ys);
-  const d = ring => 'M' + ring.map(([x, y]) => `${(x - x0).toFixed(2)} ${(y1 - y).toFixed(2)}`).join('L') + 'Z';
+  const d = ring =>
+    'M' + ring.map(([x, y]) => `${(x - x0).toFixed(2)} ${(y1 - y).toFixed(2)}`).join('L') + 'Z';
   return `<svg viewBox="-.3 -.3 ${(w + 0.6).toFixed(2)} ${(h + 0.6).toFixed(2)}" aria-hidden="true">${rings.map(r => `<path d="${d(r)}"/>`).join('')}</svg>`;
 }
 
@@ -245,7 +289,9 @@ function planSvg(plan) {
  */
 export function aiStartCard(ed, card, {api = ''} = {}) {
   const idle = card.innerHTML;
-  const another = el(`<button class="aib-start-new" hidden>${icon('plus', 18)}${esc(t('Start another build'))}</button>`);
+  const another = el(
+    `<button class="aib-start-new" hidden>${icon('plus', 18)}${esc(t('Start another build'))}</button>`,
+  );
   card.after(another);
   let shown = null;
   let timer = 0;
@@ -270,19 +316,26 @@ export function aiStartCard(ed, card, {api = ''} = {}) {
     const stopped = !!status.error || !status.alive;
     const ready = status.waiting === 'final';
     const state = ready ? 'ready' : stopped ? 'stopped' : 'running';
-    const title = ready ? t('Your home is ready') : stopped ? t('The build stopped') : status.revising ? t('Changing your home…') : t('Your home is being built');
+    const title = ready
+      ? t('Your home is ready')
+      : stopped
+        ? t('The build stopped')
+        : status.revising
+          ? t('Changing your home…')
+          : t('Your home is being built');
     const note = ready
       ? t('Look at it in 3D and say what to change.')
       : stopped
         ? t('Open it to try again.')
         : [t(currentStage(status).label), etaText(status.eta)].filter(Boolean).join(' · ');
-    const badge = ready && status.has?.shot
-      ? `<img src="${api}/api/builds/${encodeURIComponent(status.id)}/shot" alt="">`
-      : ready
-        ? icon('house', 20)
-        : stopped
-          ? icon('alert', 20)
-          : '<i class="aib-start-spin"></i>';
+    const badge =
+      ready && status.has?.shot
+        ? `<img src="${api}/api/builds/${encodeURIComponent(status.id)}/shot" alt="">`
+        : ready
+          ? icon('house', 20)
+          : stopped
+            ? icon('alert', 20)
+            : '<i class="aib-start-spin"></i>';
     if (card.dataset.state !== state) {
       card.dataset.state = state;
       card.innerHTML = `<span class="ci aib-start-badge"></span><b></b><span class="aib-start-note"></span><i class="aib-start-meter"><i></i></i>${icon('right', 18)}`;
@@ -497,7 +550,11 @@ export function openAiBuild(ed, {api = '', id = null, flows = ed.flows, notice =
       const res = await fetch(`${base()}/plan`, {cache: 'no-store'});
       if (!res.ok) return;
       const plan = readPlan(await res.text());
-      planRead = {svg: planSvg(plan), rooms: plan.rooms.filter(room => !room.solid).length, openings: plan.openings.length};
+      planRead = {
+        svg: planSvg(plan),
+        rooms: plan.rooms.filter(room => !room.solid).length,
+        openings: plan.openings.length,
+      };
     } catch {}
   }
 
@@ -608,7 +665,8 @@ export function openAiBuild(ed, {api = '', id = null, flows = ed.flows, notice =
         const megabytes = videos.reduce((sum, f) => sum + f.size, 0) / 1e6;
         shown.innerHTML = `<video muted playsinline preload="metadata"></video><small></small>`;
         shown.querySelector('video').src = URL.createObjectURL(videos[0]) + '#t=1';
-        shown.querySelector('small').textContent = t('{0, plural, one {# video} other {# videos}}', videos.length) + ` · ${Math.round(megabytes)} MB`;
+        shown.querySelector('small').textContent =
+          t('{0, plural, one {# video} other {# videos}}', videos.length) + ` · ${Math.round(megabytes)} MB`;
       }
       shown.hidden = false;
       label.classList.add('has');
@@ -773,7 +831,10 @@ export function openAiBuild(ed, {api = '', id = null, flows = ed.flows, notice =
         const [id, call] = writing.at(-1);
         return `${nameOf(roomById(id))}: ${pieceName(call.pieces.at(-1))}`;
       }
-      const looking = rooms.filter(([, call]) => call.phase !== 'done').map(([id]) => roomById(id)).filter(Boolean);
+      const looking = rooms
+        .filter(([, call]) => call.phase !== 'done')
+        .map(([id]) => roomById(id))
+        .filter(Boolean);
       if (looking.length) return between(t('Looking at: {0}', nameOf(inHalfTurn(looking))), 'rooms');
       if (stepRunning('recon')) return phrase('recon');
       return phrase('rooms');
@@ -788,7 +849,8 @@ export function openAiBuild(ed, {api = '', id = null, flows = ed.flows, notice =
     }
     if (stage.key === 'assembly') {
       const checking = live.checking?.map(roomById).filter(Boolean) || [];
-      if (status.revising && checking.length) return between(t('Changing: {0}', nameOf(inHalfTurn(checking))), 'revise');
+      if (status.revising && checking.length)
+        return between(t('Changing: {0}', nameOf(inHalfTurn(checking))), 'revise');
       if (status.revising) return phrase('revise');
       if (stepRunning('assemble')) return phrase('assemble');
       if (checking.length) return between(t('Second look: {0}', nameOf(inHalfTurn(checking))), 'check');
@@ -802,10 +864,12 @@ export function openAiBuild(ed, {api = '', id = null, flows = ed.flows, notice =
     const live = status.live || {};
     if (state === 'ask') return t('Ready to check');
     if (state !== 'running') return '';
-    if (stage.key === 'plan' && live.plan?.rooms?.length) return t('{0, plural, one {# room} other {# rooms}}', live.plan.rooms.length);
+    if (stage.key === 'plan' && live.plan?.rooms?.length)
+      return t('{0, plural, one {# room} other {# rooms}}', live.plan.rooms.length);
     // A room left out (an open-air space the plan does not show) is not counted: its call is not made.
     const builtRooms = (status.rooms || []).filter(room => !room.left);
-    if (stage.key === 'rooms' && builtRooms.length) return t('{0} of {1}', builtRooms.filter(room => room.done).length, builtRooms.length);
+    if (stage.key === 'rooms' && builtRooms.length)
+      return t('{0} of {1}', builtRooms.filter(room => room.done).length, builtRooms.length);
     if (stage.key === 'furniture' && live.madeCount) return t('{0} ready', live.madeCount);
     if (stage.key === 'assembly' && stepRunning('check') && !status.revising) {
       const total = status.rooms.filter(room => room.name).length;
@@ -831,7 +895,13 @@ export function openAiBuild(ed, {api = '', id = null, flows = ed.flows, notice =
       if (!item.classList.contains(`st-${state}`)) {
         item.className = `aib-step st-${state}`;
         item.querySelector('.aib-dot').innerHTML =
-          state === 'done' ? icon('check', 13) : state === 'running' ? '<i class="spin"></i>' : state === 'ask' ? icon('eye', 13) : String(i + 1);
+          state === 'done'
+            ? icon('check', 13)
+            : state === 'running'
+              ? '<i class="spin"></i>'
+              : state === 'ask'
+                ? icon('eye', 13)
+                : String(i + 1);
       }
       item.querySelector('em').textContent = stageMeta(stage, state);
       setLine(item.querySelector('.aib-step-live'), state === 'running' ? stageLine(stage) : '');
@@ -922,19 +992,24 @@ export function openAiBuild(ed, {api = '', id = null, flows = ed.flows, notice =
       // The photo is there from the upload; the plan is read once the video is cut into rooms (it learns the rooms from it).
       const next = !stepRunning('plan') && !status.live?.plan;
       box.classList.toggle('aib-waiting', next);
-      setLine(box.querySelector('.aib-reading-line span'), next ? t('Your plan is next: first the video is cut into rooms') : planLine());
+      setLine(
+        box.querySelector('.aib-reading-line span'),
+        next ? t('Your plan is next: first the video is cut into rooms') : planLine(),
+      );
       const call = status.live?.plan;
       const names = call?.rooms || [];
       const tags = box.querySelector('.aib-tags');
       let count = tags.querySelector('.aib-tag-count');
       const shown = tags.querySelectorAll('.aib-tag:not(.aib-tag-count)').length;
-      for (const name of names.slice(shown)) tags.insertBefore(el(`<span class="aib-tag">${icon('check', 12)}${esc(name)}</span>`), count);
+      for (const name of names.slice(shown))
+        tags.insertBefore(el(`<span class="aib-tag">${icon('check', 12)}${esc(name)}</span>`), count);
       const openings = call?.openings || 0;
       if (openings && !count) {
         count = el(`<span class="aib-tag aib-tag-count"></span>`);
         tags.append(count);
       }
-      if (count) count.textContent = t('{0, plural, one {# door or window} other {# doors and windows}}', openings);
+      if (count)
+        count.textContent = t('{0, plural, one {# door or window} other {# doors and windows}}', openings);
     }
     if (mode === 'read') {
       box.querySelector('small').textContent = [
@@ -949,12 +1024,10 @@ export function openAiBuild(ed, {api = '', id = null, flows = ed.flows, notice =
   function renderMaking() {
     const box = root.querySelector('.aib-making');
     const live = status.live || {};
-    const work =
-      live.work ||
-      [
-        ...(live.making || []).map(piece => ({...piece, state: 'busy'})),
-        ...(live.made || []).map(piece => ({...piece, state: 'done'})),
-      ];
+    const work = live.work || [
+      ...(live.making || []).map(piece => ({...piece, state: 'busy'})),
+      ...(live.made || []).map(piece => ({...piece, state: 'done'})),
+    ];
     const show = stageState(status, STAGES[2]) === 'running' && work.length > 0;
     box.hidden = !show;
     if (!show) return;
@@ -964,13 +1037,16 @@ export function openAiBuild(ed, {api = '', id = null, flows = ed.flows, notice =
       const key = `${piece.room}/${piece.id}`;
       let chip = chips.querySelector(`[data-key="${CSS.escape(key)}"]`);
       if (!chip) {
-        chip = el(`<span class="aib-chip" data-key="${esc(key)}"><i class="aib-chip-state"></i><b></b><small></small></span>`);
+        chip = el(
+          `<span class="aib-chip" data-key="${esc(key)}"><i class="aib-chip-state"></i><b></b><small></small></span>`,
+        );
         chips.append(chip);
       }
       const state = piece.state === 'busy' ? 'busy' : 'done';
       if (chip.dataset.state !== state) {
         chip.dataset.state = state;
-        chip.querySelector('.aib-chip-state').innerHTML = state === 'busy' ? '<i class="spin"></i>' : icon('check', 12);
+        chip.querySelector('.aib-chip-state').innerHTML =
+          state === 'busy' ? '<i class="spin"></i>' : icon('check', 12);
       }
       const name = pieceName(piece);
       const where = nameOf(roomById(piece.room));
@@ -987,16 +1063,20 @@ export function openAiBuild(ed, {api = '', id = null, flows = ed.flows, notice =
     if (room.left) return t('Not on the plan: not built');
     if (room.waits) return t('Waits for the plan');
     if (!room.done) {
-      if (call?.pieces?.length) return `${call.pieces.length} · ${call.pieces.map(pieceName).reverse().join(', ')}`;
+      if (call?.pieces?.length)
+        return `${call.pieces.length} · ${call.pieces.map(pieceName).reverse().join(', ')}`;
       if (!looking) return '';
       // Its call not started yet: the room is being rebuilt in 3D first.
       if (!call && stepRunning('recon')) return t('Measuring in 3D…');
       // Each room whose call works now a step apart in the turn: the cards do not change in step.
-      const working = Object.entries(live.rooms || {}).filter(([, other]) => other.phase !== 'done').map(([id]) => id);
+      const working = Object.entries(live.rooms || {})
+        .filter(([, other]) => other.phase !== 'done')
+        .map(([id]) => id);
       return t(inTurn(ROOM_PHRASES, Math.max(0, working.indexOf(room.id))));
     }
     const making = (live.making || []).filter(work => work.room === room.id);
-    if (making.length && stageState(status, STAGES[2]) === 'running') return t('Making: {0}', making.map(pieceName).join(', '));
+    if (making.length && stageState(status, STAGES[2]) === 'running')
+      return t('Making: {0}', making.map(pieceName).join(', '));
     return t('{0, plural, one {# piece} other {# pieces}}', room.pieces || call?.pieces?.length || 0);
   }
 
@@ -1023,7 +1103,15 @@ export function openAiBuild(ed, {api = '', id = null, flows = ed.flows, notice =
       }
       figure.querySelector('.aib-room-name').textContent = nameOf(room);
       const busyHere = furnishing && (status.live?.making || []).some(work => work.room === room.id);
-      const state = busyHere ? 'running' : room.done ? 'done' : room.left ? 'left' : looking && !room.waits ? 'running' : 'todo';
+      const state = busyHere
+        ? 'running'
+        : room.done
+          ? 'done'
+          : room.left
+            ? 'left'
+            : looking && !room.waits
+              ? 'running'
+              : 'todo';
       if (figure.dataset.state !== state) {
         figure.dataset.state = state;
         figure.querySelector('.aib-room-state').innerHTML =
@@ -1046,10 +1134,10 @@ export function openAiBuild(ed, {api = '', id = null, flows = ed.flows, notice =
         : s.paused
           ? t('Waiting for a top-up')
           : s.waiting || s.finished
-          ? t('Your home is ready')
-          : s.revising
-            ? t('Changing your home…')
-            : t('Building your home');
+            ? t('Your home is ready')
+            : s.revising
+              ? t('Changing your home…')
+              : t('Building your home');
     root.querySelector('.aib-title').textContent = title;
     root.querySelector('.aib-eta').textContent = s ? etaText(s.eta) : '';
     // The package beside the time: drawn again only when its shares change (the bar would restart its motion).

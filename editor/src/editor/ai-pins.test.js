@@ -1,13 +1,50 @@
 // The AI build's pins (ai-pins.js): which room and item a spot is, and what the service gets.
 import {test} from 'node:test';
 import assert from 'node:assert/strict';
-import {roomAt, newPin, pinLabel, pinsToSend, pinsToRetry, refreshRetries, changeCount, MAX_PIN_PHOTOS} from './ai-pins.js';
+import {
+  roomAt,
+  newPin,
+  pinLabel,
+  pinsToSend,
+  pinsToRetry,
+  refreshRetries,
+  changeCount,
+  MAX_PIN_PHOTOS,
+} from './ai-pins.js';
 
 const plan = {
   rooms: [
-    {id: 'r1', name: 'Kitchen', polygon: [[0, 0], [4, 0], [4, 3], [0, 3]]},
-    {id: 'r2', name: 'Bedroom', polygon: [[4, 0], [7, 0], [7, 3], [4, 3]]},
-    {id: 'shaft', name: 'Shaft', solid: true, polygon: [[1, 1], [1.5, 1], [1.5, 1.5], [1, 1.5]]},
+    {
+      id: 'r1',
+      name: 'Kitchen',
+      polygon: [
+        [0, 0],
+        [4, 0],
+        [4, 3],
+        [0, 3],
+      ],
+    },
+    {
+      id: 'r2',
+      name: 'Bedroom',
+      polygon: [
+        [4, 0],
+        [7, 0],
+        [7, 3],
+        [4, 3],
+      ],
+    },
+    {
+      id: 'shaft',
+      name: 'Shaft',
+      solid: true,
+      polygon: [
+        [1, 1],
+        [1.5, 1],
+        [1.5, 1.5],
+        [1, 1.5],
+      ],
+    },
   ],
   furniture: [{id: 'r6_i1', name: 'Grey sofa'}],
 };
@@ -72,9 +109,32 @@ test('the pins of the last round that did not work out come back, with why', () 
   const lastRound = {
     round: 1,
     pins: [
-      {n: 1, x: 2, y: 4, z: 0.5, item: 'r7_i13', itemName: 'Sofa', room: 'r6', roomName: 'Living room', text: 'faces the window', made: 'no', why: [{code: 'refused', text: '…'}, {code: 'refused', text: '…'}]},
+      {
+        n: 1,
+        x: 2,
+        y: 4,
+        z: 0.5,
+        item: 'r7_i13',
+        itemName: 'Sofa',
+        room: 'r6',
+        roomName: 'Living room',
+        text: 'faces the window',
+        made: 'no',
+        why: [
+          {code: 'refused', text: '…'},
+          {code: 'refused', text: '…'},
+        ],
+      },
       {n: 2, x: 2, y: 6, text: 'four chairs', made: 'yes', why: []},
-      {n: 3, x: 1, y: 1, text: 'a column', photos: ['photo-a.jpg'], made: 'partly', why: [{code: 'box', text: '…'}]},
+      {
+        n: 3,
+        x: 1,
+        y: 1,
+        text: 'a column',
+        photos: ['photo-a.jpg'],
+        made: 'partly',
+        why: [{code: 'box', text: '…'}],
+      },
     ],
   };
   const pins = pinsToRetry(lastRound);
@@ -94,12 +154,26 @@ test('a pin that came back follows what the service says of its round now: made,
     round: 1,
     pins: [
       {n: 1, x: 1, y: 3, item: 'r2_i19', text: 'flowers stand here', made: 'yes', why: []},
-      {n: 2, x: 1, y: 1, item: 'r3_i1', text: 'what is this cube?', made: 'no', why: [{code: 'unchanged', text: '…'}]},
+      {
+        n: 2,
+        x: 1,
+        y: 1,
+        item: 'r3_i1',
+        text: 'what is this cube?',
+        made: 'no',
+        why: [{code: 'unchanged', text: '…'}],
+      },
     ],
   };
-  const back = pinsToRetry({...judgedAgain, pins: judgedAgain.pins.map(pin => ({...pin, made: 'no', why: [{code: 'box'}]}))});
+  const back = pinsToRetry({
+    ...judgedAgain,
+    pins: judgedAgain.pins.map(pin => ({...pin, made: 'no', why: [{code: 'box'}]})),
+  });
   const now = refreshRetries(back, judgedAgain);
-  assert.deepEqual(now.map(pin => pin.text), ['what is this cube?']);
+  assert.deepEqual(
+    now.map(pin => pin.text),
+    ['what is this cube?'],
+  );
   assert.deepEqual(now[0].retry.codes, ['unchanged']);
   // A made pin the owner added to stays, without its reason.
   const added = refreshRetries([{...back[0], text: 'flowers stand here, three pots'}], judgedAgain);
@@ -127,7 +201,9 @@ test("a pin that comes back keeps what the service understood and said in the ow
         text: 'from here to the right the wall is white',
         made: 'no',
         understood: 'The wall right of the balcony door is plain white.',
-        why: [{code: 'cannot', text: '…', say: 'A wall has one finish from corner to corner in this version.'}],
+        why: [
+          {code: 'cannot', text: '…', say: 'A wall has one finish from corner to corner in this version.'},
+        ],
       },
     ],
   };

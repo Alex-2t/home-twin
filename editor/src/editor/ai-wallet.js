@@ -87,7 +87,9 @@ export async function claimFromAddress(api = '') {
   if (!payment) return null;
   if (status && status !== 'succeeded') return {failed: true};
   try {
-    const data = await jsonOf(await fetch(`${api}/api/payments/${encodeURIComponent(payment)}/claim`, {method: 'POST'}));
+    const data = await jsonOf(
+      await fetch(`${api}/api/payments/${encodeURIComponent(payment)}/claim`, {method: 'POST'}),
+    );
     storeWallet(data.key);
     return data;
   } catch (e) {
@@ -109,7 +111,9 @@ export function priceText(price) {
 
 /** One more package on this browser's package → {key, used, left, empty}. */
 export async function topUpWallet(api, key) {
-  const data = await jsonOf(await fetch(`${api}/api/wallets/${encodeURIComponent(key)}/top-up`, {method: 'POST'}));
+  const data = await jsonOf(
+    await fetch(`${api}/api/wallets/${encodeURIComponent(key)}/top-up`, {method: 'POST'}),
+  );
   return {key, ...data};
 }
 

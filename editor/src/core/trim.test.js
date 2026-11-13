@@ -4,7 +4,15 @@ import assert from 'node:assert/strict';
 import {trimBoxes, TRIM} from './trim.js';
 
 // A 4 × 3 m room, counter-clockwise from the bottom left: a door in the bottom wall, a window in the top one.
-const room = {id: 'r1', polygon: [[0, 0], [4, 0], [4, 3], [0, 3]]};
+const room = {
+  id: 'r1',
+  polygon: [
+    [0, 0],
+    [4, 0],
+    [4, 3],
+    [0, 3],
+  ],
+};
 const door = {kind: 'door', a: [1, 0], b: [1.9, 0], bottom: 0, top: 2.05};
 const window_ = {kind: 'window', a: [1.5, 3], b: [2.7, 3], bottom: 0.85, top: 2.3};
 const xs = box => box.mp[0][0].map(point => point[0]);
@@ -26,7 +34,8 @@ test('the skirting runs round the walls and stops at the door; the door and the 
   const sill = boxes.find(box => box.opening === 1 && box.top === window_.bottom);
   assert.ok(sill);
   // Trim stands inside the room, on the wall's face.
-  for (const box of boxes) for (const [x, y] of box.mp[0][0]) assert.ok(x > 0 && x < 4 && y > 0 && y < 3, `${x}, ${y}`);
+  for (const box of boxes)
+    for (const [x, y] of box.mp[0][0]) assert.ok(x > 0 && x < 4 && y > 0 && y < 3, `${x}, ${y}`);
 });
 
 test('no trim where the wall is taken away or is a railing', () => {

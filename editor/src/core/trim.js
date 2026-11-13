@@ -100,7 +100,9 @@ function edgeTrim(axisStart, axisEnd, faceStart, faceEnd, turning, openings) {
     boxes.push(box(at(s1), at(s1 + width), inward, depth, casingBottom, top + width, index));
     boxes.push(box(at(s0), at(s1), inward, depth, top, top + width, index));
     if (opening.kind === 'window' && bottom > FLOOR_WINDOW_METRES)
-      boxes.push(box(at(s0 - width), at(s1 + width), inward, TRIM.sillDepth, bottom - TRIM.sillHeight, bottom, index));
+      boxes.push(
+        box(at(s0 - width), at(s1 + width), inward, TRIM.sillDepth, bottom - TRIM.sillHeight, bottom, index),
+      );
   }
   return boxes;
 }

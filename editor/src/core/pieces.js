@@ -201,7 +201,8 @@ export function splitPieces(list, cut) {
   const after = [];
   for (const piece of list) {
     const [from, to] = piece.t || [0, 1];
-    if (cut > EPSILON && from < cut - EPSILON) before.push(alongCopy(piece, from / cut, Math.min(to, cut) / cut));
+    if (cut > EPSILON && from < cut - EPSILON)
+      before.push(alongCopy(piece, from / cut, Math.min(to, cut) / cut));
     if (cut < 1 - EPSILON && to > cut + EPSILON)
       after.push(alongCopy(piece, (Math.max(from, cut) - cut) / (1 - cut), (to - cut) / (1 - cut)));
   }

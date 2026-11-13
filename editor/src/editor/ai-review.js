@@ -29,7 +29,9 @@ const saidFor = (retry, code) =>
     .map(told => told.say)
     .join(' ');
 const missedText = retry =>
-  (retry?.codes || []).map(code => saidFor(retry, code) || t(MISSED_REASON[code] || MISSED_REASON.unchanged)).join(' · ');
+  (retry?.codes || [])
+    .map(code => saidFor(retry, code) || t(MISSED_REASON[code] || MISSED_REASON.unchanged))
+    .join(' · ');
 // Under a pin that comes back: not done, or done in part, and why (the owner: "Last time: …" told them nothing). What the app
 // can't do yet, and what was not understood, say so plainly (the owner: "why was it unclear?" — it was understood, and the
 // app could not do it).
@@ -285,11 +287,16 @@ export function openReview(
     if (!pin) return row.replaceChildren();
     const room = (pin.photos?.length || 0) + busy < MAX_PIN_PHOTOS;
     // Where a photo goes, in sight: a dropping place while there is none, then a small one after the photos.
-    const tile = !pin.photos?.length && !busy
-      ? el(`<button class="aib-drop-tile" data-act="pin-photo">${icon('image', 16)}<span>${esc(t('Drop a photo or a screenshot here — or click'))}</span></button>`)
-      : room
-        ? el(`<button class="aib-thumb aib-add" data-act="pin-photo" title="${esc(t('Add a photo'))}">${icon('plus', 15)}</button>`)
-        : null;
+    const tile =
+      !pin.photos?.length && !busy
+        ? el(
+            `<button class="aib-drop-tile" data-act="pin-photo">${icon('image', 16)}<span>${esc(t('Drop a photo or a screenshot here — or click'))}</span></button>`,
+          )
+        : room
+          ? el(
+              `<button class="aib-thumb aib-add" data-act="pin-photo" title="${esc(t('Add a photo'))}">${icon('plus', 15)}</button>`,
+            )
+          : null;
     row.replaceChildren(
       ...pin.photos.map((name, k) => {
         const thumb = el(`<span class="aib-thumb"><a target="_blank" rel="noopener"><img alt=""></a>
@@ -360,7 +367,10 @@ export function openReview(
     if (pin) {
       const at = view === 'plan' ? ed.v.S([pin.x, pin.y]) : ed.view.project([pin.x, pin.y], pin.z ?? 0);
       const radius = Math.max(16, canvas.width / 60);
-      for (const [colour, width] of [['#fff', 7], [RING, 4]]) {
+      for (const [colour, width] of [
+        ['#fff', 7],
+        [RING, 4],
+      ]) {
         g.beginPath();
         g.arc(at[0] * ratio * k, at[1] * ratio * k, radius, 0, Math.PI * 2);
         g.strokeStyle = colour;
@@ -396,7 +406,10 @@ export function openReview(
     const arrow = ([a, b]) => {
       const angle = Math.atan2(b[1] - a[1], b[0] - a[0]);
       const head = width * 4.5;
-      const tip = (turn, length) => [b[0] - length * Math.cos(angle + turn), b[1] - length * Math.sin(angle + turn)];
+      const tip = (turn, length) => [
+        b[0] - length * Math.cos(angle + turn),
+        b[1] - length * Math.sin(angle + turn),
+      ];
       g.lineCap = 'round';
       g.lineJoin = 'round';
       for (const [colour, line] of [
@@ -426,7 +439,10 @@ export function openReview(
     draw();
     const at = e => {
       const r = canvas.getBoundingClientRect();
-      return [((e.clientX - r.left) * canvas.width) / r.width, ((e.clientY - r.top) * canvas.height) / r.height];
+      return [
+        ((e.clientX - r.left) * canvas.width) / r.width,
+        ((e.clientY - r.top) * canvas.height) / r.height,
+      ];
     };
     canvas.addEventListener('pointerdown', e => {
       try {
@@ -440,7 +456,8 @@ export function openReview(
       draw();
     });
     canvas.addEventListener('pointerup', () => {
-      if (drawing && Math.hypot(drawing[1][0] - drawing[0][0], drawing[1][1] - drawing[0][1]) > 10) arrows.push(drawing);
+      if (drawing && Math.hypot(drawing[1][0] - drawing[0][0], drawing[1][1] - drawing[0][1]) > 10)
+        arrows.push(drawing);
       drawing = null;
       draw();
     });
@@ -487,10 +504,14 @@ export function openReview(
   }
 
   function renderPins() {
-    const shownPast = pastPins.map((pin, k) => ({pin, k})).filter(({k}) => k === pastOpen || k === pastHovered);
+    const shownPast = pastPins
+      .map((pin, k) => ({pin, k}))
+      .filter(({k}) => k === pastOpen || k === pastHovered);
     pinLayer.replaceChildren(
       ...shownPast.map(({pin, k}) => {
-        const b = el(`<button class="aib-pin past" data-p="${k}" title="${esc(pin.text)}">${icon('check', 13)}</button>`);
+        const b = el(
+          `<button class="aib-pin past" data-p="${k}" title="${esc(pin.text)}">${icon('check', 13)}</button>`,
+        );
         b.classList.toggle('on', k === pastOpen);
         return b;
       }),
@@ -561,7 +582,10 @@ export function openReview(
     const details = box.querySelector('.aib-past');
     details.hidden = !pastPins.length;
     if (!pastPins.length) return;
-    details.querySelector('summary').textContent = t('{0, plural, one {# change done earlier} other {# changes done earlier}}', pastPins.length);
+    details.querySelector('summary').textContent = t(
+      '{0, plural, one {# change done earlier} other {# changes done earlier}}',
+      pastPins.length,
+    );
     details.querySelector('.aib-notes').replaceChildren(
       ...pastPins.map((pin, k) => {
         const row = el(`<li class="aib-note past" data-p="${k}">
@@ -677,7 +701,9 @@ export function openReview(
         : esc(t('All right, finish'));
     const after = box.querySelector('.aib-after');
     if (after.classList.contains('err')) return;
-    after.textContent = count ? t('We change your home and show it again.') : t('It opens in the editor: everything stays changeable.');
+    after.textContent = count
+      ? t('We change your home and show it again.')
+      : t('It opens in the editor: everything stays changeable.');
   }
 
   function changed() {
