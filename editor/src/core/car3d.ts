@@ -1,4 +1,3 @@
-// @ts-nocheck
 // The catalog car (D-062): a fastback electric sedan and a large luxury SUV.
 // Glazing, panel lines, recessed lights and machined wheels stay readable from the home overview; furniture3d.js batches details by material.
 // The body is one smooth lofted surface, not boxes: sections along the length, each a superellipse sized by the side profile
@@ -8,12 +7,73 @@
 import * as THREE from 'three';
 import {CAR_COLORS, hexOf} from './catalog.ts';
 
+/** Points [x, y] of a profile or of a section. */
+type Pair = [number, number];
+
+/** What the car is built from: the item's size, its colour (a key or '#rrggbb') and its variant ('sedan', 'suv'). */
+export interface CarItem {
+  w: number;
+  d: number;
+  h: number;
+  color?: string;
+  v?: string;
+}
+
+/** A car's profiles and proportions (SPEC below says what each one is). */
+interface CarSpec {
+  H: number;
+  L: number;
+  uf: number;
+  ur: number;
+  R: number;
+  gap: number;
+  tw: number;
+  af: number;
+  pf: number;
+  ar: number;
+  pr: number;
+  NT: number;
+  NB: number;
+  inset: number;
+  tum: number;
+  GT: number;
+  fend: number;
+  roof?: boolean;
+  top: Pair[];
+  bot: Pair[];
+  glass: Pair[];
+}
+
+/** A point of a section from its height e (−1 the bottom, 1 the top), how far out ex (1 the widest) and the side s: [x, y]. */
+type SectionAt = (z: number, e: number, ex: number, s: number) => Pair;
+
+/** A surface the patches lie on: its stations, its ends along the length, its section by angle and its axis. */
+interface Surface {
+  zs: number[];
+  lo: number;
+  hi: number;
+  /** The body: a patch reaching the nose or the tail runs round the tip. */
+  wrap?: boolean;
+  th(e: number): number;
+  at(z: number, a: number, s: number): Pair;
+  mid(z: number): number;
+}
+
+/** A section height on a patch: a number, or one for each station z. */
+type Height = number | ((z: number) => number);
+
+/** A patch on the body: stations z0…z1, section heights e0…e1, its material and how far off the surface. */
+type PatchArgs = [z0: number, z1: number, e0: Height, e1: Height, m: THREE.Material, dd?: number];
+
+/** A station of a patch strip: [z, the side]. */
+type Station = [number, number];
+
 // y(x) through points [[x,y],…] with x ascending: a monotone cubic, so a profile never overshoots between its points
-function curve(P) {
-  const n = P.length,
-    h = [],
-    s = [],
-    m = [];
+function curve(P: Pair[]): (x: number) => number {
+  const n = P.length;
+  const h: number[] = [];
+  const s: number[] = [];
+  const m: number[] = [];
   for (let i = 0; i < n - 1; i++) {
     h[i] = P[i + 1][0] - P[i][0];
     s[i] = (P[i + 1][1] - P[i][1]) / h[i];
@@ -25,14 +85,14 @@ function curve(P) {
       s[i - 1] * s[i] <= 0
         ? 0
         : (3 * (h[i - 1] + h[i])) / ((2 * h[i] + h[i - 1]) / s[i - 1] + (h[i] + 2 * h[i - 1]) / s[i]);
-  return x => {
+  return (x: number): number => {
     if (x <= P[0][0]) return P[0][1];
     if (x >= P[n - 1][0]) return P[n - 1][1];
     let i = 0;
     while (x > P[i + 1][0]) i++;
-    const t = (x - P[i][0]) / h[i],
-      t2 = t * t,
-      t3 = t2 * t;
+    const t = (x - P[i][0]) / h[i];
+    const t2 = t * t;
+    const t3 = t2 * t;
     return (
       (2 * t3 - 3 * t2 + 1) * P[i][1] +
       (t3 - 2 * t2 + t) * h[i] * m[i] +
@@ -47,7 +107,7 @@ function curve(P) {
 // the plan rounds the last af/ar meters of the nose/tail with exponent pf/pr (2 — round, 4 — squarish);
 // NT/NB — how square the section is above/below its middle; inset — the glass house's foot in from the shoulder, tum — how much
 // it narrows to the roof, GT — how flat the roof is.
-const SPEC = {
+const SPEC: Record<string, CarSpec> = {
   sedan: {
     H: 1.44,
     L: 4.7,
@@ -173,15 +233,16 @@ const SPEC = {
   },
 };
 
-const M = new Map(),
-  once = (k, f) => {
-    if (!M.has(k)) M.set(k, f());
-    return M.get(k);
-  };
-const std = (c, r, m = 0) =>
+const M = new Map<string, THREE.Material>();
+const once = (k: string, f: () => THREE.Material): THREE.Material => {
+  if (!M.has(k)) M.set(k, f());
+  // set just above when it was missing
+  return M.get(k)!;
+};
+const std = (c: number, r: number, m = 0): THREE.Material =>
   once(`s${c}:${r}:${m}`, () => new THREE.MeshStandardMaterial({color: c, roughness: r, metalness: m}));
 // car paint: metallic under a clear coat
-const paint = c =>
+const paint = (c: THREE.ColorRepresentation): THREE.Material =>
   once(
     'p' + c,
     () =>
@@ -194,7 +255,7 @@ const paint = c =>
         envMapIntensity: 1.4,
       }),
   );
-const paintF = c =>
+const paintF = (c: THREE.ColorRepresentation): THREE.Material =>
   once('pf' + c, () => {
     const m = paint(c).clone();
     Object.assign(m, {
@@ -206,7 +267,7 @@ const paintF = c =>
     return m;
   });
 // patches lie a few millimeters off the body: pulled in front of it in depth so they never flicker
-const flat = (c, r, m = 0, e = 0) =>
+const flat = (c: number, r: number, m = 0, e = 0): THREE.Material =>
   once(
     `f${c}:${r}:${m}:${e}`,
     () =>
@@ -222,28 +283,30 @@ const flat = (c, r, m = 0, e = 0) =>
         polygonOffsetUnits: -4,
       }),
   );
-const se = (t, n) => Math.sign(t) * Math.pow(Math.abs(t), 2 / n);
+const se = (t: number, n: number): number => Math.sign(t) * Math.pow(Math.abs(t), 2 / n);
 
-export function car(g, {w, d, h, color, v}) {
-  const S = SPEC[v] || SPEC.sedan,
-    L = d,
-    hl = L / 2,
-    sh = h / S.H,
-    sl = L / S.L,
-    c = CAR_COLORS[color]?.[1] ?? hexOf(color, CAR_COLORS.navy[1]);
-  const prof = P => curve(P.map(([u, y]) => [u * hl, y * sh]).sort((a, b) => a[0] - b[0])),
-    top = prof(S.top),
-    bot = prof(S.bot),
-    gtop = prof(S.glass);
-  const R = Math.min(S.R * sh, h * 0.25),
-    Ra = R + S.gap * sh,
-    tw = (S.tw * w) / (v === 'suv' ? 1.98 : 1.85),
-    zf = S.uf * hl,
-    zr = S.ur * hl,
-    af = S.af * sl,
-    ar = S.ar * sl,
-    W = w / 2;
-  const add = (geo, m, cast = true) => {
+export function car(g: THREE.Group, {w, d, h, color, v}: CarItem): void {
+  const S = (v && SPEC[v]) || SPEC.sedan;
+  const L = d;
+  const hl = L / 2;
+  const sh = h / S.H;
+  const sl = L / S.L;
+  // CAR_COLORS: a colour key → [name, number]; any other colour (a custom #rrggbb, a furniture key) goes through hexOf
+  const c = CAR_COLORS[color as keyof typeof CAR_COLORS]?.[1] ?? hexOf(color, CAR_COLORS.navy[1] as number);
+  const prof = (P: Pair[]): ((x: number) => number) =>
+    curve(P.map(([u, y]): Pair => [u * hl, y * sh]).sort((a, b) => a[0] - b[0]));
+  const top = prof(S.top);
+  const bot = prof(S.bot);
+  const gtop = prof(S.glass);
+  const R = Math.min(S.R * sh, h * 0.25);
+  const Ra = R + S.gap * sh;
+  const tw = (S.tw * w) / (v === 'suv' ? 1.98 : 1.85);
+  const zf = S.uf * hl;
+  const zr = S.ur * hl;
+  const af = S.af * sl;
+  const ar = S.ar * sl;
+  const W = w / 2;
+  const add = (geo: THREE.BufferGeometry, m: THREE.Material, cast = true): THREE.Mesh => {
     const o = new THREE.Mesh(geo, m);
     o.castShadow = cast;
     o.receiveShadow = true;
@@ -251,15 +314,15 @@ export function car(g, {w, d, h, color, v}) {
     return o;
   };
   // plan: a little wider over the wheels (haunches); the last meters round into the nose and the tail
-  const wide = z =>
+  const wide = (z: number): number =>
     W * (0.972 + 0.028 * Math.max(Math.exp(-(((z - zf) / 0.75) ** 2)), Math.exp(-(((z - zr) / 0.75) ** 2))));
-  const end = (t, p) => Math.pow(Math.max(0, 1 - Math.pow(Math.min(1, t), p)), 1 / p);
-  const hwAt = z => {
-    const df = z - (hl - af),
-      dr = -hl + ar - z;
+  const end = (t: number, p: number): number => Math.pow(Math.max(0, 1 - Math.pow(Math.min(1, t), p)), 1 / p);
+  const hwAt = (z: number): number => {
+    const df = z - (hl - af);
+    const dr = -hl + ar - z;
     return wide(z) * (df > 0 ? end(df / af, S.pf) : dr > 0 ? end(dr / ar, S.pr) : 1);
   };
-  const arch = z => {
+  const arch = (z: number): number => {
     let y = -1;
     for (const zw of [zf, zr]) {
       const dz = Math.abs(z - zw);
@@ -270,42 +333,42 @@ export function car(g, {w, d, h, color, v}) {
   // a body point: e — height in the section (−1 the bottom, 1 the top), ex — how far out (1 the widest), s — the side;
   // the sides lean in a touch at the shoulder and tuck under at the sill
   // over the front wheels the fenders stand above the hood, which dips between them
-  const gF = Math.max(...S.glass.map(p => p[0])) * hl,
-    fend = z =>
-      S.fend * sh * Math.exp(-(((z - zf) / 0.7) ** 2)) * (z < gF ? Math.exp(-(((z - gF) / 0.2) ** 2)) : 1);
-  const body = (z, e, ex, s) => {
-    const y0 = bot(z),
-      y1 = top(z),
-      f =
-        e > 0.2
-          ? fend(z) *
-            Math.min(1, (e - 0.2) / 0.6) *
-            (Math.exp(-(((ex - 0.8) / 0.2) ** 2)) - 0.5 * Math.exp(-((ex / 0.42) ** 2)))
-          : 0;
+  const gF = Math.max(...S.glass.map(p => p[0])) * hl;
+  const fend = (z: number): number =>
+    S.fend * sh * Math.exp(-(((z - zf) / 0.7) ** 2)) * (z < gF ? Math.exp(-(((z - gF) / 0.2) ** 2)) : 1);
+  const body: SectionAt = (z, e, ex, s) => {
+    const y0 = bot(z);
+    const y1 = top(z);
+    const f =
+      e > 0.2
+        ? fend(z) *
+          Math.min(1, (e - 0.2) / 0.6) *
+          (Math.exp(-(((ex - 0.8) / 0.2) ** 2)) - 0.5 * Math.exp(-((ex / 0.42) ** 2)))
+        : 0;
     return [
       s * hwAt(z) * ex * (1 - 0.035 * Math.max(0, e) ** 3 - 0.06 * (Math.max(0, -e - 0.5) / 0.5) ** 2),
       (y0 + y1) / 2 + ((y1 - y0) / 2) * e + f,
     ];
   };
-  const bodyE = (z, e, s) => {
-    const n = e >= 0 ? S.NT : S.NB,
-      t = Math.sign(e) * Math.abs(e) ** (n / 2);
+  const bodyE = (z: number, e: number, s: number): Pair => {
+    const n = e >= 0 ? S.NT : S.NB;
+    const t = Math.sign(e) * Math.abs(e) ** (n / 2);
     return body(z, e, Math.pow(Math.max(0, 1 - t * t), 1 / n), s);
   };
-  const ring = (z, N, f, NT, NB) => {
-    const out = [];
+  const ring = (z: number, N: number, f: SectionAt, NT: number, NB: number): Pair[] => {
+    const out: Pair[] = [];
     for (let i = 0; i < N; i++) {
-      const a = -Math.PI / 2 + (2 * Math.PI * i) / N,
-        co = Math.cos(a),
-        si = Math.sin(a),
-        n = si >= 0 ? NT : NB;
+      const a = -Math.PI / 2 + (2 * Math.PI * i) / N;
+      const co = Math.cos(a);
+      const si = Math.sin(a);
+      const n = si >= 0 ? NT : NB;
       out.push(f(z, se(si, n), Math.pow(Math.abs(co), 2 / n), co >= 0 ? 1 : -1));
     }
     return out;
   };
 
   // stations: dense where the nose and the tail round off, every 3 cm between, and on the edges of the arches
-  const zs = [];
+  const zs: number[] = [];
   for (let i = 0; i <= 18; i++) {
     const p = ((i / 18) * Math.PI) / 2;
     zs.push(-hl + ar - ar * Math.pow(Math.cos(p), 2 / S.pr), hl - af + af * Math.pow(Math.cos(p), 2 / S.pf));
@@ -321,15 +384,15 @@ export function car(g, {w, d, h, color, v}) {
     paint(c),
   );
   // the glass house: its foot inside the body, in from the shoulders, narrowing to the roof
-  const gu = S.glass.map(p => p[0] * hl),
-    ga = Math.min(...gu),
-    gb = Math.max(...gu),
-    GZ = [ga, ...Z.filter(z => z > ga + 1e-4 && z < gb - 1e-4), gb];
-  const hwG = z => Math.min(hwAt(z), W * 0.972) - S.inset;
-  const house = (z, e, ex, s) => {
-    const y0 = top(z) - 0.17,
-      y1 = gtop(z),
-      f = (e + 1) / 2;
+  const gu = S.glass.map(p => p[0] * hl);
+  const ga = Math.min(...gu);
+  const gb = Math.max(...gu);
+  const GZ = [ga, ...Z.filter(z => z > ga + 1e-4 && z < gb - 1e-4), gb];
+  const hwG = (z: number): number => Math.min(hwAt(z), W * 0.972) - S.inset;
+  const house: SectionAt = (z, e, ex, s) => {
+    const y0 = top(z) - 0.17;
+    const y1 = gtop(z);
+    const f = (e + 1) / 2;
     return [s * hwG(z) * ex * (1 - S.tum * f), (y0 + y1) / 2 + ((y1 - y0) / 2) * e];
   };
   const glassM = once(
@@ -348,9 +411,9 @@ export function car(g, {w, d, h, color, v}) {
     loft(GZ, z => ring(z, 48, house, S.GT, 8)),
     glassM,
   );
-  const black = std(0x141518, 0.35, 0.2),
-    trim = flat(0x111214, 0.45),
-    chrome = flat(0xc9ccd0, 0.18, 0.9);
+  const black = std(0x141518, 0.35, 0.2);
+  const trim = flat(0x111214, 0.45);
+  const chrome = flat(0xc9ccd0, 0.18, 0.9);
   // wheels in the arches, the arch liners dark
   for (const zw of [zf, zr]) {
     const lg = new THREE.CylinderGeometry(Ra - 0.012, Ra - 0.012, 2 * W - 0.08, 32, 1, true, 0, Math.PI);
@@ -371,20 +434,20 @@ export function car(g, {w, d, h, color, v}) {
   // reaches the tip), section heights e0…e1 (numbers or functions of z), dd off the surface. F.pt(z,e,s) — the surface, F.mid(z) — its axis
   // A surface is walked by the angle round its section (as the loft is built), so the points spread evenly even where a flat roof
   // turns sharply into its sides; heights e are turned into that angle. F.at(z,θ,s) — the surface, F.mid(z) — its axis.
-  const exOf = (e, NT, NB) => {
-    const n = e >= 0 ? NT : NB,
-      t = Math.sign(e) * Math.abs(e) ** (n / 2);
+  const exOf = (e: number, NT: number, NB: number): number => {
+    const n = e >= 0 ? NT : NB;
+    const t = Math.sign(e) * Math.abs(e) ** (n / 2);
     return Math.pow(Math.max(0, 1 - t * t), 1 / n);
   };
-  const surf = (f, NT, NB) => ({
+  const surf = (f: SectionAt, NT: number, NB: number): Pick<Surface, 'th' | 'at'> => ({
     th: e => Math.asin(Math.sign(e) * Math.abs(e) ** ((e >= 0 ? NT : NB) / 2)),
     at: (z, a, s) => {
-      const si = Math.sin(a),
-        n = si >= 0 ? NT : NB;
+      const si = Math.sin(a);
+      const n = si >= 0 ? NT : NB;
       return f(z, se(si, n), Math.pow(Math.abs(Math.cos(a)), 2 / n), s);
     },
   });
-  const onBody = {
+  const onBody: Surface = {
     zs: Z,
     lo: -hl,
     hi: hl,
@@ -392,21 +455,35 @@ export function car(g, {w, d, h, color, v}) {
     ...surf(body, S.NT, S.NB),
     mid: z => (top(z) + bot(z)) / 2,
   };
-  const onGlass = {zs: GZ, lo: ga, hi: gb, ...surf(house, S.GT, 8), mid: z => (top(z) - 0.17 + gtop(z)) / 2};
-  const patchOn = (F, z0, z1, e0, e1, m, dd = 0.003) => {
-    const cl = z => Math.max(F.lo, Math.min(F.hi, z)),
-      A0 = z => F.th(typeof e0 === 'function' ? e0(z) : e0),
-      A1 = z => F.th(typeof e1 === 'function' ? e1(z) : e1);
-    const P = (z, a, s) => {
+  const onGlass: Surface = {
+    zs: GZ,
+    lo: ga,
+    hi: gb,
+    ...surf(house, S.GT, 8),
+    mid: z => (top(z) - 0.17 + gtop(z)) / 2,
+  };
+  const patchOn = (
+    F: Surface,
+    z0: number,
+    z1: number,
+    e0: Height,
+    e1: Height,
+    m: THREE.Material,
+    dd = 0.003,
+  ): void => {
+    const cl = (z: number): number => Math.max(F.lo, Math.min(F.hi, z));
+    const A0 = (z: number): number => F.th(typeof e0 === 'function' ? e0(z) : e0);
+    const A1 = (z: number): number => F.th(typeof e1 === 'function' ? e1(z) : e1);
+    const P = (z: number, a: number, s: number): THREE.Vector3 => {
       z = cl(z);
       const [x, y] = F.at(z, Math.max(-Math.PI / 2, Math.min(Math.PI / 2, a)), s);
       return new THREE.Vector3(x, y, z);
     };
-    const off = (z, a, s) => {
-      const p = P(z, a, s),
-        u = P(z + 0.002, a, s).sub(P(z - 0.002, a, s)),
-        w = P(z, a + 0.01, s).sub(P(z, a - 0.01, s)),
-        n = u.cross(w).normalize();
+    const off = (z: number, a: number, s: number): THREE.Vector3 => {
+      const p = P(z, a, s);
+      const u = P(z + 0.002, a, s).sub(P(z - 0.002, a, s));
+      const w = P(z, a + 0.01, s).sub(P(z, a - 0.01, s));
+      const n = u.cross(w).normalize();
       if (n.dot(p.clone().sub(new THREE.Vector3(0, F.mid(cl(z)), 0))) < 0) n.negate();
       return p.addScaledVector(n, dd);
     };
@@ -414,12 +491,12 @@ export function car(g, {w, d, h, color, v}) {
     cols.unshift(z0);
     cols.push(z1);
     const E = Math.max(2, Math.ceil(Math.max(...cols.map(z => A1(z) - A0(z))) / 0.04));
-    const strip = list => {
-      const pos = [],
-        idx = [];
+    const strip = (list: Station[]): void => {
+      const pos: number[] = [];
+      const idx: number[] = [];
       for (const [z, s] of list) {
-        const a = A0(z),
-          b = A1(z);
+        const a = A0(z);
+        const b = A1(z);
         for (let j = 0; j <= E; j++) {
           const p = off(z, a + ((b - a) * j) / E, s);
           pos.push(p.x, p.y, p.z);
@@ -438,51 +515,54 @@ export function car(g, {w, d, h, color, v}) {
     };
     if (F.wrap && z1 >= hl - 1e-6)
       strip([
-        ...cols.map(z => [z, -1]),
+        ...cols.map((z): Station => [z, -1]),
         ...cols
           .slice(0, -1)
           .reverse()
-          .map(z => [z, 1]),
+          .map((z): Station => [z, 1]),
       ]);
     else if (F.wrap && z0 <= -hl + 1e-6)
       strip([
         ...cols
           .slice()
           .reverse()
-          .map(z => [z, -1]),
-        ...cols.slice(1).map(z => [z, 1]),
+          .map((z): Station => [z, -1]),
+        ...cols.slice(1).map((z): Station => [z, 1]),
       ]);
-    else for (const s of [-1, 1]) strip(cols.map(z => [z, s]));
+    else for (const s of [-1, 1]) strip(cols.map((z): Station => [z, s]));
   };
-  const patch = (...a) => patchOn(onBody, ...a);
+  const patch = (...a: PatchArgs): void => patchOn(onBody, ...a);
   // a height on the body as a section height at each station: bands that run level across a bumper instead of following its curve
-  const at = y => z => Math.max(-1, Math.min(1, (2 * y * sh - bot(z) - top(z)) / (top(z) - bot(z))));
+  const at =
+    (y: number) =>
+    (z: number): number =>
+      Math.max(-1, Math.min(1, (2 * y * sh - bot(z) - top(z)) / (top(z) - bot(z))));
   // where the side glass comes out of the body: the window line
-  const half = (z, y) => {
-    const y0 = bot(z),
-      y1 = top(z),
-      e = (2 * y - y0 - y1) / (y1 - y0);
+  const half = (z: number, y: number): number => {
+    const y0 = bot(z);
+    const y1 = top(z);
+    const e = (2 * y - y0 - y1) / (y1 - y0);
     return e >= 1 ? 0 : body(z, e, exOf(e, S.NT, S.NB), 1)[0];
   };
-  const beltE = z => {
+  const beltE = (z: number): number => {
     for (let e = -1; e < 1; e += 0.01) {
       const [x, y] = house(z, e, exOf(e, S.GT, 8), 1);
       if (x > half(z, y) + 0.002) return e;
     }
     return 1;
   };
-  const white = flat(0xe3efff, 0.25, 0, 0.65),
-    red = flat(0xb51b20, 0.25, 0, 0.65),
-    grille = flat(0x1a1b1e, 0.5, 0.4);
-  const zA = zf - Ra * 0.82,
-    zB = zr + Ra * 0.75,
-    doorMid = -0.06 * hl; // door edges belong BETWEEN the wheel arches
+  const white = flat(0xe3efff, 0.25, 0, 0.65);
+  const red = flat(0xb51b20, 0.25, 0, 0.65);
+  const grille = flat(0x1a1b1e, 0.5, 0.4);
+  const zA = zf - Ra * 0.82;
+  const zB = zr + Ra * 0.75;
+  const doorMid = -0.06 * hl; // door edges belong BETWEEN the wheel arches
   // a chrome line along the foot of the side windows
   patchOn(onGlass, ga + 0.25 * sl, gb - 0.22 * sl, beltE, z => Math.min(1, beltE(z) + 0.04), chrome, 0.002);
   // Deliberate panel breaks keep the window shapes legible even at the floor-plan's scale.
-  const pillar = flat(0x10171b, 0.26, 0.2),
-    seal = flat(0x151a1e, 0.6),
-    sill = flat(0x282d32, 0.55, 0.15);
+  const pillar = flat(0x10171b, 0.26, 0.2);
+  const seal = flat(0x151a1e, 0.6);
+  const sill = flat(0x282d32, 0.55, 0.15);
   patchOn(
     onGlass,
     doorMid - 0.045 * sl,
@@ -514,11 +594,11 @@ export function car(g, {w, d, h, color, v}) {
   // Tight strips follow the fenders instead of oversized black rings around the wheels.
   for (const zw of [zf, zr])
     for (const side of [-1, 1]) {
-      const points = [];
+      const points: THREE.Vector3[] = [];
       for (let i = 0; i <= 48; i++) {
-        const a = 0.1 + ((Math.PI - 0.2) * i) / 48,
-          z = zw + Ra * Math.cos(a),
-          y = R - 0.03 + Ra * Math.sin(a);
+        const a = 0.1 + ((Math.PI - 0.2) * i) / 48;
+        const z = zw + Ra * Math.cos(a);
+        const y = R - 0.03 + Ra * Math.sin(a);
         const e = Math.max(-0.99, Math.min(0.99, (2 * y - bot(z) - top(z)) / (top(z) - bot(z))));
         const [x] = bodyE(z, e, side);
         points.push(new THREE.Vector3(x + side * 0.003, y, z));
@@ -531,8 +611,8 @@ export function car(g, {w, d, h, color, v}) {
     }
   if (v === 'suv') {
     // the roof in body color over dark pillars: it seems to float; a fin at the back
-    const r0 = 0.15 * hl,
-      r1 = -0.885 * hl;
+    const r0 = 0.15 * hl;
+    const r1 = -0.885 * hl;
     patchOn(onGlass, r1, r0, 0.84, 1, paintF(c), 0.003);
     patchOn(onGlass, ga + 0.25 * sl, r0 - 0.05, 0.8, 0.82, chrome, 0.002);
     patchOn(
@@ -612,10 +692,10 @@ export function car(g, {w, d, h, color, v}) {
     add(screw, black, false);
   }
   // Mirrors: body-colored cap above a black housing and an inset reflective rear face.
-  const zm = gb - 0.31 * sl,
-    ym = top(zm) + 0.025 * sh,
-    xm = hwAt(zm) * 0.95 + 0.06 * sl,
-    k = v === 'suv' ? 1.15 : 1;
+  const zm = gb - 0.31 * sl;
+  const ym = top(zm) + 0.025 * sh;
+  const xm = hwAt(zm) * 0.95 + 0.06 * sl;
+  const k = v === 'suv' ? 1.15 : 1;
   for (const side of [-1, 1]) {
     const st = new THREE.BoxGeometry(0.16 * sl, 0.035 * sh, 0.05 * sl);
     st.rotateZ(side * 0.17);
@@ -640,12 +720,16 @@ export function car(g, {w, d, h, color, v}) {
 // A closed loft: ring(z) — the section at z, points counter-clockwise seen from the front, the same number for every z; the ends capped.
 // floor(z) cuts it from below (the wheel arches): points under it go up onto it, and every point keeps the normal of the whole surface,
 // so the sides round an arch shade as smoothly as anywhere else.
-function loft(zs, ring, floor) {
-  const R = zs.map(ring),
-    n = R[0].length,
-    N = zs.length,
-    pos = new Float32Array((N * n + 2) * 3),
-    idx = [];
+function loft(
+  zs: number[],
+  ring: (z: number) => Pair[],
+  floor?: (z: number) => number,
+): THREE.BufferGeometry {
+  const R = zs.map(ring);
+  const n = R[0].length;
+  const N = zs.length;
+  const pos = new Float32Array((N * n + 2) * 3);
+  const idx: number[] = [];
   let k = 0;
   R.forEach((r, i) =>
     r.forEach(([x, y]) => {
@@ -656,24 +740,26 @@ function loft(zs, ring, floor) {
   );
   for (let i = 0; i < N - 1; i++)
     for (let j = 0; j < n; j++) {
-      const a = i * n + j,
-        b = i * n + ((j + 1) % n);
+      const a = i * n + j;
+      const b = i * n + ((j + 1) % n);
       idx.push(a, b, a + n, b, b + n, a + n);
     }
-  for (const [i, front, ci] of [
+  // the two end caps: the ring, whether it is the front one, and the index of its centre point
+  const caps: Array<[number, boolean, number]> = [
     [0, false, N * n],
     [N - 1, true, N * n + 1],
-  ]) {
-    let cx = 0,
-      cy = 0;
+  ];
+  for (const [i, front, ci] of caps) {
+    let cx = 0;
+    let cy = 0;
     R[i].forEach(([x, y]) => {
       cx += x;
       cy += y;
     });
     pos.set([cx / n, cy / n, zs[i]], ci * 3);
     for (let j = 0; j < n; j++) {
-      const a = i * n + j,
-        b = i * n + ((j + 1) % n);
+      const a = i * n + j;
+      const b = i * n + ((j + 1) % n);
       front ? idx.push(ci, a, b) : idx.push(ci, b, a);
     }
   }
@@ -690,8 +776,8 @@ function loft(zs, ring, floor) {
   ])
     if (R[i].every(([x]) => Math.abs(x) < 1e-6))
       for (let j = 0; j < n; j++) {
-        const a = j0 * n + j,
-          v = new THREE.Vector3(0, nm.getY(a), nm.getZ(a)).normalize();
+        const a = j0 * n + j;
+        const v = new THREE.Vector3(0, nm.getY(a), nm.getZ(a)).normalize();
         nm.setXYZ(i * n + j, v.x, v.y, v.z);
       }
   if (floor) {
@@ -708,20 +794,29 @@ function loft(zs, ring, floor) {
 }
 
 // Wheels have a recessed barrel, machined split spokes, rounded tires and a visible brake disc.
-function wheel(g, x, y, z, s, R, tw, suv) {
-  const rr = R * 0.73,
-    add = (geo, m) => {
-      const o = new THREE.Mesh(geo, m);
-      o.castShadow = o.receiveShadow = true;
-      g.add(o);
-      return o;
-    };
-  const alloy = std(0xbec7ce, 0.24, 0.8),
-    dark = std(0x30373e, 0.42, 0.65),
-    axle = geo => {
-      geo.rotateZ(Math.PI / 2);
-      return geo;
-    };
+function wheel(
+  g: THREE.Group,
+  x: number,
+  y: number,
+  z: number,
+  s: number,
+  R: number,
+  tw: number,
+  suv: boolean,
+): void {
+  const rr = R * 0.73;
+  const add = (geo: THREE.BufferGeometry, m: THREE.Material): THREE.Mesh => {
+    const o = new THREE.Mesh(geo, m);
+    o.castShadow = o.receiveShadow = true;
+    g.add(o);
+    return o;
+  };
+  const alloy = std(0xbec7ce, 0.24, 0.8);
+  const dark = std(0x30373e, 0.42, 0.65);
+  const axle = <T extends THREE.BufferGeometry>(geo: T): T => {
+    geo.rotateZ(Math.PI / 2);
+    return geo;
+  };
   const tp = [
     [rr * 0.98, -tw / 2 + 0.012],
     [R - 0.035, -tw / 2],
@@ -751,7 +846,7 @@ function wheel(g, x, y, z, s, R, tw, suv) {
   cal.rotateX(-0.75);
   cal.translate(face - s * 0.037, y + Math.cos(0.75) * rr * 0.63, z - Math.sin(0.75) * rr * 0.63);
   add(cal, std(suv ? 0x353d43 : 0xa82b22, 0.4, 0.35));
-  const ring = (r, t, offset, m) => {
+  const ring = (r: number, t: number, offset: number, m: THREE.Material): void => {
     const geo = new THREE.TorusGeometry(r, t, 6, 48);
     geo.rotateY(Math.PI / 2);
     geo.translate(face - s * offset, y, z);
@@ -760,8 +855,8 @@ function wheel(g, x, y, z, s, R, tw, suv) {
   ring(rr - 0.008, 0.012, 0, alloy);
   ring(rr * 0.92, 0.009, 0.028, dark);
   ring(R - 0.035, 0.003, -0.012, std(0x303236, 0.85));
-  const n = suv ? 7 : 5,
-    hub = rr * 0.22;
+  const n = suv ? 7 : 5;
+  const hub = rr * 0.22;
   for (let i = 0; i < n; i++)
     for (const branch of [-1, 1]) {
       // A tapered, swept spoke with depth: its root sits behind its polished rim end.
@@ -779,13 +874,13 @@ function wheel(g, x, y, z, s, R, tw, suv) {
         bevelSegments: 1,
         steps: 1,
       });
-      const p = geo.attributes.position,
-        a = (i * 2 * Math.PI) / n;
+      const p = geo.attributes.position;
+      const a = (i * 2 * Math.PI) / n;
       for (let j = 0; j < p.count; j++) {
-        const radial = p.getX(j),
-          tangent = p.getY(j),
-          depth = p.getZ(j),
-          dish = 0.025 * (1 - radial / rr);
+        const radial = p.getX(j);
+        const tangent = p.getY(j);
+        const depth = p.getZ(j);
+        const dish = 0.025 * (1 - radial / rr);
         p.setXYZ(
           j,
           face - s * (depth + dish),
@@ -796,8 +891,8 @@ function wheel(g, x, y, z, s, R, tw, suv) {
       // The coordinate transform is a reflection for one side; reverse its winding too.
       if (s === 1) {
         for (let j = 0; j < p.count; j += 3) {
-          const b = new THREE.Vector3().fromBufferAttribute(p, j + 1),
-            c = new THREE.Vector3().fromBufferAttribute(p, j + 2);
+          const b = new THREE.Vector3().fromBufferAttribute(p, j + 1);
+          const c = new THREE.Vector3().fromBufferAttribute(p, j + 2);
           p.setXYZ(j + 1, c.x, c.y, c.z);
           p.setXYZ(j + 2, b.x, b.y, b.z);
         }
@@ -812,8 +907,8 @@ function wheel(g, x, y, z, s, R, tw, suv) {
   cap.translate(face - s * 0.018, y, z);
   add(cap, dark);
   for (let i = 0; i < 5; i++) {
-    const a = (i * Math.PI * 2) / 5,
-      bolt = axle(new THREE.CylinderGeometry(0.008, 0.008, 0.031, 6));
+    const a = (i * Math.PI * 2) / 5;
+    const bolt = axle(new THREE.CylinderGeometry(0.008, 0.008, 0.031, 6));
     bolt.translate(face - s * 0.016, y + Math.cos(a) * hub * 0.76, z + Math.sin(a) * hub * 0.76);
     add(bolt, dark);
   }

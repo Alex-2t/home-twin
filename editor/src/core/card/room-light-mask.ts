@@ -1,15 +1,27 @@
-// @ts-nocheck
 // Copy of 3d_floor/apartment/smart-home/web/src/room-light-mask.js (commit 2aaa6d3, 2026-11-03). Card lighting; edits go here, 3d_floor is not touched.
 import {ShaderChunk} from 'three';
+import type {Light, Material, Mesh, MeshStandardMaterial, Object3D, Scene} from 'three';
+import type {Outline} from '../types.ts';
+
+/** A room and its lamps' lights: they light only inside its outline. */
+export interface RoomLights {
+  room: {polygon: Outline};
+  lights: Light[];
+}
+
+const isMesh = (object: Object3D): object is Mesh => (object as Mesh).isMesh === true;
+const isLight = (object: Object3D): object is Light => (object as Light).isLight === true;
+const isStandard = (material: Material): material is MeshStandardMaterial =>
+  (material as MeshStandardMaterial).isMeshStandardMaterial === true;
 
 // Confine device lights to their room in world space. Ambient light, sun and
 // visible emitters remain unchanged. Light-to-room lookup runs on the CPU;
 // each fragment evaluates each room boundary once, not once per light.
-export function installRoomLightMask(model, groups, scene) {
+export function installRoomLightMask(model: Object3D, groups: RoomLights[], scene: Scene): void {
   const active = groups.filter(g => g.lights.length);
   const lights = active.flatMap(g => g.lights);
   if (!lights.length) return;
-  const number = n => Number(n).toFixed(6);
+  const number = (n: number): string => Number(n).toFixed(6);
   const roomFunctions = active
     .map(({room}, index) => {
       const vertices = room.polygon.map(([x, y]) => `vec2(${number(x)},${number(-y)})`);
@@ -37,8 +49,8 @@ export function installRoomLightMask(model, groups, scene) {
   `;
     })
     .join('\n');
-  const roomByLight = new Map(active.flatMap((g, i) => g.lights.map(l => [l, i + 1])));
-  const uniforms = {
+  const roomByLight = new Map(active.flatMap((g, i) => g.lights.map((l): [Light, number] => [l, i + 1])));
+  const uniforms: Record<string, {value: number[]}> = {
     confinedAreaRooms: {value: []},
     confinedPointRooms: {value: []},
     confinedSpotRooms: {value: []},
@@ -49,12 +61,17 @@ export function installRoomLightMask(model, groups, scene) {
   const previousRender = scene.onBeforeRender;
   scene.onBeforeRender = function (renderer, renderScene, camera, ...rest) {
     previousRender.call(this, renderer, renderScene, camera, ...rest);
-    const visible = [];
+    const visible: Light[] = [];
     scene.traverseVisible(o => {
-      if (o.isLight && o.layers.test(camera.layers)) visible.push(o);
+      if (isLight(o) && o.layers.test(camera.layers)) visible.push(o);
     });
     visible.sort(
-      (a, b) => (b.castShadow ? 2 : 0) - (a.castShadow ? 2 : 0) + (b.map ? 1 : 0) - (a.map ? 1 : 0),
+      // map: a SpotLight's texture; other lights have none
+      (a, b) =>
+        (b.castShadow ? 2 : 0) -
+        (a.castShadow ? 2 : 0) +
+        ('map' in b && b.map ? 1 : 0) -
+        ('map' in a && a.map ? 1 : 0),
     );
     for (const [type, name] of [
       ['RectAreaLight', 'Area'],
@@ -108,12 +125,12 @@ export function installRoomLightMask(model, groups, scene) {
     'RE_Direct_RectArea( rectAreaLight, geometryPosition, geometryNormal, geometryViewDir, geometryClearcoatNormal, material, reflectedLight );';
   if (!chunk.includes(areaCall)) throw new Error('Unsupported Three.js area-light evaluation');
   chunk = chunk.replace(areaCall, `if(any(greaterThan(rectAreaLight.color,vec3(0.0)))) { ${areaCall} }`);
-  const materials = new Set();
+  const materials = new Set<Material>();
   model.traverse(o => {
-    if (o.isMesh) for (const m of Array.isArray(o.material) ? o.material : [o.material]) materials.add(m);
+    if (isMesh(o)) for (const m of Array.isArray(o.material) ? o.material : [o.material]) materials.add(m);
   });
   for (const material of materials) {
-    if (!material.isMeshStandardMaterial) continue;
+    if (!isStandard(material)) continue;
     const previous = material.onBeforeCompile;
     const cacheKey = material.customProgramCacheKey();
     material.onBeforeCompile = function (shader, renderer) {

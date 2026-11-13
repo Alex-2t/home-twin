@@ -1,6 +1,45 @@
-// @ts-nocheck
 // Copy of 3d_floor/apartment/smart-home/web/src/lighting.js (commit 2aaa6d3, 2026-11-03). Card lighting; edits go here, 3d_floor is not touched.
 import {Box3, Matrix4, PointLight, RectAreaLight, Vector3, MathUtils} from 'three';
+import type {BufferGeometry, ColorRepresentation, Light, Mesh, MeshStandardMaterial} from 'three';
+import type {Point, Vec3} from '../types.ts';
+
+/** A lamp as the card's lighting takes it (scene.ts makes one for each lamp on the plan). */
+export interface LightDevice {
+  id: string;
+  /** 'ceiling': one point light in the middle of `positions`; 'accent': shines towards the room's centre; else a strip. */
+  kind: string;
+  /** Its light's colour. */
+  color: ColorRepresentation;
+  /** A point lamp's sources in three.js space. */
+  positions: Vec3[];
+  /** A light line in the middle of the ceiling: it shines straight down. */
+  down?: boolean;
+  /** A strip's power; none: by kind. */
+  intensity?: number;
+  /** The card's model: the diffuser glows without lighting surrounding surfaces. */
+  emissive_only?: boolean;
+  /** The card's model: the mirror's glowing meshes in order (their userData.model_id). */
+  emitter_meshes?: string[];
+  emissive_intensity?: number;
+}
+
+/** The room a lamp is in: strips lean towards its centre on the plan. */
+export interface LightRoom {
+  center: Point;
+}
+
+/** What a lamp shows: on, how bright (0–100) and in what colour (none: the lamp's own). */
+export interface LightState {
+  on: boolean;
+  brightness?: number;
+  colour?: ColorRepresentation;
+}
+
+/** A lamp's glowing part: its material's emissive colour shows the light. */
+export type GlowMesh = Mesh<BufferGeometry, MeshStandardMaterial | MeshStandardMaterial[]>;
+
+/** A strip's two ends in three.js space. */
+type Segment3 = [Vector3, Vector3];
 
 export const MIRROR_CHORDS = 4;
 
@@ -19,28 +58,36 @@ export const COVE_HEIGHT = 1.8;
 export const COVE_ROOM_TILT = 0.55;
 
 // Read the actual exported strip, including its rotation and scale.
-export function emitterSegment(mesh) {
+export function emitterSegment(mesh: Mesh): Segment3 {
   mesh.geometry.computeBoundingBox();
-  const box = mesh.geometry.boundingBox;
+  // computeBoundingBox has just set it
+  const box = mesh.geometry.boundingBox!;
   const size = box.getSize(new Vector3());
-  const axis = ['x', 'y', 'z'].reduce((a, b) => (size[a] > size[b] ? a : b));
-  const a = box.getCenter(new Vector3()),
-    b = a.clone();
+  const axes: Array<'x' | 'y' | 'z'> = ['x', 'y', 'z'];
+  const axis = axes.reduce((a, b) => (size[a] > size[b] ? a : b));
+  const a = box.getCenter(new Vector3());
+  const b = a.clone();
   a[axis] = box.min[axis];
   b[axis] = box.max[axis];
   return [a.applyMatrix4(mesh.matrixWorld), b.applyMatrix4(mesh.matrixWorld)];
 }
 
-function areaSegment(a, b, normal, colour, intensity) {
-  const tangent = b.clone().sub(a),
-    length = tangent.length();
+function areaSegment(
+  a: Vector3,
+  b: Vector3,
+  normal: Vector3,
+  colour: ColorRepresentation,
+  intensity: number,
+): RectAreaLight | null {
+  const tangent = b.clone().sub(a);
+  const length = tangent.length();
   if (length < 0.001) return null;
   tangent.normalize();
   // RectAreaLight emits along local -Z; local X follows the strip.
   normal.addScaledVector(tangent, -normal.dot(tangent)).normalize();
   if (normal.lengthSq() < 0.01) return null;
-  const back = normal.clone().negate(),
-    up = back.clone().cross(tangent).normalize();
+  const back = normal.clone().negate();
+  const up = back.clone().cross(tangent).normalize();
   const light = new RectAreaLight(colour, 0, length, 0.03);
   light.position.copy(a).add(b).multiplyScalar(0.5).addScaledVector(normal, 0.018);
   light.quaternion.setFromRotationMatrix(new Matrix4().makeBasis(tangent, up, back));
@@ -48,11 +95,15 @@ function areaSegment(a, b, normal, colour, intensity) {
   return light;
 }
 
-export function buildDeviceLights(device, meshes, room) {
+export function buildDeviceLights(
+  device: LightDevice,
+  meshes: GlowMesh[],
+  room: LightRoom,
+): Array<PointLight | RectAreaLight> {
   if (device.emissive_only) return []; // The diffuser glows without lighting surrounding surfaces.
   if (device.kind === 'ceiling') {
     // Retain the existing ceiling-light presentation; only LED lighting changes.
-    const center = device.positions.reduce(
+    const center = device.positions.reduce<number[]>(
       (a, p) => a.map((v, i) => v + p[i] / device.positions.length),
       [0, 0, 0],
     );
@@ -68,10 +119,9 @@ export function buildDeviceLights(device, meshes, room) {
     // mirror centre or one expensive light for every small mesh piece.
     // Each area light costs ~2–4 ms per frame, and the mirror seen from above is the size
     // of a coin: four chords are enough, the total glowing area is the same.
+    const emitterOrder = device.emitter_meshes;
     const ordered = [...meshes].sort(
-      (a, b) =>
-        device.emitter_meshes.indexOf(a.userData.model_id) -
-        device.emitter_meshes.indexOf(b.userData.model_id),
+      (a, b) => emitterOrder.indexOf(a.userData.model_id) - emitterOrder.indexOf(b.userData.model_id),
     );
     const points = Array.from({length: MIRROR_CHORDS}, (_, i) =>
       new Box3()
@@ -83,10 +133,10 @@ export function buildDeviceLights(device, meshes, room) {
     // so the ring shines from the contour with any number of chords.
     const hub = points.reduce((a, p) => a.add(p), new Vector3()).divideScalar(points.length);
     const radius = points.reduce((s, p) => s + p.distanceTo(hub), 0) / points.length;
-    segments = points.map((p, i) => {
+    segments = points.map((p, i): Segment3 => {
       const q = points[(i + 1) % points.length];
-      const mid = p.clone().add(q).multiplyScalar(0.5),
-        offset = mid.clone().sub(hub);
+      const mid = p.clone().add(q).multiplyScalar(0.5);
+      const offset = mid.clone().sub(hub);
       const reach = offset.length();
       if (reach < 1e-4) return [p, q];
       const push = offset.multiplyScalar((radius - reach) / reach);
@@ -100,7 +150,7 @@ export function buildDeviceLights(device, meshes, room) {
     .map(([a, b]) => {
       const center = a.clone().add(b).multiplyScalar(0.5);
       const toRoom = new Vector3(room.center[0] - center.x, 0, -room.center[1] - center.z);
-      let normal;
+      let normal: Vector3;
       if (device.kind === 'accent') {
         normal = toRoom.normalize();
       } else if (!device.down && center.y >= COVE_HEIGHT && toRoom.lengthSq() > 1e-6) {
@@ -115,10 +165,15 @@ export function buildDeviceLights(device, meshes, room) {
       }
       return areaSegment(a, b, normal, device.color, intensity);
     })
-    .filter(Boolean);
+    .filter(light => light !== null);
 }
 
-export function setDeviceLighting(lights, meshes, device, state) {
+export function setDeviceLighting(
+  lights: Light[],
+  meshes: GlowMesh[],
+  device: LightDevice,
+  state?: LightState,
+): void {
   const level = state?.on ? MathUtils.clamp((state.brightness ?? 100) / 100, 0, 1) : 0;
   const colour = state?.colour || device.color;
   for (const light of lights) {
