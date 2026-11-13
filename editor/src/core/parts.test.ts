@@ -9,7 +9,7 @@ import {makeObject} from './furniture3d.ts';
 import {byId, nameOf, zOf} from './catalog.ts';
 import {migrate} from './plan.ts';
 import {readPlan} from './plan-file.ts';
-import type {BoxPart, CatalogEntry, FurnitureItem, PartsItem, Plan, Vec3} from './types.ts';
+import type {BoxPart, FurnitureItem, PartsItem, Plan, Vec3} from './types.ts';
 
 const EX: Record<string, PartsItem> = JSON.parse(
   fs.readFileSync(new URL('./parts.examples.json', import.meta.url), 'utf8'),
@@ -230,7 +230,7 @@ test('parts: broken or missing parts draw a plain box of the item size instead o
 });
 
 test('parts: a hidden catalog entry — defaults, the item name, never in the picker', () => {
-  const c = byId('parts') as CatalogEntry | undefined;
+  const c = byId('parts');
   assert.ok(c && c.hidden && c.kind === 'gen' && !c.color && !c.vars && !c.mirror);
   // items with only the fields these read
   assert.equal(nameOf({model: 'parts', name: 'Sofa'} as FurnitureItem), 'Sofa');

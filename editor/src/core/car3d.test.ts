@@ -5,10 +5,10 @@ import {car} from './car3d.ts';
 import {makeObject} from './furniture3d.ts';
 import {byId} from './catalog.ts';
 import type {Item3d} from './furniture3d.ts';
-import type {CatalogEntry, Vec3} from './types.ts';
+import type {Vec3} from './types.ts';
 
-// catalog.ts's entries are CatalogEntry data; the car is one, with its variants
-const spec = byId('car') as CatalogEntry;
+// the car is in the catalog, with its variants
+const spec = byId('car')!;
 const isMesh = (o: THREE.Object3D): o is THREE.Mesh => (o as THREE.Mesh).isMesh === true;
 const isPhysical = (m: THREE.Material | THREE.Material[]): m is THREE.MeshPhysicalMaterial =>
   (m as THREE.MeshPhysicalMaterial).isMeshPhysicalMaterial === true;

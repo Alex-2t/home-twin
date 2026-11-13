@@ -18,7 +18,8 @@ export interface Coach {
   place(): void;
   /** The step's action was done already. */
   done(key: string): boolean;
-  show(key: string, aim: Aim | null, o?: StepOptions): void;
+  /** No area (null or none): the card goes to the bottom. */
+  show(key: string, aim: Aim | null | undefined, o?: StepOptions): void;
   hide(): void;
   /** The card is at the bottom (not by an area). */
   bottom(): boolean;

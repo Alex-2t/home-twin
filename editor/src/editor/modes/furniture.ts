@@ -30,10 +30,9 @@ import {
   RUN_MIN,
 } from '../../core/runs.ts';
 import {roomAt} from '../../core/plan.ts';
-import {$, el, esc} from '../ui.ts';
+import {$, el, esc, section} from '../ui.ts';
 import {icon} from '../icons.ts';
-import {dimLabel, drawRun} from '../draw.ts';
-import {pal, section} from './typed-helpers.ts';
+import {dimLabel, drawRun, pal} from '../draw.ts';
 import type {Ring, RunGeo, RunHandles} from '../../core/runs.ts';
 import type {
   CatalogEntry,
@@ -293,8 +292,8 @@ export function furnitureMode(ed: Editor): FurnitureMode {
       ctx.setLineDash([]);
       v().dot(g.q, 2.5, pal.acc);
       const [X, Y] = v().S([(g.o[0] + g.q[0]) / 2, (g.o[1] + g.q[1]) / 2]);
-      // draw.ts is not typed yet: dimLabel gives the label's box [x, y, w, h]
-      const r = dimLabel(v(), X, Y, t('{0} cm', Math.round(g.g * 100))) as LabelBox;
+      // dimLabel gives the label's box [x, y, w, h]
+      const r: LabelBox = dimLabel(v(), X, Y, t('{0} cm', Math.round(g.g * 100)));
       if (!live) {
         if (i === hoverGap) {
           ctx.strokeStyle = pal.dark ? '#fff' : '#0b0c10';

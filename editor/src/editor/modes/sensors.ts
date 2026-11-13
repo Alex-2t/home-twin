@@ -20,21 +20,11 @@ import {
   SIZES,
   INKS,
 } from '../../core/sensors.ts';
-import {$, el, esc} from '../ui.ts';
+import {$, el, esc, section} from '../ui.ts';
 import {icon} from '../icons.ts';
-import {FONT} from '../draw.ts';
+import {FONT, pal} from '../draw.ts';
 import {separatePlates} from '../sensor-plates.ts';
-import {pal, section} from './typed-helpers.ts';
-import type {
-  HaLayer,
-  HaSensor,
-  Plan,
-  PlanSensor,
-  Point,
-  Room,
-  SensorContext,
-  Vector,
-} from '../../core/types.ts';
+import type {HaSensor, Plan, PlanSensor, Point, Room, SensorContext, Vector} from '../../core/types.ts';
 import type {PlanView2d} from '../view2d.ts';
 import type {PlacedSensor} from '../../core/sensors.ts';
 import type {CanvasPoint, Editor, PlanPointer, Selection, SensorsMode} from '../editor-types.ts';
@@ -679,10 +669,9 @@ export function sensorsMode(ed: Editor): SensorsMode {
         `<div class="line"><b>${esc(s.name)}</b><small>${esc([s, ...ks].map(val).join(' · '))}</small></div>`,
       ),
     ];
-    // types.ts has setArea on every HA layer; the check stays as it was
     lines.push(
       el(
-        `<div class="line sub"><small>${t('Sensor has no room. Which room is it in?')}${!s.area && (ed.ha as Partial<HaLayer>).setArea ? ' ' + t("We'll save the area to Home Assistant too.") : ''}</small></div>`,
+        `<div class="line sub"><small>${t('Sensor has no room. Which room is it in?')}${!s.area && ed.ha.setArea ? ' ' + t("We'll save the area to Home Assistant too.") : ''}</small></div>`,
       ),
     );
     const row = el(`<div class="line names"></div>`);

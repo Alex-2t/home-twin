@@ -17,11 +17,6 @@ type KeptRow = Omit<PlanVersion, 'plan'> & {now?: false; plan: Plan};
 /** A row of the list: "Now" (the plan open now), or a kept version. */
 type VersionRow = {now: true; plan: Plan} | KeptRow;
 
-// The theme's colours this window draws with (draw.ts readPalette fills pal). draw.ts types pal itself in its own typing; until
-// then it is an empty object type here.
-type PlanColors = Record<'label' | 'label2' | 'wall' | 'room' | 'furn' | 'furn_line', string>;
-const colors = pal as unknown as PlanColors;
-
 const BEFORE: Record<string, string> = {
   autoLights: N('Before auto-placing lights'),
   autoDevices: N('Before auto-placing devices'),
@@ -86,7 +81,7 @@ export function drawPlan(cv: HTMLCanvasElement, p: Plan, {names = false}: {names
   ctx.clearRect(0, 0, w, h);
   const pts = p.rooms.flatMap(r => r.polygon);
   if (!pts.length) {
-    ctx.fillStyle = colors.label2;
+    ctx.fillStyle = pal.label2;
     ctx.font = `500 11px ${FONT}`;
     ctx.textAlign = 'center';
     ctx.fillText(t('Empty'), w / 2, h / 2 + 4);
@@ -113,9 +108,9 @@ export function drawPlan(cv: HTMLCanvasElement, p: Plan, {names = false}: {names
   };
   for (const r of p.rooms) {
     path(r.polygon);
-    ctx.fillStyle = r.solid ? colors.wall : colors.room;
+    ctx.fillStyle = r.solid ? pal.wall : pal.room;
     ctx.fill();
-    ctx.strokeStyle = colors.wall;
+    ctx.strokeStyle = pal.wall;
     ctx.lineWidth = names ? 2 : 1.2;
     ctx.stroke();
   }
@@ -128,9 +123,9 @@ export function drawPlan(cv: HTMLCanvasElement, p: Plan, {names = false}: {names
     }
     if (!cs?.every(q => q.every(Number.isFinite))) continue;
     path(cs);
-    ctx.fillStyle = colors.furn;
+    ctx.fillStyle = pal.furn;
     ctx.fill();
-    ctx.strokeStyle = colors.furn_line;
+    ctx.strokeStyle = pal.furn_line;
     ctx.lineWidth = 0.8;
     ctx.stroke();
   }
@@ -146,7 +141,7 @@ export function drawPlan(cv: HTMLCanvasElement, p: Plan, {names = false}: {names
   if (names) {
     ctx.font = `600 11px ${FONT}`;
     ctx.textAlign = 'center';
-    ctx.fillStyle = colors.label;
+    ctx.fillStyle = pal.label;
     // name — if it fits the room's width
     for (const r of p.rooms) {
       if (r.solid || !r.name) continue;

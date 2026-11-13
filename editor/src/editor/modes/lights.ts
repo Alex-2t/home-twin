@@ -41,21 +41,10 @@ import {
   furnGuess,
 } from '../../core/fixtures.ts';
 import type {Contour, LampCell, StripRuns} from '../../core/fixtures.ts';
-import {$, el, esc, parseLen, tip, tipHide} from '../ui.ts';
+import {$, el, esc, parseLen, section, tip, tipHide} from '../ui.ts';
 import {icon} from '../icons.ts';
-import {FONT, alpha, dimLabel, shiftSegs, shiftPoint} from '../draw.ts';
-import {pal, section} from './typed-helpers.ts';
-import type {
-  HaLayer,
-  LightForm,
-  Outline,
-  Plan,
-  PlanLight,
-  Point,
-  Room,
-  Segment,
-  WallStrip,
-} from '../../core/types.ts';
+import {FONT, alpha, dimLabel, pal, shiftSegs, shiftPoint} from '../draw.ts';
+import type {LightForm, Plan, PlanLight, Point, Segment, WallStrip} from '../../core/types.ts';
 import type {PlanView2d} from '../view2d.ts';
 import type {Editor, LightsMode, Selection} from '../editor-types.ts';
 
@@ -587,12 +576,12 @@ export function lightsMode(ed: Editor): LightsMode {
   function stripCell(L: PlanLight): LampCell | null {
     const c = lampCell(plan(), L);
     if (c && c.room.id === L.room) return c;
-    const r = roomById(plan(), L.room as string); // no room (null or none): roomById finds none
+    const r = roomById(plan(), L.room); // no room (null or none): roomById finds none
     return r ? {room: r, poly: r.polygon, ch: null} : c;
   }
   function stripOf(L: PlanLight): StripOn | null {
-    // fixtures.ts is not typed yet: FURN_STRIP reads as its three keys; another opt (or none) finds nothing
-    if (FURN_STRIP[L.opt as keyof typeof FURN_STRIP]) return null; // on furniture — it follows the furniture, the ends are not dragged
+    // an opt that is not a furniture strip (or none) finds nothing
+    if (FURN_STRIP[L.opt as string]) return null; // on furniture — it follows the furniture, the ends are not dragged
     const cell = stripCell(L);
     if (!cell) return null;
     const K = stripContour(plan(), cell, L.opt);
@@ -769,7 +758,7 @@ export function lightsMode(ed: Editor): LightsMode {
         if (best != null) x = best;
       }
       sh.now = stripMove(K, st, i, end, x);
-      L.segments = stripSegs(K, sh.now) as Segment[]; // fixtures.ts is not typed yet: it gives the [a, b] pieces
+      L.segments = stripSegs(K, sh.now);
       delete L.auto;
       ed.update();
       return;
@@ -782,12 +771,12 @@ export function lightsMode(ed: Editor): LightsMode {
     delete L.auto; // the lamp was moved by hand — changing the room's area will not remove it
     if (!lineForm(f)) {
       if (f === 'wall') {
-        const r = roomAt(plan(), p) || roomById(plan(), L.room as string);
-        L.points[drag.i] = r ? (snapWall(r.polygon, p) as Point) : p; // fixtures.ts is not typed yet: it gives [x, y]
+        const r = roomAt(plan(), p) || roomById(plan(), L.room);
+        L.points[drag.i] = r ? snapWall(r.polygon, p) : p;
         ed.guides = [];
       } else {
         const s = snapLightPoint(plan(), L, p, {free, tol: v().tol(), skip: drag.i});
-        const r = roomAt(plan(), s.p) || roomById(plan(), L.room as string);
+        const r = roomAt(plan(), s.p) || roomById(plan(), L.room);
         // the body does not go into the wall: from its axis — the wall thickness and the body radius
         L.points[drag.i] = r ? (keepIn(r.polygon, s.p, WALL.inner + BODY[f]) as Point) : s.p;
         ed.guides = s.guides || [];
@@ -804,7 +793,7 @@ export function lightsMode(ed: Editor): LightsMode {
       // the line does not pass through a wall: an end — up to the first wall from the other end, the whole piece — only inside one room
       if (drag.end != null) {
         const o = seg[1 - drag.end];
-        const r = roomAt(plan(), o) || roomById(plan(), L.room as string);
+        const r = roomAt(plan(), o) || roomById(plan(), L.room);
         let q: Point = free ? p : [Math.round(p[0] / GRID) * GRID, Math.round(p[1] / GRID) * GRID];
         if (!free) {
           const tol = v().tol();
@@ -868,7 +857,7 @@ export function lightsMode(ed: Editor): LightsMode {
       const segs = stripSegs(
         sh.K,
         sh.kind === 'cut' ? stripCut(sh.K, sh.st, sh.s) : stripFill(sh.K, sh.st, sh.s),
-      ) as Segment[]; // fixtures.ts is not typed yet: it gives the [a, b] pieces
+      );
       if (!segs.length) {
         ed.draw();
         return;
@@ -993,7 +982,7 @@ export function lightsMode(ed: Editor): LightsMode {
   };
   // while a lamp's point or a line's end is dragged (dragPoint)
   function wallDistances(p: Point): void {
-    const r = roomAt(plan(), p) || roomById(plan(), drag!.L.room as string);
+    const r = roomAt(plan(), p) || roomById(plan(), drag!.L.room);
     if (!r) return;
     const P = r.polygon;
     const {ctx} = v();
@@ -1188,7 +1177,7 @@ export function lightsMode(ed: Editor): LightsMode {
     if (f === 'strip') placing.preview = stripOnWall(plan(), p);
     else if (f === 'wall') {
       const rm = roomAt(plan(), p);
-      placing.preview = rm ? {p: snapWall(rm.polygon, p) as Point} : null; // fixtures.ts is not typed yet: [x, y]
+      placing.preview = rm ? {p: snapWall(rm.polygon, p)} : null;
     } else {
       const s = snapLightPoint(plan(), L, p, {free: e.shiftKey, tol: v().tol()});
       placing.preview = {p: s.p};
@@ -1306,10 +1295,9 @@ export function lightsMode(ed: Editor): LightsMode {
     head.append(...flashBtn(L));
     lines.push(head);
     if (!cell) {
-      // types.ts gives every HA layer setArea; this checks for it all the same
       lines.push(
         el(
-          `<div class="line sub"><small>${t('Where is this light?')}${(ed.ha as Partial<HaLayer>).setArea ? ' ' + t("We'll save its area to Home Assistant too.") : ''}</small></div>`,
+          `<div class="line sub"><small>${t('Where is this light?')}${ed.ha.setArea ? ' ' + t("We'll save its area to Home Assistant too.") : ''}</small></div>`,
         ),
       );
       const row = el(`<div class="line names"></div>`);
@@ -1414,11 +1402,10 @@ export function lightsMode(ed: Editor): LightsMode {
       const H = host(x);
       const f = x.placed ? formFor(H || x) : guessForm(x).form;
       const opt = x.placed ? (H || x).opt : gOpt(x);
-      // fixtures.ts is not typed yet: FURN_STRIP reads as its three keys; another opt (or none) finds nothing
+      // an opt that is not a furniture strip (or none) finds nothing
       const where =
         f === 'strip'
-          ? FURN_STRIP[opt as keyof typeof FURN_STRIP]?.where ||
-            (opt === 'floor' ? t('at floor') : t('at ceiling'))
+          ? FURN_STRIP[opt as string]?.where || (opt === 'floor' ? t('at floor') : t('at ceiling'))
           : '';
       const st = H
         ? t('part of “{0}”', esc(H.name))
@@ -1512,7 +1499,7 @@ export function lightsMode(ed: Editor): LightsMode {
       const [a, b] = s.querySelectorAll('button');
       const set = (k: number): void => {
         L.count = k;
-        if (cell) relayout(plan(), L, cell, undefined); // fixtures.ts is not typed yet: was (the option before) is optional
+        if (cell) relayout(plan(), L, cell);
         delete L.auto;
         ed.commit();
         blink(L.id);
@@ -1559,9 +1546,7 @@ export function lightsMode(ed: Editor): LightsMode {
         ...chips(
           {
             ...STRIP,
-            ...Object.fromEntries(
-              (cell ? furnOpts(plan(), cell) : []).map(k => [k, FURN_STRIP[k as keyof typeof FURN_STRIP]]),
-            ), // furnOpts gives FURN_STRIP's keys
+            ...Object.fromEntries((cell ? furnOpts(plan(), cell) : []).map(k => [k, FURN_STRIP[k]])), // furnOpts gives FURN_STRIP's keys
           },
           L.opt,
         ),
@@ -1709,7 +1694,7 @@ export function lightsMode(ed: Editor): LightsMode {
       if (!L.placed || L.with || formFor(L) !== 'strip') continue;
       const o = stripOf(L);
       if (!o) continue;
-      const segs = stripSegs(o.K, o.st) as Segment[]; // fixtures.ts is not typed yet: [a, b] pieces
+      const segs = stripSegs(o.K, o.st);
       if (!L.loop) {
         if (segs.length) {
           L.segments = segs;

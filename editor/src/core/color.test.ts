@@ -6,7 +6,7 @@ import {COLORS, hexOf} from './catalog.ts';
 
 const near = (a: number[], b: number[], eps = 0.02): boolean => a.every((x, i) => Math.abs(x - b[i]) < eps);
 // A named swatch's colour: catalog COLORS holds [name, 0xrrggbb] by key.
-const swatch = (key: string): number => (COLORS as Record<string, unknown[]>)[key][1] as number;
+const swatch = (key: string): number => COLORS[key][1];
 test('Lab and ΔE as the AI build measures them: white, black, the bedroom rug and linen', () => {
   assert.ok(near(lab(0xffffff), [100, 0, 0]));
   assert.ok(near(lab(0), [0, 0, 0]));

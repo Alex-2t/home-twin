@@ -54,7 +54,7 @@ for (const h of HOMES)
     const {HA, DEMO}: {HA: DemoHaData; DEMO: PlanInput} = await h.load();
     const given = structuredClone(DEMO);
     const plan = migrate(structuredClone(DEMO));
-    const ha: DemoHaLayer = mockHA(structuredClone(HA) as Parameters<typeof mockHA>[0]);
+    const ha: DemoHaLayer = mockHA(structuredClone(HA));
     const rooms = new Map(plan.rooms.map(r => [r.id, r]));
 
     await t.test('rooms', () => {
@@ -113,11 +113,7 @@ for (const h of HOMES)
     // then lights, sensors and devices are placed. on(a) — the room of area a
     for (const r of plan.rooms) if (HA.areas[r.id]) setRoomArea(plan, r, r.id, HA.areas[r.id]);
     const on = (a: string | null | undefined): Room | null => roomOfArea(plan, a);
-    plan.lights = mergePlanLights(
-      plan.lights,
-      haPlanLights(ha),
-      ha.switches() as Parameters<typeof mergePlanLights>[2],
-    );
+    plan.lights = mergePlanLights(plan.lights, haPlanLights(ha), ha.switches());
 
     await t.test('lights', () => {
       const bad = [];
@@ -150,11 +146,7 @@ for (const h of HOMES)
     await t.test('lights from scratch', () => {
       const p = migrate(structuredClone(DEMO));
       for (const r of p.rooms) if (HA.areas[r.id]) setRoomArea(p, r, r.id, HA.areas[r.id]);
-      p.lights = mergePlanLights(
-        [],
-        haPlanLights(ha),
-        ha.switches() as Parameters<typeof mergePlanLights>[2],
-      ).map(L => ({
+      p.lights = mergePlanLights([], haPlanLights(ha), ha.switches()).map(L => ({
         ...L,
         placed: false,
         points: [],

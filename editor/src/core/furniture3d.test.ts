@@ -5,7 +5,6 @@ import type * as THREE from 'three';
 import {CATALOG, byId} from './catalog.ts';
 import {makeObject} from './furniture3d.ts';
 import type {Item3d} from './furniture3d.ts';
-import type {CatalogEntry} from './types.ts';
 
 const isMesh = (o: THREE.Object3D): o is THREE.Mesh => (o as THREE.Mesh).isMesh === true;
 // a test item: only its look, not an item placed on a plan
@@ -19,8 +18,7 @@ const colorsIn = (g: THREE.Object3D): Set<number> => {
   });
   return s;
 };
-// catalog.ts's entries are CatalogEntry data
-const models = CATALOG.filter(c => !c.hidden && c.kind === 'gen') as CatalogEntry[];
+const models = CATALOG.filter(c => !c.hidden && c.kind === 'gen');
 
 test('every visible model has a color to choose', () => {
   assert.deepEqual(
@@ -55,6 +53,6 @@ test('a rug: the field in color, the border in color2; without color2 — a dark
 });
 test('a built-in wardrobe can reach the ceiling of a 2.7 m room', () => {
   // the catalog has it
-  const wardrobe = byId('wardrobeRun') as CatalogEntry;
+  const wardrobe = byId('wardrobeRun')!; // the catalog has it
   assert.ok(wardrobe.max[2] >= 2.7);
 });

@@ -55,9 +55,8 @@ import {
 import {setRoomArea} from '../../core/layout.ts';
 import {$, el, esc, fmtArea, popover, panelPop, closePop, popClosedAt} from '../ui.ts';
 import {icon} from '../icons.ts';
-import {FONT, dimLabel, labelAt} from '../draw.ts';
+import {FONT, dimLabel, labelAt, pal} from '../draw.ts';
 import {openingsTool} from './openings.ts';
-import {pal} from './typed-helpers.ts';
 import type {OpeningHit, OpeningsTool} from './openings.ts';
 import type {
   EdgeFinish,
@@ -1497,7 +1496,7 @@ export function roomsMode(ed: Editor): RoomsMode {
       ed.draw();
       return;
     }
-    const r = roomById(plan(), sel().room as string); // no room selected: none found
+    const r = roomById(plan(), sel().room); // no room selected: none found
     if ((e.key === 'Delete' || e.key === 'Backspace') && sel().wall) {
       const W = selWall();
       if (W && W.interior) removeInnerWall(W);
@@ -1650,7 +1649,7 @@ export function roomsMode(ed: Editor): RoomsMode {
   m.draw = () => {
     const {ctx} = v();
     const W = selWall();
-    const r = W ? null : roomById(plan(), sel().room as string); // no room selected: none found
+    const r = W ? null : roomById(plan(), sel().room); // no room selected: none found
     const hp =
       (hintRoom && roomById(plan(), hintRoom)?.polygon) ||
       (tool === 'select' && !sel().room ? curCell()?.poly : null);
@@ -1730,7 +1729,7 @@ export function roomsMode(ed: Editor): RoomsMode {
       ctx.stroke();
       ctx.setLineDash([]);
       // the area of a part is not over the room label: the one that fell on the label goes below it
-      const R = roomById(plan(), cutRoom as string); // none: no room found
+      const R = roomById(plan(), cutRoom); // none: no room found
       const [LX, LY] = R ? v().S(labelAt(plan(), R.polygon)) : [NaN, NaN];
       for (const [k, x] of cut.parts.entries()) {
         const c = x.pts.reduce<Point>(
@@ -2180,7 +2179,7 @@ export function roomsMode(ed: Editor): RoomsMode {
     }
     // the panel above the selected room (in “Split” — above the room under the pointer)
     if (hintRoom && !roomById(plan(), hintRoom)) hintRoom = null;
-    const r = roomById(plan(), ctxRoom() as string); // none: no room found
+    const r = roomById(plan(), ctxRoom()); // none: no room found
     if (!r) {
       ed.showCtx(null);
       syncFin(null);
@@ -2398,7 +2397,6 @@ export function roomsMode(ed: Editor): RoomsMode {
   // Finishes — the floor and walls of the room, a separate wall side — as one row of swatches: the selected one outlined; not chosen —
   // guessed (the hint says how). The row has the frequent ones; the palette button opens a popup with all options and a custom color.
   // The floor — also on the “Link rooms” step: fix it while naming the room, without a separate step (the owner).
-  // surfaces.ts is not typed yet: its tables are read by key, and its groups are [name, kinds] pairs
   const FIN: Record<FinishState['type'], FinishCatalog> = {
     floor: {
       kinds: FLOOR_KINDS,
@@ -2625,7 +2623,7 @@ export function roomsMode(ed: Editor): RoomsMode {
       const ys = q.map(p => p[1]);
       return [Math.min(...xs), Math.min(...ys), Math.max(...xs), Math.max(...ys)];
     }
-    const r = roomById(plan(), ctxRoom() as string); // none: no room found
+    const r = roomById(plan(), ctxRoom()); // none: no room found
     if (!r) return null;
     const cc = curCell();
     const poly = cc && cc.r === r && !sel().room ? cc.poly : r.polygon;

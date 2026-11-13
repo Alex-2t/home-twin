@@ -6,7 +6,7 @@ import {DEMO_NAME, DEMO, HA, DEMO_UNDERLAY} from './gen/demo.gen.js';
 import {EXAMPLES} from './gen/examples.gen.js';
 import {hashRouter} from './editor/route.ts';
 import {openAiFromAddress, aiService, aiStartCard} from './editor/ai-build.ts';
-import type {DemoHaLayer, ExampleHome} from './core/types.ts';
+import type {ExampleHome} from './core/types.ts';
 
 /** A home the standalone editor can open: an example, or the build's own demo home with its plan photo. */
 type StartHome = ExampleHome & {UNDERLAY?: unknown};
@@ -28,8 +28,7 @@ try {
 // the fallback is always there: 'family' is one of the typical homes, 'demo' the build's own
 const cur =
   list.find(x => x.id === picked) || list.find(x => x.id === (DEMO_NAME === 'typical' ? 'family' : 'demo'))!;
-// ha.ts is still untyped: mockHA infers its data from the defaults and does not say it is the demo layer
-const ha = mockHA(cur.HA as Parameters<typeof mockHA>[0]) as DemoHaLayer;
+const ha = mockHA(cur.HA);
 // demo: lamp state “in HA” is the plan's lamps
 const ed = await boot({
   ha,

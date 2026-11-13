@@ -292,7 +292,8 @@ export function car(g: THREE.Group, {w, d, h, color, v}: CarItem): void {
   const sh = h / S.H;
   const sl = L / S.L;
   // CAR_COLORS: a colour key → [name, number]; any other colour (a custom #rrggbb, a furniture key) goes through hexOf
-  const c = CAR_COLORS[color as keyof typeof CAR_COLORS]?.[1] ?? hexOf(color, CAR_COLORS.navy[1] as number);
+  // no colour (undefined) finds no swatch
+  const c = CAR_COLORS[color as string]?.[1] ?? hexOf(color, CAR_COLORS.navy[1]);
   const prof = (P: Pair[]): ((x: number) => number) =>
     curve(P.map(([u, y]): Pair => [u * hl, y * sh]).sort((a, b) => a[0] - b[0]));
   const top = prof(S.top);

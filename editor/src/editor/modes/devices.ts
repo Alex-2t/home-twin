@@ -24,9 +24,9 @@ import {
   windowsOf,
 } from '../../core/devices.ts';
 import type {DeviceKind, DeviceTarget} from '../../core/devices.ts';
-import {$, el, esc} from '../ui.ts';
+import {$, el, esc, section} from '../ui.ts';
 import {icon, iconD} from '../icons.ts';
-import {pal, section} from './typed-helpers.ts';
+import {pal} from '../draw.ts';
 import type {
   HaDevice,
   HaLayer,
@@ -95,13 +95,13 @@ interface ListDrag {
 
 const ICON: Partial<Record<string, string>> = {ac: 'airVent', contact: 'doorOpen'};
 export const deviceIcon = (d: HaDevice): string =>
-  deviceKind(d, undefined) === 'cover'
+  deviceKind(d) === 'cover'
     ? coverModel(d) === 'blind'
       ? 'blinds'
       : 'curtain'
-    : deviceKind(d, undefined) === 'contact' && d.cls === 'window'
+    : deviceKind(d) === 'contact' && d.cls === 'window'
       ? 'window'
-      : ICON[deviceKind(d, undefined) as string] || 'zap'; // null (not for the model) finds no icon
+      : ICON[deviceKind(d) as string] || 'zap'; // null (not for the model) finds no icon
 
 export function devicesMode(ed: Editor): DevicesMode {
   const m = {id: 'devices'} as DevicesMode; // its members are set below, before app.ts calls any

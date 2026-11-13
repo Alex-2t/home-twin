@@ -16,10 +16,9 @@ import {
   OPENING,
 } from '../../core/plan.ts';
 import {openingCoords, WALL} from '../../core/geometry.ts';
-import {dimLabel, outward} from '../draw.ts';
+import {dimLabel, outward, pal} from '../draw.ts';
 import {el} from '../ui.ts';
 import {icon} from '../icons.ts';
-import {pal} from './typed-helpers.ts';
 import type {Opening, OpeningKind, Plan, Point, Room, Vector, WallStretch} from '../../core/types.ts';
 import type {PlanView2d} from '../view2d.ts';
 import type {Editor, PlanBox, RoomTool, Selection} from '../editor-types.ts';

@@ -900,8 +900,9 @@ export interface HassLocale {
 /** An entity's attributes; the ones the code reads are named, the rest are open. */
 export interface HassAttributes {
   friendly_name?: string;
-  unit_of_measurement?: string;
-  device_class?: string;
+  /** The demo layer passes its sensors' null unit and class on as they are. */
+  unit_of_measurement?: string | null;
+  device_class?: string | null;
   /** A light group: its members' entity ids. */
   entity_id?: string[];
   /** climate */
@@ -1080,8 +1081,9 @@ export interface HaEntityItem {
   name: string;
   area: string | null;
   domain: string;
-  cls?: string;
-  unit?: string;
+  /** The demo layer lists its sensors' null class and unit as they are. */
+  cls?: string | null;
+  unit?: string | null;
 }
 
 /** One hour of the weather forecast; `at` in ms. */
@@ -1173,8 +1175,11 @@ export interface HaLayer {
   call(domain: string, service: string, data?: Record<string, unknown>): Promise<boolean>;
   /** Blink a lamp in the home; resolves to its entity id. */
   identify(entity: string): Promise<string>;
-  /** Set an entity's area (on its device when HA does not allow it on the entity). */
-  setArea(entity: string, area: string | null): Promise<void>;
+  /**
+   * Set an entity's area (on its device when HA does not allow it on the entity). Both layers have it; the modes check for it
+   * all the same.
+   */
+  setArea?(entity: string, area: string | null): Promise<void>;
   /** Live only: open the entity's card in HA. */
   moreInfo?(entity: string): void;
   /** Live only: the full URL for an HA path. */
@@ -1188,8 +1193,9 @@ export interface HaLayer {
   close?(): void;
 }
 
-/** The demo HA layer's extra controls, for the editor's own lamps and for tests. */
+/** The demo HA layer's extra controls, for the editor's own lamps and for tests; it sets areas too. */
 export interface DemoHaLayer extends HaLayer {
+  setArea(entity: string, area: string | null): Promise<void>;
   /** Where the demo reads the plan's lamps from (their `on` is the lamps' state). */
   _lightsFrom(lamps: () => PlanLight[]): void;
   _setState(entity: string, value: number): void;

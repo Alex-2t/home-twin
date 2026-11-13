@@ -9,17 +9,8 @@ import {isHex} from './color.ts';
 import {runShape} from './runs.ts';
 import {car as car3d} from './car3d.ts';
 import {checkItem, buildItem} from './parts.ts';
-import type {runGeo} from './runs.ts';
-import type {FurnitureItem, MultiPolygon, Point, Segment, Vec3} from './types.ts';
-
-/** A built-in run's shape on the plan (runs.ts runGeo, runShape): its pieces, one for each wall. */
-type RunGeo = NonNullable<ReturnType<typeof runShape>>;
-
-/** One wall's piece of a built-in run (runs.ts runShape): its carcass, layers, front, directions and where it faces. */
-type RunSide = RunGeo['sides'][number];
-
-/** A direction on the plan, [x, y], as runs.ts gives a run's directions. */
-type RunDir = RunSide['u'];
+import type {RunGeo, RunSide} from './runs.ts';
+import type {FurnitureItem, MultiPolygon, Point, Segment, Vec3, Vector} from './types.ts';
 
 /** A generated part: a mesh with one material. */
 type Part3d = THREE.Mesh<THREE.BufferGeometry, THREE.Material>;
@@ -32,7 +23,7 @@ const isMesh = (object: THREE.Object3D): object is THREE.Mesh => (object as THRE
  * An item as the 3D view builds it (plan-scene.ts planFurniture): a plan item; a built-in run with its shape on the plan
  * (runs.ts runGeo); curtains or a blind as far open as HA says (0–1).
  */
-export type Item3d = FurnitureItem & {geo?: ReturnType<typeof runGeo>; open?: number};
+export type Item3d = FurnitureItem & {geo?: RunGeo | null; open?: number};
 
 /** What the shared builders read of an item: its size, its colour, its worktop and its variant. */
 type Look = Pick<FurnitureItem, 'w' | 'd' | 'h' | 'color' | 'top' | 'v'>;
@@ -174,8 +165,8 @@ const CHROME = (): THREE.MeshStandardMaterial => finish('chrome');
 const METAL = (): THREE.MeshStandardMaterial => mat(0xb9bcc0, 0.3);
 const TOP = (k: string | undefined): THREE.MeshStandardMaterial => {
   // TOPS: a worktop key → [name, colour, roughness]; any other key is gray stone
-  const [, color, rough] = TOPS[k as keyof typeof TOPS] || TOPS.stone;
-  return mat(color, rough as number);
+  const [, color, rough] = TOPS[k as string] || TOPS.stone; // no key (undefined) finds none
+  return mat(color, rough);
 };
 // Sanitary ware (toilet, bidet, washbasin, bathtubs): white ceramic, black or any other color glazed; inside — the floor of the bowl or tub.
 const glaze = (k: string | undefined): number =>
@@ -4752,7 +4743,7 @@ function slab(
   g: THREE.Object3D,
   m: THREE.Material,
   q: Point,
-  u: RunDir,
+  u: Vector,
   w: number,
   y: number,
   h: number,
@@ -4777,8 +4768,8 @@ interface RunDoors {
 function runDoors(
   g: THREE.Object3D,
   [a, b]: Segment,
-  u: RunDir,
-  n: RunDir,
+  u: Vector,
+  n: Vector,
   {y0, y1, step, handle, front, metal}: RunDoors,
 ): void {
   const L = Math.hypot(b[0] - a[0], b[1] - a[1]);
@@ -4817,8 +4808,8 @@ function runDoors(
 function runSliding(
   g: THREE.Object3D,
   [a, b]: Segment,
-  u: RunDir,
-  n: RunDir,
+  u: Vector,
+  n: Vector,
   {h, front, al}: {h: number; front: THREE.Material; al: THREE.Material},
 ): void {
   const L = Math.hypot(b[0] - a[0], b[1] - a[1]);

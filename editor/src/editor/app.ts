@@ -194,8 +194,7 @@ export function createApp({haLights, ha, photos}: AppOptions): Editor {
     ed.syncSave?.();
     // with a text there is its key
     if (text)
-      // coach.show takes a missing area as none
-      coach.show(key as string, (wizard ? null : aim) as Aim | null, {
+      coach.show(key as string, wizard ? null : aim, {
         ...o,
         fixed: wizard || o.fixed,
         compact: wizard || o.compact,

@@ -24,8 +24,8 @@ import type {
 } from './types.ts';
 
 export const GRID = 0.05;
-// An item's catalog entry (catalog.ts byId), read in the shared shape.
-const entryOf = (f: FurnitureItem): CatalogEntry | undefined => byId(f.model) as CatalogEntry | undefined;
+// An item's catalog entry (catalog.ts byId).
+const entryOf = (f: FurnitureItem): CatalogEntry | undefined => byId(f.model);
 const grid = (v: number): number => Math.round(v / GRID) * GRID;
 
 // ---------- furniture ----------

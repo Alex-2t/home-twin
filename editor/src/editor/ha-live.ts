@@ -23,9 +23,9 @@ import type {RemoteSaveState} from './editor-types.ts';
 const HOUR = 3600e3;
 const BOARD = 'home-twin-3d'; // the Home Twin dashboard (D-059); card.js and card-main.js know it too
 
-/** The live layer has every member the demo lacks. */
+/** The live layer has every member the demo lacks, and sets areas. */
 export type LiveHaLayer = HaLayer &
-  Required<Pick<HaLayer, 'ready' | 'update' | 'moreInfo' | 'url' | 'close'>> & {board: HaBoard};
+  Required<Pick<HaLayer, 'ready' | 'update' | 'moreInfo' | 'url' | 'close' | 'setArea'>> & {board: HaBoard};
 
 /** A sensor's last 3 hours as history() keeps it: when it was asked for (ms), the points, and a request in flight. */
 interface HistoryCache {

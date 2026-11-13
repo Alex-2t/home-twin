@@ -96,8 +96,6 @@ type SavedLamp = Omit<PlanLight, 'points' | 'segments'> & Partial<Pick<PlanLight
 /** The demo's weather always has its numbers. */
 export type DemoWeather = HaWeather & {temperature: number; feels: number; sunrise: number; sunset: number};
 
-/** An entity for "Favorites" as the demo lists it: a sensor's or a device's class and unit may be null. */
-type DemoEntityItem = Omit<HaEntityItem, 'cls' | 'unit'> & {cls?: string | null; unit?: string | null};
 // An entity that is missing right now is no reason to erase its placement from the saved file.
 // HA lamps as plan lamps, not placed yet. An HA light group (it has a member list) whose lamps are also in the list is not placed
 // on the plan — the lamps themselves are.
@@ -276,8 +274,8 @@ export function mockHA({
     energy: () => Promise.resolve(stats.energy || null),
     devices: () => devices,
     entities: () => {
-      const out = new Map<string, DemoEntityItem>();
-      const add = (x: DemoEntityItem | null | undefined): void => {
+      const out = new Map<string, HaEntityItem>();
+      const add = (x: HaEntityItem | null | undefined): void => {
         if (x?.entity && !out.has(x.entity)) out.set(x.entity, x);
       };
       for (const l of lights)
@@ -289,19 +287,19 @@ export function mockHA({
         if (!s.cat && !s.hidden)
           add({entity: s.entity, name: s.name, area: s.area, domain: 'sensor', cls: s.cls, unit: s.unit});
       for (const x of extra) add(x);
-      // a class or a unit may be null here (types.ts HaEntityItem has a string or none)
-      return [...out.values()] as HaEntityItem[];
+      // a class or a unit may be null here
+      return [...out.values()];
     },
     // like hass.states: a sensor has its reading as a string, the unit and class in attributes
     entity: e => {
       if (entities[e]) return entities[e];
       if (/^(light|switch)\./.test(e)) return lamp(e);
       const s = sensors.find(x => x.entity === e);
-      // the unit and the class may be null here (types.ts HassAttributes has a string or none)
+      // the unit and the class may be null here
       return s && states[e] != null
         ? {
             state: String(states[e]),
-            attributes: {unit_of_measurement: s.unit, device_class: s.cls} as unknown as HassAttributes,
+            attributes: {unit_of_measurement: s.unit, device_class: s.cls},
           }
         : null;
     },

@@ -92,7 +92,7 @@ export function migrate(p: PlanInput): Plan {
   // every opening now sits on an edge and has an id
   return plan as Plan;
 }
-export const roomById = (plan: Pick<Plan, 'rooms'>, id: string): Room | undefined =>
+export const roomById = (plan: Pick<Plan, 'rooms'>, id: string | null | undefined): Room | undefined =>
   plan.rooms.find(r => r.id === id);
 export const roomAt = (plan: Pick<Plan, 'rooms'>, p: Point): Room | undefined =>
   plan.rooms.find(r => pointIn(p, r.polygon));

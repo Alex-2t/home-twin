@@ -8,7 +8,6 @@ import {deviceKind, acView, coverView, contactView, coverModel} from './devices.
 import type {
   HaLayer,
   HaSensor,
-  Metric,
   OverviewLamp,
   OverviewRoom,
   Plan,
@@ -132,7 +131,7 @@ export function roomClimate(plan: Pick<Plan, 'sensors'>, r: Room, ctx: SensorCon
     .filter(S => S.room === r.id)
     .map(S => ctx.sensors.find(s => s.entity === S.entity))
     .filter(s => s !== undefined);
-  for (const m of METRICS as Metric[]) {
+  for (const m of METRICS) {
     if (m.off) continue;
     const s: HaSensor | null | undefined =
       own.find(s => s.cls === m.cls) ||

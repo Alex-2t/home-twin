@@ -591,8 +591,8 @@ export function createView(host: HTMLElement): SceneView {
   // the pattern laid along the same walls as the room's.
   function addFloorPieces(room: Room, floorMesh: THREE.Mesh, selected: boolean): void {
     // FLOOR_KINDS: a floor finish key → the finish; any other key is none
-    for (const piece of floorPieces(room, k => !!FLOOR_KINDS[k as keyof typeof FLOOR_KINDS])) {
-      const kind = FLOOR_KINDS[piece.k as keyof typeof FLOOR_KINDS];
+    for (const piece of floorPieces(room, k => !!FLOOR_KINDS[k])) {
+      const kind = FLOOR_KINDS[piece.k];
       const toVectors = (ring: Outline): THREE.Vector2[] => ring.map(([x, y]) => new THREE.Vector2(x, y));
       const shape = new THREE.Shape(toVectors(piece.rings[0]));
       for (const hole of piece.rings.slice(1)) shape.holes.push(new THREE.Path(toVectors(hole)));
@@ -668,7 +668,7 @@ export function createView(host: HTMLElement): SceneView {
     for (const r of roomList) {
       if (r.solid) continue;
       const kind = floorKind(r);
-      const K = FLOOR_KINDS[kind as keyof typeof FLOOR_KINDS];
+      const K = FLOOR_KINDS[kind];
       const g = new THREE.ShapeGeometry(new THREE.Shape(r.polygon.map(([x, y]) => new THREE.Vector2(x, y))));
       g.rotateX(-Math.PI / 2);
       floorUV(g, r.polygon, K.size);

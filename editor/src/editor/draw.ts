@@ -8,6 +8,7 @@ import {zOf, nameOf} from '../core/catalog.ts';
 import {byId} from '../core/catalog.ts';
 import {SWING, zoneParts} from '../core/plan.ts';
 import {formFor, lineForm, FURN_STRIP} from '../core/fixtures.ts';
+import type {RunSide} from '../core/runs.ts';
 import type {FurnitureItem, Outline, Plan, PlanLight, Point, Segment, Vector} from '../core/types.ts';
 import type {PlanView2d} from './view2d.ts';
 import type {Editor, PathStep} from './editor-types.ts';
@@ -56,10 +57,7 @@ export interface Palette {
   dark: boolean;
 }
 
-/** A built-in run's shape (runs.ts runGeo) and one of its sides. */
-type RunGeo = NonNullable<ReturnType<typeof runGeo>>;
-type RunSide = RunGeo['sides'][number];
-/** A side of a run that has a front: the front's ends, and the outward normal. */
+/** A side of a built-in run (runs.ts runGeo) that has a front: the front's ends, and the outward normal. */
 type FrontSide = RunSide & {front: Segment; n: Vector};
 
 /** An item's name drawn as a badge over it, last of all (furnName). */
@@ -472,7 +470,7 @@ export const FLOOR_SHIFT = 0.12;
 // on furniture — where it is; a lamp without a height is not low (undefined < 1 was false); an opt that is not a furniture
 // strip reads nothing
 export const floorStrip = (L: PlanLight): boolean =>
-  formFor(L) === 'strip' && L.h !== undefined && L.h < 1 && !FURN_STRIP[L.opt as keyof typeof FURN_STRIP];
+  formFor(L) === 'strip' && L.h !== undefined && L.h < 1 && !FURN_STRIP[L.opt as string]; // no opt finds none
 export function shiftSegs(plan: Pick<Plan, 'rooms'>, L: PlanLight, segs: Segment[] = L.segments): Segment[] {
   if (!floorStrip(L)) return segs;
   const r = plan.rooms.find(r => r.id === L.room);
