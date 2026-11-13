@@ -1,4 +1,3 @@
-// @ts-nocheck
 // Start screen, the “upload plan → align → trace” wizard, the “⋯” menu.
 import {t, N, num} from '../i18n/i18n.ts';
 import {emptyPlan, rotatePlan, scalePlan} from '../core/plan.ts';
@@ -9,14 +8,111 @@ import {pal, dimLabel} from './draw.ts';
 import {DRAW_RECT} from './modes/rooms.ts';
 import {tiltOf, fitPhoto} from './underlay.ts';
 import {readPlan} from '../core/plan-file.ts';
-import {idb} from './underlay.ts';
+import {idb as untypedIdb} from './underlay.ts';
 import {axisCursor} from './drag-gesture.ts';
 import {routeHash} from './route.ts';
+import type {Outline, Plan, PlanInput, Point, Room, UnderlayPlace} from '../core/types.ts';
+import type {
+  BannerItem,
+  CanvasPoint,
+  Editor,
+  EditorFlows,
+  ModeId,
+  PathStep,
+  Underlay,
+} from './editor-types.ts';
+
+/** A page in the address (route.ts PAGES). */
+export type RoutePage = 'plan' | 'furniture' | 'lights' | 'devices' | 'sensors' | 'preview';
+
+/** A page in the address (route.ts): the example it is of (null: your plan) and the page. */
+export interface Route {
+  ex: string | null;
+  page: RoutePage;
+}
+
+/** The address (route.ts hashRouter, haRouter): read it, show a page (push: a new history step), hear it change from outside. */
+export interface Router {
+  read(): Route | null;
+  write(route: Route | null, push: boolean): void;
+  listen(listener: (route: Route | null) => void): void;
+}
+
+/** An example's plan photo (the designer interiors): its image and the two "pixel → metres" pairs that place it. */
+interface ExamplePhoto {
+  src: string;
+  match: [Point, Point, Point, Point];
+}
+
+/** A start screen example (main.ts): its id, its plan and its plan photo (none: null). */
+export interface FlowsExample {
+  id: string;
+  plan: PlanInput;
+  underlay?: unknown;
+}
+
+/** An example whose plan has its rooms, as every generated example has. */
+type RoomedExample = FlowsExample & {plan: PlanInput & Pick<Plan, 'rooms'>};
+
+export interface FlowsOptions {
+  examples?: FlowsExample[];
+  /** The example whose HA data are loaded; null: none. */
+  example?: string | null;
+  router?: Router | null;
+}
+
+/** How an example is called on its card and which group it is in. */
+interface ExampleInfo {
+  name: string;
+  kind: 'flat' | 'style' | 'house';
+  note?: string;
+}
+
+/** The previous plan kept aside ('home-twin-editor:prev'): the plan and its photo's placement (null: no photo). */
+interface PrevSlot {
+  plan: PlanInput;
+  photo: UnderlayPlace | null;
+}
+
+/** The photo rotation knob being dragged: the centre, the pointer's first angle, the placement and angle it started from, the turn. */
+interface KnobDrag {
+  c: Point;
+  a0: number;
+  u0: Point;
+  b0: Point;
+  ang0: number;
+  t: number;
+}
+
+/** What a press on the photo's frame does (moveUnderlay). */
+type UnderlayPart = 'rotate' | 'scale' | 'move' | 'outside';
+
+/** A press on the photo's frame: what it does, where it started, the placement then, the centre, the angle and distance from it. */
+interface UnderlayOp {
+  k: UnderlayPart;
+  p0: Point;
+  a: Point;
+  b: Point;
+  ctr: Point;
+  ang0: number;
+  r0: number;
+  moved?: boolean;
+}
+
+// One element of our own markup inside root, typed as present like $ (a missing one fails at its first use)
+const find = <ElementType extends Element = HTMLElement>(root: ParentNode, selector: string): ElementType =>
+  root.querySelector(selector) as ElementType;
+
+// idb.ts is not typed yet: its signature, with the value optional (a read gives what was stored, unchecked)
+const idb = untypedIdb as (op: 'get' | 'put' | 'del', key: string, val?: unknown) => Promise<unknown>;
+
+// the “Outline” and “Rooms” steps: the home is one outline, not split into rooms yet
+const OUTLINE_STEPS: Array<PathStep | null> = ['rect', 'split'];
 
 const UPLOAD_WIDTH_M = 12; // until the scale is set, the plan image is assumed to be 12 m wide — a typical apartment
 // The start screen's examples (D-062): three designer interiors first, the ten typical homes (demo/homes.ts, D-030), and “Demo home” — the build's own demo apartment
 // when it is not one of them. note — said under the name (houses: only the ground floor is drawn, the editor is single-floor)
-const EXAMPLE = {
+const EXAMPLE: Record<string, ExampleInfo> = {
   demo: {name: N('Demo home'), kind: 'flat'},
   studio: {name: N('Studio'), kind: 'flat'},
   'one-bed': {name: N('One room + kitchen'), kind: 'flat'},
@@ -34,23 +130,30 @@ const EXAMPLE = {
 };
 const OUTDOOR = /балкон|лодж|террас|сад|balcon|terra|patio|garden|porch/i; // not counted in the example's area
 // a small outline of the rooms for an example's card (north up)
-function planThumb(plan) {
-  const P = plan.rooms.map(r => r.polygon),
-    xs = P.flat().map(p => p[0]),
-    ys = P.flat().map(p => p[1]),
-    x0 = Math.min(...xs),
-    y1 = Math.max(...ys);
-  const w = Math.max(...xs) - x0,
-    h = y1 - Math.min(...ys),
-    d = q => 'M' + q.map(([x, y]) => (x - x0).toFixed(2) + ' ' + (y1 - y).toFixed(2)).join('L') + 'Z';
+function planThumb(plan: Pick<Plan, 'rooms'>): string {
+  const P = plan.rooms.map(r => r.polygon);
+  const xs = P.flat().map(p => p[0]);
+  const ys = P.flat().map(p => p[1]);
+  const x0 = Math.min(...xs);
+  const y1 = Math.max(...ys);
+  const w = Math.max(...xs) - x0;
+  const h = y1 - Math.min(...ys);
+  const d = (q: Outline): string =>
+    'M' + q.map(([x, y]) => (x - x0).toFixed(2) + ' ' + (y1 - y).toFixed(2)).join('L') + 'Z';
   return `<svg viewBox="-.4 -.4 ${(w + 0.8).toFixed(2)} ${(h + 0.8).toFixed(2)}" aria-hidden="true">${P.map(q => `<path d="${d(q)}"/>`).join('')}</svg>`;
 }
 
 // router — the address (route.js, D-066): hashRouter in the standalone editor, haRouter in the HA panel; absent — the address is not used
-export function createFlows(ed, {examples = [], example = null, router = null}) {
-  const f = {};
-  const EX = 'home-twin-editor:example',
-    COVER = 'home-twin-editor:loading';
+export function createFlows(
+  ed: Editor,
+  {examples: givenExamples = [], example = null, router = null}: FlowsOptions,
+): EditorFlows {
+  // the generated examples' plans always have their rooms
+  const examples = givenExamples as RoomedExample[];
+  // filled below, before it is returned
+  const f = {} as EditorFlows;
+  const EX = 'home-twin-editor:example';
+  const COVER = 'home-twin-editor:loading';
   // an example in the address opens right away (also after the reload for its HA data); until then the plan saved last time is not built
   // in 3D (ed.hold, app.js) — it would only flash before the example
   const r0 = router?.read() || null;
@@ -59,18 +162,18 @@ export function createFlows(ed, {examples = [], example = null, router = null}) 
   // Opening an example shows its card from the start screen — over a reload too: the card goes to sessionStorage, shell.html puts it up at the first paint
   // While it is up the 3D draws nothing (the GPU is left to the page: the bar does not stutter); before it goes, the new home's shaders
   // compile in parallel (scene.js: warm), so its first frame does not freeze the page either.
-  const cover = $('loading'),
-    frame = () => new Promise(r => requestAnimationFrame(r));
+  const cover = $('loading');
+  const frame = (): Promise<unknown> => new Promise(r => requestAnimationFrame(r));
   if (!cover.hidden) ed.view.pause?.();
-  const coverUp = card => {
-    cover.querySelector('.loading-ex').innerHTML = card;
+  const coverUp = (card: string): void => {
+    find(cover, '.loading-ex').innerHTML = card;
     cover.dataset.ex = '';
     delete cover.dataset.boot;
     cover.classList.remove('out');
     cover.hidden = false;
     ed.view.pause?.();
   };
-  const coverDown = async () => {
+  const coverDown = async (): Promise<void> => {
     ed.hold = false;
     try {
       sessionStorage.removeItem(COVER);
@@ -106,15 +209,15 @@ export function createFlows(ed, {examples = [], example = null, router = null}) 
     }
     startScreen(canContinue);
   };
-  const startScreen = canContinue => {
+  const startScreen = (canContinue: boolean): void => {
     coverDown();
     const box = $('start');
     box.hidden = false;
-    box.querySelector('[data-a=continue]').hidden = !canContinue;
+    find(box, '[data-a=continue]').hidden = !canContinue;
     syncPrev();
     f.syncRoute();
   };
-  const hideStart = () => {
+  const hideStart = (): void => {
     $('start').hidden = true;
     f.syncRoute();
   };
@@ -122,7 +225,7 @@ export function createFlows(ed, {examples = [], example = null, router = null}) 
   // The AI build (D-073, D-074, ai-build.js): offered only where its service answers (main.js); the card is the AI build's own
   // (aiStartCard: a build on its way shows there)
   f.offerAi = setup => {
-    const b = $('start').querySelector('[data-a=ai]');
+    const b = find($('start'), '[data-a=ai]');
     b.hidden = false;
     setup(b);
   };
@@ -131,30 +234,32 @@ export function createFlows(ed, {examples = [], example = null, router = null}) 
   // Pages: the start screen (null), a mode or Preview of your plan, of an example. Another page — a new step in the history (Back returns
   // to it); the same page whose plan stopped being an example (its rooms were edited) — the step is corrected. While the address is being
   // applied (the start, Back / Forward) nothing is written: quiet.
-  const PAGE = {
-      rooms: 'plan',
-      furniture: 'furniture',
-      lights: 'lights',
-      devices: 'devices',
-      sensors: 'sensors',
-    },
-    MODE = Object.fromEntries(Object.entries(PAGE).map(([m, p]) => [p, m]));
-  let quiet = 1,
-    queued = false,
-    shown = routeHash(r0),
-    leaving = false;
-  const routeNow = () =>
+  const PAGE: Record<ModeId, RoutePage> = {
+    rooms: 'plan',
+    furniture: 'furniture',
+    lights: 'lights',
+    devices: 'devices',
+    sensors: 'sensors',
+  };
+  // PAGE's keys are the modes
+  const MODE = Object.fromEntries(Object.entries(PAGE).map(([m, p]) => [p, m])) as Record<string, ModeId>;
+  let quiet = 1;
+  let queued = false;
+  let shown: string | undefined = routeHash(r0);
+  let leaving = false;
+  const routeNow = (): Route | null =>
     $('start').hidden
       ? {ex: exampleOf(ed.plan)?.id || null, page: ed.look?.() ? 'preview' : PAGE[ed.mode.id] || 'plan'}
       : null;
-  const pageOf = h => h.replace(/^#\/example\/[\w-]+/, '#') || 'start';
-  function writeRoute(push = null) {
+  const pageOf = (h: string): string => h.replace(/^#\/example\/[\w-]+/, '#') || 'start';
+  function writeRoute(push: boolean | null = null): void {
     queued = false;
     if (!router || quiet || leaving) return;
-    const now = routeNow(),
-      h = routeHash(now);
+    const now = routeNow();
+    const h = routeHash(now);
     if (h === shown) return;
-    router.write(now, push ?? pageOf(h) !== pageOf(shown));
+    // shown is undefined only while an address from outside is applied, and then push is false
+    router.write(now, push ?? pageOf(h) !== pageOf(shown as string));
     shown = h;
   }
   // several changes in one go (a mode button: leave Preview, switch the mode) — one step
@@ -164,7 +269,7 @@ export function createFlows(ed, {examples = [], example = null, router = null}) 
       queueMicrotask(() => writeRoute());
     }
   };
-  const setPage = p => {
+  const setPage = (p: RoutePage): void => {
     if (p === 'preview') ed.setLook(true);
     else {
       ed.setLook(false);
@@ -173,7 +278,7 @@ export function createFlows(ed, {examples = [], example = null, router = null}) 
   };
   // another example than the one whose HA data are loaded: the page reloads with it (main.js reads the address)
   // (the address already names it; under its card from the start screen)
-  const reloadWith = x => {
+  const reloadWith = (x: FlowsExample): void => {
     leaving = true;
     const card = $('start').querySelector(`.ex[data-ex="${x.id}"]`)?.innerHTML;
     if (card) {
@@ -188,7 +293,7 @@ export function createFlows(ed, {examples = [], example = null, router = null}) 
     requestAnimationFrame(() => requestAnimationFrame(() => location.reload()));
   };
   // the address → the page: at the start, after Back / Forward, a typed or followed link
-  async function go(r, {canContinue = true} = {}) {
+  async function go(r: Route | null, {canContinue = true}: {canContinue?: boolean} = {}): Promise<void> {
     const x = r?.ex ? examples.find(e => e.id === r.ex) : null;
     if (!r || (r.ex && !x) || (!r.ex && !canContinue)) {
       ed.hold = false;
@@ -223,10 +328,10 @@ export function createFlows(ed, {examples = [], example = null, router = null}) 
       writeRoute(false);
     });
   });
-  $('start').querySelector('[data-a=continue]').onclick = hideStart;
+  find($('start'), '[data-a=continue]').onclick = hideStart;
   // Plan image: from the start screen — a new plan and the wizard; from the panel — only replace the plan photo.
   let fresh = false;
-  $('start').querySelector('[data-a=upload]').onclick = () => {
+  find($('start'), '[data-a=upload]').onclick = () => {
     fresh = true;
     $('file-plan').click();
   };
@@ -235,13 +340,14 @@ export function createFlows(ed, {examples = [], example = null, router = null}) 
     $('file-plan').click();
   };
   $('file-plan').onchange = async e => {
-    const file = e.target.files[0];
-    e.target.value = '';
+    const input = e.target as HTMLInputElement; // the file field this handler is on
+    const file = input.files?.[0];
+    input.value = '';
     if (!file) return;
     const src = await fitPhoto(
-      await new Promise(ok => {
+      await new Promise<string>(ok => {
         const r = new FileReader();
-        r.onload = () => ok(r.result);
+        r.onload = () => ok(r.result as string); // readAsDataURL gives the data URL as text
         r.readAsDataURL(file);
       }),
     );
@@ -283,8 +389,8 @@ export function createFlows(ed, {examples = [], example = null, router = null}) 
     if (fresh) f.askArea();
     else f.calibrate();
   };
-  let autoTilt = null;
-  $('start').querySelector('[data-a=scratch]').onclick = async () => {
+  let autoTilt: {c: Point; th: number} | null = null;
+  find($('start'), '[data-a=scratch]').onclick = async () => {
     await keepPrev();
     hideStart();
     ed.setMain('plan');
@@ -300,14 +406,14 @@ export function createFlows(ed, {examples = [], example = null, router = null}) 
     f.askArea();
   };
   // a step without a button: it ends by itself once the rectangle is drawn
-  const scratchStep = () => {
+  const scratchStep = (): void => {
     ed.setTool('rect');
     ed.step(DRAW_RECT, [], ed.aim.photo);
   };
   // ---------- examples (D-062): two groups, apartments and houses; a click opens the home with its demo HA data ----------
   // Each example has its own lights, sensors and devices: another one than the loaded one — the page reloads with it (main.js) and opens it
   {
-    const box = $('start').querySelector('.examples');
+    const box = find($('start'), '.examples');
     box.hidden = !examples.length;
     for (const x of examples) {
       const info = EXAMPLE[x.id] || {name: x.id, kind: 'flat'};
@@ -317,8 +423,8 @@ export function createFlows(ed, {examples = [], example = null, router = null}) 
       const b = el(
         `<button class="ex glass" data-ex="${esc(x.id)}">${planThumb(x.plan)}<b></b><span></span></button>`,
       );
-      b.querySelector('b').textContent = t(info.name);
-      b.querySelector('span').textContent = num(m2, 0) + t(' m²') + (info.note ? ' · ' + t(info.note) : '');
+      find(b, 'b').textContent = t(info.name);
+      find(b, 'span').textContent = num(m2, 0) + t(' m²') + (info.note ? ' · ' + t(info.note) : '');
       b.onclick = () => {
         coverUp(b.innerHTML);
         if (x.id === example) {
@@ -326,40 +432,40 @@ export function createFlows(ed, {examples = [], example = null, router = null}) 
           return;
         }
         // another example's HA data: its address, then the page reloads with it
-        const r = {ex: x.id, page: 'preview'};
+        const r: Route = {ex: x.id, page: 'preview'};
         router?.write(r, true);
         shown = routeHash(r);
         reloadWith(x);
       };
-      box.querySelector(`.ex-list[data-kind=${info.kind}]`).append(b);
+      find(box, `.ex-list[data-kind=${info.kind}]`).append(b);
     }
-    box.querySelectorAll('.ex-group').forEach(g => (g.hidden = !g.querySelector('.ex')));
+    box.querySelectorAll<HTMLElement>('.ex-group').forEach(g => (g.hidden = !g.querySelector('.ex')));
   }
   // “← Examples” by the file menu while an example is open: back to the start screen, at the examples
   const back = $('to-examples');
   back.onclick = () => {
     f.showStart({canContinue: true});
-    $('start').querySelector('.examples').scrollIntoView({block: 'center'});
+    find($('start'), '.examples').scrollIntoView({block: 'center'});
   };
   f.syncExample = () => {
     back.hidden = !examples.length || !exampleOf(ed.plan);
     f.syncRoute();
   };
   // page — where it opens: Preview (the finished home first; “Plan” and the other modes are a click away) or the page in the address
-  async function openExample(x, page = 'preview') {
+  async function openExample(x: FlowsExample, page: RoutePage = 'preview'): Promise<void> {
     quiet++;
     try {
       const kept = await keepPrev();
       hideStart();
       ed.banner();
-      const plan = structuredClone(x.plan),
-        name = t(EXAMPLE[x.id]?.name || x.id);
+      const plan = structuredClone(x.plan);
+      const name = t(EXAMPLE[x.id]?.name || x.id);
       plan.name ??= name;
       ed.hold = false;
       ed.setPlan(plan, {fit: false});
       ed.setMode('rooms');
       ed.setTool('select');
-      const u = x.underlay;
+      const u = x.underlay as ExamplePhoto | null | undefined; // the example's own plan photo (build.ts)
       if (u) {
         await ed.underlay.set(u.src, {place: () => ed.underlay.match(...u.match)});
         ed.underlay.opacity = 0.5;
@@ -397,25 +503,29 @@ export function createFlows(ed, {examples = [], example = null, router = null}) 
   // ---------- previous plan: a new plan does not erase the old one (start screen, “Open from file…”) ----------
   // Before replacement the plan and photo go into the backup slot; “Restore previous plan” (the ⌂ menu, start screen) swaps them —
   // it can be swapped back too. An empty plan and an untouched example are not saved: nothing to lose, and the real plan in the slot would be overwritten.
-  const PREV = 'home-twin-editor:prev',
-    same = (a, b) => JSON.stringify(a) === JSON.stringify(b);
-  const readPrev = () => {
+  const PREV = 'home-twin-editor:prev';
+  const same = (a: unknown, b: unknown): boolean => JSON.stringify(a) === JSON.stringify(b);
+  const readPrev = (): PrevSlot | null => {
     try {
-      return JSON.parse(localStorage.getItem(PREV) || 'null');
+      // what putPrev wrote in this browser; not checked
+      return JSON.parse(localStorage.getItem(PREV) || 'null') as PrevSlot | null;
     } catch {
       return null;
     }
   };
   // a plan is an example while its rooms are those of an example: playing with one (furniture, lights) is not your work, so it never
   // takes the backup slot from your own plan; the rooms redrawn — it has become yours
-  const roomsKey = p => JSON.stringify(p.rooms.map(r => r.polygon)),
-    exKeys = examples.map(x => roomsKey(x.plan));
-  const exampleOf = p => examples[exKeys.indexOf(roomsKey(p))] || null,
-    isDemo = p => !!exampleOf(p);
-  const worth = () => (ed.plan.rooms.length > 0 || ed.underlay.ready) && !isDemo(ed.plan);
-  const photoOf = u => (u.ready ? {a: [...u.a], b: [...u.b], opacity: u.opacity, visible: u.visible} : null);
+  const roomsKey = (p: Pick<Plan, 'rooms'>): string => JSON.stringify(p.rooms.map(r => r.polygon));
+  const exKeys = examples.map(x => roomsKey(x.plan));
+  const exampleOf = (p: Pick<Plan, 'rooms'>): RoomedExample | null =>
+    examples[exKeys.indexOf(roomsKey(p))] || null;
+  const isDemo = (p: Pick<Plan, 'rooms'>): boolean => !!exampleOf(p);
+  const worth = (): boolean => (ed.plan.rooms.length > 0 || ed.underlay.ready) && !isDemo(ed.plan);
+  // a ready photo is placed: a and b are there
+  const photoOf = (u: Underlay): UnderlayPlace | null =>
+    u.ready ? {a: [...u.a!], b: [...u.b!], opacity: u.opacity, visible: u.visible} : null;
   // into the slot goes what is current; false — nothing to save or it failed (then the slot is left alone)
-  async function putPrev(plan, photo, src) {
+  async function putPrev(plan: Plan, photo: UnderlayPlace | null, src: string | null): Promise<boolean> {
     try {
       localStorage.setItem(PREV, JSON.stringify({plan, photo}));
     } catch {
@@ -424,34 +534,37 @@ export function createFlows(ed, {examples = [], example = null, router = null}) 
     await (photo ? idb('put', 'prev-underlay', src) : idb('del', 'prev-underlay')).catch(() => {});
     return true;
   }
-  async function keepPrev() {
+  async function keepPrev(): Promise<boolean> {
     const ok = worth() && (await putPrev(ed.plan, photoOf(ed.underlay), ed.underlay.src));
     syncPrev();
     return ok;
   }
   f.keepPrev = keepPrev; // a new home from the AI build replaces the plan open now (ai-build.js)
-  function syncPrev() {
+  function syncPrev(): void {
     const on = !!readPrev()?.plan;
-    document.querySelectorAll('[data-a=prev]').forEach(b => (b.hidden = !on));
+    document.querySelectorAll<HTMLElement>('[data-a=prev]').forEach(b => (b.hidden = !on));
   }
-  async function swapPrev() {
+  async function swapPrev(): Promise<void> {
     const prev = readPrev();
     if (!prev?.plan) return;
-    const src = prev.photo ? await idb('get', 'prev-underlay').catch(() => null) : null,
-      cur = {plan: ed.plan, photo: photoOf(ed.underlay), src: ed.underlay.src};
+    // the image putPrev stored with the slot's photo
+    const src = (prev.photo ? await idb('get', 'prev-underlay').catch(() => null) : null) as string | null;
+    const cur = {plan: ed.plan, photo: photoOf(ed.underlay), src: ed.underlay.src};
     if (worth()) await putPrev(cur.plan, cur.photo, cur.src);
     else {
       localStorage.removeItem(PREV);
       await idb('del', 'prev-underlay').catch(() => {});
     }
+    // src is read only for a slot with a photo
+    const photo = prev.photo as UnderlayPlace;
     if (src)
       await ed.underlay.set(src, {
         place: () =>
           Object.assign(ed.underlay, {
-            a: prev.photo.a,
-            b: prev.photo.b,
-            opacity: prev.photo.opacity,
-            visible: prev.photo.visible,
+            a: photo.a,
+            b: photo.b,
+            opacity: photo.opacity,
+            visible: photo.visible,
           }),
       });
     else await ed.underlay.clear();
@@ -466,7 +579,7 @@ export function createFlows(ed, {examples = [], example = null, router = null}) 
   }
   f.swapPrev = swapPrev;
   f.hasPrev = () => !!readPrev()?.plan;
-  $('start').querySelector('[data-a=prev]').onclick = () => swapPrev();
+  find($('start'), '[data-a=prev]').onclick = () => swapPrev();
   // the mode and wizard step — as this plan had last time (at startup and after “Restore previous plan”)
   f.resume = () => {
     const w = ed.wizard.get(ed.plan.id);
@@ -487,8 +600,8 @@ export function createFlows(ed, {examples = [], example = null, router = null}) 
   // the last choice is remembered.
   const BALC = 'home-twin-editor:docBalcony';
   f.askArea = () => {
-    const has = ed.plan.rooms.length > 0,
-      photo = ed.underlay.ready;
+    const has = ed.plan.rooms.length > 0;
+    const photo = ed.underlay.ready;
     const box = el(`<div class="keys area-ask"><form class="keys-box glass area-box">
       <b>${esc(t('Floor area'))}</b><p>${esc(t("We'll estimate the scale from the documented floor area. You can refine it later using a wall length."))}</p>
       <label class="area-in"><input inputmode="decimal" autocomplete="off" placeholder="62" aria-label="${esc(t('Floor area'))}" aria-describedby="area-error"><span>${esc(t(' m²').trim())}</span></label>
@@ -496,16 +609,16 @@ export function createFlows(ed, {examples = [], example = null, router = null}) 
       <label class="area-balc"><input type="checkbox">${esc(t('Balcony is included in the area'))}</label>
       <div class="area-btns"><button type="button" class="soft" data-a="wall">${esc(photo ? t("Don't know — use a wall") : t("Don't know — draw by eye"))}</button><button class="primary">${esc(t('Next'))}</button></div></form></div>`);
     document.body.append(box);
-    const inp = box.querySelector('.area-in input'),
-      bal = box.querySelector('.area-balc input'),
-      form = box.querySelector('form');
+    const inp = find<HTMLInputElement>(box, '.area-in input');
+    const bal = find<HTMLInputElement>(box, '.area-balc input');
+    const form = find<HTMLFormElement>(box, 'form');
     if (ed.plan.docArea) inp.value = num(ed.plan.docArea);
     bal.checked = ed.plan.docBalcony ?? localStorage.getItem(BALC) === '1';
     setTimeout(() => {
       inp.focus();
       inp.select();
     });
-    const wall = () => {
+    const wall = (): void => {
       box.remove();
       if (!photo) {
         if (!has) scratchStep();
@@ -513,7 +626,7 @@ export function createFlows(ed, {examples = [], example = null, router = null}) 
       }
       has ? f.calibrate() : f.calibrate({step: true});
     };
-    box.querySelector('[data-a=wall]').onclick = wall;
+    find(box, '[data-a=wall]').onclick = wall;
     // Esc: on upload — “Don't know”, when editing — just close
     box.addEventListener('keydown', e => {
       if (e.key === 'Escape') {
@@ -523,15 +636,15 @@ export function createFlows(ed, {examples = [], example = null, router = null}) 
     });
     inp.oninput = () => {
       inp.removeAttribute('aria-invalid');
-      box.querySelector('#area-error').hidden = true;
+      find(box, '#area-error').hidden = true;
     };
     form.onsubmit = e => {
       e.preventDefault();
-      const raw = inp.value.trim().replace(',', '.'),
-        v = /^\d+(?:\.\d+)?$/.test(raw) ? Number(raw) : NaN;
+      const raw = inp.value.trim().replace(',', '.');
+      const v = /^\d+(?:\.\d+)?$/.test(raw) ? Number(raw) : NaN;
       if (!(v >= 5 && v <= 5000)) {
         inp.setAttribute('aria-invalid', 'true');
-        box.querySelector('#area-error').hidden = false;
+        find(box, '#area-error').hidden = false;
         inp.focus();
         return;
       }
@@ -542,8 +655,8 @@ export function createFlows(ed, {examples = [], example = null, router = null}) 
       delete ed.plan.scaleBy;
       // rooms are not named yet — after naming, the size is refined without the balcony
       if (has) {
-        ed.fitArea('rooms', {tell: true, commit: false});
-        if (['rect', 'split'].includes(ed.path.cur())) ed.plan.scaleBy = 'rect';
+        ed.fitArea?.('rooms', {tell: true, commit: false});
+        if (OUTLINE_STEPS.includes(ed.path.cur())) ed.plan.scaleBy = 'rect';
         ed.commit();
         return;
       }
@@ -570,7 +683,7 @@ export function createFlows(ed, {examples = [], example = null, router = null}) 
   const OUT =
     /балкон|лодж|террас|balcon|balkon|loggia|terras|balcón|terraza|terrazzo|taras|varanda|sacada|terraço|阳台|露台/i;
   // room area without its share of walls: inner walls take WALL.inner off each side of the outline
-  const net = r => {
+  const net = (r: Room): number => {
     const p = r.polygon;
     let per = 0;
     for (let i = 0; i < p.length; i++) {
@@ -582,8 +695,8 @@ export function createFlows(ed, {examples = [], example = null, router = null}) 
   // by: 'rect' — from the first rectangle (~80% of it is living space), 'rooms' — from the rooms; returns the factor or 0
   // tell — say that sizes were adjusted (the user fixed the area themselves); refinement during the wizard is silent (the owner)
   ed.fitArea = (by, {commit = true, tell = false} = {}) => {
-    const p = ed.plan,
-      A = p.docArea;
+    const p = ed.plan;
+    const A = p.docArea;
     if (!A || p.scaleBy === 'wall' || (p.scaleBy === 'rooms' && by === 'rect')) return 0;
     const rs = p.rooms.filter(
       r =>
@@ -598,9 +711,9 @@ export function createFlows(ed, {examples = [], example = null, router = null}) 
       if (commit) ed.commit();
       return 1;
     }
-    const xs = p.rooms.flatMap(r => r.polygon.map(q => q[0])),
-      ys = p.rooms.flatMap(r => r.polygon.map(q => q[1])),
-      c = [(Math.min(...xs) + Math.max(...xs)) / 2, (Math.min(...ys) + Math.max(...ys)) / 2];
+    const xs = p.rooms.flatMap(r => r.polygon.map(q => q[0]));
+    const ys = p.rooms.flatMap(r => r.polygon.map(q => q[1]));
+    const c: Point = [(Math.min(...xs) + Math.max(...xs)) / 2, (Math.min(...ys) + Math.max(...ys)) / 2];
     ed.history.captureExtra();
     scalePlan(p, c, k);
     if (ed.underlay.ready) {
@@ -633,17 +746,17 @@ export function createFlows(ed, {examples = [], example = null, router = null}) 
     ed.setTool('select');
     ed.setMain('plan');
     ed.history.captureExtra();
-    const pts = [];
-    let hover = null;
-    let tilt = 0,
-      rescale = null;
-    const undoTilt = () => {
+    const pts: Point[] = [];
+    let hover: Point | null = null;
+    let tilt = 0;
+    let rescale: {k: number; c: Point} | null = null;
+    const undoTilt = (): void => {
       ed.underlay.turn(ed.underlay.center(), -tilt);
       tilt = 0;
       ed.underlay.save();
       ed.draw();
     };
-    const finish = () => {
+    const finish = (): void => {
       ed.capture = null;
       ed.plan.scaleBy = 'wall';
       ed.draw();
@@ -666,7 +779,7 @@ export function createFlows(ed, {examples = [], example = null, router = null}) 
             [
               t('Rescale'),
               () => {
-                scalePlan(ed.plan, rescale.c, k);
+                scalePlan(ed.plan, rescale!.c, k); // k came from rescale
                 ed.commit();
                 ed.banner();
                 ed.fit();
@@ -683,7 +796,7 @@ export function createFlows(ed, {examples = [], example = null, router = null}) 
       if (step) afterCalibration(tilted ? undoTilt : null);
       else
         ed.banner(t('Scale set.'), [
-          ...(tilted
+          ...((tilted
             ? [
                 [
                   t('Undo straightening'),
@@ -693,7 +806,7 @@ export function createFlows(ed, {examples = [], example = null, router = null}) 
                   },
                 ],
               ]
-            : []),
+            : []) satisfies BannerItem[]),
           [t('Got it'), () => ed.banner(), true],
         ]);
     };
@@ -723,10 +836,11 @@ export function createFlows(ed, {examples = [], example = null, router = null}) 
           ed.draw();
           ed.ask(e.offsetX, e.offsetY, t('Length, cm'), '', {
             type: 'len',
+            // the photo is placed (ready above): a is there
             ok: m => {
-              const k0 = Math.hypot(...ed.underlay.a);
+              const k0 = Math.hypot(...ed.underlay.a!);
               ed.underlay.calibrate(pts[0], pts[1], m);
-              rescale = {k: Math.hypot(...ed.underlay.a) / k0, c: ed.underlay.toWorld(pts[0])};
+              rescale = {k: Math.hypot(...ed.underlay.a!) / k0, c: ed.underlay.toWorld(pts[0])};
               finish();
             },
             cancel: () => {
@@ -765,24 +879,27 @@ export function createFlows(ed, {examples = [], example = null, router = null}) 
   // On the “Outline” and “Rooms” steps (the apartment is not split yet — the photo under it can be rotated) there is a knob above the photo: drag it —
   // the photo rotates around its center, with a grid on top so walls line up with the lines; the angle is at the cursor. It snaps to
   // “straight along the plan lines” (tiltOf) and right angles from it; Shift — no snapping. After that — “Rotate plan with photo”.
-  const knob = {drag: null, straight: null, src: null};
-  const knobOn = () => {
+  const knob: {drag: KnobDrag | null; straight: number | null; src: string | null} = {
+    drag: null,
+    straight: null,
+    src: null,
+  };
+  const knobOn = (): boolean => {
     const u = ed.underlay;
     return (
       u.ready &&
       u.visible &&
       ed.mode === ed.modes.rooms &&
       !ed.capture &&
-      (ed.plan.rooms.length === 0 ||
-        (ed.plan.rooms.length === 1 && ['rect', 'split'].includes(ed.path?.cur?.())))
+      (ed.plan.rooms.length === 0 || (ed.plan.rooms.length === 1 && OUTLINE_STEPS.includes(ed.path?.cur?.())))
     );
   };
-  const knobGeo = () => {
-    const u = ed.underlay,
-      cs = u.corners().map(q => ed.v.S(q)),
-      c = ed.v.S(u.center());
-    let bi = 0,
-      by = Infinity;
+  const knobGeo = (): {m: CanvasPoint; k: CanvasPoint; out: boolean} => {
+    const u = ed.underlay;
+    const cs = u.corners().map(q => ed.v.S(q));
+    const c = ed.v.S(u.center());
+    let bi = 0;
+    let by = Infinity;
     for (let i = 0; i < 4; i++) {
       const m = (cs[i][1] + cs[(i + 1) % 4][1]) / 2;
       if (m < by) {
@@ -790,18 +907,18 @@ export function createFlows(ed, {examples = [], example = null, router = null}) 
         bi = i;
       }
     }
-    const a = cs[bi],
-      b = cs[(bi + 1) % 4],
-      m = [(a[0] + b[0]) / 2, (a[1] + b[1]) / 2],
-      dx = m[0] - c[0],
-      dy = m[1] - c[1],
-      L = Math.hypot(dx, dy) || 1;
-    let k = [m[0] + (dx / L) * 30, m[1] + (dy / L) * 30];
+    const a = cs[bi];
+    const b = cs[(bi + 1) % 4];
+    const m: CanvasPoint = [(a[0] + b[0]) / 2, (a[1] + b[1]) / 2];
+    const dx = m[0] - c[0];
+    const dy = m[1] - c[1];
+    const L = Math.hypot(dx, dy) || 1;
+    let k: CanvasPoint = [m[0] + (dx / L) * 30, m[1] + (dy / L) * 30];
     const out = k[1] < 72 || k[1] > ed.v.h - 90 || k[0] < 20 || k[0] > ed.v.w - 20; // that side is off screen — the knob sits at the edge
     if (out) k = [Math.max(20, Math.min(ed.v.w - 20, k[0])), Math.max(72, Math.min(ed.v.h - 90, k[1]))];
     return {m, k, out};
   };
-  const straightOf = () => {
+  const straightOf = (): number | null => {
     const u = ed.underlay;
     if (knob.src !== u.src) {
       knob.src = u.src;
@@ -814,18 +931,18 @@ export function createFlows(ed, {examples = [], example = null, router = null}) 
     `<button class="knob" type="button" hidden title="${esc(t('Rotate photo'))}">${icon('rotate', 15)}</button>`,
   );
   $('pane-plan').append(kb);
-  const kmove = e => {
+  const kmove = (e: PointerEvent): void => {
     const d = knob.drag;
     if (!d) return;
-    const r = ed.v.cv.getBoundingClientRect(),
-      u = ed.underlay,
-      p = ed.v.W([e.clientX - r.left, e.clientY - r.top]);
+    const r = ed.v.cv.getBoundingClientRect();
+    const u = ed.underlay;
+    const p = ed.v.W([e.clientX - r.left, e.clientY - r.top]);
     let a = Math.atan2(p[1] - d.c[1], p[0] - d.c[0]) - d.a0;
     a = Math.atan2(Math.sin(a), Math.cos(a));
     if (!e.shiftKey && knob.straight != null) {
-      const Q = Math.PI / 2,
-        abs = d.ang0 + a,
-        st = knob.straight + Math.round((abs - knob.straight) / Q) * Q;
+      const Q = Math.PI / 2;
+      const abs = d.ang0 + a;
+      const st = knob.straight + Math.round((abs - knob.straight) / Q) * Q;
       if (Math.abs(abs - st) < 0.0044) a = st - d.ang0;
     }
     d.t = a;
@@ -839,23 +956,24 @@ export function createFlows(ed, {examples = [], example = null, router = null}) 
     e.preventDefault();
     e.stopPropagation();
     kb.setPointerCapture(e.pointerId);
-    const r = ed.v.cv.getBoundingClientRect(),
-      u = ed.underlay,
-      c = u.center(),
-      p = ed.v.W([e.clientX - r.left, e.clientY - r.top]);
+    const r = ed.v.cv.getBoundingClientRect();
+    const u = ed.underlay;
+    const c = u.center();
+    const p = ed.v.W([e.clientX - r.left, e.clientY - r.top]);
     straightOf();
     knob.drag = {
       c,
       a0: Math.atan2(p[1] - c[1], p[0] - c[0]),
-      u0: [...u.a],
-      b0: [...u.b],
+      // the knob shows only for a placed photo
+      u0: [...u.a!],
+      b0: [...u.b!],
       ang0: u.angle(),
       t: 0,
     };
     kb.classList.add('drag');
   });
   kb.addEventListener('pointermove', kmove);
-  const kup = () => {
+  const kup = (): void => {
     if (!knob.drag) return;
     knob.drag = null;
     kb.classList.remove('drag');
@@ -869,9 +987,9 @@ export function createFlows(ed, {examples = [], example = null, router = null}) 
       const on = (knobOn() && ed.role('plan') === 'main') || !!knob.drag;
       kb.hidden = !on;
       if (!on) return;
-      const {ctx} = ed.v,
-        {m, k, out} = knobGeo(),
-        d = knob.drag;
+      const {ctx} = ed.v;
+      const {m, k, out} = knobGeo();
+      const d = knob.drag;
       kb.style.left = k[0] + 'px';
       kb.style.top = k[1] + 'px';
       ctx.save();
@@ -907,7 +1025,7 @@ export function createFlows(ed, {examples = [], example = null, router = null}) 
   };
 
   // Step 2: rectangle. A tilted photo gets a knob above it (ed.knob); if it was straightened automatically — “Undo straightening”.
-  function afterCalibration(undoTilt = null) {
+  function afterCalibration(undoTilt: (() => void) | null = null): void {
     ed.setTool('rect');
     ed.step(
       `${DRAW_RECT}<small>${t('Photo at an angle? Turn it by the circle above the photo.')}</small>`,
@@ -927,18 +1045,18 @@ export function createFlows(ed, {examples = [], example = null, router = null}) 
     );
   }
   // Signed angle, “+” is counterclockwise (as in Figma).
-  const fmtDeg = rad => {
+  const fmtDeg = (rad: number): string => {
     let d = (((rad * 180) / Math.PI + 540) % 360) - 180;
     d = Math.round(d * 10) / 10;
     if (d === -180) d = 180;
     return (d > 0 ? '+' : d < 0 ? '−' : '') + num(Math.abs(d)) + '°';
   };
-  const Q = Math.PI / 2,
-    nearestAxis = a => Math.round(a / Q) * Q;
+  const Q = Math.PI / 2;
+  const nearestAxis = (a: number): number => Math.round(a / Q) * Q;
   // frame, rotation knob and angle label
-  function drawFrame(c, h, label) {
-    const {ctx} = ed.v,
-      m = [(c[0][0] + c[1][0]) / 2, (c[0][1] + c[1][1]) / 2];
+  function drawFrame(c: Point[], h: Point, label: string): void {
+    const {ctx} = ed.v;
+    const m: Point = [(c[0][0] + c[1][0]) / 2, (c[0][1] + c[1][1]) / 2];
     ctx.strokeStyle = pal.acc;
     ctx.lineWidth = 1.5;
     ctx.setLineDash([5, 4]);
@@ -953,19 +1071,19 @@ export function createFlows(ed, {examples = [], example = null, router = null}) 
     const [X, Y] = ed.v.S(h);
     dimLabel(ed.v, X, Y - 20, label);
   }
-  const handleOf = (c, ctr) => {
-    const m = [(c[0][0] + c[1][0]) / 2, (c[0][1] + c[1][1]) / 2],
-      d = Math.hypot(m[0] - ctr[0], m[1] - ctr[1]) || 1,
-      k = 30 / ed.v.sc;
+  const handleOf = (c: Point[], ctr: Point): Point => {
+    const m = [(c[0][0] + c[1][0]) / 2, (c[0][1] + c[1][1]) / 2];
+    const d = Math.hypot(m[0] - ctr[0], m[1] - ctr[1]) || 1;
+    const k = 30 / ed.v.sc;
     return [m[0] + ((m[0] - ctr[0]) / d) * k, m[1] + ((m[1] - ctr[1]) / d) * k];
   };
   // ---------- rotate the whole plan together with the photo (button in the bottom panel) ----------
   // Scenario: uploaded a slightly crooked plan → rotated everything so the walls lie straight → draw on top.
   // Rotation only: the plan scale is real, and the hand tool can move the view.
   f.rotatePlan = () => {
-    const ul = ed.underlay,
-      photo = ul.ready,
-      plan = () => ed.plan;
+    const ul = ed.underlay;
+    const photo = ul.ready;
+    const plan = (): Plan => ed.plan;
     const pts = [...plan().rooms.flatMap(r => r.polygon), ...(photo ? ul.corners() : [])];
     if (!pts.length) {
       ed.toolDone('rotate');
@@ -976,42 +1094,43 @@ export function createFlows(ed, {examples = [], example = null, router = null}) 
     ed.sel = {};
     ed.mode.refresh?.();
     ed.versions.mark('before', 'rotate');
-    const xs = pts.map(p => p[0]),
-      ys = pts.map(p => p[1]),
-      pivot = [(Math.min(...xs) + Math.max(...xs)) / 2, (Math.min(...ys) + Math.max(...ys)) / 2];
+    const xs = pts.map(p => p[0]);
+    const ys = pts.map(p => p[1]);
+    const pivot: Point = [(Math.min(...xs) + Math.max(...xs)) / 2, (Math.min(...ys) + Math.max(...ys)) / 2];
     ed.history.captureExtra();
+    // a and b: the photo's placement (a ready photo has them); false without a photo
     const snap = {
       rooms: structuredClone(plan().rooms),
       furniture: structuredClone(plan().furniture),
       lights: structuredClone(plan().lights),
-      a: photo && [...ul.a],
-      b: photo && [...ul.b],
+      a: photo && [...ul.a!],
+      b: photo && [...ul.b!],
     };
-    const photo0 = photo ? Math.atan2(snap.a[1], snap.a[0]) : 0;
-    let th = 0,
-      op = null,
-      cursor = null;
-    const apply = t => {
-      th = t;
+    const photo0 = photo ? Math.atan2((snap.a as Point)[1], (snap.a as Point)[0]) : 0;
+    let th = 0;
+    let op: {p0: Point; th0: number; a0: number; moved?: boolean} | null = null;
+    let cursor: Point | null = null;
+    const apply = (angle: number): void => {
+      th = angle;
       plan().rooms = structuredClone(snap.rooms);
       plan().furniture = structuredClone(snap.furniture);
       plan().lights = structuredClone(snap.lights);
       rotatePlan(plan(), pivot, th);
       if (photo) {
-        ul.a = [...snap.a];
-        ul.b = [...snap.b];
+        ul.a = [...(snap.a as Point)];
+        ul.b = [...(snap.b as Point)];
         ul.turn(pivot, th);
       }
       ed.update();
     };
     // snaps to 90° and to the position where the photo is straight
-    const snapTh = t => {
-      for (const q of [nearestAxis(t), ...(photo ? [nearestAxis(photo0 + t) - photo0] : [])])
-        if (Math.abs(t - q) < 0.044) return q;
-      return t;
+    const snapTh = (angle: number): number => {
+      for (const q of [nearestAxis(angle), ...(photo ? [nearestAxis(photo0 + angle) - photo0] : [])])
+        if (Math.abs(angle - q) < 0.044) return q;
+      return angle;
     };
     // the view is not touched on entry or exit: only the user moves the plan
-    const finish = keep => {
+    const finish = (keep: boolean): void => {
       if (!keep) apply(0);
       ed.capture = null;
       ed.toolDone('rotate');
@@ -1022,11 +1141,12 @@ export function createFlows(ed, {examples = [], example = null, router = null}) 
       else ed.draw();
     };
     ed.banner(t('Drag to rotate the plan with the photo. Click to finish, Esc to cancel.'));
-    const near = (p, q, r) => Math.hypot(p[0] - q[0], p[1] - q[1]) * ed.v.sc < r;
+    const near = (p: Point, q: Point, r: number): boolean =>
+      Math.hypot(p[0] - q[0], p[1] - q[1]) * ed.v.sc < r;
     // like rotation in Blender and SketchUp: no frame; center, a line to the cursor, an arc and the angle
-    let raw = null,
-      spinT = null;
-    const spinEnd = () => {
+    let raw: number | null = null;
+    let spinT: ReturnType<typeof setTimeout> | undefined;
+    const spinEnd = (): void => {
       raw = null;
     };
     ed.capture = {
@@ -1052,9 +1172,9 @@ export function createFlows(ed, {examples = [], example = null, router = null}) 
         }
         if (!op.moved && !near(p, op.p0, 3)) op.moved = true;
         if (!op.moved || near(p, pivot, 24)) return;
-        let t = op.th0 + Math.atan2(p[1] - pivot[1], p[0] - pivot[0]) - op.a0;
-        if (!e.shiftKey) t = snapTh(t);
-        apply(t);
+        let angle = op.th0 + Math.atan2(p[1] - pivot[1], p[0] - pivot[0]) - op.a0;
+        if (!e.shiftKey) angle = snapTh(angle);
+        apply(angle);
       },
       up() {
         const o = op;
@@ -1065,8 +1185,8 @@ export function createFlows(ed, {examples = [], example = null, router = null}) 
       cancel: () => finish(false),
       done: () => finish(true),
       draw() {
-        const {ctx} = ed.v,
-          [X, Y] = ed.v.S(pivot);
+        const {ctx} = ed.v;
+        const [X, Y] = ed.v.S(pivot);
         ctx.strokeStyle = pal.acc;
         ctx.fillStyle = pal.acc;
         ctx.lineWidth = 1.5;
@@ -1084,8 +1204,8 @@ export function createFlows(ed, {examples = [], example = null, router = null}) 
         ctx.lineTo(X, Y + 11);
         ctx.stroke();
         if (op?.moved && cursor) {
-          const [CX, CY] = ed.v.S(cursor),
-            r = Math.min(70, Math.hypot(CX - X, CY - Y));
+          const [CX, CY] = ed.v.S(cursor);
+          const r = Math.min(70, Math.hypot(CX - X, CY - Y));
           ctx.setLineDash([4, 4]);
           ctx.beginPath();
           ctx.moveTo(X, Y);
@@ -1093,8 +1213,8 @@ export function createFlows(ed, {examples = [], example = null, router = null}) 
           ctx.stroke();
           ctx.setLineDash([]);
           // arc from the initial direction to the current one (on screen y points down — angles have the opposite sign)
-          const a1 = -op.a0,
-            a2 = -(op.a0 + th - op.th0);
+          const a1 = -op.a0;
+          const a2 = -(op.a0 + th - op.th0);
           ctx.beginPath();
           ctx.arc(X, Y, r, Math.min(a1, a2), Math.max(a1, a2));
           ctx.lineWidth = 2;
@@ -1114,9 +1234,9 @@ export function createFlows(ed, {examples = [], example = null, router = null}) 
     if (!ul.ready) return;
     ed.setTool('select');
     ed.setMain('plan');
-    let op = null;
+    let op: UnderlayOp | null = null;
     // the view is not touched: only the user moves the plan
-    const done = () => {
+    const done = (): void => {
       ed.capture = null;
       ul.save();
       ed.banner();
@@ -1125,24 +1245,24 @@ export function createFlows(ed, {examples = [], example = null, router = null}) 
       ed.draw();
     };
     ed.banner(t('Drag to move, outside the frame to rotate, corners to resize. Click to finish.'));
-    const geo = () => {
-      const c = ul.corners(),
-        ctr = ul.center();
+    const geo = (): {c: Point[]; ctr: Point; h: Point} => {
+      const c = ul.corners();
+      const ctr = ul.center();
       return {c, ctr, h: handleOf(c, ctr)};
     };
-    const pick = p => {
-      const g = geo(),
-        near = (q, r) => Math.hypot(p[0] - q[0], p[1] - q[1]) * ed.v.sc < r;
+    const pick = (p: Point): UnderlayPart => {
+      const g = geo();
+      const near = (q: Point, r: number): boolean => Math.hypot(p[0] - q[0], p[1] - q[1]) * ed.v.sc < r;
       if (near(g.h, 12)) return 'rotate';
       if (g.c.some(q => near(q, 10))) return 'scale';
       return pointIn(p, g.c) ? 'move' : 'outside';
     };
-    const resizeCursor = p => {
+    const resizeCursor = (p: Point): string => {
       const {ctr} = geo();
       return axisCursor([p[0] - ctr[0], p[1] - ctr[1]]);
     };
-    let raw = null,
-      spinT = null;
+    let raw: number | null = null;
+    let spinT: ReturnType<typeof setTimeout> | undefined;
     ed.capture = {
       dragCursor: () => (op?.k === 'scale' ? resizeCursor(op.p0) : op?.k === 'move' ? 'move' : 'grabbing'),
       // rotate gesture / two fingers: spin the photo around its center, snapping to the straight position
@@ -1150,10 +1270,10 @@ export function createFlows(ed, {examples = [], example = null, router = null}) 
         const a = ul.angle();
         if (raw == null) raw = a;
         raw += d;
-        let t = raw;
-        const q = nearestAxis(t);
-        if (Math.abs(t - q) < 0.044) t = q;
-        ul.turn(ul.center(), t - a);
+        let angle = raw;
+        const q = nearestAxis(angle);
+        if (Math.abs(angle - q) < 0.044) angle = q;
+        ul.turn(ul.center(), angle - a);
         ed.draw();
         clearTimeout(spinT);
         spinT = setTimeout(() => {
@@ -1167,13 +1287,14 @@ export function createFlows(ed, {examples = [], example = null, router = null}) 
       },
       down(p) {
         // a click outside the photo — done (as in Figma: clicking empty space clears the selection)
-        const g = geo(),
-          k = pick(p);
+        const g = geo();
+        const k = pick(p);
+        // a ready photo (checked above) is placed
         op = {
           k,
           p0: p,
-          a: [...ul.a],
-          b: [...ul.b],
+          a: [...ul.a!],
+          b: [...ul.b!],
           ctr: g.ctr,
           ang0: Math.atan2(p[1] - g.ctr[1], p[0] - g.ctr[0]),
           r0: Math.hypot(p[0] - g.ctr[0], p[1] - g.ctr[1]),
@@ -1194,8 +1315,8 @@ export function createFlows(ed, {examples = [], example = null, router = null}) 
         else if (op.k === 'rotate' || op.k === 'outside') {
           let th = Math.atan2(p[1] - op.ctr[1], p[0] - op.ctr[0]) - op.ang0;
           if (!e.shiftKey) {
-            const abs = Math.atan2(op.a[1], op.a[0]) + th,
-              q = nearestAxis(abs);
+            const abs = Math.atan2(op.a[1], op.a[0]) + th;
+            const q = nearestAxis(abs);
             if (Math.abs(abs - q) < 0.044) th += q - abs;
           }
           ul.turn(op.ctr, th);
@@ -1216,8 +1337,8 @@ export function createFlows(ed, {examples = [], example = null, router = null}) 
       },
       cancel: done,
       draw() {
-        const g = geo(),
-          {ctx} = ed.v;
+        const g = geo();
+        const {ctx} = ed.v;
         drawFrame(g.c, g.h, fmtDeg(ul.angle()));
         ctx.strokeStyle = pal.acc;
         for (const q of g.c) {
@@ -1232,26 +1353,27 @@ export function createFlows(ed, {examples = [], example = null, router = null}) 
   // ---------- the “⋯” menu ----------
   // On the left — the file menu (under the home name), on the right — settings.
   const menus = [
-      [$('brand-btn'), $('file-menu')],
-      [$('menu-btn'), $('menu')],
-    ],
-    closeMenus = () => menus.forEach(([, m]) => (m.hidden = true));
+    [$('brand-btn'), $('file-menu')],
+    [$('menu-btn'), $('menu')],
+  ];
+  const closeMenus = (): void => menus.forEach(([, m]) => (m.hidden = true));
   for (const [btn, m] of menus)
     btn.onclick = e => {
       e.stopPropagation();
       const open = m.hidden;
       closeMenus();
       m.hidden = !open;
-      $('grid').checked = ed.grid;
+      ($('grid') as HTMLInputElement).checked = ed.grid; // the "Grid" checkbox
       ed.syncSettings?.();
     };
   addEventListener('pointerdown', e => {
-    if (!e.target.closest('.menu,#brand-btn,#menu-btn')) closeMenus();
+    // a pointer presses an element
+    if (!(e.target as Element).closest('.menu,#brand-btn,#menu-btn')) closeMenus();
   });
   addEventListener('keydown', e => {
     if (e.key === 'Escape') closeMenus();
   });
-  const act = {
+  const act: Record<string, () => void> = {
     new: () => f.showStart({canContinue: true}),
     keys: () => ed.showKeys(),
     download: () => {
@@ -1270,21 +1392,22 @@ export function createFlows(ed, {examples = [], example = null, router = null}) 
     versions: () => ed.showVersions(),
     board: () => f.addBoard(),
   };
-  document.querySelectorAll('.menu [data-a]').forEach(
+  document.querySelectorAll<HTMLElement>('.menu [data-a]').forEach(
     b =>
       (b.onclick = () => {
         closeMenus();
-        act[b.dataset.a]();
+        act[b.dataset.a!](); // the selector asks for data-a
       }),
   );
   syncPrev();
   // The whole home on a dashboard (D-059, in HA only): the Home Twin dashboard with the card, in the sidebar; there already — go there.
   // The menu item says which of the two it will do.
-  const boardBtn = document.querySelector('[data-a=board]');
-  const syncBoard = () => {
+  const boardBtn = find(document, '[data-a=board]');
+  const syncBoard = (): void => {
     const b = ed.ha.board;
     boardBtn.hidden = !b;
-    if (b) boardBtn.lastChild.textContent = b.exists() ? t('Open dashboard') : t('Add to dashboard');
+    // the item's label is its last child
+    if (b) boardBtn.lastChild!.textContent = b.exists() ? t('Open dashboard') : t('Add to dashboard');
   };
   $('brand-btn').addEventListener('click', syncBoard);
   syncBoard();
@@ -1297,7 +1420,7 @@ export function createFlows(ed, {examples = [], example = null, router = null}) 
     }
     const name = ed.plan.name || t('My home');
     // after the message — the summary again, if it was open: now without “Add to dashboard”
-    const done = () => {
+    const done = (): void => {
       if (ed.stepNow()?.o?.id === 'fin') ed.path.finale();
       else ed.banner();
     };
@@ -1316,19 +1439,21 @@ export function createFlows(ed, {examples = [], example = null, router = null}) 
         ],
       ]);
     } catch (e) {
-      ed.banner(t('Could not create the dashboard: {0}', e?.message || String(e)), [
+      const message = typeof e === 'object' && e !== null && 'message' in e ? e.message : undefined;
+      ed.banner(t('Could not create the dashboard: {0}', message || String(e)), [
         [t('Got it'), () => ed.banner(), true],
       ]);
     }
   };
   $('grid').onchange = e => {
-    ed.grid = e.target.checked;
+    ed.grid = (e.target as HTMLInputElement).checked; // the "Grid" checkbox
   };
   $('file-json').onchange = async e => {
-    const file = e.target.files[0];
-    e.target.value = '';
+    const input = e.target as HTMLInputElement; // the file field this handler is on
+    const file = input.files?.[0];
+    input.value = '';
     if (!file) return;
-    let plan;
+    let plan: Plan;
     try {
       plan = readPlan(await file.text());
     } catch {

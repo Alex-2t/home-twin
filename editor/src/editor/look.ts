@@ -1,4 +1,3 @@
-// @ts-nocheck
 // Preview (D-047, D-049): the home as it will be seen on the HA card (D-015). The panel is the home card from 3d_floor,
 // one to one (the owner asked to take the panel logic entirely from the neighboring project: the same colors and animations):
 // its styles (look/card.css), icons (look/icons.js), rules (look/overview.js, ac-control.js, history.js) and markup —
@@ -26,51 +25,415 @@ import {overview} from '../core/overview.ts';
 import {acView, coverView} from '../core/devices.ts';
 import {metricOf, isClimate, fitsAuto} from '../core/sensors.ts';
 import {
-  activeChips,
+  activeChips as untypedActiveChips,
   climateTile,
-  lightTile,
+  lightTile as untypedLightTile,
   roomLine,
   dayLine,
   homeRange,
-  MODE_NAMES,
+  MODE_NAMES as UNTYPED_MODE_NAMES,
 } from '../look/overview.ts';
 import {renderAC} from '../look/ac-control.ts';
 import {sparkline, METRICS, metricColor} from '../look/history.ts';
 import {weatherNow, forecastSlots, degrees} from '../look/weather.ts';
-import {SCENES, sceneDevices, scenePlan, sceneDraft, executeScene} from '../look/scenes.ts';
-import {securityDevices, securityAlerts, leakView, waterView, valveCommand} from '../look/security.ts';
+import {
+  SCENES,
+  sceneDevices as untypedSceneDevices,
+  scenePlan,
+  sceneDraft as untypedSceneDraft,
+  executeScene,
+} from '../look/scenes.ts';
+import {
+  securityDevices as untypedSecurityDevices,
+  securityAlerts,
+  leakView as untypedLeakView,
+  waterView as untypedWaterView,
+  valveCommand as untypedValveCommand,
+} from '../look/security.ts';
 import {drawDemoFeed, openCameraPreview} from '../look/camera.ts';
-import {vacuumDevices, vacuumStatus, vacuumButton, vacuumHomeEnabled, vacuumCommand} from '../look/vacuum.ts';
-import {roomOfArea} from '../core/sensors.ts';
-import {SECTIONS as STATS, availableSections, loadSection, sectionMap, energySources} from '../look/stats.ts';
+import {
+  vacuumDevices as untypedVacuumDevices,
+  vacuumStatus,
+  vacuumButton,
+  vacuumHomeEnabled,
+  vacuumCommand,
+} from '../look/vacuum.ts';
+import {roomOfArea as untypedRoomOfArea} from '../core/sensors.ts';
+import {
+  SECTIONS as STATS,
+  availableSections,
+  loadSection,
+  sectionMap as untypedSectionMap,
+  energySources as untypedEnergySources,
+} from '../look/stats.ts';
 import {energyTileMarkup, sectionTilesMarkup, statsViewMarkup, statsTip} from '../look/stats-view.ts';
 import {labelPoint} from '../core/geometry.ts';
 import {
   BUILTIN,
   ROOM_BUILTIN,
-  isFav,
-  resolveLayout,
-  layoutToSave,
-  addable,
-  newFav,
+  isFav as untypedIsFav,
+  resolveLayout as untypedResolveLayout,
+  layoutToSave as untypedLayoutToSave,
+  addable as untypedAddable,
+  newFav as untypedNewFav,
   move,
   placeCard,
-  placeEntity,
+  placeEntity as untypedPlaceEntity,
   removeEntity,
-  entityCard,
+  entityCard as untypedEntityCard,
   addEntity,
 } from '../look/layout.ts';
 import {FAV_DOMAINS, favView, favCommand} from '../look/favorites.ts';
 import {tipWanted} from '../core/daynight.ts';
 import {dayNightTip} from './daynight-tip.ts';
+import type {
+  HaDevice,
+  HaEnergyPrefs,
+  HaEntityItem,
+  HaSensor,
+  HaLayer,
+  HassEntityState,
+  HomeView,
+  LightForm,
+  OverviewRoom,
+  PanelCard,
+  Plan,
+  PlanLight,
+  Point,
+  Outline,
+  Room,
+  RoomAc,
+  RoomClimate,
+  RoomCover,
+  RoomKind,
+  SceneSetting,
+} from '../core/types.ts';
+import type {LookEditor, LookPanel} from './editor-types.ts';
 
-const escape = s =>
-  String(s ?? '').replace(
-    /[&<>"']/g,
-    c => ({'&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'})[c],
-  );
+// ---------- what Preview reads of the card's rules (look/*.ts) ----------
+// look/*.ts and core/sensors.ts are not typed yet: the shapes below are what Preview hands them and gets back, and the functions whose
+// parameters their defaults typed too narrowly are given their signatures here. Once those modules are typed, their own types replace these.
+
+/** A room's climate numbers for the card's rules (3d_floor): rounded; null where there is no sensor. */
+interface ClimateNumbers {
+  temperature: number | null;
+  humidity: number | null;
+  co2: number | null;
+}
+
+/** A lamp of a room as the card shows it: its kind for the power button, and its state from HA (or the plan). */
+interface LookLamp {
+  id: string;
+  name: string;
+  kind: string;
+  form: LightForm;
+  on: boolean;
+  status: string;
+}
+
+/** The climate tile's look of an air conditioner or a heater (look/overview.ts climateTile). */
+type ClimateTileView = ReturnType<typeof climateTile>;
+
+/** An air conditioner or a heater of a room as the card shows it; a: what devices.ts says of it. */
+interface LookClimate {
+  id: string;
+  name: string;
+  label: string;
+  heater: boolean;
+  view: ClimateTileView;
+  canPower: boolean;
+  mode: string | undefined;
+  a: RoomAc;
+}
+
+/** The room lights tile (look/overview.ts lightTile): its state and caption, how many are lit, and what its button does. */
+interface LightTileView {
+  state: string;
+  status: string;
+  lit: number;
+  power: {on: boolean; ids: string[]} | null;
+}
+
+/** A room of the card: the overview room with its short name, its sensors, lamps, lights tile, climate devices and covers. */
+type LookRoom = Omit<OverviewRoom, 'climate' | 'lamps'> & {
+  short: string;
+  sens: RoomClimate;
+  lamps: LookLamp[];
+  light: LightTileView | null;
+  climate: LookClimate[];
+  covers: RoomCover[];
+};
+
+/** What the card shows: its rooms, and their climate numbers by room id. */
+interface LookModel {
+  rooms: LookRoom[];
+  climate: Record<string, ClimateNumbers>;
+}
+
+/** A “Now” chip (look/overview.ts activeChips): one kind of running device, the rooms it is in, and the devices. */
+interface NowChip {
+  key: string;
+  kind: string;
+  icon: string;
+  label: string;
+  count: number | null;
+  rooms: string[];
+  devices: Array<{id: string; room?: string | null}>;
+  tone: string | null;
+}
+
+/** What activeChips is given: the devices that may be running, the alerts, the rooms and their climate. */
+interface ChipsInput {
+  lights: Array<{id: string; room: string; on: boolean}>;
+  acs: Array<{id: string; room: string; on: boolean; mode: string | undefined}>;
+  covers: Array<{id: string; room: string; open: boolean}>;
+  open: Array<{id: string; room: string; name: string; icon: string}>;
+  alerts?: unknown;
+  water?: unknown;
+  vacuum: Array<{id: string; room: string | null; cleaning: boolean}>;
+  rooms: LookRoom[];
+  climate: Record<string, ClimateNumbers>;
+}
+
+/** The camera of “Security”: its entity, name, room, whether it answers, and the frame's path. */
+interface SecurityCamera {
+  entity: string;
+  name: string;
+  room: string | null;
+  ok: boolean;
+  picture: string | null;
+}
+
+/** A water valve of “Security” (a valve or a cover): its state in HA. */
+interface WaterValve {
+  entity: string;
+  domain: string;
+  name: string;
+  room: string | null;
+  status: string;
+  value: string | null;
+}
+
+/** A leak sensor of “Security”: its room, caption, state, battery, “battery low” and since when it is silent. */
+interface LeakSensor {
+  entity: string;
+  room: string | null;
+  label: string;
+  state: string;
+  battery: number | null;
+  low: boolean;
+  since: number | null;
+}
+
+/** “Security” (look/security.ts securityDevices). */
+interface SecurityState {
+  camera: SecurityCamera | null;
+  water: WaterValve[];
+  leaks: LeakSensor[];
+}
+
+/** The valve tile: its state, caption, and what a tap does (null: nothing). */
+interface WaterTileView {
+  state: string;
+  text: string;
+  action: string | null;
+}
+
+/** A robot vacuum (look/vacuum.ts vacuumDevices): its room, whether it answers, what it is doing, what it allows. */
+interface VacuumDevice {
+  entity: string;
+  name: string;
+  room: string | null;
+  roomName?: string;
+  status: string;
+  activity: string;
+  allowed: string[];
+}
+
+/** A device a scene can set (look/scenes.ts sceneDevices): its settings key, kind, id, name and room. */
+interface SceneDevice {
+  key: string;
+  kind: string;
+  id: string;
+  name?: string;
+  room: string;
+}
+
+/** A scene's draft in “Customize”: per device key, its action ('keep': no change). */
+type SceneDraft = Record<string, {action: SceneSetting['action'] | 'keep'}>;
+
+/** The scenes' own settings (plan.scenes), read by a scene's id. */
+type SceneSettings = Partial<Record<string, Record<string, SceneSetting>>>;
+
+/** One command of a running scene (look/scenes.ts scenePlan). */
+interface SceneStep {
+  kind: string;
+  id: string;
+  action: string;
+}
+
+/** A built-in card of the dashboard or of a room screen (look/layout.ts BUILTIN, ROOM_BUILTIN); sel: the overview's section. */
+interface BuiltinCard {
+  id: string;
+  name: string;
+  icon: string;
+  about: string;
+  sel?: string;
+}
+
+/** A “Favorites” card: its title and entities. */
+type FavCard = Extract<PanelCard, {type: 'entities'}>;
+
+/** “Customize panel” open: the draft cards, what is empty now, the search in the shade, the room (null: the overview), its built-ins. */
+interface LayoutDraft {
+  cards: PanelCard[];
+  empty: Set<string>;
+  q: string;
+  room: string | null;
+  builtin: BuiltinCard[];
+}
+
+/** Where a dragged card or tile would land: the shade (remove), a “Favorites” card at index, or among the cards at index. */
+type DropTarget =
+  {zone: 'tray'} | {zone: 'fav'; id: string | undefined; index: number} | {zone: 'cards'; index: number};
+
+/** A card or a tile being dragged in “Customize panel”. */
+interface DragState {
+  el: HTMLElement;
+  kind: string;
+  id: string;
+  from: string | null;
+  pid: number;
+  x: number;
+  y: number;
+  sx: number;
+  sy: number;
+  touch: boolean;
+  started: boolean;
+  timer?: ReturnType<typeof setTimeout>;
+  raf?: number;
+  ghost?: HTMLElement;
+  dx?: number;
+  dy?: number;
+  shell?: DOMRect;
+  target?: DropTarget | null;
+}
+
+/** An entity the connectivity statistics watch: a lamp, a device or a room sensor, with its room and device. */
+interface HealthSource {
+  entity: string;
+  name: string;
+  room: string | null;
+  device: string | null;
+}
+
+/** An entity a “Favorites” tile shows: from HA's list, or only its id (then its name is the id and it has no area). */
+type FavItem = Omit<HaEntityItem, 'area'> & {area?: string | null};
+
+/** A section's data for a period (look/stats.ts loadSection); null: it failed to load. */
+type StatsData = Awaited<ReturnType<typeof loadSection>>;
+
+/** A chart of the statistics screen, for its tooltips (look/stats-view.ts). */
+interface StatsChart {
+  kind: string;
+  values: number[];
+  max: number;
+}
+
+/** The statistics' sources by section id (look/stats.ts): climate sensors per room, energy meters, the model's entities. */
+type StatsSources = Record<string, unknown>;
+
+/** “Statistics”: data by “section:period:sources”, what loads, what is open, the charts, the markup shown, the room pins. */
+interface StatsState {
+  data: Map<string, {at: number; data: StatsData | null}>;
+  loading: Set<string>;
+  section: string;
+  period: string;
+  room: string | null;
+  charts: Record<string, StatsChart>;
+  shown: StatsData | null;
+  html: string;
+  tile: string;
+  pinHtml: string;
+  prefs: HaEnergyPrefs | null | undefined;
+  prefsAt: number;
+  src: StatsSources | null;
+  raf: number;
+  pins: Map<string, {poly: Outline; at: Point}>;
+}
+
+const activeChips = untypedActiveChips as (input: ChipsInput) => NowChip[];
+const lightTile = untypedLightTile as (lamps: LookLamp[]) => LightTileView;
+const MODE_NAMES: Record<string, string> = UNTYPED_MODE_NAMES;
+const securityDevices = untypedSecurityDevices as unknown as (
+  ha: LookEditor['ha'],
+  room: (area: string | null) => LookRoom | null,
+) => SecurityState;
+const leakView = untypedLeakView as unknown as (sensors: LeakSensor[]) => ReturnType<typeof untypedLeakView>;
+const waterView = untypedWaterView as unknown as (
+  valve: WaterValve & {pending?: boolean; confirm?: boolean},
+) => WaterTileView;
+const valveCommand = untypedValveCommand as (valve: WaterValve, action: string) => [string, string];
+const vacuumDevices = untypedVacuumDevices as unknown as (
+  ha: LookEditor['ha'],
+  room: (area: string | null) => LookRoom | null,
+) => VacuumDevice[];
+const roomOfArea = untypedRoomOfArea as (
+  plan: Pick<Plan, 'rooms'>,
+  area: string | null | undefined,
+) => Room | null;
+const sceneDevices = untypedSceneDevices as unknown as (rooms: LookRoom[]) => SceneDevice[];
+const sceneDraft = untypedSceneDraft as (
+  id: string,
+  devices: SceneDevice[],
+  settings?: Record<string, SceneSetting>,
+) => SceneDraft;
+const sectionMap = untypedSectionMap as (id: string, data: StatsData) => Record<string, {label: string}>;
+const energySources = untypedEnergySources as unknown as (
+  prefs: HaEnergyPrefs | null | undefined,
+  o: {room: (statistic: string) => LookRoom | null; name: (statistic: string) => string},
+) => unknown;
+const isFav = untypedIsFav as (card: PanelCard | null | undefined) => card is FavCard;
+const resolveLayout = untypedResolveLayout as unknown as (
+  saved: unknown,
+  builtin?: BuiltinCard[],
+) => PanelCard[];
+const layoutToSave = untypedLayoutToSave as unknown as (
+  cards: PanelCard[],
+  builtin: BuiltinCard[],
+) => Plan['panel'] | null;
+const addable = untypedAddable as unknown as (cards: PanelCard[], builtin: BuiltinCard[]) => string[];
+const newFav = untypedNewFav as (cards: PanelCard[], title: string) => FavCard;
+const placeEntity = untypedPlaceEntity as (
+  cards: PanelCard[],
+  entity: string,
+  card: string | undefined,
+  index: number,
+  from: string | null,
+) => PanelCard[];
+const entityCard = untypedEntityCard as (
+  cards: PanelCard[],
+  entity: string,
+  index: number,
+  title: string,
+  from: string | null,
+) => PanelCard[];
+
+// One element of our own markup inside root, typed as present like ui.ts $ (a missing one fails at its first use)
+const find = <ElementType extends Element = HTMLElement>(root: ParentNode, selector: string): ElementType =>
+  root.querySelector(selector) as ElementType;
+
+// the characters escape replaces, and with what
+const HTML_ESCAPES: Record<string, string> = {
+  '&': '&amp;',
+  '<': '&lt;',
+  '>': '&gt;',
+  '"': '&quot;',
+  "'": '&#39;',
+};
+const escape = (s: unknown): string => String(s ?? '').replace(/[&<>"']/g, c => HTML_ESCAPES[c]);
 // card icons: rooms by kind (core/overview.js: roomKind), lamps by shape, other sensors by class
-const ROOM_IC = {
+const ROOM_IC: Record<RoomKind, string> = {
   bed: 'bed',
   kids: 'sofa',
   kitchen: 'kitchen',
@@ -82,9 +445,15 @@ const ROOM_IC = {
   storage: 'home',
   room: 'home',
 };
-const lampIcon = form => (form === 'strip' ? 'strip' : form === 'line' ? 'cove' : 'bulb');
-const KIND = {ceiling: 'ceiling', pendant: 'ceiling', spots: 'ceiling', line: 'ceiling'}; // the room's main light — for the power button
-const READ_IC = {
+const lampIcon = (form: LightForm): string =>
+  form === 'strip' ? 'strip' : form === 'line' ? 'cove' : 'bulb';
+const KIND: Partial<Record<LightForm, string>> = {
+  ceiling: 'ceiling',
+  pendant: 'ceiling',
+  spots: 'ceiling',
+  line: 'ceiling',
+}; // the room's main light — for the power button
+const READ_IC: Record<string, string> = {
   temperature: 'thermometer',
   humidity: 'droplet',
   carbon_dioxide: 'eye',
@@ -95,7 +464,7 @@ const READ_IC = {
   battery: 'device',
 }; // power, energy: a bolt — the ⏻ “power” icon read as a switch
 // The Minimalist dark theme (minimalist-desktop, dark) — how the card looks at home (3d_floor/web/index.html)
-const DARK = {
+const DARK: Record<string, string> = {
   '--primary-background-color': '#121212',
   '--secondary-background-color': '#121212',
   '--card-background-color': '#1d1d1d',
@@ -178,39 +547,59 @@ const OVERVIEW = [
   '.stats-panel',
 ];
 // Navigation — as in 3d_floor/navigation.js: a room replaces its neighbour, “Back” returns to the overview with the previous camera shot.
+/** Where the panel is: the overview, a room's screen, a device's (a robot vacuum), or the statistics. */
+type NavLevel = 'overview' | 'room' | 'device' | 'stats';
+
+/** A screen of the panel: its level, and the room or the device it shows. */
+interface NavView {
+  level: NavLevel;
+  room?: string;
+  kind?: string;
+  id?: string;
+}
+
+/** A step back: the screen, and the camera shot it had. */
+interface NavStep {
+  view: NavView;
+  camera: HomeView | undefined;
+}
+
 class Navigation {
+  // set by the constructor; only declared here, so the class gets no fields of its own
+  declare current: NavView;
+  declare history: NavStep[];
   constructor() {
     this.current = {level: 'overview'};
     this.history = [];
   }
-  room(id, camera) {
+  room(id: string, camera: HomeView | undefined): void {
     if (this.current.level === 'overview') this.history = [{view: this.current, camera}];
     else this.history = this.history.slice(0, 1);
     this.current = {level: 'room', room: id};
   }
   // a device screen (robot vacuum) — same as a room: “Back” returns to the overview with the previous shot
-  device(kind, id, camera) {
+  device(kind: string, id: string, camera: HomeView | undefined): void {
     if (this.current.level === 'overview') this.history = [{view: this.current, camera}];
     else this.history = this.history.slice(0, 1);
     this.current = {level: 'device', kind, id};
   }
-  stats(camera) {
+  stats(camera: HomeView | undefined): void {
     if (this.current.level === 'overview') this.history = [{view: this.current, camera}];
     else this.history = this.history.slice(0, 1);
     this.current = {level: 'stats'};
   }
-  back() {
+  back(): NavStep | undefined {
     const e = this.history.pop();
     this.current = e?.view || {level: 'overview'};
     return e;
   }
-  home() {
+  home(): void {
     this.current = {level: 'overview'};
     this.history = [];
   }
 }
 
-export function createLook(ed, host0) {
+export function createLook(ed: LookEditor, host0: HTMLElement): LookPanel {
   const host = document.createElement('div');
   host.id = 'look';
   host.className = 'embedded dashboard-cards';
@@ -243,28 +632,41 @@ export function createLook(ed, host0) {
         <section class="room-panel" aria-live="polite" hidden></section><section class="stats-view" aria-label="${escape(t('Statistics'))}" hidden></section><section class="scene-editor" hidden></section>
         <section class="layout-editor" aria-label="${escape(t('Panel layout'))}" hidden></section>
       </aside></div></main></div>`;
-  const $ = s => root.querySelector(s),
-    $$ = s => [...root.querySelectorAll(s)];
+  // our own markup inside the panel, typed as present like ui.ts $ (a missing one fails at its first use; a check still works)
+  const $ = <ElementType extends Element = HTMLElement>(s: string): ElementType =>
+    root.querySelector(s) as ElementType;
+  const $$ = <ElementType extends Element = HTMLElement>(s: string): ElementType[] => [
+    ...root.querySelectorAll<ElementType>(s),
+  ];
+  // the shadow root passes on its elements' events: each listener gets the event its type has on an element
+  const onRoot = <Type extends keyof HTMLElementEventMap>(
+    type: Type,
+    listener: (e: HTMLElementEventMap[Type]) => void,
+    options?: AddEventListenerOptions,
+  ): void => root.addEventListener(type, listener as EventListener, options);
   const nav = new Navigation();
-  let on = false,
-    unsub = null,
-    chips = [],
-    flashT = 0,
-    wxT = 0;
-  let editing = null,
-    drafts = {},
-    busy = false,
-    resultT = 0; // “Customize”: which scene is open, drafts per scene; a scene is running
-  let lay = null,
-    dnd = null; // “Customize panel”: draft {cards, empty — currently empty, q — search in the shade}; what is being dragged
-  let sec = {camera: null, water: [], leaks: []},
-    vac = [],
-    ask = null,
-    askT = 0,
-    camT = 0;
-  const pend = new Set(); // “Security”: devices; the valve asks {entity, action}; commands in flight
+  let on = false;
+  let unsub: (() => void) | null = null;
+  let chips: NowChip[] = [];
+  let flashT: ReturnType<typeof setTimeout> | 0 = 0;
+  let wxT: ReturnType<typeof setInterval> | 0 = 0;
+  // “Customize”: which scene is open, drafts per scene; a scene is running
+  let editing: string | null = null;
+  let drafts: Record<string, SceneDraft> = {};
+  let busy = false;
+  let resultT: ReturnType<typeof setTimeout> | 0 = 0;
+  // “Customize panel”: draft {cards, empty — currently empty, q — search in the shade}; what is being dragged
+  let lay: LayoutDraft | null = null;
+  let dnd: DragState | null = null;
+  // “Security”: devices; the valve asks {entity, action}; commands in flight
+  let sec: SecurityState = {camera: null, water: [], leaks: []};
+  let vac: VacuumDevice[] = [];
+  let ask: {entity: string; action: string} | null = null;
+  let askT: ReturnType<typeof setTimeout> | 0 = 0;
+  let camT: ReturnType<typeof setInterval> | 0 = 0;
+  const pend = new Set<string>();
   // “Statistics”: data by “section:period:sources” ({at, data}; data null — failed to load), what is open, charts for tooltips
-  const st = {
+  const st: StatsState = {
     data: new Map(),
     loading: new Set(),
     section: 'climate',
@@ -281,12 +683,12 @@ export function createLook(ed, host0) {
     raf: 0,
     pins: new Map(),
   };
-  const cur = () => nav.current.room || null;
+  const cur = (): string | null => nav.current.room || null;
 
   // ---------- data: our plan and the HA layer → what the 3d_floor rules expect ----------
-  function model() {
-    const R = overview(ed.plan, ed.sensorCtx(), ed.areaName, ed.ha),
-      climate = {};
+  function model(): LookModel {
+    const R = overview(ed.plan, ed.sensorCtx(), ed.areaName, ed.ha);
+    const climate: Record<string, ClimateNumbers> = {};
     for (const r of R) {
       const c = r.climate;
       climate[r.id] = {
@@ -295,26 +697,26 @@ export function createLook(ed, host0) {
         co2: c.co2 ? Math.round(c.co2.v) : null,
       };
     }
-    const rooms = R.map(r => {
-      const lamps = r.lamps.map(l => ({
+    const rooms = R.map((r): LookRoom => {
+      const lamps = r.lamps.map((l): LookLamp => ({
         id: l.id,
         name: l.name,
         kind: KIND[l.form] || l.form,
         form: l.form,
         ...lampState(l.id),
       }));
-      const climate = r.dev.acs.map(a => {
-        const heater = a.kind === 'heat',
-          s = {
-            status: a.ok ? 'available' : 'unavailable',
-            on: a.on,
-            mode: a.mode,
-            action: a.action,
-            temperature: a.temp,
-            current: a.current,
-            canTemperature: a.temp != null,
-            range: false,
-          };
+      const climate = r.dev.acs.map((a): LookClimate => {
+        const heater = a.kind === 'heat';
+        const s = {
+          status: a.ok ? 'available' : 'unavailable',
+          on: a.on,
+          mode: a.mode,
+          action: a.action,
+          temperature: a.temp,
+          current: a.current,
+          canTemperature: a.temp != null,
+          range: false,
+        };
         return {
           id: a.entity,
           name: a.title,
@@ -338,12 +740,13 @@ export function createLook(ed, host0) {
     }); // sens — room sensors, climate — air conditioners and the boiler (as in 3d_floor)
     return {rooms, climate};
   }
-  const hist = e => (e && ed.ha?.history ? ed.ha.history(e) : []);
+  const hist = (e: string | undefined): number[] => (e && ed.ha?.history ? ed.ha.history(e) : []);
   // a lamp in HA: has an entity — its state; none — the plan's L.on
-  const haLamp = L => (L?.entity && ed.ha?.entity?.(L.entity)) || null;
-  function lampState(id) {
-    const L = ed.plan.lights.find(x => x.id === id),
-      x = haLamp(L);
+  const haLamp = (L: PlanLight | undefined): HassEntityState | null =>
+    (L?.entity && ed.ha?.entity?.(L.entity)) || null;
+  function lampState(id: string): {on: boolean; status: string} {
+    const L = ed.plan.lights.find(x => x.id === id);
+    const x = haLamp(L);
     if (!x) return {on: L?.on !== false, status: 'available'};
     return {
       on: x.state === 'on',
@@ -351,8 +754,8 @@ export function createLook(ed, host0) {
     };
   }
   // 3D follows HA: a lamp (and its part of the fixture) is lit if its entity is on. shown — what is already shown, so the scene is not churned
-  const shown = new Map();
-  function syncLights() {
+  const shown = new Map<string, boolean>();
+  function syncLights(): void {
     for (const L of ed.plan.lights) {
       const x = haLamp(L);
       if (!x || (x.state !== 'on' && x.state !== 'off')) continue;
@@ -364,23 +767,26 @@ export function createLook(ed, host0) {
     }
   }
   // turn a lamp on or off: in HA — light / switch turn_on / turn_off, the new state arrives via onState; without an entity — in the plan
-  function lampCmd(L, v) {
+  function lampCmd(L: PlanLight, v: boolean): Promise<boolean | undefined> {
     const x = haLamp(L);
+    // a lamp HA answers for has its entity
     if (x)
-      return Promise.resolve(call(L.entity.split('.')[0], v ? 'turn_on' : 'turn_off', {entity_id: L.entity}));
+      return Promise.resolve(
+        call(L.entity!.split('.')[0], v ? 'turn_on' : 'turn_off', {entity_id: L.entity}),
+      );
     L.on = v;
     ed.view.setLightOn(L.id, v);
     return Promise.resolve(true);
   }
 
   // ---------- overview — markup as in 3d_floor/card.js ----------
-  function heading(M) {
-    const line = $('.home-line'),
-      parts = [dayLine(), homeRange(M.climate)].filter(Boolean);
+  function heading(M: LookModel): void {
+    const line = $('.home-line');
+    const parts = [dayLine(), homeRange(M.climate)].filter(Boolean);
     line.innerHTML = parts.map(p => `<span>${escape(p)}</span>`).join(' · ');
     line.hidden = !parts.length;
   }
-  function nowChips(M) {
+  function nowChips(M: LookModel): void {
     chips = activeChips({
       lights: M.rooms.flatMap(r => r.lamps.map(l => ({id: l.id, room: r.id, on: l.on}))),
       acs: M.rooms.flatMap(r =>
@@ -388,7 +794,8 @@ export function createLook(ed, host0) {
           .filter(d => !d.heater)
           .map(d => ({id: d.id, room: r.id, on: d.view.state === 'on', mode: d.mode})),
       ),
-      covers: M.rooms.flatMap(r => r.covers.map(c => ({id: c.entity, room: r.id, open: c.ok && c.pos > 1}))),
+      // an available cover has its position
+      covers: M.rooms.flatMap(r => r.covers.map(c => ({id: c.entity, room: r.id, open: c.ok && c.pos! > 1}))),
       open: M.rooms.flatMap(r =>
         r.dev.contacts
           .filter(c => c.open)
@@ -409,12 +816,12 @@ export function createLook(ed, host0) {
       : `<p class="now-empty">${icon('check')}<span>${escape(t('Everything is off'))}</span></p>`;
     $('[data-action="all-off"]').hidden = !M.rooms.some(r => r.lamps.some(l => l.on));
   }
-  function rows(M) {
+  function rows(M: LookModel): void {
     $('.room-list').innerHTML = M.rooms
       .map(r => {
-        const lit = r.lamps.filter(l => l.on).length,
-          parts = roomLine(M.climate[r.id], {lit, lights: r.lamps.length}),
-          on = [];
+        const lit = r.lamps.filter(l => l.on).length;
+        const parts = roomLine(M.climate[r.id], {lit, lights: r.lamps.length});
+        const on: Array<{kind: string; icon: string; label: string}> = [];
         if (lit)
           on.push({
             kind: 'light',
@@ -427,15 +834,16 @@ export function createLook(ed, host0) {
             icon: d.view.icon,
             label: d.heater
               ? d.name.toLowerCase()
-              : t('air conditioner: {0}', t(MODE_NAMES[d.mode] || N('On')).toLowerCase()),
+              : // a missing mode reads no name
+                t('air conditioner: {0}', t(MODE_NAMES[d.mode as string] || N('On')).toLowerCase()),
           });
-        const temp = M.climate[r.id].temperature != null ? M.climate[r.id].temperature + '°' : '',
-          path = sparkline(hist(r.sens.t?.entity), {
-            width: 44,
-            height: 18,
-            pad: 3,
-            span: METRICS.temperature.span,
-          });
+        const temp = M.climate[r.id].temperature != null ? M.climate[r.id].temperature + '°' : '';
+        const path = sparkline(hist(r.sens.t?.entity), {
+          width: 44,
+          height: 18,
+          pad: 3,
+          span: METRICS.temperature.span,
+        });
         return `<button class="room-row${lit ? ' lit' : ''}" data-action="room" data-room="${escape(r.id)}" data-highlight="${escape(r.id)}">
         <span class="room-row-name"><span>${escape(r.short)}</span><small class="room-row-sub">${parts.map(p => `<span${p.tone ? ` class="tone-${p.tone}"` : ''}>${escape(p.text)}</span>`).join(' · ')}</small></span>
         <span class="room-badges">${on.map(b => `<span class="room-badge ${b.kind}" title="${escape(b.label[0].toUpperCase() + b.label.slice(1))}">${icon(b.icon)}</span>`).join('')}</span>
@@ -443,10 +851,10 @@ export function createLook(ed, host0) {
       })
       .join('');
   }
-  function tileMarkup(tile) {
-    const running = tile.climate.filter(d => d.view.state === 'on'),
-      lit = tile.light?.state === 'on',
-      warm = running.length > 0;
+  function tileMarkup(tile: LookRoom): string {
+    const running = tile.climate.filter(d => d.view.state === 'on');
+    const lit = tile.light?.state === 'on';
+    const warm = running.length > 0;
     const dead =
       (!tile.light || tile.light.state === 'unavailable') &&
       tile.climate.every(d => d.view.state === 'unavailable');
@@ -462,22 +870,23 @@ export function createLook(ed, host0) {
       ? `<button class="ltile-lamp${lit ? ' on' : ''}" data-action="ltile-power" data-room="${escape(tile.id)}" aria-pressed="${lit}"
         aria-label="${escape(tile.short)}: ${lit ? t('turn lights off') : t('turn lights on')}" data-tip="${lit ? t('Turn lights off') : t('Turn lights on')}" ${tile.light.power ? '' : 'disabled'}>${icon('bulb')}</button>`
       : '';
-    const live = tile.covers.filter(c => c.ok),
-      open = live.some(c => c.pos > 1);
+    const live = tile.covers.filter(c => c.ok);
+    const open = live.some(c => c.pos! > 1); // an available cover has its position
     const covers = tile.covers.length
       ? `<button class="ltile-lamp cover${open ? ' on' : ''}" data-action="covers-toggle" data-room="${escape(tile.id)}" aria-pressed="${open}"
         aria-label="${escape(tile.short)}: ${open ? t('Close curtains') : t('Open curtains')}" data-tip="${open ? t('Close curtains') : t('Open curtains')}" ${live.length ? '' : 'disabled'}>${icon(tile.covers.every(c => c.blind) ? 'blind' : 'curtain')}</button>`
       : '';
     // air conditioner and boiler — the same round buttons, but at the edge; when running — the mode icon and color
-    const power = d => {
+    const power = (d: LookClimate): string => {
       const o = d.view.state === 'on';
       return `<button class="ltile-lamp ac${o ? ' on mode-' + d.view.tone : ''}${d.heater ? ' heater' : ''}" data-action="ctile-power" data-id="${escape(d.id)}" aria-pressed="${o}"
         aria-label="${escape(d.name)}: ${o ? t('turn off') : t('turn on')}" data-tip="${escape(d.name)}" ${d.canPower ? '' : 'disabled'}>${icon(o ? d.view.icon : d.heater ? 'flame' : 'wind')}</button>`;
     };
-    const step = (d, dir, label, text) =>
+    const step = (d: LookClimate, dir: number, label: string, text: string): string =>
       `<button class="ctile-step" data-action="ctile-step" data-id="${escape(d.id)}" data-step="${dir}" aria-label="${escape(d.name)}: ${label}" data-tip="${label[0].toUpperCase() + label.slice(1)}">${text}</button>`;
-    const row =
-      d => `<div class="ctile-bottom rtile-climate mode-${d.view.tone}"><button class="rtile-mode" data-action="room" data-room="${escape(tile.id)}" aria-label="${escape(d.name)}: ${t('remote')}">
+    const row = (
+      d: LookClimate,
+    ): string => `<div class="ctile-bottom rtile-climate mode-${d.view.tone}"><button class="rtile-mode" data-action="room" data-room="${escape(tile.id)}" aria-label="${escape(d.name)}: ${t('remote')}">
         <span class="ctile-target">${escape(d.view.target || '—')}</span><small>${escape(d.view.status)}</small></button>
         ${d.view.adjustable ? `<span class="ctile-steps">${step(d, -1, t('cooler'), '−')}${step(d, 1, t('warmer'), '+')}</span>` : ''}</div>`;
     const buttons = tile.climate.length
@@ -491,7 +900,7 @@ export function createLook(ed, host0) {
       ${running.map(row).join('')}
     </div>`;
   }
-  function tiles(M) {
+  function tiles(M: LookModel): void {
     const L = M.rooms.filter(r => r.lamps.length || r.climate.length || r.covers.length);
     $('.home-controls').classList.toggle('is-empty', !L.length);
     $('.room-tiles').innerHTML = L.map(tileMarkup).join('');
@@ -499,17 +908,17 @@ export function createLook(ed, host0) {
 
   // ---------- “Security” — as in 3d_floor/card.js (watchMarkup, updateLeaks, updateWatch, waterPress, refreshCamera) ----------
   // devices come from the HA layer by kind; a sensor's room comes from its area
-  function secOf(M) {
+  function secOf(M: LookModel): SecurityState {
     return securityDevices(ed.ha, a => {
       const r = roomOfArea(ed.plan, a);
       return r ? M.rooms.find(x => x.id === r.id) || null : null;
     });
   }
   // tiles are rebuilt only when the set changes: otherwise the camera frame would flicker with every home event
-  function watch() {
-    const grid = $('.watch-grid'),
-      one = sec.water.length === 1,
-      hl = r => (r ? ` data-highlight="${escape(r)}"` : '');
+  function watch(): void {
+    const grid = $('.watch-grid');
+    const one = sec.water.length === 1;
+    const hl = (r: string | null | undefined): string => (r ? ` data-highlight="${escape(r)}"` : '');
     const off = vac.filter(v => v.status !== 'available'); // an unavailable robot shows here as a small tile; it has no row in “Cleaning”
     const key = JSON.stringify([
       sec.camera && [sec.camera.entity, sec.camera.name, sec.camera.room],
@@ -546,19 +955,19 @@ export function createLook(ed, host0) {
     }
     // valve: on the second tap; while asking — a red frame
     for (const w of sec.water) {
-      const tile = grid.querySelector(`.water-tile[data-id="${CSS.escape(w.entity)}"]`);
+      const tile = grid.querySelector<HTMLButtonElement>(`.water-tile[data-id="${CSS.escape(w.entity)}"]`);
       if (!tile) continue;
-      const asking = ask?.entity === w.entity,
-        v = waterView({...w, pending: pend.has(w.entity), confirm: asking});
+      const asking = ask?.entity === w.entity;
+      const v = waterView({...w, pending: pend.has(w.entity), confirm: asking});
       tile.className = `mini-tile water-tile ${v.state}${asking ? ' confirm' : ''}${tile.classList.contains('flash') ? ' flash' : ''}`;
-      const st = tile.querySelector('.water-status');
+      const st = find(tile, '.water-status');
       if (st.textContent !== v.text) st.textContent = v.text;
       tile.disabled = !v.action;
       tile.setAttribute('aria-label', `${w.name}: ${v.text}`);
     }
     // leaks: a summary and a button per sensor — a dot in its state color and the room
-    const tile = grid.querySelector('.leak-tile'),
-      view = leakView(sec.leaks);
+    const tile = grid.querySelector<HTMLElement>('.leak-tile');
+    const view = leakView(sec.leaks);
     if (tile && view) {
       const k = JSON.stringify(view);
       if (tile.dataset.key !== k) {
@@ -566,8 +975,8 @@ export function createLook(ed, host0) {
         tile.className = `mini-tile leak-tile ${view.state}`;
         tile.dataset.highlight = [...new Set(view.items.map(i => i.room).filter(Boolean))].join(' ');
         tile.setAttribute('aria-label', `${t('Leaks')}: ${view.text}`);
-        tile.querySelector('.leak-status').textContent = view.text;
-        tile.querySelector('.leak-pills').innerHTML = view.items
+        find(tile, '.leak-status').textContent = view.text;
+        find(tile, '.leak-pills').innerHTML = view.items
           .map(
             i => `<button class="leak-pill ${i.state}" data-action="leak" data-id="${escape(i.entity)}"${hl(i.room)}
         aria-label="${escape(i.tip)}" data-tip="${escape(i.tip)}"><i></i>${escape(i.label)}</button>`,
@@ -576,20 +985,20 @@ export function createLook(ed, host0) {
       }
     }
     // the camera spans as many rows as there are tiles next to it
-    const small = grid.querySelectorAll('.mini-tile').length;
-    grid.querySelector('.cam-tile')?.style.setProperty('--rows', Math.max(1, small));
+    const small = grid.querySelectorAll<HTMLElement>('.mini-tile').length;
+    grid.querySelector<HTMLElement>('.cam-tile')?.style.setProperty('--rows', String(Math.max(1, small)));
     grid.classList.toggle('stacked', small > 1);
     $('.watch-panel').classList.toggle('is-empty', !sec.camera && !small);
   }
   // the frame in the tile: in the demo — a synthetic hallway every 2 s, in HA — entity_picture every 10 s; only while the tile is visible
-  function camera() {
-    const tile = $('.cam-tile'),
-      c = sec.camera;
+  function camera(): void {
+    const tile = root.querySelector<HTMLElement>('.cam-tile');
+    const c = sec.camera;
     if (!tile || !c || document.hidden || !tile.getClientRects().length) return;
-    const time = tile.querySelector('.cam-time'),
-      stamp = () => clock(new Date(), {second: '2-digit'});
+    const time = find(tile, '.cam-time');
+    const stamp = (): string => clock(new Date(), {second: '2-digit'});
     if (ed.ha?.demo) {
-      drawDemoFeed(tile.querySelector('canvas').getContext('2d'));
+      drawDemoFeed(find<HTMLCanvasElement>(tile, 'canvas').getContext('2d'));
       time.textContent = stamp();
       tile.classList.remove('loading', 'empty');
       return;
@@ -601,8 +1010,8 @@ export function createLook(ed, host0) {
     }
     // the new frame loads off to the side: swapping src on the fly would flash an empty tile
     const url =
-        (ed.ha.url?.(c.picture) || c.picture) + (c.picture.includes('?') ? '&' : '?') + '_=' + Date.now(),
-      next = new Image();
+      (ed.ha.url?.(c.picture) || c.picture) + (c.picture.includes('?') ? '&' : '?') + '_=' + Date.now();
+    const next = new Image();
     next.onload = () => {
       const img = tile.querySelector('img');
       if (img) img.src = next.src;
@@ -615,7 +1024,7 @@ export function createLook(ed, host0) {
     };
     next.src = url;
   }
-  function waterPress(id) {
+  function waterPress(id: string): void {
     const w = sec.water.find(x => x.entity === id);
     if (!w) return;
     const v = waterView({...w, pending: pend.has(id)});
@@ -639,7 +1048,7 @@ export function createLook(ed, host0) {
     });
   }
   // the entity card in HA; in the demo there is nothing to open — the model flashes the room
-  function flash(rooms) {
+  function flash(rooms: string[]): void {
     clearTimeout(flashT);
     ed.view.setGlow?.(rooms, {pulse: true});
     flashT = setTimeout(() => {
@@ -649,24 +1058,24 @@ export function createLook(ed, host0) {
   }
 
   // ---------- “Cleaning” — as in 3d_floor/card.js (vacuum-panel, updateVacuum, vacuumCommand) ----------
-  function vacOf(M) {
+  function vacOf(M: LookModel): VacuumDevice[] {
     return vacuumDevices(ed.ha, a => {
       const r = roomOfArea(ed.plan, a);
       return r ? M.rooms.find(x => x.id === r.id) || null : null;
     });
   }
   // overview — rows of available robots (compact: the main button); device screen — one robot, with “Return to dock”
-  function vacuums() {
-    const panel = $('.vacuum-panel'),
-      id = nav.current.level === 'device' ? nav.current.id : null,
-      list = id ? vac.filter(v => v.entity === id) : vac.filter(v => v.status === 'available');
+  function vacuums(): void {
+    const panel = $('.vacuum-panel');
+    const id = nav.current.level === 'device' ? nav.current.id : null;
+    const list = id ? vac.filter(v => v.entity === id) : vac.filter(v => v.status === 'available');
     panel.classList.toggle('compact', !id);
     panel.classList.toggle('is-empty', !list.length);
     $('.vacuum-cards').innerHTML = list
       .map(v => {
-        const main = vacuumButton(v),
-          busy = pend.has(v.entity),
-          hl = v.room ? ` data-highlight="${escape(v.room)}"` : '';
+        const main = vacuumButton(v);
+        const busy = pend.has(v.entity);
+        const hl = v.room ? ` data-highlight="${escape(v.room)}"` : '';
         return `<div class="vacuum-card${v.activity === 'cleaning' ? ' cleaning' : ''}"><button class="vacuum-open" data-action="vacuum-open" data-id="${escape(v.entity)}"${hl} ${!id && v.status === 'available' ? '' : 'disabled'}>
           <span class="tile-chip">${icon('vacuum')}</span><span class="tile-text"><strong>${escape(v.name)}</strong><small class="vacuum-status" role="status">${escape(vacuumStatus(v, busy))}</small></span></button>
         <div class="vacuum-actions"><button class="vacuum-btn" data-action="vacuum-start" data-id="${escape(v.entity)}" data-command="${main.action}" ${main.disabled || busy ? 'disabled' : ''}>${escape(main.label)}</button>
@@ -674,7 +1083,7 @@ export function createLook(ed, host0) {
       })
       .join('');
   }
-  function openVacuum(id) {
+  function openVacuum(id: string): void {
     const v = vac.find(x => x.entity === id);
     if (!v) return;
     editing = null;
@@ -687,9 +1096,9 @@ export function createLook(ed, host0) {
     render();
     $('.sidebar').scrollTop = 0;
   }
-  function vacuumPress(id, action) {
-    const v = vac.find(x => x.entity === id),
-      c = v && vacuumCommand(v, action);
+  function vacuumPress(id: string, action: string): void {
+    const v = vac.find(x => x.entity === id);
+    const c = v && vacuumCommand(v, action);
     if (!c || pend.has(id)) return;
     pend.add(id);
     render();
@@ -701,13 +1110,13 @@ export function createLook(ed, host0) {
 
   // ---------- “Statistics” — as in 3d_floor/card.js (refreshStats, updateStatsTile, openStats, renderStatsView, updateStatsModel, statsPointer) ----------
   // sources — what Preview already shows: room climate sensors, meters from the HA “Energy” dashboard, all model entities
-  function statsSrc(M) {
-    const C = ed.sensorCtx(),
-      sensor = e => C.sensors.find(s => s.entity === e),
-      room = a => {
-        const r = roomOfArea(ed.plan, a);
-        return r ? M.rooms.find(x => x.id === r.id) || null : null;
-      };
+  function statsSrc(M: LookModel): StatsSources {
+    const C = ed.sensorCtx();
+    const sensor = (e: string | undefined): HaSensor | undefined => C.sensors.find(s => s.entity === e);
+    const room = (a: string | null | undefined): LookRoom | null => {
+      const r = roomOfArea(ed.plan, a);
+      return r ? M.rooms.find(x => x.id === r.id) || null : null;
+    };
     const climate = M.rooms
       .map(r => ({
         room: r.id,
@@ -720,23 +1129,30 @@ export function createLook(ed, host0) {
       room: s => room(sensor(s)?.area),
       name: s => sensor(s)?.name || s,
     });
-    const H = new Map(),
-      add = (entity, name, r, device) => {
-        if (entity && !H.has(entity))
-          H.set(entity, {entity, name: name || entity, room: r || null, device: device || null});
-      };
+    const H = new Map<string, HealthSource>();
+    const add = (
+      entity: string | undefined,
+      name: string | undefined,
+      r?: string | null,
+      device?: string | null,
+    ): void => {
+      if (entity && !H.has(entity))
+        H.set(entity, {entity, name: name || entity, room: r || null, device: device || null});
+    };
     for (const L of ed.plan.lights)
       if (L.entity && L.placed && !L.draft && !L.skip) add(L.entity, L.name, L.room);
-    for (const d of ed.ha?.devices?.() || []) add(d.entity, d.name, room(d.area)?.id, d.device);
+    // neither HA layer gives a device its device id: it stays undefined
+    for (const d of ed.ha?.devices?.() || [])
+      add(d.entity, d.name, room(d.area)?.id, (d as HaDevice & {device?: string}).device);
     for (const c of climate)
-      for (const k of ['temperature', 'humidity', 'co2']) {
+      for (const k of ['temperature', 'humidity', 'co2'] as const) {
         const x = sensor(c[k]);
         if (x) add(x.entity, x.name, c.room, x.device);
       }
     return {climate, energy, health: [...H.values()]};
   }
   // the HA “Energy” dashboard — every 10 minutes; until it arrives there is no energy section
-  function energyPrefs() {
+  function energyPrefs(): void {
     if (!ed.ha?.energy || Date.now() - st.prefsAt < 6e5) return;
     st.prefsAt = Date.now();
     Promise.resolve(ed.ha.energy())
@@ -754,21 +1170,22 @@ export function createLook(ed, host0) {
   }
   // section data for a period: in HA — at most once every 10 minutes (connectivity — every 30: it is raw history); the key includes the sources too,
   // so a moved sensor does not show stale data
-  const hash = s => {
+  const hash = (s: string): string => {
     let h = 2166136261;
     for (let i = 0; i < s.length; i++) h = Math.imul(h ^ s.charCodeAt(i), 16777619);
     return (h >>> 0).toString(36);
   };
-  const keyOf = (id, period) => `${id}:${period}:${hash(JSON.stringify(st.src?.[id] ?? null))}`;
-  const statsFor = (id, period = 'month') => {
+  const keyOf = (id: string, period: string): string =>
+    `${id}:${period}:${hash(JSON.stringify(st.src?.[id] ?? null))}`;
+  const statsFor = (id: string, period = 'month'): StatsData | null | undefined => {
     const e = st.data.get(keyOf(id, period));
     return e ? e.data : undefined;
   }; // undefined — still computing, null — failed to load
-  async function refreshStats(id, period) {
+  async function refreshStats(id: string, period: string): Promise<void> {
     if (!st.src) return;
-    const k = keyOf(id, period),
-      c = st.data.get(k),
-      ttl = ed.ha?.demo ? 6e4 : id === 'health' ? 18e5 : 6e5;
+    const k = keyOf(id, period);
+    const c = st.data.get(k);
+    const ttl = ed.ha?.demo ? 6e4 : id === 'health' ? 18e5 : 6e5;
     if ((c && Date.now() - c.at < ttl) || st.loading.has(k)) return;
     st.loading.add(k);
     try {
@@ -782,22 +1199,22 @@ export function createLook(ed, host0) {
     if (on) render();
   }
   // sections: sources exist and data was found for the month (shown while computing); failed to load or empty — no section
-  const statsIds = () =>
+  const statsIds = (): string[] =>
     availableSections(st.src).filter(id => {
       const d = statsFor(id);
       return d === undefined || (d && !d.empty);
     });
-  const roomColour = M => {
+  const roomColour = (M: LookModel): ((id: string) => string) => {
     const i = new Map(M.rooms.map((r, k) => [r.id, k]));
     return id => `var(--rc${(i.get(id) ?? 9) % 10})`;
   };
   // overview: energy as a large tile with bars, the rest as small ones
-  function statsPanel(M) {
+  function statsPanel(M: LookModel): void {
     for (const id of availableSections(st.src)) refreshStats(id, 'month');
-    const ids = statsIds(),
-      data = Object.fromEntries(ids.map(id => [id, statsFor(id)])),
-      rest = ids.filter(id => id !== 'energy'),
-      name = id => M.rooms.find(r => r.id === id)?.short || '';
+    const ids = statsIds();
+    const data = Object.fromEntries(ids.map(id => [id, statsFor(id)]));
+    const rest = ids.filter(id => id !== 'energy');
+    const name = (id: string): string => M.rooms.find(r => r.id === id)?.short || '';
     const html =
       (ids.includes('energy') ? energyTileMarkup(data.energy, name) : '') +
       (rest.length ? `<div class="stats-tiles">${sectionTilesMarkup(rest, data)}</div>` : '');
@@ -808,7 +1225,7 @@ export function createLook(ed, host0) {
     }
   }
   // the section screen replaces the overview; the model shows the whole home, with numbers above the rooms
-  function openStats(id) {
+  function openStats(id: string): void {
     editing = null;
     drafts = {};
     if (nav.current.level !== 'stats') nav.stats(ed.view.getView?.());
@@ -821,13 +1238,13 @@ export function createLook(ed, host0) {
     render();
     $('.sidebar').scrollTop = 0;
   }
-  function renderStats(M) {
-    const host = $('.stats-view'),
-      ids = statsIds();
+  function renderStats(M: LookModel): void {
+    const host = $('.stats-view');
+    const ids = statsIds();
     if (ids.length && !ids.includes(st.section)) st.section = ids[0];
     refreshStats(st.section, st.period);
-    const k = keyOf(st.section, st.period),
-      e = st.data.get(k);
+    const k = keyOf(st.section, st.period);
+    const e = st.data.get(k);
     st.shown = e?.data || null;
     const view = statsViewMarkup(st.shown, {
       section: st.section,
@@ -851,7 +1268,7 @@ export function createLook(ed, host0) {
     }
   }
   // on the model — the section number above each room's floor (stat-pin, as in 3d_floor), at the room label point; moves with the view
-  function pins(M) {
+  function pins(M: LookModel): void {
     const map = nav.current.level === 'stats' && !editing && st.shown ? sectionMap(st.section, st.shown) : {};
     const html = Object.entries(map)
       .map(([id, v]) => {
@@ -867,16 +1284,16 @@ export function createLook(ed, host0) {
     }
     if (html && !st.raf) st.raf = requestAnimationFrame(placePins);
   }
-  function placePins() {
+  function placePins(): void {
     st.raf = 0;
     const box = $('.pins');
     if (!on || !box.children.length) return;
-    const cam = ed.view.camera,
-      cv = ed.view.renderer?.domElement;
+    const cam = ed.view.camera;
+    const cv = ed.view.renderer?.domElement;
     if (cam && cv) {
-      const b = box.getBoundingClientRect(),
-        c = cv.getBoundingClientRect();
-      for (const pin of box.children) {
+      const b = box.getBoundingClientRect();
+      const c = cv.getBoundingClientRect();
+      for (const pin of box.children as HTMLCollectionOf<HTMLElement>) {
         const r = ed.plan.rooms.find(x => x.id === pin.dataset.room);
         if (!r) continue;
         let p = st.pins.get(r.id);
@@ -892,29 +1309,33 @@ export function createLook(ed, host0) {
     st.raf = requestAnimationFrame(placePins);
   }
   // a tooltip over a bar, a line point or an hour of the day; no event — remove it
-  function statsPointer(e) {
-    const view = $('.stats-view'),
-      tip = view.querySelector('.stats-tip');
+  function statsPointer(e: PointerEvent | null): void {
+    const view = $('.stats-view');
+    const tip = view.querySelector<HTMLElement>('.stats-tip');
     if (!tip) return;
-    const clear = () => {
-      for (const n of view.querySelectorAll('.stats-cross,.stats-dot')) n.hidden = true;
-      view.querySelector('.stats-col.hover')?.classList.remove('hover');
+    const clear = (): void => {
+      for (const n of view.querySelectorAll<HTMLElement>('.stats-cross,.stats-dot')) n.hidden = true;
+      view.querySelector<HTMLElement>('.stats-col.hover')?.classList.remove('hover');
     };
-    const host = e?.target?.closest?.('[data-chart]'),
-      chart = host && st.charts[host.dataset.chart];
+    // a pointer event's target is an element
+    const host = (e?.target as Element | null | undefined)?.closest?.<HTMLElement>('[data-chart]');
+    const chart = host && st.charts[host.dataset.chart as string];
     if (!chart) {
       tip.hidden = true;
       clear();
       return;
     }
     const box = view.getBoundingClientRect();
-    let html, x, y;
+    let html: string;
+    let x: number;
+    let y: number;
     if (chart.kind === 'profile') {
       clear();
-      const r = host.querySelector('svg').getBoundingClientRect(),
-        h = Math.max(0, Math.min(23, Math.round(((e.clientX - r.left) / r.width) * 23)));
-      const cross = host.querySelector('.stats-cross'),
-        dot = host.querySelector('.stats-dot');
+      const r = find(host, 'svg').getBoundingClientRect();
+      // a chart under the pointer came from an event
+      const h = Math.max(0, Math.min(23, Math.round(((e!.clientX - r.left) / r.width) * 23)));
+      const cross = find(host, '.stats-cross');
+      const dot = find(host, '.stats-dot');
       cross.style.left = dot.style.left = ((h / 23) * 100).toFixed(2) + '%';
       dot.style.top = ((r.height * (60 - (chart.values[h] / chart.max) * 56)) / 60).toFixed(1) + 'px';
       cross.hidden = dot.hidden = false;
@@ -922,7 +1343,7 @@ export function createLook(ed, host0) {
       x = r.left + (r.width * h) / 23 - box.left;
       y = r.top - box.top;
     } else {
-      const col = e.target.closest('.stats-col');
+      const col = (e!.target as Element).closest<HTMLElement>('.stats-col');
       if (!col) {
         tip.hidden = true;
         clear();
@@ -930,9 +1351,9 @@ export function createLook(ed, host0) {
       }
       clear();
       col.classList.add('hover');
-      html = statsTip(chart, +col.dataset.i);
-      const r = col.getBoundingClientRect(),
-        c = host.getBoundingClientRect();
+      html = statsTip(chart, +(col.dataset.i as string)); // a column has its index
+      const r = col.getBoundingClientRect();
+      const c = host.getBoundingClientRect();
       x = r.left + r.width / 2 - box.left;
       y = c.top - box.top;
     }
@@ -945,21 +1366,22 @@ export function createLook(ed, host0) {
 
   // ---------- “Customize panel” and “Favorites” (look/layout.js, look/favorites.js) ----------
   // the overview layout (plan.panel) or the room screen layout (room.panel)
-  const planRoom = id => ed.plan.rooms.find(x => x.id === id);
-  const layout = (room = null) =>
+  const planRoom = (id: string): Room | undefined => ed.plan.rooms.find(x => x.id === id);
+  const layout = (room: string | null = null): PanelCard[] =>
     room ? resolveLayout(planRoom(room)?.panel, ROOM_BUILTIN) : resolveLayout(ed.plan.panel);
-  const favItems = () =>
+  const favItems = (): Map<string, FavItem> =>
     new Map((ed.ha?.entities?.() || []).filter(x => FAV_DOMAINS.includes(x.domain)).map(x => [x.entity, x]));
   // overview: sections in layout order (reordered only when it changes), removed built-ins are hidden; “Favorites” get their own sections
-  function applyLayout() {
-    const cards = layout(),
-      sb = $('.sidebar'),
-      end = $('.room-panel'),
-      all = favItems();
+  function applyLayout(): void {
+    const cards = layout();
+    const sb = $('.sidebar');
+    const end = $('.room-panel');
+    const all = favItems();
     for (const s of $$('.fav-panel')) if (!cards.some(c => c.id === s.dataset.card)) s.remove();
-    const el = c => {
-      if (!isFav(c)) return $(BUILTIN.find(b => b.id === c.id).sel);
-      let s = root.querySelector(`.fav-panel[data-card="${CSS.escape(c.id)}"]`);
+    const el = (c: PanelCard): HTMLElement => {
+      // a card that is not “Favorites” is one of BUILTIN
+      if (!isFav(c)) return $(BUILTIN.find(b => b.id === c.id)!.sel);
+      let s = root.querySelector<HTMLElement>(`.fav-panel[data-card="${CSS.escape(c.id)}"]`);
       if (!s) {
         s = document.createElement('section');
         s.className = 'fav-panel';
@@ -976,33 +1398,33 @@ export function createLook(ed, host0) {
     }
     for (const b of BUILTIN) $(b.sel).classList.toggle('card-off', !cards.some(c => c.id === b.id));
     for (const c of cards.filter(isFav)) {
-      const s = el(c),
-        items = favEntities(c, all);
-      s.querySelector('.section-head span').textContent = c.title || t('Favorites');
+      const s = el(c);
+      const items = favEntities(c, all);
+      find(s, '.section-head span').textContent = c.title || t('Favorites');
       s.setAttribute('aria-label', c.title || t('Favorites'));
       s.classList.toggle('is-empty', !items.length);
       const html = items.map(favTile).join('');
-      const g = s.querySelector('.fav-tiles');
+      const g = find(s, '.fav-tiles');
       if (g.dataset.html !== html) {
         g.dataset.html = html;
         g.innerHTML = html;
       }
     }
   }
-  const favEntities = (c, all = favItems()) =>
+  const favEntities = (c: FavCard, all = favItems()): FavItem[] =>
     c.entities.map(e => all.get(e) || {entity: e, name: e, domain: e.split('.')[0]});
-  function favTile(it) {
-    const v = favView(it, ed.ha?.entity?.(it.entity)),
-      busy = pend.has(it.entity),
-      r = roomOfArea(ed.plan, it.area);
+  function favTile(it: FavItem): string {
+    const v = favView(it, ed.ha?.entity?.(it.entity));
+    const busy = pend.has(it.entity);
+    const r = roomOfArea(ed.plan, it.area);
     return `<button class="tile ${it.domain}${v.on ? ' on' : ''}${v.off ? ' unavailable' : ''}" data-action="fav" data-id="${escape(it.entity)}"${r ? ` data-highlight="${escape(r.id)}"` : ''} ${v.action && !busy ? '' : 'disabled'}
       aria-label="${escape(it.name)}: ${escape(v.text)}"><span class="tile-chip">${icon(v.icon)}</span><span class="tile-text"><strong>${escape(it.name)}</strong><small>${escape(busy ? t('Sending command…') : v.text)}</small></span></button>`;
   }
   // tapping a “Favorites” tile: an HA command — the new state arrives via onState; sensor, lock, valve — the entity card in HA
-  function favPress(id, b) {
-    const it = favItems().get(id) || {entity: id, name: id, domain: id.split('.')[0]},
-      x = ed.ha?.entity?.(id),
-      v = favView(it, x);
+  function favPress(id: string, b: HTMLElement): void {
+    const it: FavItem = favItems().get(id) || {entity: id, name: id, domain: id.split('.')[0]};
+    const x = ed.ha?.entity?.(id);
+    const v = favView(it, x);
     if (v.action === 'info') {
       if (!ed.ha?.demo && ed.ha?.moreInfo) ed.ha.moreInfo(id);
       else if (b.dataset.highlight) flash([b.dataset.highlight]);
@@ -1021,10 +1443,10 @@ export function createLook(ed, host0) {
   // Cards and devices are dragged from the shade into the panel, anything extra goes back; the panel holds the order. With a mouse — drag from anywhere,
   // with a finger — by long press (a short move scrolls). From the keyboard: the card handle + ↑ / ↓, “×” and “+”.
   // The “what is empty now” snapshot comes from the overview or room screen the settings were opened from (they are hidden in the settings)
-  function openLayout() {
-    const M = model(),
-      empty = new Set(),
-      room = nav.current.level === 'room' ? cur() : null;
+  function openLayout(): void {
+    const M = model();
+    const empty = new Set<string>();
+    const room = nav.current.level === 'room' ? cur() : null;
     if (room) {
       const r = M.rooms.find(x => x.id === room);
       if (!r) return;
@@ -1049,25 +1471,27 @@ export function createLook(ed, host0) {
     $('.sidebar').scrollTop = 0;
   }
   // in the editor the mode panel hangs above the model — the shade starts below it (the HA card has none)
-  function trayTop() {
-    const m = document.getElementById('modes'),
-      c = $('.map-card').getBoundingClientRect(),
-      b = m?.getBoundingClientRect();
+  function trayTop(): void {
+    const m = document.getElementById('modes');
+    const c = $('.map-card').getBoundingClientRect();
+    const b = m?.getBoundingClientRect();
     const over = b && b.bottom > c.top && b.left < c.right && b.right > c.left ? b.bottom - c.top + 10 : 0;
     $('.layout-tray').style.setProperty('--tray-top', over ? Math.round(over) + 'px' : '');
   }
   addEventListener('resize', () => {
     if (lay) trayTop();
   });
-  function closeLayout() {
+  function closeLayout(): void {
     dragStop();
     lay = null;
     render();
     $('.sidebar').scrollTop = 0;
   }
-  function saveLayout() {
-    const v = layoutToSave(lay.cards, lay.builtin),
-      o = lay.room ? planRoom(lay.room) : ed.plan;
+  function saveLayout(): void {
+    // it runs only while “Customize panel” is open
+    const draft = lay!;
+    const v = layoutToSave(draft.cards, draft.builtin);
+    const o = draft.room ? planRoom(draft.room) : ed.plan;
     if (o) {
       if (v) o.panel = v;
       else delete o.panel;
@@ -1075,33 +1499,38 @@ export function createLook(ed, host0) {
     }
     closeLayout();
   }
-  const cardName = c => (isFav(c) ? c.title || t('Favorites') : t(lay.builtin.find(b => b.id === c.id).name));
-  const xBtn = (a, id, label, from = '') =>
+  // while “Customize panel” is open (lay), and the card is one of its built-ins or “Favorites”
+  const cardName = (c: PanelCard): string =>
+    isFav(c) ? c.title || t('Favorites') : t(lay!.builtin.find(b => b.id === c.id)!.name);
+  const xBtn = (a: string, id: string, label: string, from: string | null = ''): string =>
     `<button class="edit-x" data-action="${a}" data-id="${escape(id)}"${from ? ` data-from="${escape(from)}"` : ''} aria-label="${escape(label)}" title="${escape(label)}">${icon('close')}</button>`;
-  const plusBtn = (a, id, label) =>
+  const plusBtn = (a: string, id: string, label: string): string =>
     `<button class="edit-x" data-action="${a}" data-id="${escape(id)}" aria-label="${escape(label)}" title="${escape(label)}">${icon('plus')}</button>`;
-  function tileOf(e, from) {
-    const x = favItems().get(e) || {entity: e, name: e, domain: e.split('.')[0]},
-      ic = favView(x, {state: 'off', attributes: {}}).icon;
+  function tileOf(e: string, from: string): string {
+    const x: FavItem = favItems().get(e) || {entity: e, name: e, domain: e.split('.')[0]};
+    const ic = favView(x, {state: 'off', attributes: {}}).icon;
     return `<span class="edit-tile" data-drag="entity" data-id="${escape(e)}"${from ? ` data-from="${escape(from)}"` : ''}>${icon(ic)}<span>${escape(x.name)}</span>${from ? xBtn('tile-remove', e, t('Remove: {0}', x.name), from) : ''}</span>`;
   }
   // panel: cards are collapsed to a row (otherwise long lists cannot be dragged); “Favorites” shows its tiles and title right in the row
-  function layoutEditor() {
-    const box = $('.layout-editor'),
-      y = $('.sidebar').scrollTop;
-    const card = c => {
-      const b = lay.builtin.find(x => x.id === c.id),
-        name = cardName(c),
-        grip = `<button class="layout-grip" data-grip="${escape(c.id)}" aria-label="${escape(t('Reorder: {0} (up and down arrows)', name))}" title="${escape(t('Drag'))}">${icon('grip')}</button>`;
+  function layoutEditor(): void {
+    // it runs only while “Customize panel” is open
+    const draft = lay!;
+    const box = $('.layout-editor');
+    const y = $('.sidebar').scrollTop;
+    const card = (c: PanelCard): string => {
+      // a card that is not “Favorites” is one of the built-ins
+      const b = draft.builtin.find(x => x.id === c.id) as BuiltinCard;
+      const name = cardName(c);
+      const grip = `<button class="layout-grip" data-grip="${escape(c.id)}" aria-label="${escape(t('Reorder: {0} (up and down arrows)', name))}" title="${escape(t('Drag'))}">${icon('grip')}</button>`;
       if (!isFav(c))
         return `<div class="edit-card" data-drag="card" data-id="${escape(c.id)}">${grip}<span class="mini-chip">${icon(b.icon)}</span>
-        <span class="layout-text"><strong>${escape(name)}</strong><small>${escape(lay.empty.has(c.id) ? t('Empty now — hidden in the panel') : t(b.about))}</small></span>${xBtn('layout-remove', c.id, t('Remove: {0}', name))}</div>`;
+        <span class="layout-text"><strong>${escape(name)}</strong><small>${escape(draft.empty.has(c.id) ? t('Empty now — hidden in the panel') : t(b.about))}</small></span>${xBtn('layout-remove', c.id, t('Remove: {0}', name))}</div>`;
       return `<div class="edit-card fav" data-drag="card" data-id="${escape(c.id)}"><div class="edit-card-head">${grip}<span class="mini-chip">${icon('star')}</span>
           <input class="edit-title" data-fav-title="${escape(c.id)}" value="${escape(c.title)}" placeholder="${escape(t('Favorites'))}" maxlength="40" aria-label="${escape(t('Card name'))}">${xBtn('layout-remove', c.id, t('Remove: {0}', name))}</div>
         <div class="edit-tiles" data-fav="${escape(c.id)}">${c.entities.map(e => tileOf(e, c.id)).join('') || `<span class="edit-tiles-empty">${escape(t('Drag devices here'))}</span>`}</div></div>`;
     };
     box.innerHTML = `<p class="layout-hint">${escape(t('Drag cards and devices. Anything extra goes back to “Add to panel”.'))}</p>
-      <div class="edit-cards">${lay.cards.map(card).join('') || `<p class="edit-empty">${escape(t('The panel is empty — drag a card here.'))}</p>`}</div>
+      <div class="edit-cards">${draft.cards.map(card).join('') || `<p class="edit-empty">${escape(t('The panel is empty — drag a card here.'))}</p>`}</div>
       <div class="scene-editor-actions"><button class="all-off primary" data-action="layout-save">${escape(t('Done'))}</button><button class="all-off" data-action="layout-cancel">${escape(t('Cancel'))}</button></div>
       <button class="scene-reset" data-action="layout-reset">${escape(t('Restore default'))}</button>`;
     $('.sidebar').scrollTop = y;
@@ -1109,30 +1538,32 @@ export function createLook(ed, host0) {
   }
   // shade: removed built-in cards and a new “Favorites”, below — HA entities by plan room (those already on the panel are not shown;
   // in room settings the room's devices come first)
-  function tray() {
-    const box = $('.layout-tray'),
-      y = box.scrollTop,
-      used = new Set(lay.cards.filter(isFav).flatMap(c => c.entities));
-    const roomOf = x => roomOfArea(ed.plan, x.area),
-      groups = new Map();
+  function tray(): void {
+    // it runs only while “Customize panel” is open
+    const draft = lay!;
+    const box = $('.layout-tray');
+    const y = box.scrollTop;
+    const used = new Set(draft.cards.filter(isFav).flatMap(c => c.entities));
+    const roomOf = (x: FavItem): Room | null => roomOfArea(ed.plan, x.area);
+    const groups = new Map<string, {name: string; list: FavItem[]}>();
     for (const x of [...favItems().values()]
       .filter(x => !used.has(x.entity))
       .sort((a, b) => a.name.localeCompare(b.name, undefined, {numeric: true}))) {
-      const r = roomOf(x),
-        k = r?.id || '';
+      const r = roomOf(x);
+      const k = r?.id || '';
       if (!groups.has(k))
         groups.set(k, {name: r ? r.name || ed.areaName?.(r.area) || '' : t('No room'), list: []});
-      groups.get(k).list.push(x);
+      groups.get(k)!.list.push(x); // set just above
     }
     const order = [
-      ...(lay.room && groups.has(lay.room) ? [lay.room] : []),
-      ...ed.plan.rooms.map(r => r.id).filter(id => id !== lay.room && groups.has(id)),
+      ...(draft.room && groups.has(draft.room) ? [draft.room] : []),
+      ...ed.plan.rooms.map(r => r.id).filter(id => id !== draft.room && groups.has(id)),
       ...(groups.has('') ? [''] : []),
     ];
-    const cards = addable(lay.cards, lay.builtin)
+    const cards = addable(draft.cards, draft.builtin)
       .map(id => {
-        const b = lay.builtin.find(x => x.id === id),
-          name = b ? t(b.name) : t('Favorites');
+        const b = draft.builtin.find(x => x.id === id);
+        const name = b ? t(b.name) : t('Favorites');
         return `<div class="tray-card" data-drag="new" data-id="${id}"><span class="mini-chip">${icon(b ? b.icon : 'star')}</span><span class="layout-text"><strong>${escape(name)}</strong>
         <small>${escape(b ? t(b.about) : t('Any HA devices, scenes and scripts'))}</small></span>${plusBtn('tray-add', id, t('Add: {0}', name))}</div>`;
       })
@@ -1140,11 +1571,11 @@ export function createLook(ed, host0) {
     box.innerHTML = `<div class="tray-head"><strong>${escape(t('Add to panel'))}</strong><small>${escape(t('Drag to the panel or tap +'))}</small></div>
       <div class="section-label">${escape(t('Cards'))}</div><div class="tray-cards">${cards}</div>
       <div class="section-label">${escape(t('Devices and scenes'))}</div>
-      <input class="fav-search" type="search" data-tray-search value="${escape(lay.q)}" placeholder="${escape(t('Search: name or room'))}" aria-label="${escape(t('Find a device'))}">
+      <input class="fav-search" type="search" data-tray-search value="${escape(draft.q)}" placeholder="${escape(t('Search: name or room'))}" aria-label="${escape(t('Find a device'))}">
       ${
         order
           .map(k => {
-            const g = groups.get(k);
+            const g = groups.get(k)!; // order lists only the groups there are
             return `<div class="tray-group" data-q="${escape(g.name.toLowerCase())}"><div class="tray-group-name">${escape(g.name)}</div><div class="tray-tiles">${g.list
               .map(
                 x =>
@@ -1157,12 +1588,14 @@ export function createLook(ed, host0) {
     filterTray();
     box.scrollTop = y;
   }
-  function filterTray() {
-    const q = lay.q.trim().toLowerCase();
+  function filterTray(): void {
+    // it runs only while “Customize panel” is open
+    const draft = lay!;
+    const q = draft.q.trim().toLowerCase();
     for (const g of $$('.tray-group')) {
       let any = false;
-      for (const x of g.querySelectorAll('.edit-tile')) {
-        const ok = !q || x.dataset.q.includes(q);
+      for (const x of g.querySelectorAll<HTMLElement>('.edit-tile')) {
+        const ok = !q || (x.dataset.q as string).includes(q); // every tile in the shade has data-q
         x.hidden = !ok;
         any ||= ok;
       }
@@ -1170,60 +1603,65 @@ export function createLook(ed, host0) {
     }
   }
   // ----- dragging: a ghost is dragged; the drop spot is a line between cards or between “Favorites” tiles; the shade — remove -----
-  function dragStop() {
+  function dragStop(): void {
     if (!dnd) return;
     clearTimeout(dnd.timer);
-    cancelAnimationFrame(dnd.raf);
+    cancelAnimationFrame(dnd.raf as number); // none before the first frame: nothing to cancel
     dnd.ghost?.remove();
     dnd.el.classList.remove('dragging');
-    root.querySelector('.drop-slot')?.remove();
+    root.querySelector<HTMLElement>('.drop-slot')?.remove();
     for (const n of $$('.drop-on,.drop-remove')) n.classList.remove('drop-on', 'drop-remove');
     dnd = null;
   }
-  function dragBegin() {
-    const r = dnd.el.getBoundingClientRect(),
-      s = $('.shell').getBoundingClientRect(),
-      g = dnd.el.cloneNode(true);
+  function dragBegin(): void {
+    // it runs only while something is dragged
+    const drag = dnd!;
+    const r = drag.el.getBoundingClientRect();
+    const s = $('.shell').getBoundingClientRect();
+    const g = drag.el.cloneNode(true) as HTMLElement; // a copy of an element is one
     g.classList.add('drag-ghost');
     g.style.width = r.width + 'px';
     $('.shell').append(g);
-    dnd.ghost = g;
-    dnd.dx = dnd.x - r.left;
-    dnd.dy = dnd.y - r.top;
-    dnd.shell = s;
-    dnd.started = true;
-    dnd.el.classList.add('dragging');
-    if (dnd.touch) navigator.vibrate?.(12);
+    drag.ghost = g;
+    drag.dx = drag.x - r.left;
+    drag.dy = drag.y - r.top;
+    drag.shell = s;
+    drag.started = true;
+    drag.el.classList.add('dragging');
+    if (drag.touch) navigator.vibrate?.(12);
     dragAt();
     scrollLoop();
   }
-  function slot(parent, before, cls) {
-    let n = root.querySelector('.drop-slot');
+  function slot(parent: HTMLElement, before: HTMLElement | null, cls: string): void {
+    let n = root.querySelector<HTMLElement>('.drop-slot');
     if (!n) {
       n = document.createElement('i');
     }
     n.className = 'drop-slot ' + cls;
     if (n.parentElement !== parent || n.nextElementSibling !== before) parent.insertBefore(n, before);
   }
-  function dragAt() {
-    const {x, y} = dnd;
-    dnd.ghost.style.left = x - dnd.dx - dnd.shell.left + 'px';
-    dnd.ghost.style.top = y - dnd.dy - dnd.shell.top + 'px';
+  function dragAt(): void {
+    // it runs only while something is dragged
+    const drag = dnd!;
+    const {x, y} = drag;
+    // dragBegin set the ghost and the offsets: it starts every drag before dragAt
+    drag.ghost!.style.left = x - drag.dx! - drag.shell!.left + 'px';
+    drag.ghost!.style.top = y - drag.dy! - drag.shell!.top + 'px';
     for (const n of $$('.drop-on,.drop-remove')) n.classList.remove('drop-on', 'drop-remove');
-    const hit = root.elementFromPoint(x, y),
-      fromPanel = dnd.kind === 'card' || (dnd.kind === 'entity' && dnd.from);
-    dnd.target = null;
+    const hit = root.elementFromPoint(x, y);
+    const fromPanel = drag.kind === 'card' || (drag.kind === 'entity' && drag.from);
+    drag.target = null;
     if (hit?.closest('.layout-tray')) {
-      root.querySelector('.drop-slot')?.remove();
+      root.querySelector<HTMLElement>('.drop-slot')?.remove();
       if (fromPanel) {
-        dnd.target = {zone: 'tray'};
+        drag.target = {zone: 'tray'};
         $('.layout-tray').classList.add('drop-remove');
       }
       return;
     }
-    const tiles = dnd.kind === 'entity' && hit?.closest('.edit-tiles');
+    const tiles = drag.kind === 'entity' && hit?.closest<HTMLElement>('.edit-tiles');
     if (tiles) {
-      const list = [...tiles.querySelectorAll('.edit-tile')].filter(n => n !== dnd.el);
+      const list = [...tiles.querySelectorAll<HTMLElement>('.edit-tile')].filter(n => n !== drag.el);
       // the spot among tiles follows reading order: a row above or to the left of the cursor
       let i = 0;
       for (const n of list) {
@@ -1232,38 +1670,38 @@ export function createLook(ed, host0) {
       }
       tiles.classList.add('drop-on');
       slot(tiles, list[i] || null, 'slot-tile');
-      dnd.target = {zone: 'fav', id: tiles.dataset.fav, index: i};
+      drag.target = {zone: 'fav', id: tiles.dataset.fav, index: i};
       return;
     }
     const panel = hit?.closest('.layout-editor');
     if (panel) {
-      const wrap = $('.edit-cards'),
-        list = [...wrap.querySelectorAll('.edit-card')].filter(n => n !== dnd.el);
+      const wrap = $('.edit-cards');
+      const list = [...wrap.querySelectorAll<HTMLElement>('.edit-card')].filter(n => n !== drag.el);
       let i = 0;
       for (const n of list) {
         const b = n.getBoundingClientRect();
         if (b.top + b.height / 2 < y) i++;
       }
       slot(wrap, list[i] || null, 'slot-card');
-      dnd.target = {zone: 'cards', index: i};
+      drag.target = {zone: 'cards', index: i};
       return;
     }
-    root.querySelector('.drop-slot')?.remove();
+    root.querySelector<HTMLElement>('.drop-slot')?.remove();
   }
   // at the edge of the panel or shade — scroll while held
-  function scrollLoop() {
+  function scrollLoop(): void {
     if (!dnd?.started) return;
-    const hit = root.elementFromPoint(dnd.x, dnd.y),
-      box = hit?.closest('.layout-tray') || hit?.closest('.sidebar');
+    const hit = root.elementFromPoint(dnd.x, dnd.y);
+    const box = hit?.closest('.layout-tray') || hit?.closest('.sidebar');
     if (box) {
-      const b = box.getBoundingClientRect(),
-        edge = 48,
-        v =
-          dnd.y < b.top + edge
-            ? -(b.top + edge - dnd.y) / 3
-            : dnd.y > b.bottom - edge
-              ? (dnd.y - b.bottom + edge) / 3
-              : 0;
+      const b = box.getBoundingClientRect();
+      const edge = 48;
+      const v =
+        dnd.y < b.top + edge
+          ? -(b.top + edge - dnd.y) / 3
+          : dnd.y > b.bottom - edge
+            ? (dnd.y - b.bottom + edge) / 3
+            : 0;
       if (v) {
         box.scrollTop += v;
         dragAt();
@@ -1271,38 +1709,46 @@ export function createLook(ed, host0) {
     }
     dnd.raf = requestAnimationFrame(scrollLoop);
   }
-  function dragDrop() {
-    const d = dnd,
-      tg = d.target;
+  function dragDrop(): void {
+    // it runs only while something is dragged, and so “Customize panel” is open
+    const d = dnd!;
+    const draft = lay!;
+    const tg = d.target;
     dragStop();
     if (!tg) return;
     const T = t('Favorites');
     if (tg.zone === 'tray') {
-      if (d.kind === 'card') lay.cards = lay.cards.filter(c => c.id !== d.id);
-      else if (d.kind === 'entity' && d.from) lay.cards = removeEntity(lay.cards, d.id, d.from);
+      if (d.kind === 'card') draft.cards = draft.cards.filter(c => c.id !== d.id);
+      else if (d.kind === 'entity' && d.from) draft.cards = removeEntity(draft.cards, d.id, d.from);
     } else if (tg.zone === 'fav' && d.kind === 'entity')
-      lay.cards = placeEntity(lay.cards, d.id, tg.id, tg.index, d.from);
+      draft.cards = placeEntity(draft.cards, d.id, tg.id, tg.index, d.from);
     else if (tg.zone === 'cards') {
       if (d.kind === 'card')
-        lay.cards = placeCard(
-          lay.cards,
-          lay.cards.find(c => c.id === d.id),
+        draft.cards = placeCard(
+          draft.cards,
+          draft.cards.find(c => c.id === d.id),
           tg.index,
         );
       else if (d.kind === 'new')
-        lay.cards = placeCard(lay.cards, d.id === 'entities' ? newFav(lay.cards, T) : {id: d.id}, tg.index);
-      else lay.cards = entityCard(lay.cards, d.id, tg.index, T, d.from);
+        draft.cards = placeCard(
+          draft.cards,
+          d.id === 'entities' ? newFav(draft.cards, T) : {id: d.id},
+          tg.index,
+        );
+      else draft.cards = entityCard(draft.cards, d.id, tg.index, T, d.from);
     }
     layoutEditor();
   }
-  root.addEventListener('pointerdown', e => {
+  onRoot('pointerdown', e => {
     if (!lay || e.button > 0) return;
-    const el = e.target.closest?.('[data-drag]');
-    if (!el || e.target.closest('button:not(.layout-grip),input')) return;
+    // the events here come from our elements
+    const el = (e.target as Element).closest?.<HTMLElement>('[data-drag]');
+    if (!el || (e.target as Element).closest('button:not(.layout-grip),input')) return;
     dnd = {
       el,
-      kind: el.dataset.drag,
-      id: el.dataset.id,
+      // every [data-drag] element has its kind and id
+      kind: el.dataset.drag as string,
+      id: el.dataset.id as string,
       from: el.dataset.from || null,
       pid: e.pointerId,
       x: e.clientX,
@@ -1319,7 +1765,7 @@ export function createLook(ed, host0) {
       }, 300);
     else e.preventDefault();
   });
-  root.addEventListener('pointermove', e => {
+  onRoot('pointermove', e => {
     if (!dnd || e.pointerId !== dnd.pid) return;
     dnd.x = e.clientX;
     dnd.y = e.clientY;
@@ -1333,48 +1779,49 @@ export function createLook(ed, host0) {
     e.preventDefault();
     dragAt();
   });
-  root.addEventListener('pointerup', e => {
+  onRoot('pointerup', e => {
     if (!dnd || e.pointerId !== dnd.pid) return;
     if (dnd.started) dragDrop();
     else dragStop();
   });
-  root.addEventListener('pointercancel', e => {
+  onRoot('pointercancel', e => {
     if (dnd && e.pointerId === dnd.pid) dragStop();
   });
   // while dragging with a finger the page does not scroll
-  root.addEventListener(
+  onRoot(
     'touchmove',
     e => {
       if (dnd?.started) e.preventDefault();
     },
     {passive: false},
   );
-  root.addEventListener('contextmenu', e => {
-    if (lay && e.target.closest?.('[data-drag]')) e.preventDefault();
+  onRoot('contextmenu', e => {
+    if (lay && (e.target as Element).closest?.('[data-drag]')) e.preventDefault();
   });
   // from the keyboard: the card handle + arrows
-  root.addEventListener('keydown', e => {
-    const g = e.target.closest?.('[data-grip]');
+  onRoot('keydown', e => {
+    const g = (e.target as Element).closest?.<HTMLElement>('[data-grip]');
     if (!lay || !g || !['ArrowUp', 'ArrowDown'].includes(e.key)) return;
     e.preventDefault();
     lay.cards = move(lay.cards, g.dataset.grip, e.key === 'ArrowUp' ? -1 : 1);
     layoutEditor();
-    root.querySelector(`[data-grip="${CSS.escape(g.dataset.grip)}"]`)?.focus();
+    // a grip has its card's id
+    root.querySelector<HTMLElement>(`[data-grip="${CSS.escape(g.dataset.grip as string)}"]`)?.focus();
   });
 
   // ---------- weather and scenes — as in 3d_floor/card.js (updateWeather, scenes-panel, renderSceneEditor, runScene) ----------
   // current weather to the right of the title, the forecast strip below it; no weather in HA — neither is shown
-  function weather() {
-    const w = ed.ha?.weather?.() || null,
-      now = Date.now(),
-      cur = weatherNow(w, now),
-      box = $('.weather-now'),
-      bar = $('.forecast');
+  function weather(): void {
+    const w = ed.ha?.weather?.() || null;
+    const now = Date.now();
+    const cur = weatherNow(w, now);
+    const box = $('.weather-now');
+    const bar = $('.forecast');
     box.hidden = !cur;
     if (cur) {
-      box.querySelector('.weather-icon').innerHTML = cur.icon === 'unknown' ? '' : icon(cur.icon);
-      box.querySelector('.weather-temp').textContent = degrees(cur.temperature);
-      box.querySelector('.weather-label').textContent = cur.label;
+      find(box, '.weather-icon').innerHTML = cur.icon === 'unknown' ? '' : icon(cur.icon);
+      find(box, '.weather-temp').textContent = degrees(cur.temperature);
+      find(box, '.weather-label').textContent = cur.label;
       box.title = cur.feels != null ? t('{0}, feels like {1}', cur.label, degrees(cur.feels)) : cur.label;
       box.setAttribute(
         'aria-label',
@@ -1390,26 +1837,27 @@ export function createLook(ed, host0) {
       )
       .join('');
   }
-  const settings = () => ed.plan.scenes || {};
+  const settings = (): SceneSettings => ed.plan.scenes || {};
   // scene buttons: nothing to control — no section; the tooltip says what it does (a customized one — how many actions)
-  function scenes(M) {
-    const D = sceneDevices(M.rooms),
-      S = settings();
+  function scenes(M: LookModel): void {
+    const D = sceneDevices(M.rooms);
+    const S = settings();
     $('.scenes-panel').hidden = !D.length;
-    for (const b of $$('[data-action="scene-run"],[data-action="scene-edit"]')) b.disabled = busy;
+    for (const b of $$<HTMLButtonElement>('[data-action="scene-run"],[data-action="scene-edit"]'))
+      b.disabled = busy;
     for (const b of $$('[data-action="scene-run"]')) {
-      const s = SCENES.find(x => x.id === b.dataset.id);
+      const s = SCENES.find(x => x.id === b.dataset.id)!; // the buttons are made from SCENES
       b.title = S[s.id]
         ? t('Custom scene · actions: {0}', scenePlan(s.id, D, S[s.id]).length)
         : t(s.description);
     }
   }
   // “Customize”: scene tabs, an action for each device grouped by room
-  function sceneEditor() {
-    const M = model(),
-      D = sceneDevices(M.rooms),
-      d = drafts[editing];
-    const opts = k =>
+  function sceneEditor(): void {
+    const M = model();
+    const D = sceneDevices(M.rooms);
+    const d = drafts[editing!]; // the editor shows the open scene
+    const opts = (k: string): Array<[string, string]> =>
       k === 'cover'
         ? [
             ['keep', t('No change')],
@@ -1421,7 +1869,7 @@ export function createLook(ed, host0) {
             ['on', k === 'ac' ? t('Turn on (last mode)') : t('Turn on')],
             ['off', t('Turn off')],
           ];
-    const device = x =>
+    const device = (x: SceneDevice): string =>
       `<div class="scene-device"><label>${escape(x.name || x.id)}<select data-scene-device="${escape(x.key)}">${opts(
         x.kind,
       )
@@ -1447,7 +1895,7 @@ export function createLook(ed, host0) {
       <div class="scene-editor-actions"><button class="all-off primary" data-action="scene-save">${escape(t('Save'))}</button><button class="all-off" data-action="scene-cancel">${escape(t('Cancel'))}</button></div>
       <button class="scene-reset" data-action="scene-reset">${escape(t('Restore default actions'))}</button>`;
   }
-  function openScene(id) {
+  function openScene(id: string): void {
     if (!drafts[id]) drafts[id] = sceneDraft(id, sceneDevices(model().rooms), settings()[id]);
     editing = id;
     ed.view.setGlow?.([]);
@@ -1455,18 +1903,22 @@ export function createLook(ed, host0) {
     sceneEditor();
     $('.sidebar').scrollTop = 0;
   }
-  function closeEditor() {
+  function closeEditor(): void {
     editing = null;
     drafts = {};
     render();
     $('.sidebar').scrollTop = 0;
   }
   // the plan stores only actions (no “No change”); if they match the defaults — no setting, the scene follows the plan again
-  function saveScenes() {
-    const D = sceneDevices(model().rooms),
-      S = {...settings()};
+  function saveScenes(): void {
+    const D = sceneDevices(model().rooms);
+    const S = {...settings()};
     for (const [id, d] of Object.entries(drafts)) {
-      const keep = Object.fromEntries(Object.entries(d).filter(([, v]) => v.action !== 'keep'));
+      // without “No change”, what is left are the actions
+      const keep = Object.fromEntries(Object.entries(d).filter(([, v]) => v.action !== 'keep')) as Record<
+        string,
+        SceneSetting
+      >;
       if (JSON.stringify(d) === JSON.stringify(sceneDraft(id, D))) delete S[id];
       else S[id] = keep;
     }
@@ -1476,16 +1928,16 @@ export function createLook(ed, host0) {
     closeEditor();
   }
   // running: lights — plan lamps right away, curtains and air conditioners — via HA commands; the result shows under the buttons, stays a while and goes away
-  async function runScene(id) {
+  async function runScene(id: string): Promise<void> {
     if (busy || !SCENES.some(s => s.id === id)) return;
-    const out = $('.scene-result'),
-      steps = scenePlan(id, sceneDevices(model().rooms), settings()[id]);
+    const out = $('.scene-result');
+    const steps = scenePlan(id, sceneDevices(model().rooms), settings()[id]);
     busy = true;
     clearTimeout(resultT);
     out.textContent = t('Sending commands…');
     render();
     let lights = 0;
-    const r = await executeScene(steps, async s => {
+    const r = await executeScene(steps, async (s: SceneStep): Promise<boolean | undefined> => {
       if (s.kind === 'light') {
         const L = ed.plan.lights.find(x => x.id === s.id);
         if (!L) return false;
@@ -1518,15 +1970,17 @@ export function createLook(ed, host0) {
   }
 
   // ---------- room screen — as in 3d_floor/card.js (renderMetrics, renderAC, renderCoverTile, renderLightTile, renderExtras) ----------
-  const num = v => fmtNum(Math.round(v * 10) / 10, null, {grouping: 'auto'});
-  function metrics(r, M) {
-    const c = M.climate[r.id],
-      ent = {temperature: r.sens.t?.entity, humidity: r.sens.h?.entity, co2: r.sens.co2?.entity};
-    const card = key => {
-      if (c[key] == null) return '';
-      const spec = METRICS[key],
-        value = key === 'temperature' ? num(c[key]) : String(c[key]),
-        colour = metricColor(key, c[key]);
+  // the digits as is (num treats undefined as it did null: d == null)
+  const num = (v: number): string => fmtNum(Math.round(v * 10) / 10, undefined, {grouping: 'auto'});
+  function metrics(r: LookRoom, M: LookModel): string {
+    const c = M.climate[r.id];
+    const ent = {temperature: r.sens.t?.entity, humidity: r.sens.h?.entity, co2: r.sens.co2?.entity};
+    const card = (key: keyof ClimateNumbers): string => {
+      const measurement = c[key];
+      if (measurement == null) return '';
+      const spec = METRICS[key];
+      const value = key === 'temperature' ? num(measurement) : String(measurement);
+      const colour = metricColor(key, measurement);
       const path = sparkline(hist(ent[key]), {width: 160, height: 46, pad: 4, span: spec.span});
       return `<div class="metric-card ${key === 'co2' ? 'wide' : ''}" style="--metric:${colour}">
         <div class="metric-top"><span>${escape(t(spec.label))}</span>${icon(spec.icon)}</div>
@@ -1538,12 +1992,12 @@ export function createLook(ed, host0) {
     return `<section class="metrics" aria-label="${escape(t('Climate|indoor'))}: ${escape(r.short)}">${cards}</section>
       <p class="metrics-note">${escape(ed.ha?.demo ? t('Demo data · Home Assistant not connected') : t('Home Assistant sensors'))}</p>`;
   }
-  function acs(r) {
+  function acs(r: LookRoom): string {
     return r.climate
       .map(d => {
-        const a = d.a,
-          x = ed.ha.entity(d.id),
-          A = x?.attributes || {};
+        const a = d.a;
+        const x = ed.ha.entity(d.id);
+        const A = x?.attributes || {};
         return renderAC(
           {id: d.id, name: d.name},
           {
@@ -1569,19 +2023,21 @@ export function createLook(ed, host0) {
       })
       .join('');
   }
-  const coverStatus = c => {
+  const coverStatus = (c: RoomCover): string => {
     const v = c.blind;
     if (!c.ok) return t('Device unavailable');
     if (c.moving) return v ? t('Raising…') : t('Opening…|plural');
-    if (c.pos >= 99) return v ? t('Raised') : t('Open|plural');
-    if (c.pos <= 1) return v ? t('Lowered') : t('Closed|plural');
-    return t('{0} % open', Math.round(c.pos));
+    // an available cover has its position
+    if (c.pos! >= 99) return v ? t('Raised') : t('Open|plural');
+    if (c.pos! <= 1) return v ? t('Lowered') : t('Closed|plural');
+    return t('{0} % open', Math.round(c.pos!));
   };
-  function coverTile(c) {
-    const v = c.blind,
-      dis = !c.ok ? 'disabled' : '',
-      live = Math.round(c.pos);
-    const button = (command, title, symbol) =>
+  function coverTile(c: RoomCover): string {
+    const v = c.blind;
+    const dis = !c.ok ? 'disabled' : '';
+    // an unavailable cover has no position: NaN, as Math.round(undefined) was
+    const live = Math.round(Number(c.pos));
+    const button = (command: string, title: string, symbol: string): string =>
       `<button class="cover-btn" data-action="cover" data-id="${escape(c.entity)}" data-command="${command}" title="${escape(title)}" aria-label="${escape(c.name)}: ${escape(title.toLowerCase())}" ${dis}>${icon(symbol)}</button>`;
     return `<div class="tile wide cover-tile ${live > 1 ? 'on' : ''}" style="--tile-accent:rgb(var(--color-green,111,154,130))" data-id="${escape(c.entity)}">
       <div class="tile-head-row"><span class="tile-head"><span class="tile-chip">${icon(v ? 'blind' : 'curtain')}</span>
@@ -1591,21 +2047,21 @@ export function createLook(ed, host0) {
         <span class="bar-value">${live}%</span></div></div>`;
   }
   const lightTileOf = (
-    l,
-    r,
-  ) => `<button class="tile ${l.on ? 'on' : ''}" data-action="ltile-lamp" data-id="${escape(l.id)}" aria-pressed="${l.on}" aria-label="${escape(l.name)} — ${escape(r.short)}">
+    l: LookLamp,
+    r: LookRoom,
+  ): string => `<button class="tile ${l.on ? 'on' : ''}" data-action="ltile-lamp" data-id="${escape(l.id)}" aria-pressed="${l.on}" aria-label="${escape(l.name)} — ${escape(r.short)}">
       <span class="tile-chip">${icon(lampIcon(l.form))}</span><span class="tile-text"><strong>${escape(l.name)}</strong><small>${l.on ? t('On|entity') : t('Off|entity')}</small></span></button>`;
   // “More in the room”: window and door sensors and other area sensors (except service ones and those already shown as badges). They are
   // readings, not controls: rows of icon, name and value, with no button look and no hover (the owner: “sensors must not look like buttons”)
-  const reading = (ic, name, value, on = false) =>
+  const reading = (ic: string, name: string, value: string, on = false): string =>
     `<div class="reading${on ? ' on' : ''}" role="listitem"><span class="reading-ic">${icon(ic)}</span><span class="reading-name">${escape(name)}</span><span class="reading-value">${escape(value)}</span></div>`;
-  function extras(r) {
-    const used = new Set([r.sens.t?.entity, r.sens.h?.entity, r.sens.co2?.entity].filter(Boolean)),
-      areas = [
-        ed.plan.rooms.find(x => x.id === r.id)?.area,
-        ed.plan.rooms.find(x => x.id === r.id)?.zone?.area,
-      ].filter(Boolean),
-      C = ed.sensorCtx();
+  function extras(r: LookRoom): string {
+    const used = new Set([r.sens.t?.entity, r.sens.h?.entity, r.sens.co2?.entity].filter(Boolean));
+    const areas = [
+      ed.plan.rooms.find(x => x.id === r.id)?.area,
+      ed.plan.rooms.find(x => x.id === r.id)?.zone?.area,
+    ].filter(Boolean);
+    const C = ed.sensorCtx();
     const reads = C.sensors
       .filter(
         s =>
@@ -1616,9 +2072,10 @@ export function createLook(ed, host0) {
           (fitsAuto(s) || !isClimate(s)),
       )
       .map(s => {
-        const v = C.state(s.entity),
-          m = metricOf(s);
-        return reading(READ_IC[s.cls] || 'device', s.name, v == null ? '—' : m.text(v, s.unit));
+        const v = C.state(s.entity);
+        const m = metricOf(s);
+        // a sensor without a class reads no icon of its own
+        return reading(READ_IC[s.cls as string] || 'device', s.name, v == null ? '—' : m.text(v, s.unit));
       });
     const doors = r.dev.contacts.map(c =>
       reading(
@@ -1634,7 +2091,7 @@ export function createLook(ed, host0) {
       : '';
   }
   // room screen parts (ROOM_BUILTIN): an empty one is '' (it is not visible; in the settings — “Empty now”)
-  const roomParts = (r, M) => ({
+  const roomParts = (r: LookRoom, M: LookModel): Record<string, string> => ({
     climate: metrics(r, M),
     ac: acs(r),
     covers: r.covers.length ? `<div class="tiles">${r.covers.map(coverTile).join('')}</div>` : '',
@@ -1644,11 +2101,11 @@ export function createLook(ed, host0) {
     extras: extras(r),
   });
   // by the room layout (room.panel): order, removed parts, “Favorites” — with a caption and tiles, like “Lighting”
-  function roomPanel(M) {
+  function roomPanel(M: LookModel): string {
     const r = M.rooms.find(x => x.id === cur());
     if (!r) return '';
-    const P = roomParts(r, M),
-      all = favItems();
+    const P = roomParts(r, M);
+    const all = favItems();
     return layout(r.id)
       .map(c => {
         const html = !isFav(c)
@@ -1661,7 +2118,7 @@ export function createLook(ed, host0) {
       .join('');
   }
 
-  function strip(M) {
+  function strip(M: LookModel): void {
     $('.room-strip').innerHTML = M.rooms
       .map(
         r => `<button class="room-chip${cur() === r.id ? ' selected' : ''}" data-action="room" data-room="${escape(r.id)}" data-highlight="${escape(r.id)}" aria-pressed="${cur() === r.id}"
@@ -1669,9 +2126,9 @@ export function createLook(ed, host0) {
       )
       .join('');
     // day / night (D-068): the icon — what is shown now, “A” in the corner — auto; the tip on hover — how auto works
-    const n = ed.night?.(),
-      auto = ed.dayMode?.() === 'auto',
-      dn = t('Day / night') + ': ' + (auto ? t('Auto') : n ? t('Night') : t('Day'));
+    const n = ed.night?.();
+    const auto = ed.dayMode?.() === 'auto';
+    const dn = t('Day / night') + ': ' + (auto ? t('Auto') : n ? t('Night') : t('Day'));
     $('.view-controls').innerHTML =
       `<button class="icon-btn" data-action="home" title="${escape(t('Whole home'))}" aria-label="${escape(t('Whole home'))}">${icon('home')}</button><div class="divider"></div>
       <button class="icon-btn${auto ? ' dn-auto' : ''}" data-action="night"${tipWanted() ? '' : ` title="${escape(dn)}"`} aria-label="${escape(dn)}">${icon(n ? 'moon' : 'sun')}</button>`;
@@ -1679,7 +2136,7 @@ export function createLook(ed, host0) {
     dayNightTip(nb, nb.closest('.canvas-wrap') || nb.closest('.map-card'), 'right');
     nb.addEventListener('dn-tip-off', () => strip(M));
   }
-  function theme() {
+  function theme(): void {
     const dark = ed.themeName?.() === 'dark';
     host.classList.toggle('on-dark', dark);
     for (const [k, v] of Object.entries(DARK))
@@ -1687,12 +2144,12 @@ export function createLook(ed, host0) {
   }
   // level: overview — its sections; room — the “← Room ⚙” row (the gear is the room screen settings) and the room screen;
   // scene “Customize” — replaces the overview, with the “← Scene settings ⌂” row
-  function navigation(M) {
-    const level = nav.current.level === 'overview',
-      overview = level && !editing && !lay,
-      r = M.rooms.find(x => x.id === cur()),
-      dev = nav.current.level === 'device' && !editing,
-      stats = nav.current.level === 'stats' && !editing;
+  function navigation(M: LookModel): void {
+    const level = nav.current.level === 'overview';
+    const overview = level && !editing && !lay;
+    const r = M.rooms.find(x => x.id === cur());
+    const dev = nav.current.level === 'device' && !editing;
+    const stats = nav.current.level === 'stats' && !editing;
     $('.shell').dataset.level = nav.current.level;
     $('.panel-navigation').hidden = overview;
     $('.panel-path').textContent = lay
@@ -1715,8 +2172,8 @@ export function createLook(ed, host0) {
     $('.layout-editor').hidden = !lay;
     $('.layout-tray').hidden = !lay;
     for (const s of $$('.fav-panel')) s.hidden = !overview;
-    const gear = nav.current.level === 'room' && !lay && !editing,
-      end = $('[data-nav-end]');
+    const gear = nav.current.level === 'room' && !lay && !editing;
+    const end = $('[data-nav-end]');
     if (end.dataset.action !== (gear ? 'layout-edit' : 'home')) {
       const l = gear ? t('Customize panel') : t('Home overview');
       end.dataset.action = gear ? 'layout-edit' : 'home';
@@ -1727,17 +2184,17 @@ export function createLook(ed, host0) {
     $('.vacuum-panel').hidden = !(overview || dev);
   } // in the overview — robot rows, on the device screen — just that one
 
-  function render() {
+  function render(): void {
     if (!on) return;
-    const M = model(),
-      sb = $('.sidebar'),
-      y = sb.scrollTop,
-      active = root.activeElement,
-      refocus = active
-        ? ['action', 'id', 'room', 'step', 'key', 'command']
-            .map(k => (active.dataset?.[k] ? `[data-${k}="${CSS.escape(active.dataset[k])}"]` : ''))
-            .join('')
-        : null;
+    const M = model();
+    const sb = $('.sidebar');
+    const y = sb.scrollTop;
+    const active = root.activeElement as HTMLElement | null; // the panel's controls are HTML elements
+    const refocus = active
+      ? ['action', 'id', 'room', 'step', 'key', 'command']
+          .map(k => (active.dataset?.[k] ? `[data-${k}="${CSS.escape(active.dataset[k])}"]` : ''))
+          .join('')
+      : null;
     if (active?.matches?.('input[type=range],select')) return; // a slider is being dragged or a list is open — do not redraw under the user's hand
     syncLights();
     vac = vacOf(M);
@@ -1768,13 +2225,17 @@ export function createLook(ed, host0) {
     pins(M);
     strip(M);
     sb.scrollTop = y;
-    if (refocus) root.querySelector(refocus)?.focus({preventScroll: true});
+    if (refocus) root.querySelector<HTMLElement>(refocus)?.focus({preventScroll: true});
   }
 
   // ---------- actions ----------
-  const call = (domain, service, data) => ed.ha?.call?.(domain, service, data);
-  function turn(ids, v) {
-    const sent = new Set();
+  const call = (
+    domain: string,
+    service: string,
+    data?: Record<string, unknown>,
+  ): Promise<boolean> | undefined => ed.ha?.call?.(domain, service, data);
+  function turn(ids: string[], v: boolean): void {
+    const sent = new Set<string | undefined>();
     let local = false;
     for (const L of ed.plan.lights)
       if (ids.includes(L.id)) {
@@ -1788,7 +2249,7 @@ export function createLook(ed, host0) {
     render();
   }
   // a room — the room screen in the panel, the camera flies to it, an outline on the floor (like selectRoom in 3d_floor)
-  function selectRoom(id) {
+  function selectRoom(id: string): void {
     const r = ed.plan.rooms.find(x => x.id === id);
     if (!r) return;
     dragStop();
@@ -1802,7 +2263,7 @@ export function createLook(ed, host0) {
     render();
     $('.sidebar').scrollTop = 0;
   }
-  function goBack() {
+  function goBack(): void {
     const e = nav.back();
     ed.view.setOutline?.(cur());
     if (e?.camera) ed.view.flyTo?.(e.camera);
@@ -1810,7 +2271,7 @@ export function createLook(ed, host0) {
     render();
     $('.sidebar').scrollTop = 0;
   }
-  function goHome() {
+  function goHome(): void {
     editing = null;
     drafts = {};
     lay = null;
@@ -1821,33 +2282,38 @@ export function createLook(ed, host0) {
     $('.sidebar').scrollTop = 0;
   }
   // hovering in the overview (and on the room buttons at the bottom — always) — light rises from the floor of those rooms
-  const glowAt = (e, anywhere) => {
+  const glowAt = (e: PointerEvent, anywhere: boolean): void => {
     if (flashT) return;
-    const h = e.target.closest?.('[data-highlight]');
+    const h = (e.target as Element).closest?.<HTMLElement>('[data-highlight]');
     ed.view.setGlow?.(
       h && (anywhere || ['overview', 'stats'].includes(nav.current.level))
-        ? h.dataset.highlight.split(' ').filter(Boolean)
+        ? (h.dataset.highlight as string).split(' ').filter(Boolean) // the selector asks for it
         : [],
     );
   };
-  root.addEventListener('pointerover', e => {
+  onRoot('pointerover', e => {
     if (e.pointerType === 'touch') return;
-    glowAt(e, !!e.target.closest?.('.room-strip'));
+    glowAt(e, !!(e.target as Element).closest?.('.room-strip'));
   });
-  root.addEventListener('pointerout', e => {
-    if (!e.relatedTarget || !root.contains(e.relatedTarget)) {
+  onRoot('pointerout', e => {
+    if (!e.relatedTarget || !root.contains(e.relatedTarget as Node)) {
       if (!flashT) ed.view.setGlow?.([]);
     }
-    if (nav.current.level === 'stats' && !e.relatedTarget?.closest?.('.stats-view [data-chart]'))
+    if (
+      nav.current.level === 'stats' &&
+      !(e.relatedTarget as Element | null)?.closest?.('.stats-view [data-chart]')
+    )
       statsPointer(null);
   });
-  root.addEventListener('pointermove', e => {
-    if (nav.current.level === 'stats' && e.target.closest?.('.stats-view')) statsPointer(e);
+  onRoot('pointermove', e => {
+    if (nav.current.level === 'stats' && (e.target as Element).closest?.('.stats-view')) statsPointer(e);
   });
-  root.addEventListener('click', e => {
-    const b = e.target.closest('[data-action]');
+  onRoot('click', e => {
+    // the events here come from our elements; an element with an action is a button
+    const b = (e.target as Element).closest<HTMLButtonElement>('[data-action]');
     if (!b || b.disabled) return;
-    const {action: a, id, room} = b.dataset;
+    // each action's button carries the id or the room its action reads
+    const {action: a, id, room} = b.dataset as DOMStringMap & {id: string; room: string};
     if (a === 'room') selectRoom(room);
     else if (a === 'back') {
       if (lay) closeLayout();
@@ -1856,21 +2322,22 @@ export function createLook(ed, host0) {
     } else if (a === 'layout-edit') openLayout();
     else if (a === 'layout-save') saveLayout();
     else if (a === 'layout-cancel') closeLayout();
+    // the layout buttons show only while “Customize panel” is open (lay)
     else if (a === 'layout-reset') {
-      lay.cards = resolveLayout(null, lay.builtin);
+      lay!.cards = resolveLayout(null, lay!.builtin);
       layoutEditor();
     } else if (a === 'layout-remove') {
-      lay.cards = lay.cards.filter(c => c.id !== id);
+      lay!.cards = lay!.cards.filter(c => c.id !== id);
       layoutEditor();
     } else if (a === 'tile-remove') {
-      lay.cards = removeEntity(lay.cards, id, b.dataset.from);
+      lay!.cards = removeEntity(lay!.cards, id, b.dataset.from);
       layoutEditor();
     } else if (a === 'tray-add') {
-      lay.cards = [...lay.cards, id === 'entities' ? newFav(lay.cards, t('Favorites')) : {id}];
+      lay!.cards = [...lay!.cards, id === 'entities' ? newFav(lay!.cards, t('Favorites')) : {id}];
       layoutEditor();
       $('.sidebar').scrollTop = $('.sidebar').scrollHeight;
     } else if (a === 'tray-add-entity') {
-      lay.cards = addEntity(lay.cards, id, t('Favorites'));
+      lay!.cards = addEntity(lay!.cards, id, t('Favorites'));
       layoutEditor();
     } else if (a === 'fav') favPress(id, b);
     else if (a === 'scene-run') runScene(id);
@@ -1882,8 +2349,9 @@ export function createLook(ed, host0) {
     } else if (a === 'scene-tab') openScene(id);
     else if (a === 'scene-save') saveScenes();
     else if (a === 'scene-cancel') closeEditor();
+    // the reset button is in the open scene's editor
     else if (a === 'scene-reset') {
-      drafts[editing] = sceneDraft(editing, sceneDevices(model().rooms));
+      drafts[editing!] = sceneDraft(editing!, sceneDevices(model().rooms));
       sceneEditor();
     } else if (a === 'home') goHome();
     else if (a === 'night') {
@@ -1908,31 +2376,41 @@ export function createLook(ed, host0) {
       if (v.on && v.temp != null)
         call('climate', 'set_temperature', {
           entity_id: id,
-          temperature: Math.max(v.min, Math.min(v.max, v.temp + v.step * +b.dataset.step)),
+          // with a temperature acView gives its range and step; a step button has its direction
+          temperature: Math.max(v.min!, Math.min(v.max!, v.temp + v.step! * +(b.dataset.step as string))),
         });
     } else if (a === 'ac') {
-      const v = acView(ed.ha.entity(id)),
-        c = b.dataset.command;
+      const v = acView(ed.ha.entity(id));
+      const c = b.dataset.command;
       if (c === 'power') call('climate', v.on ? 'turn_off' : 'turn_on', {entity_id: id});
       else if (v.temp != null)
         call('climate', 'set_temperature', {
           entity_id: id,
-          temperature: Math.max(v.min, Math.min(v.max, v.temp + v.step * (c === 'increase' ? 1 : -1))),
+          // with a temperature acView gives its range and step
+          temperature: Math.max(v.min!, Math.min(v.max!, v.temp + v.step! * (c === 'increase' ? 1 : -1))),
         });
     } else if (a === 'covers-toggle') {
       const C =
-          model()
-            .rooms.find(x => x.id === room)
-            ?.covers.filter(c => c.ok) || [],
-        open = C.some(c => c.pos > 1);
+        model()
+          .rooms.find(x => x.id === room)
+          ?.covers.filter(c => c.ok) || [];
+      const open = C.some(c => c.pos! > 1); // an available cover has its position
       for (const c of C) call('cover', open ? 'close_cover' : 'open_cover', {entity_id: c.entity});
     } else if (a === 'cover')
-      call('cover', {open: 'open_cover', close: 'close_cover', stop: 'stop_cover'}[b.dataset.command], {
-        entity_id: id,
-      });
+      // a cover button's command is one of the three
+      call(
+        'cover',
+        {open: 'open_cover', close: 'close_cover', stop: 'stop_cover'}[
+          b.dataset.command as 'open' | 'close' | 'stop'
+        ],
+        {
+          entity_id: id,
+        },
+      );
     else if (a === 'water') waterPress(id);
     else if (a === 'vacuum-open') openVacuum(id);
-    else if (a === 'stats-open') openStats(b.dataset.section);
+    else if (a === 'stats-open')
+      openStats(b.dataset.section as string); // a statistics tile names its section
     else if (a === 'stats-section') {
       if (id !== st.section) {
         st.section = id;
@@ -1981,28 +2459,33 @@ export function createLook(ed, host0) {
     }
   });
   // curtain slider: the bar and percentage update right away, the command is sent on release
-  root.addEventListener('input', e => {
+  onRoot('input', e => {
     // “Favorites”: the title goes into the draft right away, search hides non-matching rows
-    if (lay && e.target.matches?.('[data-fav-title]')) {
-      const c = lay.cards.find(x => x.id === e.target.dataset.favTitle);
-      if (c) c.title = e.target.value;
+    // input comes from the fields of “Customize panel” and the curtain sliders
+    const field = e.target as HTMLInputElement;
+    if (lay && field.matches?.('[data-fav-title]')) {
+      const c = lay.cards.find(x => x.id === field.dataset.favTitle);
+      if (c) (c as FavCard).title = field.value; // a title field belongs to a “Favorites” card
       return;
     }
-    if (lay && e.target.matches?.('[data-tray-search]')) {
-      lay.q = e.target.value;
+    if (lay && field.matches?.('[data-tray-search]')) {
+      lay.q = field.value;
       filterTray();
       return;
     }
-    const i = e.target.closest?.('input[data-cover]');
+    const i = field.closest?.<HTMLInputElement>('input[data-cover]');
     if (!i) return;
-    const bar = i.closest('.bar');
+    const bar = i.closest('.bar') as HTMLElement; // a slider sits in its bar
     bar.style.setProperty('--level', i.value + '%');
-    bar.querySelector('.bar-value').textContent = i.value + '%';
+    find(bar, '.bar-value').textContent = i.value + '%';
   });
-  root.addEventListener('change', e => {
-    const i = e.target;
+  onRoot('change', e => {
+    // change comes from the scene and AC lists and the curtain sliders
+    const i = e.target as HTMLInputElement | HTMLSelectElement;
     if (i.matches?.('select[data-scene-device]')) {
-      if (editing) drafts[editing][i.dataset.sceneDevice] = {action: i.value};
+      // a scene list names its device and offers only the actions
+      if (editing)
+        drafts[editing][i.dataset.sceneDevice as string] = {action: i.value as SceneDraft[string]['action']};
     } else if (i.matches?.('input[data-cover]')) {
       call('cover', 'set_cover_position', {entity_id: i.dataset.cover, position: +i.value});
       i.blur();
@@ -2044,7 +2527,7 @@ export function createLook(ed, host0) {
       clearInterval(camT);
       clearTimeout(askT);
       ask = null;
-      root.querySelector('.camera-dialog')?.close();
+      root.querySelector<HTMLDialogElement>('.camera-dialog')?.close();
       clearTimeout(resultT);
       $('.scene-result').textContent = '';
       editing = null;
@@ -2082,9 +2565,9 @@ export function createLook(ed, host0) {
     // what covers the 3D: the glass panel on the right (landscape screen) or the panel below the model (narrow, portrait)
     insets() {
       if (!on) return {right: 0, bottom: 0};
-      const sb = $('.sidebar'),
-        map = $('.map-card'),
-        hr = host.getBoundingClientRect();
+      const sb = $('.sidebar');
+      const map = $('.map-card');
+      const hr = host.getBoundingClientRect();
       if (getComputedStyle(sb).position === 'absolute') return {right: sb.offsetWidth, bottom: 0};
       const mr = map.getBoundingClientRect();
       return {right: 0, bottom: Math.max(0, hr.bottom - mr.bottom)};
