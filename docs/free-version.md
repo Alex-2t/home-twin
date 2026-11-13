@@ -54,7 +54,7 @@ For the future card, D-015 provides a panel on the right: the apartment, weather
 
 ## Proposed structure of the HA package
 
-The current code is split into `editor/src/core/` and `editor/src/editor/`; the HA adapter must replace [`mockHA`](../editor/src/editor/ha.js). The following structure is a draft; these files are not in the repository yet:
+The current code is split into `editor/src/core/` and `editor/src/editor/`; the HA adapter must replace [`mockHA`](../editor/src/editor/ha.ts). The following structure is a draft; these files are not in the repository yet:
 
 ```text
 custom_components/home_twin/
