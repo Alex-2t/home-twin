@@ -475,7 +475,6 @@ export function createFlows(
   // Before replacement the plan and photo go into the backup slot; “Restore previous plan” (the ⌂ menu, start screen) swaps them —
   // it can be swapped back too. An empty plan and an untouched example are not saved: nothing to lose, and the real plan in the slot would be overwritten.
   const PREV = 'home-twin-editor:prev';
-  const same = (a: unknown, b: unknown): boolean => JSON.stringify(a) === JSON.stringify(b);
   const readPrev = (): PrevSlot | null => {
     try {
       // what putPrev wrote in this browser; not checked

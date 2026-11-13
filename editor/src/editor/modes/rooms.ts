@@ -404,18 +404,6 @@ export function roomsMode(ed: Editor): RoomsMode {
   // The “Link rooms” step: the wizard itself goes in order (top to bottom, left to right), highlights a room without a link and
   // asks for its area; a click on another room selects that one instead. Shafts and pieces smaller than 1 m² are not asked about.
   const linkable = (): Room[] => plan().rooms.filter(r => !r.solid && Math.abs(area(r.polygon)) >= SMALL);
-  const reading = (rs: Room[]): Room[] => {
-    const k = (r: Room): [number, number] => {
-      const ys = r.polygon.map(q => q[1]);
-      const xs = r.polygon.map(q => q[0]);
-      return [-Math.round(Math.max(...ys) * 2), Math.min(...xs)];
-    };
-    return [...rs].sort((a, b) => {
-      const ka = k(a);
-      const kb = k(b);
-      return ka[0] - kb[0] || ka[1] - kb[1];
-    });
-  };
   // The step cell is the whole room or a part of it, if it has two areas (a border without a wall, room.zone).
   const cells = (): RoomCell[] =>
     linkable().flatMap(r => {

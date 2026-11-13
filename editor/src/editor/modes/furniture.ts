@@ -1099,12 +1099,5 @@ export function furnitureMode(ed: Editor): FurnitureMode {
       {id: 'furniture', short: placing?.click ? t('Click the plan to place the item.') : undefined},
     );
   }
-  function toLights(): void {
-    ed.wizard.set(plan().id, {lights: true});
-    stepKey = null;
-    ed.step(null);
-    ed.modes.lights?.reset?.();
-    ed.setMode('lights');
-  }
   return m;
 }

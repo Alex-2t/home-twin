@@ -377,10 +377,6 @@ export function createApp({haLights, ha, photos}: AppOptions): Editor {
     ed.update();
     ed.mode.refresh?.();
     coach.acted();
-    if (step?.o?.open) {
-      step.o = {...step.o, open: false};
-      ed.banner();
-    }
   };
   // restoring a version is an edit: ⌘Z brings it back. Scene settings and the dashboard layout stay current (as with undo);
   // HA lamps — reconciled with the current list, the photo position — from that version, if the photo is the same

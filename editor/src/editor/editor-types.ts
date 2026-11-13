@@ -108,8 +108,6 @@ export interface StepOptions {
   fixed?: boolean;
   /** The card appears without its pop. */
   compact?: boolean;
-  /** Read by app.ts commit (the first edit re-shows the step); nothing sets it. */
-  open?: boolean;
 }
 
 /** A guided step's options (ed.step). */
@@ -489,8 +487,6 @@ export interface Editor {
   glass2d?: GlassRail[] | null;
   /** The readings on the walls; none before the first update. */
   spots?: PlacedSensor[];
-  /** draw.ts draws these rooms dashed; nothing sets it. */
-  ghost?: Room[];
 
   // ---------- Home Assistant ----------
   ha: HaLayer;

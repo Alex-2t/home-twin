@@ -452,16 +452,6 @@ export function drawPlan(ed: Editor): void {
         ed.mode.unnamedZone?.(r) || !r.zone?.area,
       );
   }
-  if (ed.ghost) {
-    ctx.strokeStyle = 'rgba(20,150,70,.9)';
-    ctx.lineWidth = 2;
-    ctx.setLineDash([6, 4]);
-    for (const r of ed.ghost) {
-      v.path(r.polygon);
-      ctx.stroke();
-    }
-    ctx.setLineDash([]);
-  }
   if (pill) drawPill(ctx, pill);
 }
 // A floor strip on the plan is 12 cm into the room and thinner, a ceiling one is at the wall: on the same wall they do not merge.

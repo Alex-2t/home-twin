@@ -305,8 +305,6 @@ export function devicesMode(ed: Editor): DevicesMode {
     const h = openingAt(e, d);
     return h ? {o: h.o, t: {opening: h.o.id}} : null;
   };
-  const hoverKey = (h: DeviceHover | null): string | null =>
-    h?.o?.id || (h?.wall && h.wall.room + ':' + h.wall.edge) || null;
   const hitAt = (e: Pick<PlanPointer, 'offsetX' | 'offsetY'>): DeviceBadge | undefined =>
     hits.find(h => Math.hypot(e.offsetX - h.X, e.offsetY - h.Y) <= 13);
   m.down = (e, p) => {

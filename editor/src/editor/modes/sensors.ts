@@ -121,7 +121,6 @@ interface PlateStack {
 export function sensorsMode(ed: Editor): SensorsMode {
   const m = {id: 'sensors'} as SensorsMode; // its members are set below, before app.ts calls any
   let drag: SensorDrag | null = null;
-  let placing = null;
   let hits: SensorHit[] = [];
   let all = false;
   let stepKey: string | null = null;
@@ -180,7 +179,6 @@ export function sensorsMode(ed: Editor): SensorsMode {
       if (!x.area && room.area && ed.ha.setArea) ed.ha.setArea(x.entity, room.area);
     } // like for a lamp: there was no area — write it to HA too
     sel().sensor = first!.id; // the loop ran for s at least
-    placing = null;
     askFor = null;
     ed.commit();
   }
@@ -653,7 +651,6 @@ export function sensorsMode(ed: Editor): SensorsMode {
   m.hits = () => hits; // for tests
   m.reset = () => {
     drag = null;
-    placing = null;
     stepKey = null;
     askFor = null;
   };

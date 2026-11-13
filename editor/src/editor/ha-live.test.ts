@@ -252,7 +252,6 @@ const memMark = <Value>(v: Value | null = null): UnsentMark<Value> & {v: Value |
     this.v = null;
   },
 });
-const tick = (ms = 5): Promise<unknown> => new Promise(r => setTimeout(r, ms));
 
 test('plan in HA: no connection — retried, the state is “offline”; the plan HA already has is not written again', async t => {
   t.mock.timers.enable({apis: ['setTimeout']});
