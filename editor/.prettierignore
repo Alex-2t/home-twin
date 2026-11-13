@@ -1,3 +1,5 @@
 src/gen/
 dist/
 node_modules/
+# The owner's local demo (gitignored, personal data): not formatted with the repo.
+demo/own*.ts
