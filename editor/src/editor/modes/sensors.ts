@@ -674,7 +674,7 @@ export function sensorsMode(ed: Editor): SensorsMode {
     const row = el(`<div class="line names"></div>`);
     for (const r of plan().rooms) {
       if (r.solid) continue;
-      const b = el(`<button class="chip">${esc(r.name)}</button>`);
+      const b = el(`<button class="chip">${esc(r.name ?? '')}</button>`);
       b.onclick = () => put(s, r, null, ks);
       row.append(b);
     }

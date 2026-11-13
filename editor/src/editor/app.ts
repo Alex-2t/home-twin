@@ -2191,13 +2191,14 @@ export function createApp({haLights, ha, photos}: AppOptions): Editor {
       [t('Got it'), () => ed.banner(), true],
     ]);
   };
-  // a plan without an id reads and keeps its steps under "undefined", as a key it becomes
+  // a plan without an id (one not migrated yet) has no steps kept: they would land under "undefined", shared by every such plan
   ed.wizard = {
-    get: id => ui.wiz?.[id as string] || null,
+    get: id => (id === undefined ? null : ui.wiz?.[id] || null),
     set: (id, v) => {
+      if (id === undefined) return;
       const w = {...(ui.wiz || {})};
-      delete w[id as string];
-      if (v) w[id as string] = v;
+      delete w[id];
+      if (v) w[id] = v;
       const ks = Object.keys(w);
       for (const k of ks.slice(0, Math.max(0, ks.length - 10))) delete w[k];
       ui.wiz = w;

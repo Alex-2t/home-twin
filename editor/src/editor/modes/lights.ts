@@ -1304,7 +1304,7 @@ export function lightsMode(ed: Editor): LightsMode {
       for (const r of plan().rooms) {
         if (r.solid) continue;
         const b = el(
-          `<button class="chip" title="${r.area ? t('Home Assistant area: “{0}”', esc(ed.areaName(r.area))) : t('Room has no HA area — saved here only')}">${esc(r.name)}</button>`,
+          `<button class="chip" title="${r.area ? t('Home Assistant area: “{0}”', esc(ed.areaName(r.area))) : t('Room has no HA area — saved here only')}">${esc(r.name ?? '')}</button>`,
         );
         b.onclick = () => {
           const s0 = snap(L);

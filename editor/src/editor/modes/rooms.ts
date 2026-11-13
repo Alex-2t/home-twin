@@ -1870,7 +1870,7 @@ export function roomsMode(ed: Editor): RoomsMode {
       const lamps = plan().lights.filter(l => l.placed && l.room === r.id).length;
       const row =
         el(`<div class="row room-row ${r.id === sel().room ? 'sel' : ''}" title="${t('Double-click to zoom in')}">
-        <i class="dot" style="background:${floorColor(r)}"></i><span class="name">${esc(r.name)}</span>
+        <i class="dot" style="background:${floorColor(r)}"></i><span class="name">${esc(r.name ?? '')}</span>
         <small class="ar">${r.solid ? t('solid') : fmtArea(area(r.polygon))}</small>
         <span class="meta">${lamps ? `<span class="lamps" title="${t('Lights in room: {0}', lamps)}">${icon('bulb', 13)}${lamps}</span>` : ''}${issues.length ? `<span class="wr" title="${esc(issues.join('; '))}">${icon('alert', 14)}</span>` : ''}</span>
         <span class="acts"><button class="ib" data-a="rename" title="${t('Rename')}">${icon('pencil', 14)}</button><button class="ib" data-a="del" title="${t('Delete')}">${icon('x', 14)}</button></span></div>`);
@@ -1902,7 +1902,7 @@ export function roomsMode(ed: Editor): RoomsMode {
       row.querySelector<HTMLElement>('[data-a=rename]')!.onclick = e => {
         e.stopPropagation();
         const nm = row.querySelector('.name')!;
-        const inp = el<HTMLInputElement>(`<input class="rename" value="${esc(r.name)}">`);
+        const inp = el<HTMLInputElement>(`<input class="rename" value="${esc(r.name ?? '')}">`);
         nm.replaceWith(inp);
         inp.focus();
         inp.select();
@@ -2185,15 +2185,17 @@ export function roomsMode(ed: Editor): RoomsMode {
       return;
     }
     const line = el(`<div class="line"></div>`);
+    // a room from an older file may have no name: the field is empty then
+    const ownName = r.name ?? '';
     const name = r.area
-      ? el(`<b class="title" title="${t('Name from Home Assistant')}">${esc(r.name)}</b>`)
-      : el(`<input class="title" value="${esc(r.name)}" title="${t('Name')}">`);
+      ? el(`<b class="title" title="${t('Name from Home Assistant')}">${esc(ownName)}</b>`)
+      : el(`<input class="title" value="${esc(ownName)}" title="${t('Name')}">`);
     if (!r.area) {
       // without an area the name is an input
       name.onchange = () => {
         const v = (name as HTMLInputElement).value.trim();
         if (v) r.name = v;
-        else (name as HTMLInputElement).value = r.name as string; // a room from an older file may have no name
+        else (name as HTMLInputElement).value = ownName;
         ed.commit();
       };
       name.onkeydown = e => {
@@ -2355,8 +2357,10 @@ export function roomsMode(ed: Editor): RoomsMode {
       foot.append(sk);
     } else if (r.area) {
       const un = el(`<button class="soft">${t('Unlink')}</button>`);
+      const area = r.area;
       un.onclick = () => {
-        setRoomArea(plan(), r, null, r.name as string); // a room from an older file may have no name
+        // a linked room's name is its area's; one from an older file may have none yet: it keeps the area's name
+        setRoomArea(plan(), r, null, r.name ?? ed.areaName(area));
         roomLink = null;
         ed.commit();
       };

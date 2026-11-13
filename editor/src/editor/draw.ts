@@ -442,8 +442,8 @@ export function drawPlan(ed: Editor): void {
       );
       continue;
     }
-    // a room without a name (older files) shows "undefined", as the canvas writes a missing text
-    label(zp ? zp.main : r.polygon, String(r.name), ed.mode.unnamed?.(r));
+    // a room from an older file may have no name: no label then, only its area
+    label(zp ? zp.main : r.polygon, r.name ?? '', ed.mode.unnamed?.(r));
     // zp is there only with a zone
     if (zp)
       label(

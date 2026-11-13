@@ -60,8 +60,8 @@ export function ask(
   const isLen = type === 'len';
   inp.type = isLen ? 'text' : type;
   inp.inputMode = isLen ? 'decimal' : '';
-  // As the field itself converts it: a number to its digits, undefined to "undefined".
-  inp.value = String(value);
+  // a number shows its digits; no value (a room from an older file has no name) leaves the field empty
+  inp.value = value === undefined ? '' : String(value);
   hint.hidden = true;
   Object.assign(box.style, {left: x + 'px', top: y + 'px', display: 'flex'});
   inp.focus({preventScroll: true});
