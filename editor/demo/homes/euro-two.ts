@@ -1,4 +1,3 @@
-// @ts-nocheck
 // Typical home 3 (docs/research/typical-homes.md, D-030): a “euro two-room” apartment in a new building, about 57 m² — a kitchen-living room
 // with an island and bar stools and a balcony, a bedroom with a built-in wardrobe, a bathroom, a laundry niche off the hallway.
 // Design concept (made up, nobody's home): urban modern. Graphite kitchen fronts under a marble backsplash, a fluted light-oak wall,
@@ -10,13 +9,23 @@
 // The overview looks from the north-east (DEMO.view): the kitchen run, the island, the fluted wall and the bedroom's navy wall face the
 // camera, the balcony is in front (from the default south-east angle the bathroom and the hallway hid the kitchen).
 import {door, win, F, haLight, sensorKit, deviceKit, stats, WEATHER, worktop} from '../kit.ts';
+import type {
+  DemoHomeSource,
+  DemoLight,
+  DemoPlan,
+  DemoPlanLight,
+  DemoRoom,
+  RoomFinish,
+  Style,
+} from '../kit.ts';
+import type {DemoHaData, FurnitureItem, LooseOpening} from '../../src/core/types.ts';
 
-const FV = (v, ...a) => ({...F(...a), v}); // an item in a catalog variant
-const Z = (z, f) => ({...f, z}); // an item at its own height above the floor
+const FV = (v: string, ...a: Parameters<typeof F>): FurnitureItem => ({...F(...a), v}); // an item in a catalog variant
+const Z = (z: number, f: FurnitureItem): FurnitureItem => ({...f, z}); // an item at its own height above the floor
 
 // The kitchen-living room is one room and one HA area (two areas in one room — a zone — are not covered by homes.test.js yet).
 // Interior doors sit 1 mm towards the room they open into (the kitchen-living room, the bedroom; the bathroom door opens into the hallway).
-const ROOMS = [
+const ROOMS: DemoRoom[] = [
   {
     id: 'living',
     short: 'Kitchen-living room',
@@ -84,7 +93,7 @@ const ROOMS = [
 // microcement behind the TV, the laundry niche continues the hallway (microcement, porcelain), the balcony gets grey decking,
 // the wall behind the bathtub navy zellige (edge 0 is the south wall)
 const NAVY = '#3e4b60';
-const FINISH = {
+const FINISH: Partial<Record<string, RoomFinish>> = {
   living: {wf: [null, {k: 'microcement', tint: '#c6c0b7'}, null, {k: 'flutedOak'}]},
   laundry: {wall: 'microcement', wallTint: '#c3bdb4', floor: 'stone'},
   balcony: {floor: 'woodGrey'},
@@ -92,7 +101,7 @@ const FINISH = {
 };
 // the style: microcement and warm grey plaster, the fluted oak media wall, a navy plaster headboard wall, marble behind the kitchen,
 // light oak floors, porcelain in the hallway, graphite tile in the bathroom
-const STYLE = {
+const STYLE: Style = {
   wall: {
     living: {k: 'microcement', tint: '#c6c0b7'},
     bed: {k: 'plaster', tint: '#b7b2a9'},
@@ -118,7 +127,7 @@ const STYLE = {
   },
 };
 
-const OPENINGS = [
+const OPENINGS: LooseOpening[] = [
   door([3.5, 0], [4.4, 0]), // front door
   door([3.65, 3.351], [4.45, 3.351]), // hallway ↔ kitchen-living room
   door([4.9, 3.351], [5.7, 3.351]), // hallway ↔ bedroom
@@ -132,7 +141,7 @@ const OPENINGS = [
   win([0.4, 9.15], [0.4, 10.15], 0.9, 2.45), // west side glazing; the east side is a solid wall next to the neighbours' balcony
 ];
 
-const FURNITURE = [
+const FURNITURE: FurnitureItem[] = [
   // kitchen along the south wall, backing onto the bathroom: a graphite tall unit with the integrated fridge-freezer, a base unit with the
   // coffee machine under a tall wall cabinet, the cooktop with an oven under a black chimney hood, a base unit, the sink, the dishwasher;
   // two open oak shelves with a vase, a bowl and cookbooks instead of wall cabinets over the sink side
@@ -235,7 +244,7 @@ const FURNITURE = [
 
 worktop(FURNITURE, 'white'); // the kitchen's worktop: white quartz
 
-const LIGHTS = [
+const LIGHTS: DemoLight[] = [
   {id: 'living_track', name: 'Living room track', room: 'living', kind: 'ceiling'},
   {id: 'living_floor', name: 'Floor lamp', room: 'living', kind: 'accent'},
   {id: 'living_side', name: 'Side table lamp', room: 'living', kind: 'accent'},
@@ -257,7 +266,7 @@ const LIGHTS = [
 // every lamp is placed: the track over the lounge, the floor lamp and the table lamps on their furniture (a table lamp's bulb is 42 cm
 // above the top it stands on), the cove over the fluted wall, the backlight behind the TV, pendants over the island, a sconce on the
 // balcony between its door and window (its one solid wall keeps the balcony thermometer)
-const PLACED = [
+const PLACED: DemoPlanLight[] = [
   {
     id: 'living_track',
     placed: true,
@@ -405,12 +414,15 @@ const PLACED = [
   {id: 'balcony_wall', placed: true, room: 'balcony', form: 'wall', h: 2, points: [[1.5, 9.1]]},
 ];
 
-export default async function () {
-  const HA = {areas: Object.fromEntries(ROOMS.map(r => [r.id, r.short])), lights: LIGHTS.map(haLight)};
+export default async function (): Promise<DemoHomeSource> {
+  const HA: DemoHaData = {
+    areas: Object.fromEntries(ROOMS.map(r => [r.id, r.short])),
+    lights: LIGHTS.map(haLight),
+  };
   // Sensors: room air in the kitchen-living room (its area is set to the air monitor; the second sensor is by the cooktop), the bedroom
   // (CO₂ is high after the night) and the bathroom; a thermometer on the glazed balcony; diagnostic ones; energy meters
-  const S = sensorKit(),
-    add = S.add;
+  const S = sensorKit();
+  const add = S.add;
   add('living', 'living_air', 'Living room sensor Temperature', 'temperature', '°C', 22.2);
   add('living', 'living_air', 'Living room sensor Humidity', 'humidity', '%', 43);
   add('living', 'living_air', 'Living room sensor CO2', 'carbon_dioxide', 'ppm', 860);
@@ -474,7 +486,7 @@ export default async function () {
     'camera.doorbell': {hours: 0.2, drops: 2},
   });
   HA.weather = WEATHER;
-  const DEMO = {
+  const DEMO: DemoPlan = {
     version: 1,
     units: 'm',
     rooms: ROOMS.map(r => ({id: r.id, name: r.short, polygon: r.polygon, ...FINISH[r.id]})),

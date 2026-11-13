@@ -1,4 +1,3 @@
-// @ts-nocheck
 // Typical home 4 (docs/research/typical-homes.md, D-030): an old-type two-room apartment in a panel building, about 51 m² —
 // living room with a balcony, bedroom, small kitchen with a gas stove and a gas water heater, separate bathroom (bathtub) and toilet,
 // hallway with a corridor. Made up: nobody's apartment. Metres, x east, y north, 10 cm interior walls; the editor adds the exterior walls.
@@ -9,16 +8,18 @@
 // The small kitchen keeps its gas water heater between open oak shelves and gets a round table by the window; the balcony is a tiny café.
 // The wall face is 5 cm inside a room's outline, so items stand with their backs 5 cm in.
 import {door, win, F, haLight, sensorKit, deviceKit, stats, WEATHER, worktop} from '../kit.ts';
+import type {DemoHomeSource, DemoLight, DemoPlan, DemoPlanLight, DemoRoom, Style} from '../kit.ts';
+import type {DemoHaData, EdgeFinish, FurnitureItem, LooseOpening} from '../../src/core/types.ts';
 
-const FV = (v, ...a) => ({...F(...a), v}); // an item in a catalog variant
-const Z = (z, f) => ({...f, z}); // an item at its own height above the floor: on furniture or on a wall
-const OUT = o => ({...o, swing: 2}); // the door opens out of its room: bathroom, toilet and front doors here open outward
+const FV = (v: string, ...a: Parameters<typeof F>): FurnitureItem => ({...F(...a), v}); // an item in a catalog variant
+const Z = (z: number, f: FurnitureItem): FurnitureItem => ({...f, z}); // an item at its own height above the floor: on furniture or on a wall
+const OUT = (o: LooseOpening): LooseOpening => ({...o, swing: 2}); // the door opens out of its room: bathroom, toilet and front doors here open outward
 
 // finishes: soft white limewash, the accents in blue (dress() in kit.ts fills what a room does not set itself)
-const LIME = '#d0cfc9',
-  NAVY = '#3e4b60';
-const lime = t => ({k: 'plasterLime', tint: t});
-const STYLE = {
+const LIME = '#d0cfc9';
+const NAVY = '#3e4b60';
+const lime = (t: string): EdgeFinish => ({k: 'plasterLime', tint: t});
+const STYLE: Style = {
   wall: {
     living: lime(LIME),
     bed: lime('#cdccc6'),
@@ -46,7 +47,7 @@ const STYLE = {
 
 // room finishes set here: the living room's sofa wall in dusty blue limewash (the TV wall stays white), navy subway tile behind the bathtub,
 // a blue striped wallpaper in the toilet, terracotta tiles on the balcony
-const ROOMS = [
+const ROOMS: DemoRoom[] = [
   {
     id: 'living',
     short: 'Living room',
@@ -125,7 +126,7 @@ const ROOMS = [
   },
 ];
 
-const OPENINGS = [
+const OPENINGS: LooseOpening[] = [
   OUT(door([6.5, 6.8], [7.4, 6.8])), // front door, opens onto the stairwell
   door([3.35, 4.05], [4.15, 4.05]), // corridor ↔ living room
   door([4.8, 4.05], [5.6, 4.05]), // corridor ↔ bedroom
@@ -141,7 +142,7 @@ const OPENINGS = [
   win([3.8, -1.15], [3.8, -0.35], 0.9, 2.45),
 ];
 
-const FURNITURE = [
+const FURNITURE: FurnitureItem[] = [
   // living room: a linen sofa against the dusty blue west wall under a small gallery of three prints, a round oak coffee table on a grey wool rug,
   // a black side table with a lamp; white bookshelves on the north wall and a navy reading chair with a floor lamp in the corner by the door;
   // the TV wall opposite the sofa (oak bench, TV, soundbar, the air conditioner above), a fig tree and a monstera in terracotta pots,
@@ -265,7 +266,7 @@ const FURNITURE = [
 
 worktop(FURNITURE, 'white'); // the kitchen's worktop: white quartz
 
-const LIGHTS = [
+const LIGHTS: DemoLight[] = [
   {id: 'hall_spots', name: 'Hallway spots', room: 'hall', kind: 'ceiling'},
   {id: 'hall_mirror', name: 'Hall mirror light', room: 'hall', kind: 'accent'},
   {id: 'living_main', name: 'Living room ceiling light', room: 'living', kind: 'ceiling'},
@@ -288,7 +289,7 @@ const LIGHTS = [
 ];
 // every lamp placed: floor and table lamps on their furniture (a table lamp's point is its bulb, 42 cm above the top it stands on),
 // sconces 13 cm off the wall line, the cove along the blue sofa wall, the TV backlight under the TV, the worktop strip under the open shelves
-const PLACED = [
+const PLACED: DemoPlanLight[] = [
   {
     id: 'hall_spots',
     placed: true,
@@ -435,11 +436,14 @@ const PLACED = [
   },
 ];
 
-export default async function () {
-  const HA = {areas: Object.fromEntries(ROOMS.map(r => [r.id, r.short])), lights: LIGHTS.map(haLight)};
+export default async function (): Promise<DemoHomeSource> {
+  const HA: DemoHaData = {
+    areas: Object.fromEntries(ROOMS.map(r => [r.id, r.short])),
+    lights: LIGHTS.map(haLight),
+  };
   // Sensors: climate in the living room, bedroom (with CO2), kitchen and bathroom; the water heater outlet is not room air; energy meters
-  const S = sensorKit(),
-    add = S.add;
+  const S = sensorKit();
+  const add = S.add;
   add('living', 'living_th', 'Living room sensor Temperature', 'temperature', '°C', 22.4);
   add('living', 'living_th', 'Living room sensor Humidity', 'humidity', '%', 41);
   add('bedroom', 'bedroom_air', 'Bedroom sensor Temperature', 'temperature', '°C', 21.2);
@@ -485,7 +489,7 @@ export default async function () {
     'vacuum.robot': {hours: 0.5, drops: 2},
   });
   HA.weather = WEATHER;
-  const DEMO = {
+  const DEMO: DemoPlan = {
     version: 1,
     units: 'm',
     rooms: ROOMS.map(r => ({

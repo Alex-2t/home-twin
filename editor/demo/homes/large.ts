@@ -1,4 +1,3 @@
-// @ts-nocheck
 // Typical home 6 (docs/research/typical-homes.md, D-030): a large apartment in a new building, about 111 m² — kitchen-living room
 // (one room, two HA areas: a kitchen zone with an island and the living room), bedroom with a walk-in closet and its own bathroom
 // (double sink), two kids' rooms, guest bathroom, laundry room with a washer and dryer stack, hallway, balcony.
@@ -11,12 +10,22 @@
 // The kids' rooms differ: a warm one in oak, white and terracotta for the younger child, a navy and walnut one for the teenager.
 // Made up: nobody's apartment. Metres, x east, y north, 10 cm interior walls; the editor adds the exterior walls.
 import {door, win, F, haLight, sensorKit, deviceKit, stats, WEATHER, worktop} from '../kit.ts';
+import type {
+  DemoHomeSource,
+  DemoLight,
+  DemoPlan,
+  DemoPlanLight,
+  DemoRoom,
+  RoomFinish,
+  Style,
+} from '../kit.ts';
+import type {DemoHaData, FurnitureItem, HomeView, LooseOpening} from '../../src/core/types.ts';
 
-const FV = (v, ...a) => ({...F(...a), v}); // an item in a catalog variant
-const Z = (z, f) => ({...f, z}); // an item at its own height above the floor (on furniture, on a shelf, on the wall)
+const FV = (v: string, ...a: Parameters<typeof F>): FurnitureItem => ({...F(...a), v}); // an item in a catalog variant
+const Z = (z: number, f: FurnitureItem): FurnitureItem => ({...f, z}); // an item at its own height above the floor (on furniture, on a shelf, on the wall)
 
 // the kitchen-living room is one room; its west part, up to x = 3.4, is the kitchen area (room.zone: left of a→b)
-const ROOMS = [
+const ROOMS: DemoRoom[] = [
   {
     id: 'living',
     short: 'Kitchen-living room',
@@ -121,7 +130,7 @@ const ROOMS = [
     ],
   },
 ];
-const HA_AREAS = {
+const HA_AREAS: Record<string, string> = {
   ...Object.fromEntries(ROOMS.map(r => [r.id, r.short])),
   living: 'Living room',
   kitchen: 'Kitchen',
@@ -129,7 +138,7 @@ const HA_AREAS = {
 // Finishes the rooms set themselves (dress() fills the rest from STYLE): the great room's north wall (edge 2, behind the banquette) in charcoal
 // plaster; the style then puts marble behind the kitchen and walnut slats behind the TV. The younger child's bed wall (east) in clay plaster,
 // the teenager's desk wall in navy; a microcement guest bathroom; decking on the balcony.
-const FINISH = {
+const FINISH: Partial<Record<string, RoomFinish>> = {
   living: {wf: [null, null, {k: 'plasterCharcoal'}, null]},
   kids1: {
     wall: 'plasterLime',
@@ -149,7 +158,7 @@ const FINISH = {
   laundry: {wall: 'paintGrey', floor: 'tileGraphite'},
   balcony: {floor: 'woodGrey'},
 };
-const STYLE = {
+const STYLE: Style = {
   wall: {
     living: {k: 'plaster', tint: '#b4ada3'},
     bed: {k: 'plaster', tint: '#aaa49b'},
@@ -177,9 +186,9 @@ const STYLE = {
 
 // The home view looks from the south-west: from the default south-east angle the balcony's wall hides the lounge; from here the media wall,
 // the lounge, the dining wall and the island face the camera, and the bedroom shows past the media wall
-const VIEW = {t: [5.707, 1.08, -4.399], theta: -0.576, phi: 0.8029, fit: [8.257, 5.546]};
+const VIEW: HomeView = {t: [5.707, 1.08, -4.399], theta: -0.576, phi: 0.8029, fit: [8.257, 5.546]};
 
-const OPENINGS = [
+const OPENINGS: LooseOpening[] = [
   door([4.5, 9.9], [5.4, 9.9]), // front door
   door([6.2, 4.85], [7.4, 4.85]), // hallway ↔ kitchen-living room, glazed double door (no leaf drawn)
   door([7.75, 4.85], [8.55, 4.85]), // hallway ↔ bedroom
@@ -202,7 +211,7 @@ const OPENINGS = [
   win([7.4, -1.3], [7.4, -0.35], 0.9, 2.45), // balcony glazing
 ];
 
-const FURNITURE = [
+const FURNITURE: FurnitureItem[] = [
   // kitchen zone: a graphite run along the marble west wall (base, cooktop with an oven under a black dome hood, base with the coffee machine,
   // double sink, dishwasher, a steel French-door fridge), graphite wall cabinets over the sink, open walnut shelves by the hood; a walnut island
   // with three black stools, a fruit bowl and eucalyptus; a walnut glass cabinet on the charcoal wall; a roller blind and a graphite radiator
@@ -393,7 +402,7 @@ const FURNITURE = [
 
 worktop(FURNITURE, 'white'); // the kitchen's worktop: white quartz
 
-const LIGHTS = [
+const LIGHTS: DemoLight[] = [
   {id: 'hall_spots', name: 'Hallway spots', room: 'hall', kind: 'ceiling'},
   {id: 'hall_console', name: 'Console table lamp', room: 'hall', kind: 'accent'},
   {id: 'living_track', name: 'Living room track', room: 'living', kind: 'ceiling'},
@@ -424,7 +433,7 @@ const LIGHTS = [
 ];
 // every lamp is placed: by day the floor, table, desk and bedside lamps and the strips (worktop, TV backlight, cove) are on,
 // the ceiling lights, pendants, spots, the picture and mirror lights and the night light are off
-const PLACED = [
+const PLACED: DemoPlanLight[] = [
   {
     id: 'hall_spots',
     placed: true,
@@ -644,12 +653,12 @@ const PLACED = [
   {id: 'balcony_main', placed: true, room: 'balcony', form: 'wall', h: 1.9, points: [[5.6, -0.28]]},
 ];
 
-export default async function () {
-  const HA = {areas: HA_AREAS, lights: LIGHTS.map(haLight)};
+export default async function (): Promise<DemoHomeSource> {
+  const HA: DemoHaData = {areas: HA_AREAS, lights: LIGHTS.map(haLight)};
   // Sensors: climate in every living area (the kitchen zone too), CO2 in the living room, bedroom and second kids' room; bathroom and laundry
   // humidity; diagnostic ones (battery, the network cabinet's CPU); the fridge is not room air; energy meters
-  const S = sensorKit(),
-    add = S.add;
+  const S = sensorKit();
+  const add = S.add;
   add('living', 'living_air', 'Living room air Temperature', 'temperature', '°C', 22.3);
   add('living', 'living_air', 'Living room air Humidity', 'humidity', '%', 43);
   add('living', 'living_air', 'Living room air CO2', 'carbon_dioxide', 'ppm', 720);
@@ -715,7 +724,7 @@ export default async function () {
     'binary_sensor.leak_master_bath': {hours: 1.5, drops: 1},
   });
   HA.weather = WEATHER;
-  const DEMO = {
+  const DEMO: DemoPlan = {
     version: 1,
     units: 'm',
     view: VIEW,

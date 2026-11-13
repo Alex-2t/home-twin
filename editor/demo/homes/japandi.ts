@@ -1,4 +1,3 @@
-// @ts-nocheck
 // Example home 13 (D-062): a Japandi apartment, about 86 m², one floor. Light oak, linen and sand, sage and a few black accents,
 // low furniture and many plants. Living room with the dining area by a wide opening to the kitchen, a reading corner by the window;
 // bedroom with a low platform bed; a small study with the desk at the window; bathroom with a freestanding tub and a walk-in shower;
@@ -8,8 +7,10 @@
 // The default 3D view looks from the south-east: the living room and the bedroom sit on the south side, their feature walls
 // (the slatted media wall, the headboard wall) face the camera, and the kitchen shows through the wide opening.
 import {door, win, F, haLight, sensorKit, deviceKit, stats, WEATHER, worktop} from '../kit.ts';
+import type {DemoHomeSource, DemoLight, DemoPlan, DemoPlanLight, DemoRoom} from '../kit.ts';
+import type {DemoHaData, FurnitureItem, LooseOpening, Point} from '../../src/core/types.ts';
 
-const ROOMS = [
+const ROOMS: DemoRoom[] = [
   {
     id: 'living',
     short: 'Living room',
@@ -72,8 +73,8 @@ const ROOMS = [
   },
 ];
 
-const open = (a, b, top = 2.1) => ({...door(a, b, top), leaf: false}); // a doorway with no leaf
-const OPENINGS = [
+const open = (a: Point, b: Point, top = 2.1): LooseOpening => ({...door(a, b, top), leaf: false}); // a doorway with no leaf
+const OPENINGS: LooseOpening[] = [
   door([3.45, 8], [4.35, 8]), // front door, from the stair landing on the north
   door([2.95, 4.44], [3.75, 4.44]), // hall ↔ bedroom, opens into the bedroom
   open([4.15, 4.44], [4.95, 4.44]), // hall ↔ living room, a doorway
@@ -89,10 +90,10 @@ const OPENINGS = [
   win([5.85, 8], [7.05, 8], 1.15, 2.1), // bathroom, above the bathtub
 ];
 
-const FV = (v, ...a) => ({...F(...a), v}); // an item in a catalog variant
-const FZ = (z, ...a) => ({...F(...a), z}); // an item standing or hung at height z
-const FVZ = (v, z, ...a) => ({...F(...a), v, z});
-const FURNITURE = [
+const FV = (v: string, ...a: Parameters<typeof F>): FurnitureItem => ({...F(...a), v}); // an item in a catalog variant
+const FZ = (z: number, ...a: Parameters<typeof F>): FurnitureItem => ({...F(...a), z}); // an item standing or hung at height z
+const FVZ = (v: string, z: number, ...a: Parameters<typeof F>): FurnitureItem => ({...F(...a), v, z});
+const FURNITURE: FurnitureItem[] = [
   // living room, lounge: a low oak media bench with the TV and books on the west wall (the slatted media wall), a low linen sofa facing it,
   // a round coffee table with candles on a sand rug, a white pouf and a graphite floor cushion, a black side table, a fig tree by the bench
   F('l1', 'tvStand', 4.35, 2, 90, 2.2, 0.4, 0.42, 'oak'),
@@ -213,7 +214,7 @@ const FURNITURE = [
 
 worktop(FURNITURE, 'white'); // the kitchen's worktop: white quartz
 
-const LIGHTS = [
+const LIGHTS: DemoLight[] = [
   {id: 'living_pendant', name: 'Paper pendant', room: 'living', kind: 'ceiling'},
   {id: 'living_dining', name: 'Dining pendant', room: 'living', kind: 'ceiling', color: '#ffc773'},
   {id: 'living_cove', name: 'Media wall cove', room: 'living', kind: 'cove'},
@@ -237,7 +238,7 @@ const LIGHTS = [
 // the cove over the media wall, the reading, side table and bedside lamps on their furniture, the desk lamp, spots and ceiling lights,
 // the strips under the kitchen shelves, along the plinth and under the bed, the two mirror lights.
 // (A plain “sconce” in the hall would go to the longest free stretch of wall, which is behind the wardrobe: auto-placement does not look at furniture there.)
-const PLACED = [
+const PLACED: DemoPlanLight[] = [
   {id: 'living_pendant', placed: true, room: 'living', form: 'pendant', h: 1.95, points: [[6.05, 2]]},
   {
     id: 'living_dining',
@@ -395,12 +396,15 @@ const PLACED = [
   {id: 'bathroom_mirror', placed: true, room: 'bathroom', form: 'wall', h: 1.93, points: [[7.67, 6.25]]},
 ];
 
-export default async function () {
-  const HA = {areas: Object.fromEntries(ROOMS.map(r => [r.id, r.short])), lights: LIGHTS.map(haLight)};
+export default async function (): Promise<DemoHomeSource> {
+  const HA: DemoHaData = {
+    areas: Object.fromEntries(ROOMS.map(r => [r.id, r.short])),
+    lights: LIGHTS.map(haLight),
+  };
   // Sensors: an air monitor in the living room (its area is set to it), climate in the bedroom (CO2 high after the night), the study,
   // the kitchen and the bathroom; the fridge is not room air; diagnostic ones (battery, router); energy meters
-  const S = sensorKit(),
-    add = S.add;
+  const S = sensorKit();
+  const add = S.add;
   add('living', 'living_air', 'Living room air Temperature', 'temperature', '°C', 22);
   add('living', 'living_air', 'Living room air Humidity', 'humidity', '%', 46);
   add('living', 'living_air', 'Living room air CO2', 'carbon_dioxide', 'ppm', 740);
@@ -472,7 +476,7 @@ export default async function () {
     'sensor.study_th_temperature': {hours: 0.1, drops: 1},
   });
   HA.weather = WEATHER;
-  const DEMO = {
+  const DEMO: DemoPlan = {
     version: 1,
     units: 'm',
     rooms: ROOMS.map(r => ({id: r.id, name: r.short, polygon: r.polygon})),

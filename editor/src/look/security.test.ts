@@ -1,4 +1,3 @@
-// @ts-nocheck
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {
@@ -11,15 +10,26 @@ import {
   LOW_BATTERY,
 } from './security.ts';
 import {activeChips} from './overview.ts';
+import type {SecurityHa, SecurityRoom} from './security.ts';
+import type {HaDevice, HassEntityState} from '../core/types.ts';
+
+/** A device as the tests give it: the rules read no more than this. */
+type TestDevice = Pick<HaDevice, 'entity' | 'domain'> & Partial<HaDevice>;
+/** An entity's state as the tests give it. */
+type TestState = Pick<HassEntityState, 'state'> & Partial<HassEntityState>;
 
 // HA layer as in mockHA: devices() and entity(e)
-const ha = (devices, entities = {}) => ({devices: () => devices, entity: e => entities[e] || null});
-const ROOMS = {
+const ha = (devices: TestDevice[], entities: Partial<Record<string, TestState>> = {}): SecurityHa => ({
+  // the tests leave out the names, areas and attributes the rules do not need
+  devices: () => devices as HaDevice[],
+  entity: e => (entities[e] as HassEntityState | undefined) || null,
+});
+const ROOMS: Partial<Record<string, SecurityRoom>> = {
   hall: {id: 'r1', short: 'Hallway', kind: 'hall'},
   kitchen: {id: 'r2', short: 'Kitchen', kind: 'kitchen'},
   bath: {id: 'r3', short: 'Bathroom', kind: 'bath'},
 };
-const room = a => ROOMS[a] || null;
+const room = (a: string | null): SecurityRoom | null => (a === null ? null : ROOMS[a] || null);
 
 test('devices by kind from HA: camera, water valve, leak sensors; the rest is not ours', () => {
   const s = securityDevices(
@@ -100,16 +110,16 @@ test('the entrance camera by name, otherwise the first; an unavailable one — n
       {'camera.b': {state: 'unavailable', attributes: {entity_picture: '/x'}}},
     ),
   );
-  assert.equal(s.camera.entity, 'camera.b');
-  assert.equal(s.camera.ok, false);
-  assert.equal(s.camera.picture, null);
+  assert.equal(s.camera!.entity, 'camera.b');
+  assert.equal(s.camera!.ok, false);
+  assert.equal(s.camera!.picture, null);
   assert.equal(
     securityDevices(
       ha([
         {entity: 'camera.a', name: "Kids' room", domain: 'camera'},
         {entity: 'camera.c', name: 'Garage', domain: 'camera'},
       ]),
-    ).camera.entity,
+    ).camera!.entity,
     'camera.a',
   );
 });
@@ -147,36 +157,36 @@ test('two sensors in one room or without a room — captioned with their own nam
 });
 
 test('leaks: worst first — water, missing, batteries; no sensors — no tile', () => {
-  const dry = {entity: 'a', room: 'r2', label: 'Kitchen', state: 'off', battery: 100},
-    bath = {entity: 'b', room: 'r3', label: 'Bathroom', state: 'off', battery: 64};
+  const dry = {entity: 'a', room: 'r2', label: 'Kitchen', state: 'off', battery: 100};
+  const bath = {entity: 'b', room: 'r3', label: 'Bathroom', state: 'off', battery: 64};
   assert.equal(leakView([]), null);
-  assert.deepEqual([leakView([dry, bath]).state, leakView([dry, bath]).text], ['dry', 'All dry']);
-  assert.equal(leakView([dry]).text, 'Dry');
-  assert.equal(leakView([dry]).items[0].tip, 'Kitchen: dry, battery 100 %');
-  const wet = leakView([dry, {...bath, state: 'on'}]);
+  assert.deepEqual([leakView([dry, bath])!.state, leakView([dry, bath])!.text], ['dry', 'All dry']);
+  assert.equal(leakView([dry])!.text, 'Dry');
+  assert.equal(leakView([dry])!.items[0].tip, 'Kitchen: dry, battery 100 %');
+  const wet = leakView([dry, {...bath, state: 'on'}])!;
   assert.equal(wet.state, 'leak');
   assert.equal(wet.text, 'Leak: Bathroom');
   assert.equal(wet.items[1].tip, 'Bathroom: leak!');
   assert.deepEqual(
     [
-      leakView([dry, {...bath, state: 'unavailable'}]).state,
-      leakView([dry, {...bath, state: 'unavailable'}]).text,
+      leakView([dry, {...bath, state: 'unavailable'}])!.state,
+      leakView([dry, {...bath, state: 'unavailable'}])!.text,
     ],
     ['warn', 'Dry, 1 offline'],
   );
   assert.deepEqual(
-    [leakView([{...dry, state: 'unavailable'}]).state, leakView([{...dry, state: 'unavailable'}]).text],
+    [leakView([{...dry, state: 'unavailable'}])!.state, leakView([{...dry, state: 'unavailable'}])!.text],
     ['offline', 'No connection'],
   );
-  const low = leakView([dry, {...bath, battery: LOW_BATTERY}]);
+  const low = leakView([dry, {...bath, battery: LOW_BATTERY}])!;
   assert.equal(low.text, 'Battery low');
   assert.equal(low.items[1].state, 'low');
   assert.equal(
-    leakView([{...dry, battery: null, low: true}]).items[0].state,
+    leakView([{...dry, battery: null, low: true}])!.items[0].state,
     'low',
     'the “battery low” flag without a percentage',
   );
-  assert.equal(leakView([{...dry, battery: null}]).items[0].tip, 'Kitchen: dry');
+  assert.equal(leakView([{...dry, battery: null}])!.items[0].tip, 'Kitchen: dry');
 });
 
 test('offline — since when: today the time, earlier the date', () => {
@@ -291,5 +301,5 @@ test('live HA: a valve as a cover, identical leak sensors captioned by rooms', (
       ['Bathroom', 'unavailable', null, false],
     ],
   );
-  assert.equal(leakView(s.leaks).text, 'Dry, 1 offline');
+  assert.equal(leakView(s.leaks)!.text, 'Dry, 1 offline');
 });

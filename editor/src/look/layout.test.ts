@@ -1,4 +1,3 @@
-// @ts-nocheck
 // “Customize panel”: card order, remove / bring back, “Favorites” with any HA entities. The layout lives in the plan and
 // survives new versions: a built-in card that did not exist before takes its place instead of getting lost.
 import test from 'node:test';
@@ -20,8 +19,13 @@ import {
 import {favView, favCommand, FAV_DOMAINS} from './favorites.ts';
 import {readPlan} from '../core/plan-file.ts';
 import {mockHA} from '../editor/ha.ts';
+import type {FavCard} from './layout.ts';
+import type {FavAction, FavItem, FavView} from './favorites.ts';
+import type {HassAttributes, HassEntityState, PanelCard} from '../core/types.ts';
 
-const ids = c => c.map(x => x.id);
+const ids = (c: Array<{id: string}>): string[] => c.map(x => x.id);
+// the card at i is a "Favorites" card where the tests read it so
+const favAt = (cards: PanelCard[], i: number): FavCard => cards[i] as FavCard;
 const DEF = BUILTIN.map(b => b.id);
 
 test('not customized — default cards; same as default — nothing is written into the plan', () => {
@@ -37,7 +41,7 @@ test('order, removed cards and “Favorites” are saved and read back', () => {
   f.entities = ['scene.movie', 'switch.kettle'];
   c = [f, ...c];
   const saved = layoutToSave(c);
-  assert.deepEqual(saved.removed, ['scenes']);
+  assert.deepEqual(saved!.removed, ['scenes']);
   assert.deepEqual(ids(resolveLayout(saved)), ids(c));
   assert.deepEqual(resolveLayout(saved)[0], {
     id: 'fav1',
@@ -71,8 +75,8 @@ test('one-step move: at the edges — no change', () => {
 });
 
 test('dragging like the Android shade: a card into place, a device into “Favorites”, between cards — a new “Favorites”', () => {
-  const fav = (id, entities) => ({id, type: 'entities', title: 'F', entities});
-  let c = [{id: 'now'}, fav('fav1', ['a', 'b']), {id: 'rooms'}];
+  const fav = (id: string, entities: string[]): FavCard => ({id, type: 'entities', title: 'F', entities});
+  let c: PanelCard[] = [{id: 'now'}, fav('fav1', ['a', 'b']), {id: 'rooms'}];
   assert.deepEqual(
     ids(placeCard(c, {id: 'stats'}, 1)),
     ['now', 'stats', 'fav1', 'rooms'],
@@ -84,21 +88,29 @@ test('dragging like the Android shade: a card into place, a device into “Favor
     'an own card — index among the others',
   );
   assert.deepEqual(ids(placeCard(c, {id: 'x'}, 99)), ['now', 'fav1', 'rooms', 'x']);
-  assert.deepEqual(placeEntity(c, 'z', 'fav1', 1)[1].entities, ['a', 'z', 'b']);
-  assert.deepEqual(placeEntity(c, 'a', 'fav1', 1, 'fav1')[1].entities, ['b', 'a'], 'inside a card — reorder');
+  assert.deepEqual(favAt(placeEntity(c, 'z', 'fav1', 1), 1).entities, ['a', 'z', 'b']);
+  assert.deepEqual(
+    favAt(placeEntity(c, 'a', 'fav1', 1, 'fav1'), 1).entities,
+    ['b', 'a'],
+    'inside a card — reorder',
+  );
   c = [...c, fav('fav2', ['c'])];
   const moved = placeEntity(c, 'a', 'fav2', 0, 'fav1');
   assert.deepEqual(
-    [moved[1].entities, moved[3].entities],
+    [favAt(moved, 1).entities, favAt(moved, 3).entities],
     [['b'], ['a', 'c']],
     'from one “Favorites” to another',
   );
-  assert.deepEqual(removeEntity(c, 'b', 'fav1')[1].entities, ['a']);
+  assert.deepEqual(favAt(removeEntity(c, 'b', 'fav1'), 1).entities, ['a']);
   const made = entityCard(c, 'a', 2, 'Favorites', 'fav1');
   assert.deepEqual(ids(made), ['now', 'fav1', 'fav3', 'rooms', 'fav2']);
   assert.deepEqual(made[2], {id: 'fav3', type: 'entities', title: 'Favorites', entities: ['a']});
-  assert.deepEqual(made[1].entities, ['b']);
-  assert.deepEqual(addEntity(c, 'q', 'F').at(-1).entities, ['c', 'q'], '“+” — into the last “Favorites”');
+  assert.deepEqual(favAt(made, 1).entities, ['b']);
+  assert.deepEqual(
+    (addEntity(c, 'q', 'F').at(-1) as FavCard).entities,
+    ['c', 'q'],
+    '“+” — into the last “Favorites”',
+  );
   assert.deepEqual(
     addEntity([{id: 'now'}], 'q', 'F'),
     [{id: 'now'}, {id: 'fav1', type: 'entities', title: 'F', entities: ['q']}],
@@ -135,7 +147,7 @@ test('plan: the layout passes file validation, garbage does not', () => {
     {cards: [{id: 'f', type: 'iframe'}]},
     {cards: [], removed: 'x'},
   ])
-    assert.throws(() => readPlan(JSON.stringify({...base, panel})), undefined, JSON.stringify(panel));
+    assert.throws(() => readPlan(JSON.stringify({...base, panel})), JSON.stringify(panel));
 });
 
 test('room screen: its own parts and “Favorites”, default — nothing in the plan; overview cards do not get in', () => {
@@ -147,7 +159,7 @@ test('room screen: its own parts and “Favorites”, default — nothing in the
   c = c.filter(x => x.id !== 'extras');
   c = addEntity(c, 'switch.kettle', 'Favorites');
   const saved = layoutToSave(c, ROOM_BUILTIN);
-  assert.deepEqual(saved.removed, ['extras']);
+  assert.deepEqual(saved!.removed, ['extras']);
   assert.deepEqual(ids(resolveLayout(saved, ROOM_BUILTIN)), ['climate', 'ac', 'lights', 'covers', 'fav1']);
   assert.deepEqual(addable(c, ROOM_BUILTIN), ['extras', 'entities']);
   assert.deepEqual(
@@ -159,30 +171,26 @@ test('room screen: its own parts and “Favorites”, default — nothing in the
 
 test('plan: the room layout passes file validation, garbage does not', () => {
   const room = {
-      id: 'r',
-      polygon: [
-        [0, 0],
-        [4, 0],
-        [4, 3],
-        [0, 3],
-      ],
-    },
-    panel = {
-      cards: [{id: 'lights'}, {id: 'fav1', type: 'entities', title: '', entities: ['switch.kettle']}],
-      removed: ['extras'],
-    };
+    id: 'r',
+    polygon: [
+      [0, 0],
+      [4, 0],
+      [4, 3],
+      [0, 3],
+    ],
+  };
+  const panel = {
+    cards: [{id: 'lights'}, {id: 'fav1', type: 'entities', title: '', entities: ['switch.kettle']}],
+    removed: ['extras'],
+  };
   assert.deepEqual(readPlan(JSON.stringify({rooms: [{...room, panel}]})).rooms[0].panel, panel);
   for (const bad of [{cards: 'lights'}, {cards: [{id: ''}]}, {cards: [], removed: [1]}])
-    assert.throws(
-      () => readPlan(JSON.stringify({rooms: [{...room, panel: bad}]})),
-      undefined,
-      JSON.stringify(bad),
-    );
+    assert.throws(() => readPlan(JSON.stringify({rooms: [{...room, panel: bad}]})), JSON.stringify(bad));
 });
 
-const st = (state, attributes = {}) => ({state, attributes});
+const st = (state: string, attributes: HassAttributes = {}): HassEntityState => ({state, attributes});
 test('“Favorites” tile: look and tap by domain, like an HA tile', () => {
-  const v = (entity, x, extra = {}) =>
+  const v = (entity: string, x: HassEntityState | null, extra: Partial<FavItem> = {}): FavView =>
     favView({entity, name: 'x', domain: entity.split('.')[0], ...extra}, x);
   assert.deepEqual(v('switch.kettle', st('on')), {
     icon: 'power',
@@ -220,7 +228,8 @@ test('“Favorites” tile: look and tap by domain, like an HA tile', () => {
     'no entity — not tappable',
   );
   assert.equal(v('sensor.t', st('unavailable')).action, 'info');
-  const c = (entity, x, a) => favCommand({entity}, x, a);
+  const c = (entity: string, x: HassEntityState | null, a: FavAction): [string, string] | null =>
+    favCommand({entity}, x, a);
   assert.deepEqual(c('switch.k', st('on'), 'toggle'), ['switch', 'toggle']);
   assert.deepEqual(c('scene.m', null, 'run'), ['scene', 'turn_on']);
   assert.deepEqual(c('button.b', null, 'press'), ['button', 'press']);
@@ -230,6 +239,7 @@ test('“Favorites” tile: look and tap by domain, like an HA tile', () => {
 });
 
 test('demo layer: all entities to pick from, commands to switches, scenes and scripts', async () => {
+  // ha.ts is still untyped: mockHA infers its data from the defaults; these leave out what the test does not read
   const ha = mockHA({
     areas: {k: 'Kitchen'},
     lights: [{id: 'a', entity: 'light.a', name: 'Ceiling light', area: 'k'}],
@@ -250,7 +260,7 @@ test('demo layer: all entities to pick from, commands to switches, scenes and sc
       {entity: 'scene.movie', name: 'Movie', domain: 'scene'},
       {entity: 'script.s', name: 'S', domain: 'script'},
     ],
-  });
+  } as unknown as Parameters<typeof mockHA>[0]);
   assert.deepEqual(
     ha.entities().map(x => x.entity),
     ['light.a', 'climate.ac', 'sensor.t', 'switch.kettle', 'scene.movie', 'script.s'],

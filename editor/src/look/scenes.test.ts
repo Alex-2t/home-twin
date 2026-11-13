@@ -1,11 +1,19 @@
-// @ts-nocheck
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {sceneDevices, scenePlan, sceneDraft, executeScene} from './scenes.ts';
+import type {SceneRoom, SceneStep} from './scenes.ts';
+
+type SceneLamp = NonNullable<SceneRoom['lamps']>[number];
 
 // rooms — as look.js returns them: model().rooms
-const lamp = (id, kind, on = false) => ({id, name: id, kind, on, status: 'available'});
-const ROOMS = [
+const lamp = (id: string, kind: string, on = false): SceneLamp => ({
+  id,
+  name: id,
+  kind,
+  on,
+  status: 'available',
+});
+const ROOMS: SceneRoom[] = [
   {
     id: 'hall',
     kind: 'hall',
@@ -32,7 +40,8 @@ const ROOMS = [
   },
 ];
 const D = sceneDevices(ROOMS);
-const act = steps => Object.fromEntries(steps.map(s => [s.key, s.action]));
+const act = (steps: SceneStep[]): Record<string, string> =>
+  Object.fromEntries(steps.map(s => [s.key, s.action]));
 
 test('scene devices: lamps, curtains, air conditioners; no boiler or floor heating', () => {
   assert.deepEqual(
@@ -102,6 +111,7 @@ test('“Customize” draft: each device has an action or “No change”', () =
 });
 
 test('running: skip unavailable, leave the desired state alone, count errors', async () => {
+  // the steps carry only what running reads
   const steps = [
     {kind: 'light', id: 'a', on: true, ok: true, action: 'on'}, // already on
     {kind: 'light', id: 'b', on: false, ok: true, action: 'on'}, // send
@@ -110,8 +120,8 @@ test('running: skip unavailable, leave the desired state alone, count errors', a
     {kind: 'ac', id: 'e', on: true, ok: false, action: 'off'}, // unavailable
     {kind: 'ac', id: 'f', on: true, ok: true, action: 'off'}, // HA answered with an error
     {kind: 'ac', id: 'g', on: true, ok: true, action: 'off'}, // HA did not accept
-  ];
-  const sent = [];
+  ] as SceneStep[];
+  const sent: string[] = [];
   const r = await executeScene(steps, async s => {
     sent.push(s.id);
     if (s.id === 'f') throw Error('x');

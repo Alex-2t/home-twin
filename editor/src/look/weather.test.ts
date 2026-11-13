@@ -1,12 +1,12 @@
-// @ts-nocheck
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {weatherCondition, isDay, weatherNow, forecastSlots, degrees} from './weather.ts';
 import {demoWeather} from '../editor/ha.ts';
+import type {HaWeatherHour} from '../core/types.ts';
 
-const H = 3600e3,
-  now = Date.UTC(2026, 10, 8, 12, 30);
-const hourly = n =>
+const H = 3600e3;
+const now = Date.UTC(2026, 10, 8, 12, 30);
+const hourly = (n: number): HaWeatherHour[] =>
   Array.from({length: n}, (_, i) => ({
     at: now + (i + 1) * H - 30 * 60e3,
     condition: 'cloudy',
@@ -43,7 +43,7 @@ test('weather now: no weather or temperature — no block', () => {
     label: 'Rain',
     icon: 'rain',
   });
-  assert.equal(weatherNow({condition: 'rainy', temperature: 7}).feels, null);
+  assert.equal(weatherNow({condition: 'rainy', temperature: 7})!.feels, null);
 });
 
 test('forecast strip: “now”, every 2 hours, sunset in its place; no forecast — empty', () => {
@@ -64,7 +64,8 @@ test('forecast strip: “now”, every 2 hours, sunset in its place; no forecast
   assert.equal(s[0].icon, 'sun');
   assert.equal(s[3].text, 'sunset');
   assert.ok(
-    s.slice(1).every((x, i, a) => !i || a[i - 1].at < x.at),
+    // every cell after "now" has its time
+    s.slice(1).every((x, i, a) => !i || a[i - 1].at! < x.at!),
     'by time',
   );
   assert.deepEqual(forecastSlots({condition: 'sunny', temperature: 3, hourly: []}, now), []);

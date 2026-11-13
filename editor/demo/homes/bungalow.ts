@@ -1,4 +1,3 @@
-// @ts-nocheck
 // Typical home 9 (docs/research/typical-homes.md, D-030): a single-story house, here a US ranch of about 150 m² with an attached
 // two-car garage. Street to the south: garage, entry, living room, two bedrooms; at the back the kitchen with an island and a dining area
 // opening onto a covered patio, the primary bedroom with its bathroom; laundry/mudroom between the garage and the kitchen. Made up.
@@ -11,8 +10,18 @@
 // it is furnished as an outdoor living room. A door between two rooms sits 1 cm off the wall middle towards the room its leaf swings into.
 // The wall face is 5 cm inside a room's outline, so items stand with their backs 5 cm in.
 import {door, win, F, haLight, sensorKit, deviceKit, stats, WEATHER, worktop} from '../kit.ts';
+import type {
+  DemoHomeSource,
+  DemoLight,
+  DemoPlan,
+  DemoPlanLight,
+  DemoRoom,
+  RoomFinish,
+  Style,
+} from '../kit.ts';
+import type {DemoHaData, FurnitureItem, LooseOpening, Point} from '../../src/core/types.ts';
 
-const ROOMS = [
+const ROOMS: DemoRoom[] = [
   {
     id: 'garage',
     short: 'Garage',
@@ -135,8 +144,8 @@ const ROOMS = [
   },
 ];
 
-const cased = (a, b, top = 2.3) => ({...door(a, b, top), leaf: false}); // an opening with no door leaf
-const OPENINGS = [
+const cased = (a: Point, b: Point, top = 2.3): LooseOpening => ({...door(a, b, top), leaf: false}); // an opening with no door leaf
+const OPENINGS: LooseOpening[] = [
   door([0.85, 0], [5.75, 0], 2.15), // garage door, 16 ft
   door([4.2, 7], [5.1, 7]), // garage side door
   door([6.71, 4], [6.71, 4.85]), // garage ↔ laundry, opens into the house
@@ -169,7 +178,7 @@ const OPENINGS = [
 
 // The home's own finish (kit.ts: STYLES has the shape): warm limewash, a navy limewash fireplace wall, a sage headboard wall,
 // white zellige behind the kitchen, stone-look porcelain in the bathrooms; whitewashed oak and stone floors
-const STYLE = {
+const STYLE: Style = {
   wall: {
     living: {k: 'plasterLime', tint: '#d6cfc3'},
     bed: {k: 'plasterLime', tint: '#d0c8bb'},
@@ -196,7 +205,7 @@ const STYLE = {
 };
 // rooms finished here, the style fills the rest: a stone entry, a laundry with subway tile up to 1.2 m, white-painted block in the garage,
 // sage zellige and small tiles in the hall bathroom, oak slats behind the sofa bed in the guest room (edge 3, the west wall), a stucco patio
-const FINISH = {
+const FINISH: Partial<Record<string, RoomFinish>> = {
   entry: {floor: 'stone'},
   laundry: {wall: 'tilePanel', floor: 'stone'},
   garage: {wall: 'brickWhite'},
@@ -205,14 +214,25 @@ const FINISH = {
   patio: {wall: 'plaster', wallTint: '#d9d0c2', floor: 'stone'},
 };
 
-const FV = (v, ...a) => ({...F(...a), v}); // an item in a catalog variant
-const Z = (z, f) => ({...f, z}); // an item at its own height above the floor
-const custom = (id, name, x, y, rot, w, d, h, color, extra = {}) => ({
+const FV = (v: string, ...a: Parameters<typeof F>): FurnitureItem => ({...F(...a), v}); // an item in a catalog variant
+const Z = (z: number, f: FurnitureItem): FurnitureItem => ({...f, z}); // an item at its own height above the floor
+const custom = (
+  id: string,
+  name: string,
+  x: number,
+  y: number,
+  rot: number,
+  w: number,
+  d: number,
+  h: number,
+  color: string,
+  extra: Partial<FurnitureItem> = {},
+): FurnitureItem => ({
   ...F(id, 'custom', x, y, rot, w, d, h, color),
   name,
   ...extra,
 });
-const FURNITURE = [
+const FURNITURE: FurnitureItem[] = [
   // garage: a blue SUV nose-in in the east bay; the west bay is the workshop — an oak workbench with a pegboard and a mat, three bikes,
   // graphite shelving, a chest freezer; the panel, the furnace and the water heater by the house wall
   FV('suv', 'g1', 'car', 4.6, 3.4, 180, 1.98, 4.9, 1.8, 'navy'),
@@ -447,7 +467,7 @@ const FURNITURE = [
 
 worktop(FURNITURE, 'white'); // the kitchen's worktop: white quartz
 
-const LIGHTS = [
+const LIGHTS: DemoLight[] = [
   {id: 'entry_main', name: 'Entry ceiling light', room: 'entry', kind: 'ceiling'},
   {id: 'entry_lamp', name: 'Entry table lamp', room: 'entry', kind: 'accent'},
   {id: 'porch', name: 'Porch light', room: null, kind: 'accent', h: 2},
@@ -483,7 +503,7 @@ const LIGHTS = [
 // every light with an area is placed: spots, pendants and ceiling lights; the lamps on their furniture (the entry console, the sofa
 // console, the nightstands, the desks), the floor lamps; the strips under the kitchen cabinets and over the workbench; the vanity and
 // mirror lights; the patio wall light and the string lights along the house wall. The porch light has no area: the wizard asks where it is.
-const PLACED = [
+const PLACED: DemoPlanLight[] = [
   {id: 'entry_main', placed: true, room: 'entry', points: [[8, 1.75]]},
   {
     id: 'entry_lamp',
@@ -721,12 +741,15 @@ const PLACED = [
   },
 ];
 
-export default async function () {
-  const HA = {areas: Object.fromEntries(ROOMS.map(r => [r.id, r.short])), lights: LIGHTS.map(haLight)};
+export default async function (): Promise<DemoHomeSource> {
+  const HA: DemoHaData = {
+    areas: Object.fromEntries(ROOMS.map(r => [r.id, r.short])),
+    lights: LIGHTS.map(haLight),
+  };
   // Sensors: the thermostat in the hallway and its remote room sensors, an air monitor in the living room, a garage sensor,
   // the primary bathroom humidity (for the fan); fridge, freezer and outdoor are “not room air”; a panel energy monitor, plugs, diagnostics
-  const S = sensorKit(),
-    add = S.add;
+  const S = sensorKit();
+  const add = S.add;
   add('hall', 'thermostat', 'Thermostat Temperature', 'temperature', '°C', 20.6);
   add('hall', 'thermostat', 'Thermostat Humidity', 'humidity', '%', 41);
   add('primary', 'primary_sensor', 'Primary bedroom sensor Temperature', 'temperature', '°C', 19.8);
@@ -813,7 +836,7 @@ export default async function () {
     'sensor.garage_sensor_temperature': {hours: 0.2, drops: 1},
   });
   HA.weather = WEATHER;
-  const DEMO = {
+  const DEMO: DemoPlan = {
     version: 1,
     units: 'm',
     rooms: ROOMS.map(r => ({

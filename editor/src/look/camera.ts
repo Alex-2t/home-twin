@@ -1,12 +1,12 @@
-// @ts-nocheck
 // Demo camera: a copy of 3d_floor/apartment/smart-home/web/src/camera-preview.js (D-049): a synthetic hallway frame on a
 // 960×540 canvas, no video and no permissions. It also draws the camera tile in “Security”: the tile shows what opens on
 // tap. Differences: the window title shows the camera name from HA (it used to be “Camera · Hallway”), the time follows the browser clock.
 // In HA the window is replaced by the entity's card (HA layer: moreInfo), and the tile shows the entity_picture frame.
 import {t, dateTime} from '../i18n/i18n.ts';
+import type {Point} from '../core/types.ts';
 
-export function drawDemoFeed(c) {
-  function poly(points, color) {
+export function drawDemoFeed(c: CanvasRenderingContext2D): void {
+  function poly(points: Point[], color: string): void {
     c.fillStyle = color;
     c.beginPath();
     points.forEach(([x, y], i) => (i ? c.lineTo(x, y) : c.moveTo(x, y)));
@@ -114,10 +114,10 @@ export function drawDemoFeed(c) {
   c.restore();
   c.fillStyle = '#e1ddbd';
   c.fillRect(425, 72, 115, 8);
-  const v = c.createRadialGradient(480, 270, 120, 480, 270, 560);
-  v.addColorStop(0, 'transparent');
-  v.addColorStop(1, '#0d191aa0');
-  c.fillStyle = v;
+  const vignette = c.createRadialGradient(480, 270, 120, 480, 270, 560);
+  vignette.addColorStop(0, 'transparent');
+  vignette.addColorStop(1, '#0d191aa0');
+  c.fillStyle = vignette;
   c.fillRect(0, 0, 960, 540);
   for (let i = 0; i < 900; i++) {
     c.fillStyle = Math.random() > 0.5 ? '#ffffff12' : '#00000012';
@@ -128,25 +128,34 @@ export function drawDemoFeed(c) {
 }
 
 // Demo stream window over the dashboard; host is the Shadow DOM root. → close function
-export function openCameraPreview(host, name) {
+export function openCameraPreview(
+  host: ShadowRoot,
+  name: string | null | undefined,
+): (() => void) | undefined {
   if (host.querySelector('.camera-dialog')) return;
-  const esc = s =>
-    String(s ?? '').replace(
-      /[&<>"']/g,
-      c => ({'&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'})[c],
-    );
-  const d = document.createElement('dialog');
-  d.className = 'camera-dialog';
-  d.setAttribute('aria-labelledby', 'camera-title');
-  d.innerHTML = `<header><div><h2 id="camera-title">${esc(name || t('Camera'))}</h2><p>${esc(t('Demo stream'))}</p></div><button aria-label="${esc(t('Close camera'))}" autofocus>×</button></header>
+  const esc = (s: unknown): string => {
+    const entities: Record<string, string> = {
+      '&': '&amp;',
+      '<': '&lt;',
+      '>': '&gt;',
+      '"': '&quot;',
+      "'": '&#39;',
+    };
+    return String(s ?? '').replace(/[&<>"']/g, c => entities[c]);
+  };
+  const dialog = document.createElement('dialog');
+  dialog.className = 'camera-dialog';
+  dialog.setAttribute('aria-labelledby', 'camera-title');
+  dialog.innerHTML = `<header><div><h2 id="camera-title">${esc(name || t('Camera'))}</h2><p>${esc(t('Demo stream'))}</p></div><button aria-label="${esc(t('Close camera'))}" autofocus>×</button></header>
     <div class="camera-feed"><canvas width="960" height="540" aria-label="${esc(t('Simulated hallway view'))}"></canvas><span>${esc(t('● DEMO'))}</span><time></time></div>
     <footer>${esc(t('Simulated video · no real camera connected'))}</footer>`;
-  host.append(d);
-  const c = d.querySelector('canvas').getContext('2d');
-  function draw() {
+  host.append(dialog);
+  // the dialog's own markup has the canvas and the time; a fresh canvas always gives its 2D context
+  const context = dialog.querySelector('canvas')!.getContext('2d')!;
+  function draw(): void {
     if (document.hidden) return;
-    drawDemoFeed(c);
-    d.querySelector('time').textContent = dateTime(new Date(), {
+    drawDemoFeed(context);
+    dialog.querySelector('time')!.textContent = dateTime(new Date(), {
       year: 'numeric',
       month: '2-digit',
       day: '2-digit',
@@ -157,21 +166,22 @@ export function openCameraPreview(host, name) {
   }
   draw();
   const timer = setInterval(draw, 150);
-  const cleanup = () => {
+  const cleanup = (): void => {
     clearInterval(timer);
-    d.remove();
+    dialog.remove();
   };
-  d.addEventListener('close', cleanup, {once: true});
-  d.querySelector('button').onclick = () => d.close();
-  d.addEventListener('click', e => {
-    if (e.target === d) {
-      const r = d.getBoundingClientRect();
-      if (e.clientX < r.left || e.clientX > r.right || e.clientY < r.top || e.clientY > r.bottom) d.close();
+  dialog.addEventListener('close', cleanup, {once: true});
+  dialog.querySelector('button')!.onclick = () => dialog.close();
+  dialog.addEventListener('click', e => {
+    if (e.target === dialog) {
+      const box = dialog.getBoundingClientRect();
+      if (e.clientX < box.left || e.clientX > box.right || e.clientY < box.top || e.clientY > box.bottom)
+        dialog.close();
     }
   });
-  d.showModal();
+  dialog.showModal();
   return () => {
-    d.close();
+    dialog.close();
     cleanup();
   };
 }
