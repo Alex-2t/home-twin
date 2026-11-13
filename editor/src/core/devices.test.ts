@@ -1,4 +1,3 @@
-// @ts-nocheck
 import {test} from 'node:test';
 import assert from 'node:assert/strict';
 import {
@@ -15,9 +14,12 @@ import {
   moveTo,
 } from './devices.ts';
 import {emptyPlan, migrate} from './plan.ts';
+import type {HaDevice, HassEntityState, Plan} from './types.ts';
+
+// (The ! below: what each test placed is there — a binding, its item.)
 
 // a 4×3 kitchen: a window in the north wall (edge 2 runs east to west), a door in the south wall
-const plan = () => ({
+const plan = (): Plan => ({
   ...emptyPlan(),
   rooms: [
     {
@@ -38,7 +40,7 @@ const plan = () => ({
   ],
   devices: [],
 });
-const devs = [
+const devs: HaDevice[] = [
   {entity: 'climate.k', name: 'Kitchen air conditioner', area: 'kitchen', domain: 'climate'},
   ...[3, 1, 2].map(i => ({
     entity: 'cover.k' + i,
@@ -53,7 +55,10 @@ const devs = [
 ];
 
 test('device kind and cover model', () => {
-  assert.deepEqual(devs.map(deviceKind), ['ac', 'cover', 'cover', 'cover', 'contact', null, 'ac']);
+  assert.deepEqual(
+    devs.map(d => deviceKind(d)),
+    ['ac', 'cover', 'cover', 'cover', 'contact', null, 'ac'],
+  );
   assert.equal(coverModel({cls: 'curtain'}), 'curtains');
   assert.equal(coverModel({name: 'Venetian blinds'}), 'blind');
   assert.equal(coverModel({name: 'Bedroom curtains'}), 'curtains');
@@ -81,7 +86,7 @@ test('a valve is not a curtain; a boiler with heat_cool is not an air conditione
   assert.equal(isWaterValve({domain: 'cover', name: 'Экран проектора'}), false); // allow-cyrillic
   assert.equal(isWaterValve({domain: 'cover', name: 'Вентиляция'}), false); // allow-cyrillic
   assert.equal(isWaterValve({domain: 'cover', name: 'Кран'}), true); // allow-cyrillic
-  const st = modes => ({state: 'heat', attributes: {hvac_modes: modes}});
+  const st = (modes: string[]): HassEntityState => ({state: 'heat', attributes: {hvac_modes: modes}});
   assert.equal(
     deviceKind({domain: 'climate', name: 'Boiler thermostat'}, st(['off', 'heat_cool', 'heat'])),
     'heat',
@@ -102,13 +107,13 @@ test('a valve is not a curtain; a boiler with heat_cool is not an air conditione
 test('auto: an air conditioner goes on a free upper wall facing into the room; three covers on one window become sections from left to right; a sensor goes on the door', () => {
   const p = plan();
   assert.equal(autoPlace(p, devs), 5); // the garage area is not on the plan, and motion is not a contact sensor
-  const ac = p.furniture.find(f => f.id === recOf(p, 'climate.k').furn);
+  const ac = p.furniture.find(f => f.id === recOf(p, 'climate.k')!.furn)!;
   assert.equal(ac.model, 'aircon');
   assert.ok(Math.abs(ac.x - (4 - 0.05 - 0.11)) < 1e-6 && Math.abs(Math.abs(ac.rot) - 90) < 1e-6); // the east wall: the south wall has the door, the north wall the window
-  const xs = [1, 2, 3].map(i => p.furniture.find(f => f.id === recOf(p, 'cover.k' + i).furn));
+  const xs = [1, 2, 3].map(i => p.furniture.find(f => f.id === recOf(p, 'cover.k' + i)!.furn)!);
   assert.ok(xs.every(f => f.model === 'blind' && Math.abs(f.w - (2 / 3 - 0.02)) < 1e-3 && f.z === 0.81));
   assert.ok(xs[0].x < xs[1].x && xs[1].x < xs[2].x); // looking north from the kitchen: west is on the left
-  assert.equal(recOf(p, 'binary_sensor.door').opening, 'op_2');
+  assert.equal(recOf(p, 'binary_sensor.door')!.opening, 'op_2');
   assert.equal(autoPlace(p, devs), 0); // the second time: nothing new
 });
 
@@ -122,8 +127,8 @@ test('auto: an air conditioner placed in “Furniture” and curtains at the win
     devs[0],
     {entity: 'cover.c', name: 'Curtains', area: 'kitchen', domain: 'cover', cls: 'curtain'},
   ]);
-  assert.equal(recOf(p, 'climate.k').furn, 'f9');
-  assert.equal(recOf(p, 'cover.c').furn, 'f8');
+  assert.equal(recOf(p, 'climate.k')!.furn, 'f9');
+  assert.equal(recOf(p, 'cover.c')!.furn, 'f8');
   assert.equal(p.furniture.length, 2);
 });
 
@@ -131,12 +136,12 @@ test('by hand: an air conditioner onto a wall, a cover only onto a window, a doo
   const p = plan();
   assert.equal(placeOn(p, devs[1], {opening: 'op_2'}), null);
   assert.equal(placeOn(p, devs[4], {opening: 'op_1'}), null);
-  const r = placeOn(p, devs[0], {room: 'k', edge: 3, t: 1.5});
+  const r = placeOn(p, devs[0], {room: 'k', edge: 3, t: 1.5})!;
   assert.ok(r.made);
-  const f = p.furniture.find(x => x.id === r.furn);
+  const f = p.furniture.find(x => x.id === r.furn)!;
   assert.ok(f.x > 0 && f.x < 0.3);
-  const c = placeOn(p, devs[1], {opening: 'op_1'});
-  assert.ok(Math.abs(p.furniture.find(x => x.id === c.furn).w - 1.98) < 1e-6); // a roller blind covers the whole window
+  const c = placeOn(p, devs[1], {opening: 'op_1'})!;
+  assert.ok(Math.abs(p.furniture.find(x => x.id === c.furn)!.w - 1.98) < 1e-6); // a roller blind covers the whole window
   unplace(p, r);
   assert.equal(
     p.furniture.some(x => x.id === r.furn),
@@ -150,7 +155,7 @@ test('by hand: an air conditioner onto a wall, a cover only onto a window, a doo
 test('state: air conditioner, covers, opening, for 3D', () => {
   const p = plan();
   autoPlace(p, devs);
-  const E = {
+  const E: Record<string, HassEntityState> = {
     'climate.k': {state: 'heat', attributes: {temperature: 25, current_temperature: 22}},
     'cover.k1': {state: 'open', attributes: {current_position: 40}},
     'cover.k2': {state: 'closed', attributes: {}},
@@ -161,8 +166,8 @@ test('state: air conditioner, covers, opening, for 3D', () => {
     L.climate.map(c => [c.id, c.on, c.tone]),
     [['climate.k', true, 'heat']],
   );
-  assert.equal(L.open.get(recOf(p, 'cover.k1').furn), 0.4);
-  assert.equal(L.open.get(recOf(p, 'cover.k2').furn), 0);
+  assert.equal(L.open.get(recOf(p, 'cover.k1')!.furn!), 0.4);
+  assert.equal(L.open.get(recOf(p, 'cover.k2')!.furn!), 0);
   assert.deepEqual(
     L.contacts.map(c => [c.id, c.opening, c.open, c.n.map(v => v + 0)]),
     [['binary_sensor.door', 'op_2', true, [0, 1]]],
@@ -181,22 +186,22 @@ test('dragged: an air conditioner moves along the wall as the same item, a cover
     top: 2.4,
   });
   autoPlace(p, devs);
-  const ac = p.furniture.find(f => f.id === recOf(p, 'climate.k').furn);
+  const ac = p.furniture.find(f => f.id === recOf(p, 'climate.k')!.furn)!;
   ac.color = 'graphite';
   assert.ok(moveTo(p, devs[0], {room: 'k', edge: 3, t: 2}));
   assert.ok(ac.x < 0.3 && Math.abs(ac.y - 1) < 1e-6 && ac.color === 'graphite' && p.furniture.includes(ac));
-  const b = p.furniture.find(f => f.id === recOf(p, 'cover.k1').furn);
+  const b = p.furniture.find(f => f.id === recOf(p, 'cover.k1')!.furn)!;
   assert.ok(moveTo(p, devs[2], {opening: 'op_3'}));
   assert.ok(Math.abs(b.w - 1.98) < 1e-6 && b.x > 3.5);
   assert.equal(moveTo(p, devs[4], {opening: 'op_3'}), false);
-  assert.equal(recOf(p, 'binary_sensor.door').opening, 'op_2');
+  assert.equal(recOf(p, 'binary_sensor.door')!.opening, 'op_2');
   assert.equal(moveTo(p, devs[2], {opening: 'op_2'}), false); // a cover onto a door: no
 });
 
 test('a thermostat (heating only) is not an air conditioner and not in the model; gates, a wicket gate, a damper are not covers', () => {
-  const heat = {entity: 'climate.floor', name: 'Floor heating', area: 'kitchen', domain: 'climate'},
-    split = {entity: 'climate.a', name: 'Climate', area: 'kitchen', domain: 'climate'};
-  const E = {
+  const heat = {entity: 'climate.floor', name: 'Floor heating', area: 'kitchen', domain: 'climate'};
+  const split = {entity: 'climate.a', name: 'Climate', area: 'kitchen', domain: 'climate'};
+  const E: Record<string, HassEntityState> = {
     'climate.floor': {state: 'heat', attributes: {hvac_modes: ['off', 'heat']}},
     'climate.a': {state: 'cool', attributes: {hvac_modes: ['off', 'cool', 'heat']}},
   };
@@ -213,8 +218,8 @@ test('a thermostat (heating only) is not an air conditioner and not in the model
     {name: 'Garage door'},
   ])
     assert.equal(deviceKind({domain: 'cover', ...c}), null, JSON.stringify(c));
-  const p = plan(),
-    gate = {entity: 'cover.gate', name: 'Gate', area: 'kitchen', domain: 'cover', cls: 'gate'};
+  const p = plan();
+  const gate = {entity: 'cover.gate', name: 'Gate', area: 'kitchen', domain: 'cover', cls: 'gate'};
   assert.equal(
     autoPlace(p, [heat, split, gate], e => E[e] || null),
     1,
@@ -268,25 +273,25 @@ test('a terrace, garden or garage door contact finds its door; a central thermos
       {kind: 'door', a: [12, 1], b: [12, 1.9]},
     ],
   });
-  const ids = p.openings.map(o => o.id),
-    devs = [
-      {
-        entity: 'binary_sensor.terrace_door',
-        name: 'Terrace door',
-        area: 'kitchen',
-        domain: 'binary_sensor',
-        cls: 'door',
-      },
-      {
-        entity: 'binary_sensor.garage',
-        name: 'Garage door',
-        area: 'garage',
-        domain: 'binary_sensor',
-        cls: 'garage_door',
-      },
-      {entity: 'climate.ecobee', name: 'Ecobee Thermostat', area: 'hall', domain: 'climate'},
-    ];
-  const ent = e =>
+  const ids = p.openings.map(o => o.id);
+  const devs = [
+    {
+      entity: 'binary_sensor.terrace_door',
+      name: 'Terrace door',
+      area: 'kitchen',
+      domain: 'binary_sensor',
+      cls: 'door',
+    },
+    {
+      entity: 'binary_sensor.garage',
+      name: 'Garage door',
+      area: 'garage',
+      domain: 'binary_sensor',
+      cls: 'garage_door',
+    },
+    {entity: 'climate.ecobee', name: 'Ecobee Thermostat', area: 'hall', domain: 'climate'},
+  ];
+  const ent = (e: string): HassEntityState | null =>
     e === 'climate.ecobee'
       ? {state: 'heat_cool', attributes: {hvac_modes: ['off', 'heat', 'cool', 'heat_cool']}}
       : null;

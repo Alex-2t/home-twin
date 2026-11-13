@@ -1,4 +1,3 @@
-// @ts-nocheck
 // Furniture catalog: data only. Generators and models live in furniture3d.js.
 // gen: generated in code, any size within min/max; kenney: a ready-made CC0 model with a fixed size.
 // lift: hangs on a wall with its bottom at this height above the floor (wall cabinets, TV, range hood); an item can change it (f.z); dashed on the plan.
@@ -18,7 +17,24 @@
 // At a window any item centers on it; fit: when placed, takes the window width + fit m (curtains); soft: conflicts with nothing (curtains hang in front of furniture).
 import {t, N} from '../i18n/i18n.ts';
 import {isHex, hexNum} from './color.ts';
-export const COLORS = {
+import type {CatalogEntry, FurnitureItem} from './types.ts';
+
+/** A variant's own sizes (the third element of vars), metres: any of them; z is its bottom above the floor (on the wall or not). */
+export type VariantSize = {w?: number; d?: number; h?: number; z?: number};
+/** A variant: its key (item.v), its name, and how far a sofa bed unfolds or the variant's own sizes. */
+export type Variant = [string, string, (number | VariantSize)?];
+/**
+ * A catalog entry as this file holds it: the shared CatalogEntry with two differences the data has. color2 is a flag here (true:
+ * the item takes a second colour, a rug's border), where CatalogEntry reads it as a colour key; and a variant's own sizes may be
+ * any of w, d, h and z, where CatalogEntry has all of w, d and h.
+ */
+export type CatalogItem = Omit<CatalogEntry, 'color2' | 'vars'> & {color2?: boolean; vars?: Variant[]};
+/** A named colour: its name in the UI and its value, 0xrrggbb. */
+export type Swatch = [string, number];
+/** A kitchen worktop: its name in the UI, its colour 0xrrggbb and its roughness. */
+export type Worktop = [string, number, number];
+
+export const COLORS: Record<string, Swatch> = {
   oak: [N('Oak'), 0xc8a477],
   walnut: [N('Walnut'), 0x7b5a3c],
   white: [N('White'), 0xeeebe6],
@@ -37,7 +53,7 @@ export const COLORS = {
 };
 // Kitchen worktops (item.top, an entry with tops: true): [name, color, roughness]; none set — gray stone. One worktop for the whole kitchen:
 // choosing it on one unit sets it on every unit with a worktop in the room (modes/furniture.js).
-export const TOPS = {
+export const TOPS: Record<string, Worktop> = {
   stone: [N('Gray stone'), 0x7a7d82, 0.32],
   white: [N('White quartz'), 0xe9e6df, 0.24],
   oak: [N('Oak'), 0xc29a6b, 0.5],
@@ -45,7 +61,7 @@ export const TOPS = {
   black: [N('Black stone'), 0x2b2c2f, 0.28],
 };
 // Automotive finishes use the existing saved color keys, with their own swatches and lacquer tones.
-export const CAR_COLORS = {
+export const CAR_COLORS: Record<string, Swatch> = {
   navy: [N('Sapphire blue'), 0x155fce],
   sage: [N('Emerald green'), 0x087b5b],
   terracotta: [N('Ruby red'), 0xb8183d],
@@ -54,17 +70,20 @@ export const CAR_COLORS = {
   graphite: [N('Graphite metallic'), 0x465363],
   black: [N('Obsidian black'), 0x171f2b],
 };
-export const colorOf = (c, key) => (c.id === 'car' ? CAR_COLORS[key] : null) || COLORS[key];
+export const colorOf = (c: Pick<CatalogItem, 'id'>, key: string): Swatch | undefined =>
+  (c.id === 'car' ? CAR_COLORS[key] : null) || COLORS[key];
 // A color as a number for 3D: a named key or a custom #rrggbb; anything else — fallback.
-export const hexOf = (k, fallback = COLORS.white[1]) => (isHex(k) ? hexNum(k) : (COLORS[k]?.[1] ?? fallback));
-const WOOD = ['oak', 'walnut', 'white', 'graphite'],
-  FACADE = [...WOOD, 'beige', 'sage', 'navy'],
-  FABRIC = ['linen', 'sand', 'grey', 'graphite', 'olive', 'sage', 'navy', 'terracotta'],
-  APPL = ['white', 'steel', 'black'];
-const SANITARY = ['white', 'beige', 'grey', 'graphite', 'black'],
-  SCREEN = ['black', 'white', 'steel'];
-export const colorsOf = c => c.colors || WOOD;
-export const CATALOG = [
+// (Past isHex, k reads as null or undefined, though a named key is a string: String(k) is the key JS looks up anyway.)
+export const hexOf = (k: string | null | undefined, fallback: number = COLORS.white[1]): number =>
+  isHex(k) ? hexNum(k) : (COLORS[String(k)]?.[1] ?? fallback);
+const WOOD = ['oak', 'walnut', 'white', 'graphite'];
+const FACADE = [...WOOD, 'beige', 'sage', 'navy'];
+const FABRIC = ['linen', 'sand', 'grey', 'graphite', 'olive', 'sage', 'navy', 'terracotta'];
+const APPL = ['white', 'steel', 'black'];
+const SANITARY = ['white', 'beige', 'grey', 'graphite', 'black'];
+const SCREEN = ['black', 'white', 'steel'];
+export const colorsOf = (c: Pick<CatalogItem, 'colors'>): string[] => c.colors || WOOD;
+export const CATALOG: CatalogItem[] = [
   // A custom item is anything not in the catalog (boxing, column, exercise machine, safe): a block or a cylinder, its own name (f.name), any size and color.
   {
     id: 'custom',
@@ -835,10 +854,24 @@ export const CATALOG = [
     min: [0.8, 0.2, 1.2],
     max: [2.4, 0.6, 2],
   },
-  {id: 'bedDouble', hidden: true, cat: N('Bedroom'), name: N('Bed'), kind: 'kenney'},
-  {id: 'bedSingle', hidden: true, cat: N('Bedroom'), name: N('Single bed'), kind: 'kenney'},
-  {id: 'cabinetBedDrawerTable', hidden: true, cat: N('Bedroom'), name: N('Nightstand'), kind: 'kenney'},
-  {id: 'bookcaseOpen', hidden: true, cat: N('Storage'), name: N('Shelving unit'), kind: 'kenney'},
+  // The kenney models of older plans are drawn from their model files at the files' own size, so they have no default size,
+  // limits or colour, which a catalog entry has; they are hidden, never offered, and read as entries all the same.
+  {id: 'bedDouble', hidden: true, cat: N('Bedroom'), name: N('Bed'), kind: 'kenney'} as CatalogItem,
+  {id: 'bedSingle', hidden: true, cat: N('Bedroom'), name: N('Single bed'), kind: 'kenney'} as CatalogItem,
+  {
+    id: 'cabinetBedDrawerTable',
+    hidden: true,
+    cat: N('Bedroom'),
+    name: N('Nightstand'),
+    kind: 'kenney',
+  } as CatalogItem,
+  {
+    id: 'bookcaseOpen',
+    hidden: true,
+    cat: N('Storage'),
+    name: N('Shelving unit'),
+    kind: 'kenney',
+  } as CatalogItem,
   {
     id: 'loungeSofa',
     cat: N('Living room'),
@@ -2193,6 +2226,7 @@ for (const id of LOOSE) {
 }
 // An item from parts (core/parts.js): the AI build describes what it could not match to the catalog; the shape is in the item (f.parts),
 // the name in f.name. Never in the catalog picker; any size (it stretches to fit), no colors or variants: the parts carry their own materials.
+// (So it has no colour, which a catalog entry has: read as an entry all the same.)
 CATALOG.push({
   id: 'parts',
   hidden: true,
@@ -2205,8 +2239,8 @@ CATALOG.push({
   lift: 0,
   min: [0.01, 0.01, 0.01],
   max: [6, 6, 6],
-});
-export const CATEGORIES = [
+} as CatalogItem);
+export const CATEGORIES: string[] = [
   N('Bedroom'),
   N('Living room'),
   N('Kitchen & dining'),
@@ -2233,8 +2267,10 @@ CATEGORIES.forEach((c, i) => {
 });
 for (const v of [...Object.values(COLORS), ...Object.values(CAR_COLORS), ...Object.values(TOPS)])
   v[0] = t(v[0]);
-export const byId = id => CATALOG.find(c => c.id === id);
-export const nameOf = f => (f.name || byId(f.model)?.name || f.model).replace(/\u00ad/g, ''); // a custom item uses its own name
+export const byId = (id: string | null | undefined): CatalogItem | undefined =>
+  CATALOG.find(c => c.id === id);
+export const nameOf = (f: Pick<FurnitureItem, 'name' | 'model'>): string =>
+  (f.name || byId(f.model)?.name || f.model).replace(/\u00ad/g, ''); // a custom item uses its own name
 // Frequent items come first in “All” and at the top of their category (the owner: scrolling through 111 cards is inconvenient).
 export const TOP = [
   'bed',
@@ -2269,16 +2305,18 @@ export const TOP = [
   'radiator',
   'aircon',
 ];
-export const zOf = f => f.z ?? byId(f.model)?.lift ?? 0; // the item's bottom above the floor
-export const lArms = f => {
+export const zOf = (f: Pick<FurnitureItem, 'z' | 'model'>): number => f.z ?? byId(f.model)?.lift ?? 0; // the item's bottom above the floor
+export const lArms = (
+  f: Pick<FurnitureItem, 'model' | 'w' | 'd'>,
+): {back: number; side: number; u: boolean} | null => {
   const L = byId(f.model)?.foot;
   return L
     ? {back: Math.min(L.back, f.d - 0.2), side: Math.min(L.side, (L.u ? f.w / 2 : f.w) - 0.2), u: !!L.u}
     : null;
 };
-export const extOf = f => {
-  const c = byId(f.model),
-    v = c?.vars?.find(x => x[0] === (f.v || c.vars[0][0]));
+export const extOf = (f: Pick<FurnitureItem, 'model' | 'v'>): number | VariantSize => {
+  const c = byId(f.model);
+  const v = c?.vars?.find(x => x[0] === (f.v || c.vars![0][0])); // vars is there: find runs only on it
   return v?.[2] || 0;
 }; // how far it is unfolded (sofa bed)
 export const KENNEY = CATALOG.filter(c => c.kind === 'kenney').map(c => c.id);

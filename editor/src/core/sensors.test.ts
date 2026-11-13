@@ -1,4 +1,3 @@
-// @ts-nocheck
 import {test} from 'node:test';
 import assert from 'node:assert/strict';
 import {
@@ -11,9 +10,22 @@ import {
   layoutSensors,
   orphans,
 } from './sensors.ts';
+import type {PlacedSensor, WallSpotContext} from './sensors.ts';
+import type {
+  HaArea,
+  HaSensor,
+  Metric,
+  Plan,
+  PlanSensor,
+  Point,
+  Room,
+  SensorContext,
+  Vector,
+} from './types.ts';
 
-const M = k => METRICS.find(m => m.k === k);
-const S = [
+// (The ! below: what each test asks for is there — a quantity, a sensor, a spot, a label.)
+const M = (k: string): Metric => METRICS.find(m => m.k === k)!;
+const S: HaSensor[] = [
   {
     entity: 'sensor.plug_device_temperature',
     name: 'Plug Device temperature',
@@ -80,7 +92,7 @@ const S = [
     unit: 'W',
   },
 ];
-const V = {
+const V: Record<string, number> = {
   'sensor.plug_device_temperature': 41,
   'sensor.fridge_temperature': 4.2,
   'sensor.air_temperature': 23.14,
@@ -90,8 +102,12 @@ const V = {
   'sensor.stick_temperature': 22.8,
   'sensor.kettle_power': 1840,
 };
-const ctx = (areas = [], sensors = S) => ({sensors, areas, state: e => V[e] ?? null});
-const kitchen = {
+const ctx = (areas: HaArea[] = [], sensors: HaSensor[] = S): SensorContext => ({
+  sensors,
+  areas,
+  state: e => V[e] ?? null,
+});
+const kitchen: Room = {
   id: 'k',
   area: 'kitchen',
   polygon: [
@@ -101,10 +117,18 @@ const kitchen = {
     [0, 3],
   ],
 };
-const plan = sensors => ({rooms: [kitchen], furniture: [], lights: [], openings: [], sensors});
+const plan = (
+  sensors: PlanSensor[],
+): Pick<Plan, 'rooms' | 'furniture' | 'lights' | 'openings' | 'sensors'> => ({
+  rooms: [kitchen],
+  furniture: [],
+  lights: [],
+  openings: [],
+  sensors,
+});
 
 test('sensors: climate is suggested; diagnostic ones and the fridge are skipped; a climate sensor comes first', () => {
-  assert.equal(pickAuto(M('t'), 'kitchen', ctx()).entity, 'sensor.air_temperature'); // the device measures several quantities
+  assert.equal(pickAuto(M('t'), 'kitchen', ctx())!.entity, 'sensor.air_temperature'); // the device measures several quantities
   assert.deepEqual(
     recommend(plan([]), ctx()).map(x => x.entity),
     ['sensor.air_temperature', 'sensor.air_humidity', 'sensor.air_co2'],
@@ -117,7 +141,7 @@ test('sensors: climate is suggested; diagnostic ones and the fridge are skipped;
         [],
         S.filter(s => s.device !== 'air'),
       ),
-    ).entity,
+    )!.entity,
     'sensor.stick_temperature',
   ); // neither the plug nor the fridge
   assert.equal(
@@ -135,36 +159,36 @@ test('sensors: climate is suggested; diagnostic ones and the fridge are skipped;
     pickAuto(
       M('t'),
       'kitchen',
-      ctx([{area_id: 'kitchen', temperature_entity_id: 'sensor.stick_temperature'}]),
-    ).entity,
+      ctx([{area_id: 'kitchen', name: 'Kitchen', temperature_entity_id: 'sensor.stick_temperature'}]),
+    )!.entity,
     'sensor.stick_temperature',
   ); // the area's own sensor in HA
 });
 
 test('sensors: caption and number; climate has its own format, the rest come with a unit', () => {
-  const it = e => sensorItem({entity: e}, ctx());
+  const it = (e: string) => sensorItem({entity: e}, ctx());
   assert.deepEqual(it('sensor.air_temperature'), {label: 'TEMP.', text: '23.1°', lvl: 0, k: 1});
-  assert.equal(it('sensor.air_co2').lvl, 1); // above 1000: ventilate
+  assert.equal(it('sensor.air_co2')!.lvl, 1); // above 1000: ventilate
   assert.deepEqual(it('sensor.kettle_power'), {label: 'POWER', text: '1840 W', lvl: 0, k: 1});
   // digits twice as large make the label twice as big
-  const a = labelSize([sensorItem({entity: 'sensor.air_co2'}, ctx())]),
-    b = labelSize([sensorItem({entity: 'sensor.air_co2', k: 2}, ctx())]);
+  const a = labelSize([sensorItem({entity: 'sensor.air_co2'}, ctx())!]);
+  const b = labelSize([sensorItem({entity: 'sensor.air_co2', k: 2}, ctx())!]);
   assert.ok(Math.abs(b.ws[0] - 2 * a.ws[0]) < 1e-9 && b.h > a.h * 1.7); // same padding
-  assert.equal(sensorItem({entity: 'sensor.kettle_power', label: 'Kettle'}, ctx()).label, 'KETTLE');
+  assert.equal(sensorItem({entity: 'sensor.kettle_power', label: 'Kettle'}, ctx())!.label, 'KETTLE');
   assert.equal(it('sensor.gone'), null);
 });
 
 test('label spot: a visible wall without a window or tall furniture; placed by hand: the nearest wall', () => {
   const W = labelSize(
     ['sensor.air_temperature', 'sensor.air_humidity', 'sensor.air_co2'].map(e =>
-      sensorItem({entity: e}, ctx()),
+      sensorItem({entity: e}, ctx())!,
     ),
   ).w;
   // the default camera looks from the southeast: the north wall (y = 3) and the west wall (x = 0) are visible
-  let s = wallSpot(kitchen, {}, W);
+  let s = wallSpot(kitchen, {}, W)!;
   assert.equal(s.i, 2);
   assert.ok(Math.abs(s.c[1] - (3 - 0.05)) < 1e-9); // on the wall face, 5 cm from the axis
-  s = wallSpot(kitchen, {openings: [{a: [0.3, 3], b: [3.7, 3], bottom: 0.9, top: 2.2}]}, W);
+  s = wallSpot(kitchen, {openings: [{a: [0.3, 3], b: [3.7, 3], bottom: 0.9, top: 2.2}]}, W)!;
   assert.equal(s.i, 3); // a window on the north wall: the west wall
   s = wallSpot(
     kitchen,
@@ -173,11 +197,11 @@ test('label spot: a visible wall without a window or tall furniture; placed by h
       furniture: [{x: 0.3, y: 1.5, w: 2.4, d: 0.6, h: 2.2, rot: 90, model: 'wardrobe'}],
     },
     W,
-  );
+  )!;
   assert.ok(s.i !== 3 || Math.abs(s.t - 1.5) > 1.2); // not on the wardrobe
-  s = wallSpot(kitchen, {furniture: [{x: 2, y: 2.7, w: 2, d: 0.5, h: 0.9, rot: 0, model: 'dresser'}]}, W);
+  s = wallSpot(kitchen, {furniture: [{x: 2, y: 2.7, w: 2, d: 0.5, h: 0.9, rot: 0, model: 'dresser'}]}, W)!;
   assert.equal(s.i, 2); // a low dresser is no obstacle
-  s = wallSpot(kitchen, {}, W, [4, 1]);
+  s = wallSpot(kitchen, {}, W, [4, 1])!;
   assert.equal(s.i, 1);
   assert.ok(s.own);
 });
@@ -192,14 +216,14 @@ test('plan labels: one per sensor, several in a row, a hand-placed one separatel
     ctx(),
   );
   assert.equal(L.length, 3);
-  const [a, b] = ['a', 'b'].map(id => L.find(x => x.id === id)),
-    c = L.find(x => x.id === 'c');
+  const [a, b] = ['a', 'b'].map(id => L.find(x => x.id === id)!);
+  const c = L.find(x => x.id === 'c')!;
   assert.equal(a.i, b.i);
   assert.ok(Math.abs(b.t - a.t) > (a.w + b.w) / 2 - 1e-9); // side by side, no overlap
-  const rt = [-a.n[1], a.n[0]];
+  const rt: Vector = [-a.n[1], a.n[0]];
   assert.ok((b.c[0] - a.c[0]) * rt[0] + (b.c[1] - a.c[1]) * rt[1] > 0); // temperature is to the left of humidity for whoever looks at the wall
   // the spot follows the home view and is static: a camera from the south puts the row on the south wall (i = 0), from the southeast on the north wall
-  const at = cam =>
+  const at = (cam: Vector | undefined): number =>
     layoutSensors(plan([{id: 'a', entity: 'sensor.air_temperature', room: 'k'}]), ctx(), {cam})[0].i;
   assert.equal(at([0, 1]), 0);
   assert.equal(at(undefined), 2);
@@ -209,25 +233,35 @@ test('plan labels: one per sensor, several in a row, a hand-placed one separatel
 });
 
 test('sensors without a room: ask about climate sensors without an area; not about diagnostic ones, ones on a wall or “Don’t show” ones', () => {
-  const free = [
+  // (sensors without a device: device null)
+  const free: HaSensor[] = [
     ...S,
     {
       entity: 'sensor.aqara_temperature',
       name: 'Aqara thermometer',
       area: null,
+      device: null,
       cls: 'temperature',
       unit: '°C',
     },
-    {entity: 'sensor.garage_temperature', name: 'Garage', area: 'garage', cls: 'temperature', unit: '°C'}, // the area is not on the plan
+    {
+      entity: 'sensor.garage_temperature',
+      name: 'Garage',
+      area: 'garage',
+      device: null,
+      cls: 'temperature',
+      unit: '°C',
+    }, // the area is not on the plan
     {
       entity: 'sensor.plug2_temperature',
       name: 'Plug Device temperature',
       area: null,
+      device: null,
       cls: 'temperature',
       unit: '°C',
       cat: 'diagnostic',
     },
-    {entity: 'sensor.desk_power', name: 'Desk Power', area: null, cls: 'power', unit: 'W'},
+    {entity: 'sensor.desk_power', name: 'Desk Power', area: null, device: null, cls: 'power', unit: 'W'},
   ];
   const c = {...ctx([], free)};
   assert.deepEqual(
@@ -253,7 +287,7 @@ test('sensor under a sensor: a column takes one place in the row, lower by its o
     {id: 'c', entity: 'sensor.air_co2', room: 'k'},
   ];
   let L = layoutSensors(plan(P0), ctx());
-  const g = id => L.find(x => x.id === id);
+  const g = (id: string): PlacedSensor => L.find(x => x.id === id)!;
   assert.ok(Math.hypot(g('a').c[0] - g('b').c[0], g('a').c[1] - g('b').c[1]) < 1e-9); // one point on the wall
   assert.ok(g('b').y < g('a').y - 0.3);
   assert.equal(g('a').col, g('b').col);
@@ -306,8 +340,8 @@ test('moving the second toward the third: the neighbors stay on the wall, the fr
       ],
     },
   ];
-  const L = layoutSensors(P, ctx(), {moving: 'b'}),
-    byId = id => L.find(x => x.id === id);
+  const L = layoutSensors(P, ctx(), {moving: 'b'});
+  const byId = (id: string): PlacedSensor => L.find(x => x.id === id)!;
   assert.ok(Math.abs(byId('a').c[0] - 0.5) < 1e-9);
   assert.ok(Math.abs(byId('c').c[0] - 2.05) < 1e-9);
   assert.ok(L.every(s => s.i === 2)); // CO₂ was not pushed onto a side wall out of view
@@ -323,17 +357,17 @@ test('moving the second toward the third: the neighbors stay on the wall, the fr
 
 test('a neighbor’s wardrobe behind the partition does not take the wall (homes check, D-061)', () => {
   // a narrow room: the long walls are windows, the west one a door — only the east wall is left; behind it, in the next room, a wardrobe
-  const room = {
-      id: 'a',
-      polygon: [
-        [0, 0],
-        [3, 0],
-        [3, 1.2],
-        [0, 1.2],
-      ],
-    },
-    win = (a, b) => ({a, b, bottom: 0.85, top: 2.4, kind: 'window'});
-  const ctx = {
+  const room: Room = {
+    id: 'a',
+    polygon: [
+      [0, 0],
+      [3, 0],
+      [3, 1.2],
+      [0, 1.2],
+    ],
+  };
+  const win = (a: Point, b: Point) => ({a, b, bottom: 0.85, top: 2.4, kind: 'window'});
+  const ctx: WallSpotContext = {
     openings: [
       win([0.15, 0], [2.85, 0]),
       win([0.15, 1.2], [2.85, 1.2]),

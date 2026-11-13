@@ -1,4 +1,3 @@
-// @ts-nocheck
 // Floors and shading along walls (D-028). Core of the 3D view, no UI.
 // The floor covering is guessed from the room name; planks and tiles are drawn in code on a canvas, there are no image files.
 // Shading along walls and in corners is computed once from the plan (a top-down map, `bakeAO`), and the wall and floor shader reads it from a texture:
@@ -6,6 +5,132 @@
 import {t} from '../i18n/i18n.ts';
 import * as THREE from 'three';
 import {edgePieces, edgeRuns} from './pieces.ts';
+import type {
+  Finish,
+  FinishBand,
+  MultiPolygon,
+  Outline,
+  Point,
+  Room,
+  Vector,
+  WallBand,
+  WallPlan,
+} from './types.ts';
+
+/** A colour as [r, g, b], 0–255. */
+export type RGB = number[];
+
+/** What every floor finish has (FLOOR_KINDS): its name, colour, how many metres one repeat covers, roughness, its popup section. */
+interface FloorBase {
+  label: string;
+  base: RGB;
+  size: number;
+  rough: number;
+  group: string;
+  seed?: number;
+  cols?: number;
+  rows?: number;
+  blots?: number;
+  alt?: RGB;
+}
+/** Planks, drawn from a seed. */
+interface PlankFloor extends FloorBase {
+  pattern: 'planks';
+  seed: number;
+}
+/** Tiles and marble slabs: cols × rows per repeat, drawn from a seed, with soft blotches. */
+interface TileFloor extends FloorBase {
+  pattern: 'tile' | 'marble';
+  cols: number;
+  rows: number;
+  seed: number;
+}
+/** A checkerboard: cols × cols tiles of base and alt. */
+interface CheckerFloor extends FloorBase {
+  pattern: 'checker';
+  alt: RGB;
+  cols: number;
+  seed: number;
+}
+/** A finish drawn from its colour alone. */
+interface PlainFloor extends FloorBase {
+  pattern: 'herringbone' | 'concrete' | 'carpet' | 'grass' | 'gravel';
+}
+/** A floor finish (FLOOR_KINDS), by how it is drawn. */
+export type FloorKind = PlankFloor | TileFloor | CheckerFloor | PlainFloor;
+
+/** What every wall finish has (WALL_KINDS): its name, colour and popup section; the sizes are metres. */
+interface WallBase {
+  label: string;
+  base: RGB;
+  group: string;
+  w?: number;
+  h?: number;
+  joint?: number;
+  panel?: number;
+}
+/** Tiles in a grid or staggered, bricks, zellige: the tile w × h and the joint; panel: tiles up to this height, paint above. */
+interface TiledWall extends WallBase {
+  pattern: 'grid' | 'bond' | 'brick' | 'zellige';
+  w: number;
+  h: number;
+  joint: number;
+}
+/** Vertical slats or panels w wide, joint apart. */
+interface SlatWall extends WallBase {
+  pattern: 'slats';
+  w: number;
+  joint: number;
+}
+/** Stripes or flutes w wide. */
+interface StripeWall extends WallBase {
+  pattern: 'stripes' | 'fluted';
+  w: number;
+}
+/** A pattern w × h: an art deco repeat, classic panels (w: a panel, h: the dado rail), marble slabs. */
+interface PanelWall extends WallBase {
+  pattern: 'deco' | 'boiserie' | 'marble';
+  w: number;
+  h: number;
+}
+/** A finish drawn from its colour alone. */
+interface PlainWall extends WallBase {
+  pattern: 'paint' | 'plaster' | 'limewash' | 'linen' | 'concrete';
+}
+/** A wall finish (WALL_KINDS), by how it is drawn. */
+export type WallKind = TiledWall | SlatWall | StripeWall | PanelWall | PlainWall;
+
+/** The finish of one wall (sideWall): own, the edge has its own setting (room.wf[i]). */
+export interface WallFinish extends Finish {
+  own: boolean;
+}
+/** The wall finish maps of a home (bakeFinish): the edge map, the finish and stack tables, the edge map's box, how many finishes. */
+export interface FinishMaps {
+  tex: THREE.DataTexture;
+  tab: THREE.DataTexture;
+  stk: THREE.DataTexture;
+  /** The edge map's origin and 1/size in plan metres. */
+  box: [number, number, number, number];
+  count: number;
+}
+/** The shading maps of a home (bakeAO): A = (interior, S, E, N), B = (W, floor present, —, —), and their box. */
+export interface AoMaps {
+  A: THREE.DataTexture;
+  B: THREE.DataTexture;
+  box: THREE.Vector4;
+}
+/** The shading and wall finish uniforms one scene shares (aoUniforms). */
+export interface AoUniforms {
+  htAoA: {value: THREE.DataTexture};
+  htAoB: {value: THREE.DataTexture};
+  htAoBox: {value: THREE.Vector4};
+  htAoVis: {value: THREE.Vector4};
+  htFin: {value: THREE.DataTexture};
+  htFinTab: {value: THREE.DataTexture};
+  htFinStk: {value: THREE.DataTexture};
+  htFinBox: {value: THREE.Vector4};
+  htAoK: {value: THREE.Vector4};
+}
 
 // ---------- floor covering ----------
 // Coverings: pattern is how it is drawn (planks, herringbone, tile with cols×rows per repeat, concrete,
@@ -13,11 +138,11 @@ import {edgePieces, edgeRuns} from './pieces.ts';
 // in the “All options and custom color” popup. The first eight (FLOOR_QUICK) are in the room's “Floor” row, the rest are in the popup.
 // The user picks the room's floor (room.floor) and, optionally, a custom color (room.floorTint, '#rrggbb', instead of base);
 // if nothing is picked, we guess from the name (floorGuess).
-const W = t('Wood'),
-  H = t('Herringbone'),
-  T = t('Tile & stone'),
-  O = t('Other');
-export const FLOOR_KINDS = {
+const W = t('Wood');
+const H = t('Herringbone');
+const T = t('Tile & stone');
+const O = t('Other');
+export const FLOOR_KINDS: Record<string, FloorKind> = {
   wood: {
     label: t('Oak'),
     pattern: 'planks',
@@ -249,21 +374,23 @@ export const FLOOR_QUICK = [
   'concrete',
   'carpet',
 ];
-export const FLOOR_GROUPS = [W, H, T, O].map(g => [
+export const FLOOR_GROUPS = [W, H, T, O].map((g): [string, string[]] => [
   g,
   Object.keys(FLOOR_KINDS).filter(k => FLOOR_KINDS[k].group === g),
 ]);
-const hex = c => '#' + c.map(v => Math.round(v).toString(16).padStart(2, '0')).join('');
-const unhex = h =>
-  /^#[0-9a-f]{6}$/i.test(h || '') ? [1, 3, 5].map(i => parseInt(h.slice(i, i + 2), 16)) : null;
-export const floorBase = (kind, tint) => hex(unhex(tint) || FLOOR_KINDS[kind].base);
+const hex = (c: RGB): string => '#' + c.map(v => Math.round(v).toString(16).padStart(2, '0')).join('');
+// h passed the test: it is a '#rrggbb' string
+const unhex = (h: string | null | undefined): RGB | null =>
+  /^#[0-9a-f]{6}$/i.test(h || '') ? [1, 3, 5].map(i => parseInt(h!.slice(i, i + 2), 16)) : null;
+export const floorBase = (kind: string, tint?: string | null): string =>
+  hex(unhex(tint) || FLOOR_KINDS[kind].base);
 // Bathroom, toilet and laundry: tiles; garage, utility room, basement: concrete; kitchen, balcony, terrace, garden: porcelain stoneware,
 // but a kitchen-living room gets parquet; everything else: parquet.
 // The demo apartment's names match their ids (bathroom, kitchen, panorama), so we look at the id too.
 // by room name, in the ten UI languages (D-036): bathroom and toilet, living room, kitchen and balcony
 export const BATH =
   /ванн|санузел|с\/у|туалет|уборн|душ|bath|shower|en-?suite|wc|toilet|badezimmer|^bad\b|\bbad$|dusche|salle de bain|sdb|douche|badkamer|douche|baño|aseo|ducha|bagno|doccia|łazienk|toalet|prysznic|banheiro|casa de banho|lavabo|chuveiro|卫生间|浴室|厕所|洗手间/;
-export const floorGuess = room => {
+export const floorGuess = (room: Room | null | undefined): string => {
   const s = `${room?.name || ''} ${room?.id || ''}`.toLowerCase();
   if (BATH.test(s)) return 'tile';
   // a garage, utility or boiler room, a basement, a shed: concrete; a laundry room: tiles (the homes check: these had parquet)
@@ -295,49 +422,54 @@ export const floorGuess = room => {
     return 'stone';
   return 'wood';
 };
-export const floorKind = room => (FLOOR_KINDS[room?.floor] ? room.floor : floorGuess(room));
-export const floorColor = room => floorBase(floorKind(room), room?.floorTint);
+export const floorKind = (room: Room | null | undefined): string =>
+  room?.floor && FLOOR_KINDS[room.floor] ? room.floor : floorGuess(room);
+export const floorColor = (room: Room | null | undefined): string =>
+  floorBase(floorKind(room), room?.floorTint);
 
 // deterministic random: the same texture on every run
-const rng = seed => () => {
-  seed |= 0;
-  seed = (seed + 0x6d2b79f5) | 0;
-  let t = Math.imul(seed ^ (seed >>> 15), 1 | seed);
-  t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
-  return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
-};
+const rng =
+  (seed: number): (() => number) =>
+  (): number => {
+    seed |= 0;
+    seed = (seed + 0x6d2b79f5) | 0;
+    let t = Math.imul(seed ^ (seed >>> 15), 1 | seed);
+    t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
 const N = 1024;
-function canvas() {
+// A new canvas, N × N. Every browser the 3D view runs in gives a canvas a 2D context, hence getContext('2d')! below.
+function canvas(): HTMLCanvasElement {
   const c = document.createElement('canvas');
   c.width = c.height = N;
   return c;
 }
-const rgb = (c, k = 1, a = 1) =>
+const rgb = (c: RGB, k = 1, a = 1): string =>
   `rgba(${Math.round(Math.min(255, c[0] * k))},${Math.round(Math.min(255, c[1] * k))},${Math.round(Math.min(255, c[2] * k))},${a})`;
 
 // 20 cm oak planks, two planks per row with a random joint; each plank has its own shade and grain. The 2.4 m repeat is seamless.
-function wood(base = [178, 147, 114], seed = 11) {
-  const c = canvas(),
-    g = c.getContext('2d'),
-    r = rng(seed),
-    rows = 12,
-    h = N / rows;
+function wood(base: RGB = [178, 147, 114], seed = 11): HTMLCanvasElement {
+  const c = canvas();
+  const g = c.getContext('2d')!;
+  const r = rng(seed);
+  const rows = 12;
+  const h = N / rows;
   g.fillStyle = rgb(base);
   g.fillRect(0, 0, N, N);
-  const joints = [];
+  const joints: Point[] = [];
   for (let i = 0; i < rows; i++) {
-    const y = i * h,
-      o = r() * N,
-      L = N * (0.36 + r() * 0.28);
+    const y = i * h;
+    const o = r() * N;
+    const L = N * (0.36 + r() * 0.28);
     for (const [a, len] of [
       [o, L],
       [o + L, N - L],
     ]) {
       joints.push([a % N, y]);
       // plank parameters are chosen once: the plank is also drawn shifted by the texture width so the joint across the edge matches
-      const k = 0.94 + r() * 0.11,
-        warm = r() * 0.05 - 0.025,
-        tone = [base[0] * (1 + warm), base[1], base[2] * (1 - warm * 1.5)];
+      const k = 0.94 + r() * 0.11;
+      const warm = r() * 0.05 - 0.025;
+      const tone = [base[0] * (1 + warm), base[1], base[2] * (1 - warm * 1.5)];
       const lines = Array.from({length: 30}, () => ({
         y: y + 2 + r() * (h - 4),
         a: 0.02 + r() * 0.06,
@@ -405,12 +537,18 @@ function wood(base = [178, 147, 114], seed = 11) {
   return c;
 }
 // Tile: squares or rectangles with a thin joint, each with a barely visible color variation, like porcelain stoneware.
-function tiles(base, cols, rows, seed, {blots = 0, grout}) {
-  const c = canvas(),
-    g = c.getContext('2d'),
-    r = rng(seed),
-    w = N / cols,
-    h = N / rows;
+function tiles(
+  base: RGB,
+  cols: number,
+  rows: number,
+  seed: number,
+  {blots = 0, grout}: {blots?: number; grout: string},
+): HTMLCanvasElement {
+  const c = canvas();
+  const g = c.getContext('2d')!;
+  const r = rng(seed);
+  const w = N / cols;
+  const h = N / rows;
   for (let i = 0; i < cols; i++)
     for (let j = 0; j < rows; j++) {
       const k = 0.975 + r() * 0.05;
@@ -421,11 +559,11 @@ function tiles(base, cols, rows, seed, {blots = 0, grout}) {
       g.rect(i * w, j * h, w, h);
       g.clip();
       for (let n = 0; n < blots; n++) {
-        const x = i * w + r() * w,
-          y = j * h + r() * h,
-          rad = 20 + r() * 120,
-          l = r() < 0.5,
-          gr = g.createRadialGradient(x, y, 0, x, y, rad);
+        const x = i * w + r() * w;
+        const y = j * h + r() * h;
+        const rad = 20 + r() * 120;
+        const l = r() < 0.5;
+        const gr = g.createRadialGradient(x, y, 0, x, y, rad);
         gr.addColorStop(0, l ? 'rgba(255,255,255,.035)' : 'rgba(70,60,50,.03)');
         gr.addColorStop(1, 'rgba(0,0,0,0)');
         g.fillStyle = gr;
@@ -445,30 +583,30 @@ function tiles(base, cols, rows, seed, {blots = 0, grout}) {
 }
 // Herringbone: 4:1 slats, axes along the walls (in 3D it is rotated along the room). “Horizontal–vertical” chains run
 // diagonally and repeat every 2n slats on both axes, so the texture is seamless; a slat's tone depends on its place in the repeat.
-function herringbone(base = [176, 141, 106]) {
-  const c = canvas(),
-    g = c.getContext('2d'),
-    n = 4,
-    P = 2 * n,
-    u = N / P;
+function herringbone(base: RGB = [176, 141, 106]): HTMLCanvasElement {
+  const c = canvas();
+  const g = c.getContext('2d')!;
+  const n = 4;
+  const P = 2 * n;
+  const u = N / P;
   g.fillStyle = rgb(base);
   g.fillRect(0, 0, N, N);
-  const md = (a, b) => ((a % b) + b) % b,
-    hash = (x, y, t) => {
-      let h = x * 374761393 + y * 668265263 + t * 69069;
-      h = (h ^ (h >>> 13)) * 1274126177;
-      return ((h ^ (h >>> 16)) >>> 0) / 4294967296;
-    };
-  const plank = (x, y, w, h, vert) => {
-    const key = hash(md(x, P), md(y, P), vert ? 1 : 0),
-      r = rng(Math.floor(key * 1e6)),
-      k = 0.95 + key * 0.08,
-      warm = r() * 0.03 - 0.015,
-      tone = [base[0] * (1 + warm), base[1], base[2] * (1 - warm * 1.5)];
-    const X = x * u,
-      Y = y * u,
-      W = w * u,
-      H = h * u;
+  const md = (a: number, b: number): number => ((a % b) + b) % b;
+  const hash = (x: number, y: number, t: number): number => {
+    let h = x * 374761393 + y * 668265263 + t * 69069;
+    h = (h ^ (h >>> 13)) * 1274126177;
+    return ((h ^ (h >>> 16)) >>> 0) / 4294967296;
+  };
+  const plank = (x: number, y: number, w: number, h: number, vert: boolean): void => {
+    const key = hash(md(x, P), md(y, P), vert ? 1 : 0);
+    const r = rng(Math.floor(key * 1e6));
+    const k = 0.95 + key * 0.08;
+    const warm = r() * 0.03 - 0.015;
+    const tone = [base[0] * (1 + warm), base[1], base[2] * (1 - warm * 1.5)];
+    const X = x * u;
+    const Y = y * u;
+    const W = w * u;
+    const H = h * u;
     g.save();
     g.beginPath();
     g.rect(X, Y, W, H);
@@ -476,11 +614,11 @@ function herringbone(base = [176, 141, 106]) {
     g.fillStyle = rgb(tone, k);
     g.fillRect(X, Y, W, H);
     for (let i = 0; i < 9; i++) {
-      const o = 2 + r() * ((vert ? W : H) - 4),
-        a = 0.02 + r() * 0.06,
-        amp = 0.5 + r() * 1.6,
-        f = 0.004 + r() * 0.01,
-        ph = r() * 7;
+      const o = 2 + r() * ((vert ? W : H) - 4);
+      const a = 0.02 + r() * 0.06;
+      const amp = 0.5 + r() * 1.6;
+      const f = 0.004 + r() * 0.01;
+      const ph = r() * 7;
       g.strokeStyle = r() < 0.8 ? `rgba(70,42,18,${a})` : `rgba(255,236,205,${a * 0.8})`;
       g.lineWidth = 0.5 + r() * 1.3;
       g.beginPath();
@@ -509,18 +647,18 @@ function herringbone(base = [176, 141, 106]) {
   return c;
 }
 // Concrete (microcement): an even gray with soft blotches and fine grain; the blotches are also drawn shifted by the width, so there is no seam.
-function concrete(base = [168, 167, 163]) {
-  const c = canvas(),
-    g = c.getContext('2d'),
-    r = rng(21);
+function concrete(base: RGB = [168, 167, 163]): HTMLCanvasElement {
+  const c = canvas();
+  const g = c.getContext('2d')!;
+  const r = rng(21);
   g.fillStyle = rgb(base);
   g.fillRect(0, 0, N, N);
   for (let i = 0; i < 70; i++) {
-    const x = r() * N,
-      y = r() * N,
-      rad = 60 + r() * 260,
-      l = r() < 0.5,
-      a = 0.02 + r() * 0.04;
+    const x = r() * N;
+    const y = r() * N;
+    const rad = 60 + r() * 260;
+    const l = r() < 0.5;
+    const a = 0.02 + r() * 0.04;
     for (const dx of [-N, 0, N])
       for (const dy of [-N, 0, N]) {
         const gr = g.createRadialGradient(x + dx, y + dy, 0, x + dx, y + dy, rad);
@@ -537,17 +675,17 @@ function concrete(base = [168, 167, 163]) {
   return c;
 }
 // Carpet: soft pile, dense fine grain and a slight tone variation.
-function carpet(base = [155, 149, 139]) {
-  const c = canvas(),
-    g = c.getContext('2d'),
-    r = rng(31);
+function carpet(base: RGB = [155, 149, 139]): HTMLCanvasElement {
+  const c = canvas();
+  const g = c.getContext('2d')!;
+  const r = rng(31);
   g.fillStyle = rgb(base);
   g.fillRect(0, 0, N, N);
   for (let i = 0; i < 40; i++) {
-    const x = r() * N,
-      y = r() * N,
-      rad = 60 + r() * 120,
-      a = 0.02 + r() * 0.025;
+    const x = r() * N;
+    const y = r() * N;
+    const rad = 60 + r() * 120;
+    const a = 0.02 + r() * 0.025;
     for (const dx of [-N, 0, N])
       for (const dy of [-N, 0, N]) {
         const gr = g.createRadialGradient(x + dx, y + dy, 0, x + dx, y + dy, rad);
@@ -570,18 +708,18 @@ function carpet(base = [155, 149, 139]) {
 }
 // Lawn: mown grass — soft lighter and darker patches (drawn shifted by the width too, no seam) and thousands of short blades leaning
 // every way in greens from olive to fresh, a few dry ones.
-function grass(base = [86, 110, 64]) {
-  const c = canvas(),
-    g = c.getContext('2d'),
-    r = rng(41);
+function grass(base: RGB = [86, 110, 64]): HTMLCanvasElement {
+  const c = canvas();
+  const g = c.getContext('2d')!;
+  const r = rng(41);
   g.fillStyle = rgb(base);
   g.fillRect(0, 0, N, N);
   for (let i = 0; i < 60; i++) {
-    const x = r() * N,
-      y = r() * N,
-      rad = 80 + r() * 240,
-      l = r() < 0.5,
-      a = 0.04 + r() * 0.06;
+    const x = r() * N;
+    const y = r() * N;
+    const rad = 80 + r() * 240;
+    const l = r() < 0.5;
+    const a = 0.04 + r() * 0.06;
     for (const dx of [-N, 0, N])
       for (const dy of [-N, 0, N]) {
         const gr = g.createRadialGradient(x + dx, y + dy, 0, x + dx, y + dy, rad);
@@ -593,12 +731,12 @@ function grass(base = [86, 110, 64]) {
   }
   g.lineCap = 'round';
   for (let i = 0; i < 22000; i++) {
-    const x = r() * N,
-      y = r() * N,
-      a = r() * Math.PI * 2,
-      L = 4 + r() * 7,
-      k = 0.75 + r() * 0.6,
-      dry = r() < 0.04;
+    const x = r() * N;
+    const y = r() * N;
+    const a = r() * Math.PI * 2;
+    const L = 4 + r() * 7;
+    const k = 0.75 + r() * 0.6;
+    const dry = r() < 0.04;
     g.strokeStyle = dry
       ? `rgba(196,180,120,.5)`
       : rgb([base[0] * (0.85 + r() * 0.3), base[1], base[2] * (0.8 + r() * 0.4)], k, 0.55);
@@ -614,19 +752,19 @@ function grass(base = [86, 110, 64]) {
   return c;
 }
 // Gravel: small rounded stones of warm grays, packed, with shadows under them.
-function gravel(base = [176, 168, 154]) {
-  const c = canvas(),
-    g = c.getContext('2d'),
-    r = rng(43);
+function gravel(base: RGB = [176, 168, 154]): HTMLCanvasElement {
+  const c = canvas();
+  const g = c.getContext('2d')!;
+  const r = rng(43);
   g.fillStyle = rgb(base, 0.82);
   g.fillRect(0, 0, N, N);
   for (let i = 0; i < 9000; i++) {
-    const x = r() * N,
-      y = r() * N,
-      rx = 3 + r() * 5,
-      ry = rx * (0.6 + r() * 0.4),
-      a = r() * Math.PI,
-      k = 0.8 + r() * 0.4;
+    const x = r() * N;
+    const y = r() * N;
+    const rx = 3 + r() * 5;
+    const ry = rx * (0.6 + r() * 0.4);
+    const a = r() * Math.PI;
+    const k = 0.8 + r() * 0.4;
     for (const dx of x < 10 ? [0, N] : x > N - 10 ? [0, -N] : [0])
       for (const dy of y < 10 ? [0, N] : y > N - 10 ? [0, -N] : [0]) {
         g.fillStyle = 'rgba(40,36,30,.25)';
@@ -642,17 +780,17 @@ function gravel(base = [176, 168, 154]) {
   return c;
 }
 // Marble: slabs with soft clouds and thin veins (also drawn shifted by the width, so there is no seam at the repeat).
-function marble(base, cols, rows, seed) {
+function marble(base: RGB, cols: number, rows: number, seed: number): HTMLCanvasElement {
   const c = tiles(base, cols, rows, seed, {
-      blots: 6,
-      grout: `rgba(${base.map(v => (v * 0.7) | 0).join(',')},.35)`,
-    }),
-    g = c.getContext('2d'),
-    r = rng(seed + 100);
+    blots: 6,
+    grout: `rgba(${base.map(v => (v * 0.7) | 0).join(',')},.35)`,
+  });
+  const g = c.getContext('2d')!;
+  const r = rng(seed + 100);
   for (let i = 0; i < 14; i++) {
-    let x = r() * N,
-      y = r() * N,
-      a = r() * Math.PI * 2;
+    let x = r() * N;
+    let y = r() * N;
+    let a = r() * Math.PI * 2;
     const pts = [[x, y]];
     for (let k = 0; k < 40; k++) {
       a += (r() - 0.5) * 0.6;
@@ -660,8 +798,8 @@ function marble(base, cols, rows, seed) {
       y += Math.sin(a) * 14;
       pts.push([x, y]);
     }
-    const w = 0.4 + r() * 1.4,
-      al = 0.06 + r() * 0.14;
+    const w = 0.4 + r() * 1.4;
+    const al = 0.06 + r() * 0.14;
     for (const dx of [-N, 0, N])
       for (const dy of [-N, 0, N]) {
         g.strokeStyle = `rgba(${base.map(v => (v * 0.55) | 0).join(',')},${al})`;
@@ -674,15 +812,15 @@ function marble(base, cols, rows, seed) {
   return c;
 }
 // Checker: tiles of two alternating colors.
-function checker(base, alt, cols, seed) {
-  const c = canvas(),
-    g = c.getContext('2d'),
-    r = rng(seed),
-    w = N / cols;
+function checker(base: RGB, alt: RGB, cols: number, seed: number): HTMLCanvasElement {
+  const c = canvas();
+  const g = c.getContext('2d')!;
+  const r = rng(seed);
+  const w = N / cols;
   for (let i = 0; i < cols; i++)
     for (let j = 0; j < cols; j++) {
-      const col = (i + j) % 2 ? alt : base,
-        k = 0.98 + r() * 0.04;
+      const col = (i + j) % 2 ? alt : base;
+      const k = 0.98 + r() * 0.04;
       g.fillStyle = rgb(col, k);
       g.fillRect(i * w, j * w, w, w);
       for (let n = 0; n < 500; n++) {
@@ -698,10 +836,10 @@ function checker(base, alt, cols, seed) {
   return c;
 }
 // Draw a covering: a custom color (tint) replaces the base one; the tile joint is derived from the color.
-function drawFloor(kind, tint) {
-  const K = FLOOR_KINDS[kind],
-    base = unhex(tint) || K.base,
-    grout = `rgba(${base.map(v => (v * 0.62) | 0).join(',')},.55)`;
+function drawFloor(kind: string, tint?: string | null): HTMLCanvasElement {
+  const K = FLOOR_KINDS[kind];
+  const base = unhex(tint) || K.base;
+  const grout = `rgba(${base.map(v => (v * 0.62) | 0).join(',')},.55)`;
   switch (K.pattern) {
     case 'planks':
       return wood(base, K.seed);
@@ -723,28 +861,29 @@ function drawFloor(kind, tint) {
       return tiles(base, K.cols, K.rows, K.seed, {blots: K.blots || 0, grout});
   }
 }
-const texCache = new Map(),
-  swCache = new Map(),
-  drawn = new Map();
-const drawOnce = (kind, tint) => {
+const texCache = new Map<string, THREE.CanvasTexture>();
+const swCache = new Map<string, string>();
+const drawn = new Map<string, HTMLCanvasElement>();
+// (Each cache's get! below: the entry was set just before.)
+const drawOnce = (kind: string, tint?: string | null): HTMLCanvasElement => {
   const k = kind + '|' + (tint || '');
   if (!drawn.has(k)) drawn.set(k, drawFloor(kind, tint));
-  return drawn.get(k);
+  return drawn.get(k)!;
 }; // drawn once, both for 3D and for the swatch
 // A floor swatch for the room panel: a ~60 cm piece of the texture, 48 px.
-export function floorSwatch(kind, tint) {
+export function floorSwatch(kind: string, tint?: string | null): string {
   const key = kind + '|' + (tint || '');
   if (!swCache.has(key)) {
-    const src = drawOnce(kind, tint),
-      c = document.createElement('canvas');
+    const src = drawOnce(kind, tint);
+    const c = document.createElement('canvas');
     c.width = c.height = 48;
     const k = Math.min(1, 0.6 / FLOOR_KINDS[kind].size);
-    c.getContext('2d').drawImage(src, 0, 0, N * k, N * k, 0, 0, 48, 48);
+    c.getContext('2d')!.drawImage(src, 0, 0, N * k, N * k, 0, 0, 48, 48);
     swCache.set(key, c.toDataURL());
   }
-  return swCache.get(key);
+  return swCache.get(key)!;
 }
-export function floorTexture(kind, anisotropy = 8, tint) {
+export function floorTexture(kind: string, anisotropy = 8, tint?: string | null): THREE.CanvasTexture {
   const key = kind + '|' + (tint || '');
   if (!texCache.has(key)) {
     const t = new THREE.CanvasTexture(drawOnce(kind, tint));
@@ -753,29 +892,29 @@ export function floorTexture(kind, anisotropy = 8, tint) {
     t.anisotropy = anisotropy;
     texCache.set(key, t);
   }
-  return texCache.get(key);
+  return texCache.get(key)!;
 }
 // Floor UV mapping: plan meters rotated along the longest edge of the room (planks run along the room, tiles square with the walls).
-export function floorUV(geometry, polygon, size) {
-  let best = 0,
-    ang = 0;
+export function floorUV(geometry: THREE.BufferGeometry, polygon: Outline, size: number): void {
+  let best = 0;
+  let ang = 0;
   for (let i = 0; i < polygon.length; i++) {
-    const a = polygon[i],
-      b = polygon[(i + 1) % polygon.length],
-      l = Math.hypot(b[0] - a[0], b[1] - a[1]);
+    const a = polygon[i];
+    const b = polygon[(i + 1) % polygon.length];
+    const l = Math.hypot(b[0] - a[0], b[1] - a[1]);
     if (l > best) {
       best = l;
       ang = Math.atan2(b[1] - a[1], b[0] - a[0]);
     }
   }
-  const c = Math.cos(-ang),
-    s = Math.sin(-ang),
-    pos = geometry.attributes.position,
-    uv = geometry.attributes.uv;
+  const c = Math.cos(-ang);
+  const s = Math.sin(-ang);
+  const pos = geometry.attributes.position;
+  const uv = geometry.attributes.uv;
   // the ShapeGeometry is already rotated into the floor: x is plan x, z is minus plan y
   for (let i = 0; i < pos.count; i++) {
-    const x = pos.getX(i),
-      y = -pos.getZ(i);
+    const x = pos.getX(i);
+    const y = -pos.getZ(i);
     uv.setXY(i, (x * c - y * s) / size, (x * s + y * c) / size);
   }
   uv.needsUpdate = true;
@@ -786,14 +925,14 @@ export function floorUV(geometry, polygon, size) {
 // battens), concrete; w×h is the tile size (m), joint is the joint (m), panel means tiles only up to this height, paint above.
 // The user picks the room's finish (room.wall, room.wallTint) and, optionally, one for a single edge (room.wf[i] = {k, tint});
 // if nothing is picked, it goes by name (wallGuess): bathroom and toilet get white tiles up to the ceiling (the owner), everything else warm white.
-const WP = t('Paint'),
-  WPL = t('Plaster'),
-  WWP = t('Wallpaper'),
-  WT = t('Tile'),
-  WB = t('Brick'),
-  WW = t('Wood'),
-  WO = t('Other');
-export const WALL_KINDS = {
+const WP = t('Paint');
+const WPL = t('Plaster');
+const WWP = t('Wallpaper');
+const WT = t('Tile');
+const WB = t('Brick');
+const WW = t('Wood');
+const WO = t('Other');
+export const WALL_KINDS: Record<string, WallKind> = {
   paintWarm: {label: t('Warm white'), pattern: 'paint', base: [240, 236, 229], group: WP},
   paintWhite: {label: t('White'), pattern: 'paint', base: [247, 247, 245], group: WP},
   paintGrey: {label: t('Light gray'), pattern: 'paint', base: [214, 214, 211], group: WP},
@@ -993,40 +1132,40 @@ export const WALL_QUICK = [
   'brickWhite',
   'slatsOak',
 ];
-export const WALL_GROUPS = [WP, WPL, WWP, WT, WB, WW, WO].map(g => [
+export const WALL_GROUPS = [WP, WPL, WWP, WT, WB, WW, WO].map((g): [string, string[]] => [
   g,
   Object.keys(WALL_KINDS).filter(k => WALL_KINDS[k].group === g),
 ]);
-export const wallGuess = room =>
+export const wallGuess = (room: Room | null | undefined): string =>
   BATH.test(`${room?.name || ''} ${room?.id || ''}`.toLowerCase()) ? 'tileWhite' : 'paintWarm';
 // the finish of the room and of edge i: {k, tint, own: the edge has its own setting}
-export const roomWall = room => ({
-  k: WALL_KINDS[room?.wall] ? room.wall : wallGuess(room),
-  tint: WALL_KINDS[room?.wall] ? room.wallTint : null,
+export const roomWall = (room: Room | null | undefined): Finish => ({
+  k: room?.wall && WALL_KINDS[room.wall] ? room.wall : wallGuess(room),
+  tint: room?.wall && WALL_KINDS[room.wall] ? room.wallTint : null,
 });
-export function sideWall(room, i) {
+export function sideWall(room: Room | null | undefined, i: number): WallFinish {
   const o = room?.wf?.[i];
   return o && WALL_KINDS[o.k] ? {k: o.k, tint: o.tint || null, own: true} : {...roomWall(room), own: false};
 }
-export const wallBase = (k, tint) => hex(unhex(tint) || WALL_KINDS[k].base);
+export const wallBase = (k: string, tint?: string | null): string => hex(unhex(tint) || WALL_KINDS[k].base);
 // A finish swatch, 48 px ≈ 60 cm of wall (the same pattern as in the shader).
-const wsCache = new Map();
-export function wallSwatch(k, tint) {
+const wsCache = new Map<string, string>();
+export function wallSwatch(k: string, tint?: string | null): string {
   const key = k + '|' + (tint || '');
-  if (wsCache.has(key)) return wsCache.get(key);
-  const K = WALL_KINDS[k],
-    base = unhex(tint) || K.base,
-    c = document.createElement('canvas');
+  if (wsCache.has(key)) return wsCache.get(key)!;
+  const K = WALL_KINDS[k];
+  const base = unhex(tint) || K.base;
+  const c = document.createElement('canvas');
   c.width = c.height = 48;
-  const g = c.getContext('2d'),
-    px = 48 / 0.6,
-    r = rng(7);
+  const g = c.getContext('2d')!;
+  const px = 48 / 0.6;
+  const r = rng(7);
   g.fillStyle = rgb(base);
   g.fillRect(0, 0, 48, 48);
   if (K.pattern === 'grid' || K.pattern === 'bond' || K.pattern === 'brick') {
-    const w = K.w * px,
-      h = K.h * px,
-      j = Math.max(1, K.joint * px);
+    const w = K.w * px;
+    const h = K.h * px;
+    const j = Math.max(1, K.joint * px);
     for (let y = 0, row = 0; y < 48; y += h, row++)
       for (let x = -(K.pattern !== 'grid' && row % 2 ? w / 2 : 0); x < 48; x += w) {
         g.fillStyle = rgb(base, K.pattern === 'brick' ? 0.88 + r() * 0.22 : 0.97 + r() * 0.06);
@@ -1041,8 +1180,8 @@ export function wallSwatch(k, tint) {
       g.fillRect(0, 0, 48, 16);
     }
   } else if (K.pattern === 'slats') {
-    const w = K.w * px,
-      j = Math.max(1, K.joint * px);
+    const w = K.w * px;
+    const j = Math.max(1, K.joint * px);
     g.fillStyle = rgb(base, 0.35);
     g.fillRect(0, 0, 48, 48);
     for (let x = 0; x < 48; x += w + j) {
@@ -1056,10 +1195,10 @@ export function wallSwatch(k, tint) {
     }
   } else if (K.pattern === 'plaster' || K.pattern === 'limewash' || K.pattern === 'linen') {
     for (let i = 0; i < 40; i++) {
-      const x = r() * 48,
-        y = r() * 48,
-        R = 6 + r() * 14,
-        gr = g.createRadialGradient(x, y, 0, x, y, R);
+      const x = r() * 48;
+      const y = r() * 48;
+      const R = 6 + r() * 14;
+      const gr = g.createRadialGradient(x, y, 0, x, y, R);
       gr.addColorStop(0, r() < 0.5 ? 'rgba(255,255,255,.12)' : 'rgba(30,25,20,.10)');
       gr.addColorStop(1, 'rgba(0,0,0,0)');
       g.fillStyle = gr;
@@ -1133,7 +1272,7 @@ export function wallSwatch(k, tint) {
 // bottom to top with the heights where each next one starts (pieces of finish, pieces.js, D-084: tiles up to 1.5 m, a
 // backsplash); a wall without pieces is a stack of one. Along an edge the stack changes where pieces start and end.
 // The finish numbers index a table: color, pattern, sizes.
-const FIN_PAT = {
+const FIN_PAT: Record<WallKind['pattern'], number> = {
   paint: 0,
   grid: 1,
   bond: 2,
@@ -1152,22 +1291,22 @@ const FIN_PAT = {
 };
 const TABLE_SIZE = 256; // finishes and stacks per home; number 0 is none
 const BAND_STEP = 0.02; // stack heights in steps of 2 cm (up to 5.1 m)
-const isWallKind = k => !!WALL_KINDS[k];
+const isWallKind = (k: string): boolean => !!WALL_KINDS[k];
 
 /** The finish table: one entry per distinct finish (key, tint, tile size, joint). */
-function finishTable() {
-  const data = new Uint8Array(TABLE_SIZE * 2 * 4),
-    ids = new Map();
-  const idOf = finish => {
-    const kind = WALL_KINDS[finish.k],
-      width = finish.tile?.[0] ?? kind.w ?? 0,
-      height = finish.tile?.[1] ?? kind.h ?? 0,
-      joint = finish.joint ?? kind.joint ?? 0;
+function finishTable(): {data: Uint8Array; idOf: (finish: Finish) => number; count: () => number} {
+  const data = new Uint8Array(TABLE_SIZE * 2 * 4);
+  const ids = new Map<string, number>();
+  const idOf = (finish: Finish): number => {
+    const kind = WALL_KINDS[finish.k];
+    const width = finish.tile?.[0] ?? kind.w ?? 0;
+    const height = finish.tile?.[1] ?? kind.h ?? 0;
+    const joint = finish.joint ?? kind.joint ?? 0;
     const key = [finish.k, finish.tint || '', width, height, joint].join('|');
-    if (ids.has(key)) return ids.get(key);
+    if (ids.has(key)) return ids.get(key)!;
     if (ids.size >= TABLE_SIZE - 1) return 0;
-    const id = ids.size + 1,
-      base = unhex(finish.tint) || kind.base;
+    const id = ids.size + 1;
+    const base = unhex(finish.tint) || kind.base;
     ids.set(key, id);
     data.set([base[0], base[1], base[2], FIN_PAT[kind.pattern]], id * 4);
     data.set(
@@ -1185,19 +1324,22 @@ function finishTable() {
 }
 
 /** The stack table: row 0 — up to four finish numbers bottom to top, row 1 — the heights where the 2nd, 3rd and 4th start. */
-function stackTable(idOf) {
-  const data = new Uint8Array(TABLE_SIZE * 2 * 4),
-    ids = new Map();
-  const stackId = bands => {
-    const finishes = [0, 0, 0, 0],
-      starts = [255, 255, 255, 0];
+function stackTable(idOf: (finish: Finish) => number): {
+  data: Uint8Array;
+  idOf: (bands: FinishBand[]) => number;
+} {
+  const data = new Uint8Array(TABLE_SIZE * 2 * 4);
+  const ids = new Map<string, number>();
+  const stackId = (bands: FinishBand[]): number => {
+    const finishes = [0, 0, 0, 0];
+    const starts = [255, 255, 255, 0];
     bands.forEach((band, j) => {
       finishes[j] = idOf(band.finish);
       if (j > 0) starts[j - 1] = Math.min(255, Math.round(band.bottom / BAND_STEP));
     });
     if (!finishes[0]) return 0;
     const key = finishes.join(',') + '@' + starts.join(',');
-    if (ids.has(key)) return ids.get(key);
+    if (ids.has(key)) return ids.get(key)!;
     if (ids.size >= TABLE_SIZE - 1) return 0;
     const id = ids.size + 1;
     ids.set(key, id);
@@ -1208,61 +1350,64 @@ function stackTable(idOf) {
   return {data, idOf: stackId};
 }
 
-export function bakeFinish(rooms, {px = 0.02, D = 0.3} = {}) {
+export function bakeFinish(
+  rooms: Room[],
+  {px = 0.02, D = 0.3}: {px?: number; D?: number} = {},
+): FinishMaps | null {
   const list = rooms.filter(r => !r.solid && r.polygon?.length > 2);
   if (!list.length) return null;
-  const pts = list.flatMap(r => r.polygon),
-    x0 = Math.min(...pts.map(p => p[0])) - 0.5,
-    y0 = Math.min(...pts.map(p => p[1])) - 0.5,
-    x1 = Math.max(...pts.map(p => p[0])) + 0.5,
-    y1 = Math.max(...pts.map(p => p[1])) + 0.5;
-  const W = Math.ceil((x1 - x0) / px),
-    H = Math.ceil((y1 - y0) / px),
-    map = new Uint8Array(W * H * 4);
-  const finishes = finishTable(),
-    stacks = stackTable(finishes.idOf);
+  const pts = list.flatMap(r => r.polygon);
+  const x0 = Math.min(...pts.map(p => p[0])) - 0.5;
+  const y0 = Math.min(...pts.map(p => p[1])) - 0.5;
+  const x1 = Math.max(...pts.map(p => p[0])) + 0.5;
+  const y1 = Math.max(...pts.map(p => p[1])) + 0.5;
+  const W = Math.ceil((x1 - x0) / px);
+  const H = Math.ceil((y1 - y0) / px);
+  const map = new Uint8Array(W * H * 4);
+  const finishes = finishTable();
+  const stacks = stackTable(finishes.idOf);
   for (const r of list) {
-    const P = r.polygon,
-      n = P.length,
-      s = area(P) > 0 ? 1 : -1;
-    const nrm = i => {
-      const a = P[i],
-        b = P[(i + 1) % n],
-        l = Math.hypot(b[0] - a[0], b[1] - a[1]) || 1;
+    const P = r.polygon;
+    const n = P.length;
+    const s = area(P) > 0 ? 1 : -1;
+    const nrm = (i: number): Vector => {
+      const a = P[i];
+      const b = P[(i + 1) % n];
+      const l = Math.hypot(b[0] - a[0], b[1] - a[1]) || 1;
       return [(-(b[1] - a[1]) / l) * s, ((b[0] - a[0]) / l) * s];
     }; // into the room
-    const inset = i => {
-      const n1 = nrm((i - 1 + n) % n),
-        n2 = nrm(i),
-        d = 1 + n1[0] * n2[0] + n1[1] * n2[1],
-        k = d > 0.2 ? D / d : D / 0.2;
+    const inset = (i: number): Point => {
+      const n1 = nrm((i - 1 + n) % n);
+      const n2 = nrm(i);
+      const d = 1 + n1[0] * n2[0] + n1[1] * n2[1];
+      const k = d > 0.2 ? D / d : D / 0.2;
       return [P[i][0] + (n1[0] + n2[0]) * k, P[i][1] + (n1[1] + n2[1]) * k];
     };
     const In = P.map((_, i) => inset(i));
     for (let i = 0; i < n; i++) {
-      const runs = edgeRuns(sideWall(r, i), edgePieces(r, i, isWallKind)),
-        ids = runs.map(run => stacks.idOf(run.bands));
+      const runs = edgeRuns(sideWall(r, i), edgePieces(r, i, isWallKind));
+      const ids = runs.map(run => stacks.idOf(run.bands));
       if (!ids.some(id => id)) continue;
-      const a = P[i],
-        b = P[(i + 1) % n],
-        dx = b[0] - a[0],
-        dy = b[1] - a[1],
-        lengthSquared = dx * dx + dy * dy || 1;
+      const a = P[i];
+      const b = P[(i + 1) % n];
+      const dx = b[0] - a[0];
+      const dy = b[1] - a[1];
+      const lengthSquared = dx * dx + dy * dy || 1;
       // which run a point of the strip is in: by where it falls along the edge
-      const idAt = p => {
+      const idAt = (p: Point): number => {
         if (ids.length === 1) return ids[0];
         const along = ((p[0] - a[0]) * dx + (p[1] - a[1]) * dy) / lengthSquared;
         for (let j = 0; j < runs.length; j++) if (along < runs[j].to) return ids[j];
         return ids[ids.length - 1];
       };
       const q = [a, b, In[(i + 1) % n], In[i]];
-      const bx0 = Math.max(0, Math.floor((Math.min(...q.map(p => p[0])) - x0) / px)),
-        bx1 = Math.min(W - 1, Math.ceil((Math.max(...q.map(p => p[0])) - x0) / px));
-      const by0 = Math.max(0, Math.floor((Math.min(...q.map(p => p[1])) - y0) / px)),
-        by1 = Math.min(H - 1, Math.ceil((Math.max(...q.map(p => p[1])) - y0) / px));
+      const bx0 = Math.max(0, Math.floor((Math.min(...q.map(p => p[0])) - x0) / px));
+      const bx1 = Math.min(W - 1, Math.ceil((Math.max(...q.map(p => p[0])) - x0) / px));
+      const by0 = Math.max(0, Math.floor((Math.min(...q.map(p => p[1])) - y0) / px));
+      const by1 = Math.min(H - 1, Math.ceil((Math.max(...q.map(p => p[1])) - y0) / px));
       for (let y = by0; y <= by1; y++)
         for (let x = bx0; x <= bx1; x++) {
-          const p = [x0 + (x + 0.5) * px, y0 + (y + 0.5) * px];
+          const p: Point = [x0 + (x + 0.5) * px, y0 + (y + 0.5) * px];
           if (pointIn(p, q)) map[(y * W + x) * 4] = idAt(p);
         }
     }
@@ -1270,7 +1415,7 @@ export function bakeFinish(rooms, {px = 0.02, D = 0.3} = {}) {
   const tex = new THREE.DataTexture(map, W, H);
   tex.magFilter = tex.minFilter = THREE.NearestFilter;
   tex.needsUpdate = true;
-  const table = data => {
+  const table = (data: Uint8Array): THREE.DataTexture => {
     const t = new THREE.DataTexture(data, TABLE_SIZE, 2);
     t.magFilter = t.minFilter = THREE.NearestFilter;
     t.needsUpdate = true;
@@ -1284,16 +1429,16 @@ export function bakeFinish(rooms, {px = 0.02, D = 0.3} = {}) {
     count: finishes.count(),
   };
 }
-const area = P =>
+const area = (P: Outline): number =>
   P.reduce((s, p, i) => {
     const q = P[(i + 1) % P.length];
     return s + p[0] * q[1] - q[0] * p[1];
   }, 0) / 2;
-const pointIn = ([x, y], P) => {
+const pointIn = ([x, y]: Point, P: Outline): boolean => {
   let c = false;
   for (let i = 0, j = P.length - 1; i < P.length; j = i++) {
-    const [xi, yi] = P[i],
-      [xj, yj] = P[j];
+    const [xi, yi] = P[i];
+    const [xj, yj] = P[j];
     if (yi > y !== yj > y && x < ((xj - xi) * (y - yi)) / (yj - yi) + xi) c = !c;
   }
   return c;
@@ -1360,7 +1505,7 @@ void htFinish(inout vec4 dc){
 // fades within 10–15 cm and is invisible in a whole-apartment view.
 // Interior walls and each facade side are separate: 3D hides the facade facing the camera, and its shadow on the floor fades with it.
 export const AO = {R: 1, px: 0.04};
-const DIRS = [
+const DIRS: Vector[] = [
   [1, 0],
   [1, 1],
   [0, 1],
@@ -1378,14 +1523,32 @@ const DIRS = [
   [1, -2],
   [2, -1],
 ];
-function raster(g, mps, box, W, H, {erase = []} = {}) {
-  const path = mp => {
+/** Where the plan's metres are on the map: its origin and metres per pixel. */
+interface MapBox {
+  x: number;
+  y: number;
+  px: number;
+}
+/** A shape drawn onto the map: 1 where it is, and the pixel box it fills [x0, y0, x1, y1]. */
+interface Raster {
+  mask: Uint8Array;
+  win: [number, number, number, number];
+}
+function raster(
+  g: CanvasRenderingContext2D,
+  mps: MultiPolygon[],
+  box: MapBox,
+  W: number,
+  H: number,
+  {erase = []}: {erase?: MultiPolygon[]} = {},
+): Raster {
+  const path = (mp: MultiPolygon): Path2D => {
     const p = new Path2D();
     for (const poly of mp)
       for (const ring of poly) {
         ring.forEach(([x, y], i) => {
-          const X = (x - box.x) / box.px,
-            Y = (y - box.y) / box.px;
+          const X = (x - box.x) / box.px;
+          const Y = (y - box.y) / box.px;
           i ? p.lineTo(X, Y) : p.moveTo(X, Y);
         });
         p.closePath();
@@ -1398,12 +1561,12 @@ function raster(g, mps, box, W, H, {erase = []} = {}) {
   for (const mp of mps) g.fill(path(mp), 'evenodd');
   g.globalCompositeOperation = 'destination-out';
   for (const mp of erase) g.fill(path(mp), 'evenodd');
-  const d = g.getImageData(0, 0, W, H).data,
-    out = new Uint8Array(W * H);
-  let x0 = W,
-    y0 = H,
-    x1 = -1,
-    y1 = -1;
+  const d = g.getImageData(0, 0, W, H).data;
+  const out = new Uint8Array(W * H);
+  let x0 = W;
+  let y0 = H;
+  let x1 = -1;
+  let y1 = -1;
   for (let y = 0, i = 0; y < H; y++)
     for (let x = 0; x < W; x++, i++)
       if (d[i * 4 + 3] > 127) {
@@ -1416,31 +1579,31 @@ function raster(g, mps, box, W, H, {erase = []} = {}) {
   return {mask: out, win: [x0, y0, x1, y1]};
 }
 // Compute only within the walls' bounding box + R: for a facade strip that is a narrow band, not the whole map.
-function occlusion({mask, win}, W, H, px, R) {
-  const occ = new Float32Array(W * H),
-    Rp = R / px,
-    m = Math.ceil(Rp) + 2;
-  const X0 = Math.max(0, win[0] - m),
-    Y0 = Math.max(0, win[1] - m),
-    X1 = Math.min(W, win[2] + m + 1),
-    Y1 = Math.min(H, win[3] + m + 1),
-    w = X1 - X0,
-    h = Y1 - Y0;
+function occlusion({mask, win}: Raster, W: number, H: number, px: number, R: number): Float32Array {
+  const occ = new Float32Array(W * H);
+  const Rp = R / px;
+  const m = Math.ceil(Rp) + 2;
+  const X0 = Math.max(0, win[0] - m);
+  const Y0 = Math.max(0, win[1] - m);
+  const X1 = Math.min(W, win[2] + m + 1);
+  const Y1 = Math.min(H, win[3] + m + 1);
+  const w = X1 - X0;
+  const h = Y1 - Y0;
   if (w <= 0 || h <= 0) return occ;
-  const dist = new Float32Array(w * h),
-    acc = new Float32Array(w * h);
+  const dist = new Float32Array(w * h);
+  const acc = new Float32Array(w * h);
   for (const [sx, sy] of DIRS) {
     const step = Math.hypot(sx, sy);
     // t[x,y] = 0 inside a wall, otherwise t[x+sx,y+sy] + step; the traversal order ensures the neighbor in that direction is already computed
-    const ya = sy > 0 ? h - 1 : 0,
-      yb = sy > 0 ? -1 : h,
-      yd = sy > 0 ? -1 : 1,
-      xa = sx > 0 ? w - 1 : 0,
-      xb = sx > 0 ? -1 : w,
-      xd = sx > 0 ? -1 : 1;
+    const ya = sy > 0 ? h - 1 : 0;
+    const yb = sy > 0 ? -1 : h;
+    const yd = sy > 0 ? -1 : 1;
+    const xa = sx > 0 ? w - 1 : 0;
+    const xb = sx > 0 ? -1 : w;
+    const xd = sx > 0 ? -1 : 1;
     for (let y = ya; y !== yb; y += yd) {
-      const Y = y + sy,
-        row = (Y0 + y) * W + X0;
+      const Y = y + sy;
+      const row = (Y0 + y) * W + X0;
       for (let x = xa; x !== xb; x += xd) {
         const i = y * w + x;
         if (mask[row + x]) {
@@ -1465,23 +1628,26 @@ function occlusion({mask, win}, W, H, px, R) {
   return occ;
 }
 // plan2d comes from buildPlan2d. Returns two textures: A = (interior, S, E, N), B = (W, floor present, —, —) and the bounding box in plan meters.
-export function bakeAO(plan2d, {R = AO.R, px = AO.px} = {}) {
+export function bakeAO(
+  plan2d: WallPlan,
+  {R = AO.R, px = AO.px}: {R?: number; px?: number} = {},
+): AoMaps | null {
   const pts = plan2d.footprint.flat(2);
   if (!pts.length) return null;
-  const xs = pts.map(p => p[0]),
-    ys = pts.map(p => p[1]);
-  let x0 = Math.min(...xs) - R,
-    y0 = Math.min(...ys) - R,
-    W = Math.ceil((Math.max(...xs) + R - x0) / px),
-    H = Math.ceil((Math.max(...ys) + R - y0) / px);
+  const xs = pts.map(p => p[0]);
+  const ys = pts.map(p => p[1]);
+  let x0 = Math.min(...xs) - R;
+  let y0 = Math.min(...ys) - R;
+  let W = Math.ceil((Math.max(...xs) + R - x0) / px);
+  let H = Math.ceil((Math.max(...ys) + R - y0) / px);
   const k = Math.max(1, Math.sqrt((W * H) / 400000));
   if (k > 1) {
     px *= k;
     W = Math.ceil(W / k);
     H = Math.ceil(H / k);
   } // a huge plan gets a coarser map rather than a slower one
-  const box = {x: x0, y: y0, px},
-    ground = bands => bands.find(b => b.bottom === 0)?.mp || [];
+  const box = {x: x0, y: y0, px};
+  const ground = (bands: WallBand[]): MultiPolygon => bands.find(b => b.bottom === 0)?.mp || [];
   const parts = [
     ground(plan2d.interior),
     ...['S', 'E', 'N', 'W'].map(id => ground(plan2d.sides.find(s => s.id === id)?.bands || [])),
@@ -1489,12 +1655,12 @@ export function bakeAO(plan2d, {R = AO.R, px = AO.px} = {}) {
   const c = document.createElement('canvas');
   c.width = W;
   c.height = H;
-  const g = c.getContext('2d', {willReadFrequently: true});
+  const g = c.getContext('2d', {willReadFrequently: true})!;
   const occ = parts.map(mp => (mp.length ? occlusion(raster(g, [mp], box, W, H), W, H, px, R) : null));
   const floor = raster(g, [plan2d.footprint], box, W, H, {erase: parts}).mask;
-  const A = new Uint8Array(W * H * 4),
-    B = new Uint8Array(W * H * 4),
-    v = (o, i) => (o ? Math.round(o[i] * 255) : 0);
+  const A = new Uint8Array(W * H * 4);
+  const B = new Uint8Array(W * H * 4);
+  const v = (o: Float32Array | null, i: number): number => (o ? Math.round(o[i] * 255) : 0);
   for (let i = 0; i < W * H; i++) {
     A[i * 4] = v(occ[0], i);
     A[i * 4 + 1] = v(occ[1], i);
@@ -1504,7 +1670,7 @@ export function bakeAO(plan2d, {R = AO.R, px = AO.px} = {}) {
     B[i * 4 + 1] = floor[i] * 255;
     B[i * 4 + 3] = 255;
   }
-  const tex = d => {
+  const tex = (d: Uint8Array): THREE.DataTexture => {
     const t = new THREE.DataTexture(d, W, H, THREE.RGBAFormat);
     t.magFilter = t.minFilter = THREE.LinearFilter;
     t.needsUpdate = true;
@@ -1514,7 +1680,7 @@ export function bakeAO(plan2d, {R = AO.R, px = AO.px} = {}) {
   return {A: tex(A), B: tex(B), box: new THREE.Vector4(x0, y0, 1 / (W * px), 1 / (H * px))};
 }
 // Shared shading uniforms: one map per scene. vis is whether each facade side is visible (S, E, N, W).
-export function aoUniforms() {
+export function aoUniforms(): AoUniforms {
   const blank = new THREE.DataTexture(new Uint8Array([0, 0, 0, 0]), 1, 1);
   blank.needsUpdate = true;
   return {
@@ -1532,7 +1698,11 @@ export function aoUniforms() {
 }
 // Hook the shading into MeshStandardMaterial. wall is a wall face: sample the map slightly in front of the face, the bottom of the wall darkens toward the floor
 // (only on the side where the floor is), vertical corners darken full height. The floor samples the map right at the point.
-export function withAO(material, uniforms, wall) {
+export function withAO<Material extends THREE.Material>(
+  material: Material,
+  uniforms: AoUniforms,
+  wall: boolean,
+): Material {
   material.onBeforeCompile = shader => {
     Object.assign(shader.uniforms, uniforms);
     shader.vertexShader =

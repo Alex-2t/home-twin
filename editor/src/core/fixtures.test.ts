@@ -1,4 +1,3 @@
-// @ts-nocheck
 import {test} from 'node:test';
 import assert from 'node:assert/strict';
 import {pointIn, segDist, WALL} from './geometry.ts';
@@ -34,15 +33,23 @@ import {
   furnOpts,
   syncFurnStrips,
 } from './fixtures.ts';
+import type {LampCell, StripRuns} from './fixtures.ts';
+import type {FurnitureItem, Outline, Plan, PlanLight, Point, Room, Segment} from './types.ts';
 
-const room = (id, P, extra = {}) => ({id, name: id, polygon: P, ...extra});
-const R = [
+// (The ! below: each light's area has its room on these plans, and each run its ends.)
+const room = (id: string, P: Outline, extra: Partial<Room> = {}): Room => ({
+  id,
+  name: id,
+  polygon: P,
+  ...extra,
+});
+const R: Outline = [
   [0, 0],
   [4, 0],
   [4, 3],
   [0, 3],
 ];
-const flat = () =>
+const flat = (): Plan =>
   migrate({
     rooms: [
       room('bed', R, {area: 'bedroom'}),
@@ -64,7 +71,7 @@ const flat = () =>
   });
 
 test('form is guessed from the name and HA hints', () => {
-  const g = (name, x = {}) => guessForm({name, ...x});
+  const g = (name: string, x: Partial<PlanLight> = {}) => guessForm({name, ...x});
   assert.equal(g('Ceiling light', {kind: 'point', h: 2.52}).form, 'ceiling');
   assert.equal(g('Pendant light', {kind: 'point', h: 2.52}).form, 'pendant');
   assert.deepEqual(g('Floor strip', {kind: 'strip', h: 0.1}), {form: 'strip', opt: 'floor'});
@@ -89,12 +96,12 @@ test('form is guessed from the name and HA hints', () => {
 });
 test('a light’s cell is the room of its area or a part of a room', () => {
   const p = flat();
-  assert.equal(lampCell(p, {area: 'kitchen'}).room.id, 'k');
+  assert.equal(lampCell(p, {area: 'kitchen'})!.room.id, 'k');
   assert.equal(lampCell(p, {area: 'nope'}), null);
   const r = p.rooms[0];
   r.zone = {a: [3, 0], b: [3, 3], area: 'office', left: false};
-  const z = lampCell(p, {area: 'office'}),
-    m = lampCell(p, {area: 'bedroom'});
+  const z = lampCell(p, {area: 'office'});
+  const m = lampCell(p, {area: 'bedroom'});
   assert.ok(z && m && z.poly !== m.poly, 'a room part has its own contour');
   assert.ok(
     cellEdges(z).every(e => !(Math.abs(e.a[0] - 3) < 1e-6 && Math.abs(e.b[0] - 3) < 1e-6)),
@@ -115,7 +122,7 @@ test('spots: grid, row, perimeter: the right count and inside the room', () => {
   assert.equal(new Set(g.map(q => q[1])).size, 2, '6 in a 4×3 room: two rows of three');
   assert.equal(defaultSpots(R), 6, '12 m²: 6 spots');
   // L-shaped room: points do not go outside
-  const Lsh = [
+  const Lsh: Outline = [
     [0, 0],
     [4, 0],
     [4, 1.5],
@@ -126,8 +133,8 @@ test('spots: grid, row, perimeter: the right count and inside the room', () => {
   assert.ok(spotsLayout(Lsh, 9).every(q => pointIn(q, Lsh)));
 });
 test('line, strip, sconce, floor lamp', () => {
-  const p = flat(),
-    cell = lampCell(p, {area: 'bedroom'});
+  const p = flat();
+  const cell = lampCell(p, {area: 'bedroom'})!;
   assert.deepEqual(lineLayout(R, 'along'), [
     [
       [0.6, 1.5],
@@ -136,7 +143,7 @@ test('line, strip, sconce, floor lamp', () => {
   ]);
   assert.equal(lineLayout(R, 'frame').length, 4);
   // L-shaped corridor: the frame center is outside, yet the line is still inside, in the long part
-  const H = [
+  const H: Outline = [
     [3.26, 0],
     [7.74, 0],
     [7.74, 1.34],
@@ -151,7 +158,7 @@ test('line, strip, sconce, floor lamp', () => {
   const [a, b] = lineLayout(H, 'along')[0];
   assert.ok(b[0] - a[0] > 3, 'along the whole corridor');
   // eight pendants in a corridor: none on a wall
-  const wallD = q => Math.min(...H.map((a, i) => segDist(q, a, H[(i + 1) % H.length])[0]));
+  const wallD = (q: Point): number => Math.min(...H.map((a, i) => segDist(q, a, H[(i + 1) % H.length])[0]));
   for (const q of pendantLayout(H, 8, [6.6, 1.6]))
     assert.ok(pointIn(q, H) && wallD(q) >= 0.149, 'pendant not at a wall ' + q);
   // dragging: a line end does not pass through a wall, a body does not go into a wall, a strip end does not go past its wall's corner
@@ -184,12 +191,12 @@ test('line, strip, sconce, floor lamp', () => {
   );
   {
     // the bottom wall was removed (open passage): the strip does not run there, neither at the floor nor at the ceiling
-    const r = room('k', R, {wt: [0]}),
-      pl = {rooms: [r], openings: []},
-      c = {room: r, poly: R, ch: null};
+    const r = room('k', R, {wt: [0]});
+    const pl = {rooms: [r], openings: []};
+    const c = {room: r, poly: R, ch: null};
     for (const opt of ['top', 'floor']) {
-      const K = stripContour(pl, c, opt),
-        segs = stripSegs(K, {runs: [], closed: true});
+      const K = stripContour(pl, c, opt);
+      const segs = stripSegs(K, {runs: [], closed: true});
       assert.ok(
         segs.length && segs.every(([a, b]) => a[1] > 0.1 || b[1] > 0.1),
         opt + ': not along the passage',
@@ -214,9 +221,9 @@ test('line, strip, sconce, floor lamp', () => {
   assert.ok(lamp[0] > 3, 'floor lamp in the corner away from the door');
 });
 test('place a form, relayout, a strip piece, old plans', () => {
-  const p = flat(),
-    L = {id: 'x', name: 'Spots', area: 'bedroom', points: [], segments: []},
-    cell = lampCell(p, L);
+  const p = flat();
+  const L: PlanLight = {id: 'x', name: 'Spots', area: 'bedroom', points: [], segments: []};
+  const cell = lampCell(p, L)!;
   assert.ok(placeForm(p, L, 'spots', 'grid', cell));
   assert.equal(L.kind, 'point');
   assert.equal(L.points.length, L.count);
@@ -246,41 +253,42 @@ test('auto-place: by guess, lights without a room stay unplaced', () => {
   assert.ok(!p.lights[2].placed);
 });
 test('strip is continuous along the contour: corners without breaks, doors at the floor, split, merge, ends', () => {
-  const p = flat(),
-    cell = lampCell(p, {area: 'bedroom'}),
-    join = segs =>
-      segs.every(
-        (s, i) => i === 0 || Math.hypot(s[0][0] - segs[i - 1][1][0], s[0][1] - segs[i - 1][1][1]) < 1e-6,
-      );
+  const p = flat();
+  const cell = lampCell(p, {area: 'bedroom'})!;
+  const join = (segs: Segment[]): boolean =>
+    segs.every(
+      (s, i) => i === 0 || Math.hypot(s[0][0] - segs[i - 1][1][0], s[0][1] - segs[i - 1][1][1]) < 1e-6,
+    );
   // at the ceiling: the whole contour, segments join at corners, length equals the contour perimeter
-  const T = stripContour(p, cell, 'top'),
-    top = stripSegs(T, {runs: [], closed: true}),
-    L = s => s.reduce((a, [x, y]) => a + Math.hypot(y[0] - x[0], y[1] - x[1]), 0);
+  const T = stripContour(p, cell, 'top');
+  const top = stripSegs(T, {runs: [], closed: true});
+  const L = (s: Segment[]): number => s.reduce((a, [x, y]) => a + Math.hypot(y[0] - x[0], y[1] - x[1]), 0);
   assert.ok(join(top) && Math.abs(L(top) - T.per) < 1e-6, 'continuous ' + L(top) + ' ' + T.per);
   assert.ok(stripRuns(T, top).closed, 'whole contour: closed');
   // at the floor: a door on the left wall (0.2…1) is a break; the strip runs up to the frame and continues after it
-  const F = stripContour(p, cell, 'floor'),
-    fl = stripSegs(F, {runs: [], closed: true});
+  const F = stripContour(p, cell, 'floor');
+  const fl = stripSegs(F, {runs: [], closed: true});
   assert.equal(fl.length, 5, 'the door splits one wall in two');
   assert.ok(L(fl) < F.per - 0.79 && L(fl) > F.per - 0.91, 'without the door ~0.9 m ' + (F.per - L(fl)));
   assert.ok(stripRuns(F, fl).closed, 'a door is not a run break');
   // L-shaped room: a protrusion without breaks
-  const H = [
-      [0, 0],
-      [4, 0],
-      [4, 1.5],
-      [1.5, 1.5],
-      [1.5, 4],
-      [0, 4],
-    ],
-    HC = {room: {id: 'h'}, poly: H, ch: null},
-    HK = stripContour({rooms: [], openings: []}, HC, 'top'),
-    hs = stripSegs(HK, {runs: [], closed: true});
+  const H: Outline = [
+    [0, 0],
+    [4, 0],
+    [4, 1.5],
+    [1.5, 1.5],
+    [1.5, 4],
+    [0, 4],
+  ];
+  // a room with only its id: the contour reads no more of it here
+  const HC: LampCell = {room: {id: 'h'} as Room, poly: H, ch: null};
+  const HK = stripContour({rooms: [], openings: []}, HC, 'top');
+  const hs = stripSegs(HK, {runs: [], closed: true});
   assert.equal(hs.length, 6);
   assert.ok(join(hs));
   // split and merge
-  const st0 = {runs: [], closed: true},
-    c1 = stripCut(T, st0, 1);
+  const st0: StripRuns = {runs: [], closed: true};
+  const c1 = stripCut(T, st0, 1);
   assert.ok(
     !c1.closed && c1.runs.length === 1 && Math.abs(c1.runs[0][1] - c1.runs[0][0] - (T.per - 0.5)) < 1e-6,
     '50 cm split',
@@ -297,15 +305,15 @@ test('strip is continuous along the contour: corners without breaks, doors at th
   assert.ok(m2.runs[0][1] - m2.runs[0][0] >= 0.15 - 1e-9);
   // from segments: the same runs
   // a split at the ceiling above a door does not rejoin on the next split
-  const dz = stripProject(T, [0, 0.6]).s,
-    d1 = stripCut(T, {runs: [], closed: true}, dz),
-    d2 = stripCut(T, stripRuns(T, stripSegs(T, d1)), dz + 5);
+  const dz = stripProject(T, [0, 0.6])!.s;
+  const d1 = stripCut(T, {runs: [], closed: true}, dz);
+  const d2 = stripCut(T, stripRuns(T, stripSegs(T, d1)), dz + 5);
   assert.equal(stripRuns(T, stripSegs(T, d2)).runs.length, 2, 'the break above the door remains');
   const back = stripRuns(T, stripSegs(T, c2));
   assert.equal(back.runs.length, 2);
   assert.ok(Math.abs(back.runs[0][0] - c2.runs[0][0]) < 1e-3);
   // an old strip in pieces along the walls (10 cm from corners): one closed run
-  const old = cellEdges(cell).map(e => [
+  const old = cellEdges(cell).map((e): Segment => [
     [e.a[0] + e.u[0] * 0.1 + e.n[0] * 0.08, e.a[1] + e.u[1] * 0.1 + e.n[1] * 0.08],
     [e.a[0] + e.u[0] * (e.l - 0.1) + e.n[0] * 0.08, e.a[1] + e.u[1] * (e.l - 0.1) + e.n[1] * 0.08],
   ]);
@@ -319,8 +327,8 @@ test('strip on furniture: by name, moves with the furniture, without furniture b
     {id: 'b', model: 'kitchenBase', w: 2, d: 0.6, h: 0.9, rot: 0, x: 5.5, y: 2.68},
     {id: 'u', model: 'kitchenWall', w: 2, d: 0.35, h: 0.7, rot: 0, x: 5.5, y: 2.8},
   ];
-  const L = {id: 'w', name: 'Worktop light', area: 'kitchen', points: [], segments: []},
-    cell = lampCell(plan, L);
+  const L: PlanLight = {id: 'w', name: 'Worktop light', area: 'kitchen', points: [], segments: []};
+  const cell = lampCell(plan, L)!;
   plan.lights.push(L);
   assert.deepEqual(furnOpts(plan, cell), ['plinth', 'under']);
   placeForm(plan, L, 'strip', 'top', cell);
@@ -334,8 +342,8 @@ test('strip on furniture: by name, moves with the furniture, without furniture b
   );
   {
     const u = plan.furniture[1];
-    u.a = [u.a[0] + 0.3, u.a[1]];
-    u.b = [u.b[0] + 0.3, u.b[1]];
+    u.a = [u.a![0] + 0.3, u.a![1]];
+    u.b = [u.b![0] + 0.3, u.b![1]];
   }
   assert.ok(syncFurnStrips(plan)); // wall cabinets are placed along walls: their ends are moved
   assert.ok(Math.abs(L.segments[0][0][0] - a[0] - 0.3) < 1e-6, 'cabinet moved: the strip follows');
@@ -348,7 +356,7 @@ test('strip on furniture: by name, moves with the furniture, without furniture b
   assert.equal(L.opt, 'floor', 'kitchen removed: at the floor');
   assert.ok(L.segments.length > 0);
   plan.furniture = [{id: 'b', model: 'kitchenBase', w: 2, d: 0.6, h: 0.9, rot: 0, x: 5.5, y: 2.68}];
-  const F = {id: 'f', name: 'Floor strip', area: 'kitchen', points: [], segments: []};
+  const F: PlanLight = {id: 'f', name: 'Floor strip', area: 'kitchen', points: [], segments: []};
   plan.lights.push(F);
   placeForm(plan, F, 'strip', 'floor', cell);
   assert.equal(F.opt, 'plinth', 'at the floor with base cabinets: toe kick');
@@ -370,24 +378,32 @@ test('strip on furniture: by name, moves with the furniture, without furniture b
   syncFurnStrips(plan);
   assert.equal(F.opt, 'floor');
   plan.furniture = [];
-  const P = {id: 'p', name: 'Worktop light', area: 'kitchen', points: [], segments: []};
+  const P: PlanLight = {id: 'p', name: 'Worktop light', area: 'kitchen', points: [], segments: []};
   placeForm(plan, P, 'strip', 'top', cell);
   assert.equal(P.opt, 'top', 'without cabinets: as before');
 });
 test('lighting with furniture: ceiling light and pendants above the table, spots not above a wardrobe, sconces at the headboard, floor lamp by the sofa', () => {
-  const R = [
-      [0, 0],
-      [5, 0],
-      [5, 4],
-      [0, 4],
-    ],
-    mk = furniture => migrate({rooms: [room('r', R, {area: 'living'})], furniture}),
-    cellOf = p => ({room: p.rooms[0], poly: p.rooms[0].polygon, ch: null});
-  const lamp = (extra = {}) => ({id: 'l', name: 'Lamp', area: 'living', points: [], segments: [], ...extra});
+  const R: Outline = [
+    [0, 0],
+    [5, 0],
+    [5, 4],
+    [0, 4],
+  ];
+  const mk = (furniture: FurnitureItem[]): Plan =>
+    migrate({rooms: [room('r', R, {area: 'living'})], furniture});
+  const cellOf = (p: Plan): LampCell => ({room: p.rooms[0], poly: p.rooms[0].polygon, ch: null});
+  const lamp = (extra: Partial<PlanLight> = {}): PlanLight => ({
+    id: 'l',
+    name: 'Lamp',
+    area: 'living',
+    points: [],
+    segments: [],
+    ...extra,
+  });
   // a 1.6×0.9 table by the window, long side along x
-  let p = mk([{id: 't', model: 'diningTable', w: 1.6, d: 0.9, h: 0.75, rot: 0, x: 3.5, y: 1.2}]),
-    c = cellOf(p),
-    L = lamp();
+  let p = mk([{id: 't', model: 'diningTable', w: 1.6, d: 0.9, h: 0.75, rot: 0, x: 3.5, y: 1.2}]);
+  let c = cellOf(p);
+  let L = lamp();
   placeForm(p, L, 'ceiling', null, c);
   assert.deepEqual(L.points, [[3.5, 1.2]], 'ceiling light above the table');
   placeForm(p, L, 'pendant', null, c);
@@ -438,20 +454,21 @@ test('auto-place by the furniture: sconces by name, a table lamp on a nightstand
     {form: 'wall', opt: 'pair'},
     'a sconce by name, not a table lamp',
   );
-  const p = flat(),
-    cell = lampCell(p, {area: 'bedroom'});
+  const p = flat();
+  const cell = lampCell(p, {area: 'bedroom'})!;
   p.furniture.push(
     {id: 'n', model: 'nightstand', x: 3.78, y: 1.5, rot: 270, w: 0.5, d: 0.4, h: 0.5},
     {id: 'm', model: 'wallMirror', x: 1, y: 0.015, rot: 180, w: 0.6, d: 0.03, h: 0.9},
   );
-  const T = {id: 't', name: 'Bedside lamp', kind: 'point', area: 'bedroom'};
+  // (lights from HA, not placed yet: placeForm gives them their points)
+  const T = {id: 't', name: 'Bedside lamp', kind: 'point', area: 'bedroom'} as PlanLight;
   assert.ok(placeForm(p, T, 'lamp', 'table', cell));
   assert.ok(
     Math.abs(T.points[0][0] - 3.78) < 0.01 && Math.abs(T.points[0][1] - 1.5) < 0.01,
     'on the nightstand',
   );
   assert.equal(T.h, 0.92, 'its base on the top');
-  const M = {id: 'm1', name: 'Mirror light', kind: 'point', area: 'bedroom'};
+  const M = {id: 'm1', name: 'Mirror light', kind: 'point', area: 'bedroom'} as PlanLight;
   assert.ok(placeForm(p, M, 'wall', 'one', cell));
   assert.ok(Math.abs(M.points[0][0] - 1) < 0.01 && M.points[0][1] < 0.2, 'on the wall above the mirror');
   assert.equal(M.h, 2.08);
@@ -460,17 +477,17 @@ test('auto-place by the furniture: sconces by name, a table lamp on a nightstand
   q.openings.push(
     ...migrate({rooms: q.rooms, openings: [{kind: 'door', a: [1.6, 0], b: [2.4, 0]}]}).openings,
   );
-  const [s] = wallLayout(q, lampCell(q, {area: 'bedroom'}), 1);
+  const [s] = wallLayout(q, lampCell(q, {area: 'bedroom'})!, 1);
   assert.ok(!(s[1] < 0.2 && Math.abs(s[0] - 2) < 0.55), 'not in the doorway');
   assert.ok(s[0] > 3.8, 'on the wall with the longest clear stretch');
   // a wardrobe along that wall: the sconce goes beside it, not into it
   q.furniture.push({id: 'w', model: 'wardrobe', x: 3.7, y: 1.6, rot: 270, w: 2, d: 0.6, h: 2.2});
-  const [s2] = wallLayout(q, lampCell(q, {area: 'bedroom'}), 1);
+  const [s2] = wallLayout(q, lampCell(q, {area: 'bedroom'})!, 1);
   assert.ok(!(s2[0] > 3.3 && s2[1] > 0.5 && s2[1] < 2.7), 'not inside the wardrobe');
   // the floor lamp's corner is taken by a sofa: another spot, not inside the sofa
-  const r = flat(),
-    c = lampCell(r, {area: 'bedroom'}),
-    was = lampSpot(r, c);
+  const r = flat();
+  const c = lampCell(r, {area: 'bedroom'})!;
+  const was = lampSpot(r, c);
   r.furniture.push({
     id: 's',
     model: 'loungeSofa',
@@ -481,7 +498,7 @@ test('auto-place by the furniture: sconces by name, a table lamp on a nightstand
     d: 0.9,
     h: 0.85,
   });
-  const now = lampSpot(r, c),
-    [sx, sy] = [r.furniture[0].x, r.furniture[0].y];
+  const now = lampSpot(r, c);
+  const [sx, sy] = [r.furniture[0].x, r.furniture[0].y];
   assert.ok(!(Math.abs(now[0] - sx) < 0.8 + 0.12 && Math.abs(now[1] - sy) < 0.45 + 0.12), 'outside the sofa');
 });
