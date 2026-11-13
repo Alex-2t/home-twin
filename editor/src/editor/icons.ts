@@ -1,6 +1,5 @@
-// @ts-nocheck
 // UI icons — outlines from the Lucide set (ISC license, lucide.dev; license text in assets/lucide-LICENSE.txt).
-const P = {
+const P: Record<string, string> = {
   pointer:
     '<path d="M4.037 4.688a.495.495 0 0 1 .651-.651l16 6.5a.5.5 0 0 1-.063.947l-6.124 1.58a2 2 0 0 0-1.438 1.435l-1.579 6.126a.5.5 0 0 1-.947.063z"/>',
   hand: '<path d="M18 11V6a2 2 0 0 0-4 0v5"/><path d="M14 10V4a2 2 0 0 0-4 0v6"/><path d="M10 10.5V6a2 2 0 0 0-4 0v8"/><path d="M18 8a2 2 0 1 1 4 0v6a8 8 0 0 1-8 8h-2c-2.8 0-4.5-.86-5.99-2.34l-3.6-3.6a2 2 0 0 1 2.83-2.82L7 15"/>',
@@ -136,12 +135,14 @@ const P = {
   fan: '<path d="M10.827 16.379a6.082 6.082 0 0 1-8.618-7.002l5.412 1.45a6.082 6.082 0 0 1 7.002-8.618l-1.45 5.412a6.082 6.082 0 0 1 8.618 7.002l-5.412-1.45a6.082 6.082 0 0 1-7.002 8.618l1.45-5.412Z"/><path d="M12 12v.01"/>',
 };
 // icon outlines for the canvas: new Path2D(d) for each (the plan draws device icons)
-export const iconD = name => [...(P[name] || '').matchAll(/ d="([^"]+)"/g)].map(m => m[1]);
-export const icon = (name, size = 16, cls = '') =>
+export const iconD = (name: string): string[] =>
+  [...(P[name] || '').matchAll(/ d="([^"]+)"/g)].map(m => m[1]);
+export const icon = (name: string, size = 16, cls = ''): string =>
   `<svg class="ic ${cls}" width="${size}" height="${size}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${P[name] || ''}</svg>`;
 // Fill icons into markup: <i data-ic="name" data-s="16"></i>.
-export function fillIcons(root = document) {
-  root.querySelectorAll('i[data-ic]').forEach(i => {
-    i.outerHTML = icon(i.dataset.ic, +i.dataset.s || 16);
+export function fillIcons(root: ParentNode = document): void {
+  root.querySelectorAll<HTMLElement>('i[data-ic]').forEach(i => {
+    // data-ic is there: the selector asks for it.
+    i.outerHTML = icon(i.dataset.ic as string, Number(i.dataset.s) || 16);
   });
 }

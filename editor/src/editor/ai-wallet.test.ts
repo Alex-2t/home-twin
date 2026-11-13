@@ -1,4 +1,3 @@
-// @ts-nocheck
 // The AI build's package (ai-wallet.js): shares shown as percents, never money.
 import {test} from 'node:test';
 import assert from 'node:assert/strict';

@@ -1,4 +1,3 @@
-// @ts-nocheck
 // The AI build's pins (ai-pins.js): which room and item a spot is, and what the service gets.
 import {test} from 'node:test';
 import assert from 'node:assert/strict';
@@ -12,8 +11,10 @@ import {
   changeCount,
   MAX_PIN_PHOTOS,
 } from './ai-pins.ts';
+import type {Pin, PinPlan, PinRound} from './ai-pins.ts';
+import type {HomeView} from '../core/types.ts';
 
-const plan = {
+const plan: PinPlan = {
   rooms: [
     {
       id: 'r1',
@@ -51,9 +52,9 @@ const plan = {
 };
 
 test('a spot is in the room around it, or the nearest one just outside, never in a shaft', () => {
-  assert.equal(roomAt(plan, [2, 1]).id, 'r1');
-  assert.equal(roomAt(plan, [1.2, 1.2]).id, 'r1');
-  assert.equal(roomAt(plan, [7.3, 1.5]).id, 'r2');
+  assert.equal(roomAt(plan, [2, 1])?.id, 'r1');
+  assert.equal(roomAt(plan, [1.2, 1.2])?.id, 'r1');
+  assert.equal(roomAt(plan, [7.3, 1.5])?.id, 'r2');
   assert.equal(roomAt(plan, [10, 10]), null);
 });
 
@@ -98,9 +99,9 @@ test("a pin's pictures go with it: what the owner saw and their photos, at most 
   };
   const [sent] = pinsToSend([pin]);
   assert.equal(sent.view, 'view-k1.jpg');
-  assert.equal(sent.photos.length, MAX_PIN_PHOTOS);
+  assert.equal(sent.photos?.length, MAX_PIN_PHOTOS);
   // A pin put in 3D keeps the camera it was put from (D-081): the service looks at the changed home from there.
-  const camera = {t: [2, 0.4, -1], theta: 0.6, phi: 1, fit: [6, 4]};
+  const camera: HomeView = {t: [2, 0.4, -1], theta: 0.6, phi: 1, fit: [6, 4]};
   assert.deepEqual(pinsToSend([{...newPin(plan, {p: [2, 1]}), text: 'a lamp', camera}])[0].camera, camera);
   const [bare] = pinsToSend([{...newPin(plan, {p: [2, 1]}), text: 'a lamp'}]);
   assert.equal('view' in bare || 'photos' in bare, false);
@@ -137,7 +138,7 @@ test('the pins of the last round that did not work out come back, with why', () 
         why: [{code: 'box', text: '…'}],
       },
     ],
-  };
+  } satisfies PinRound;
   const pins = pinsToRetry(lastRound);
   assert.deepEqual(
     pins.map(pin => pin.text),
@@ -165,7 +166,7 @@ test('a pin that came back follows what the service says of its round now: made,
         why: [{code: 'unchanged', text: '…'}],
       },
     ],
-  };
+  } satisfies PinRound;
   const back = pinsToRetry({
     ...judgedAgain,
     pins: judgedAgain.pins.map(pin => ({...pin, made: 'no', why: [{code: 'box'}]})),
@@ -175,17 +176,19 @@ test('a pin that came back follows what the service says of its round now: made,
     now.map(pin => pin.text),
     ['what is this cube?'],
   );
-  assert.deepEqual(now[0].retry.codes, ['unchanged']);
+  assert.deepEqual(now[0].retry?.codes, ['unchanged']);
   // A made pin the owner added to stays, without its reason.
   const added = refreshRetries([{...back[0], text: 'flowers stand here, three pots'}], judgedAgain);
   assert.equal(added.length, 1);
   assert.equal('retry' in added[0], false);
   // A pin kept before pins had their number is found by its words and its thing.
-  const older = {...back[0], retry: {made: 'no', codes: ['box']}};
+  const older: Pin = {...back[0], retry: {made: 'no', codes: ['box']}};
   assert.deepEqual(refreshRetries([older], judgedAgain), []);
   // The owner's own new pins and those of another round stay as they are.
-  const own = {x: 2, y: 2, text: 'a rug here'};
-  const otherRound = {...back[1], retry: {...back[1].retry, round: 2}};
+  // A pin with only what refreshRetries reads of it.
+  const own = {x: 2, y: 2, text: 'a rug here'} as Pin;
+  // back[1] came back: it has its retry.
+  const otherRound: Pin = {...back[1], retry: {...back[1].retry!, round: 2}};
   assert.deepEqual(refreshRetries([own, otherRound], judgedAgain), [own, otherRound]);
 });
 
@@ -207,7 +210,7 @@ test("a pin that comes back keeps what the service understood and said in the ow
         ],
       },
     ],
-  };
+  } satisfies PinRound;
   const [pin] = pinsToRetry(lastRound);
   assert.deepEqual(pin.retry, {
     round: 1,
@@ -218,12 +221,13 @@ test("a pin that comes back keeps what the service understood and said in the ow
     understood: 'The wall right of the balcony door is plain white.',
   });
   // Sent to the developer: that stays when the round is read again; what the service says is taken anew.
-  const sent = {...pin, retry: {...pin.retry, reported: true}};
+  // The pin came back: it has its retry.
+  const sent: Pin = {...pin, retry: {...pin.retry!, reported: true}};
   const again = {
     ...lastRound,
     pins: [{...lastRound.pins[0], why: [{code: 'unclear', text: '…', say: 'Which wall do you mean?'}]}],
   };
   const [now] = refreshRetries([sent], again);
-  assert.equal(now.retry.reported, true);
-  assert.deepEqual(now.retry.told, [{code: 'unclear', say: 'Which wall do you mean?'}]);
+  assert.equal(now.retry?.reported, true);
+  assert.deepEqual(now.retry?.told, [{code: 'unclear', say: 'Which wall do you mean?'}]);
 });

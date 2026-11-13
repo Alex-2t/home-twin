@@ -1,7 +1,7 @@
-// @ts-nocheck
 // UI bits: an input field on the plan, the hint bar at the top, collapsible sections.
 import {t, num} from '../i18n/i18n.ts';
 import {icon} from './icons.ts';
+import type {AskNumberOptions, AskOptions, AskTextOptions, BannerItem} from './editor-types.ts';
 // Our own markup always has the ids the code asks for, so the element is typed as present; a missing one fails at its
 // first use, as it always did. Code that checks for a missing element (`$('x')?.…`) still works.
 export const $ = (id: string): HTMLElement => document.getElementById(id) as HTMLElement;
@@ -11,29 +11,62 @@ export function el<ElementType extends HTMLElement = HTMLElement>(html: string):
   t.innerHTML = html.trim();
   return t.content.firstElementChild as ElementType;
 }
-export const esc = (s: unknown): string =>
-  String(s).replace(/[&<>"]/g, c => ({'&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;'})[c]);
+// The characters esc replaces, and with what.
+const HTML_ESCAPES: Record<string, string> = {'&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;'};
+export const esc = (s: unknown): string => String(s).replace(/[&<>"]/g, c => HTML_ESCAPES[c]);
+// An element of our own markup inside root, typed as present like $ (a missing one fails at its first use); the caller names
+// the element's type when it needs more than HTMLElement.
+export function find<ElementType extends Element = HTMLElement>(
+  root: ParentNode,
+  selector: string,
+): ElementType {
+  return root.querySelector(selector) as ElementType;
+}
 
 // An input field right on the plan at point (x, y) relative to the canvas.
 // Length is entered in centimetres (a decimal comma is fine); ok for a field of type 'len' receives metres.
-export function parseLen(raw) {
+export function parseLen(raw: unknown): number | null {
   const v = parseFloat(String(raw).trim().replace(',', '.'));
   return v > 0 ? v / 100 : null;
 }
-export function ask(x, y, label, value, {type = 'text', ok, cancel} = {}) {
-  const box = $('ask'),
-    inp = box.querySelector('input'),
-    hint = box.querySelector('.ask-hint');
-  box.querySelector('span').textContent = label;
+export function ask(
+  x: number,
+  y: number,
+  label: string,
+  value: string | number | undefined,
+  options: AskNumberOptions,
+): void;
+export function ask(
+  x: number,
+  y: number,
+  label: string,
+  value: string | number | undefined,
+  options?: AskTextOptions,
+): void;
+export function ask(
+  x: number,
+  y: number,
+  label: string,
+  value: string | number | undefined,
+  options: AskOptions = {},
+): void {
+  const {type = 'text', cancel} = options;
+  // ok gets a number for 'len' and 'number' and text otherwise: the overloads above keep the two apart.
+  const ok = options.ok as ((value: string | number) => void) | undefined;
+  const box = $('ask');
+  const inp = find<HTMLInputElement>(box, 'input');
+  const hint = find(box, '.ask-hint');
+  find(box, 'span').textContent = label;
   const isLen = type === 'len';
   inp.type = isLen ? 'text' : type;
   inp.inputMode = isLen ? 'decimal' : '';
-  inp.value = value;
+  // As the field itself converts it: a number to its digits, undefined to "undefined".
+  inp.value = String(value);
   hint.hidden = true;
   Object.assign(box.style, {left: x + 'px', top: y + 'px', display: 'flex'});
   inp.focus({preventScroll: true});
   inp.select();
-  const done = v => {
+  const done = (v: string | number | null): void => {
     box.style.display = 'none';
     inp.onkeydown = inp.onblur = null;
     v == null ? cancel?.() : ok?.(v);
@@ -46,8 +79,10 @@ export function ask(x, y, label, value, {type = 'text', ok, cancel} = {}) {
         done(parseLen(raw));
         return;
       }
-      const v = type === 'number' ? parseFloat(raw.replace(',', '.')) : raw;
-      done(type === 'number' ? (v > 0 ? v : null) : v || null);
+      if (type === 'number') {
+        const v = parseFloat(raw.replace(',', '.'));
+        done(v > 0 ? v : null);
+      } else done(raw || null);
     }
     if (e.key === 'Escape') done(null);
   };
@@ -62,7 +97,7 @@ export function ask(x, y, label, value, {type = 'text', ok, cancel} = {}) {
   };
 }
 // The bar above the plan: a wizard step or a hint, with buttons.
-export function banner(text, buttons = []) {
+export function banner(text?: string | null, buttons: BannerItem[] = []): void {
   const b = $('banner');
   if (!text) {
     b.hidden = true;
@@ -85,20 +120,22 @@ export function banner(text, buttons = []) {
 
 // Tooltip on an element: with a mouse — on hover (after 200 ms, without the system delay), with a finger — a tap on the info icon
 // (shown until the next touch). One per page, above the element, or below it if there is no room.
-let tipEl = null,
-  tipT = 0;
-function tipShow(target, text) {
+let tipEl: HTMLElement | null = null;
+let tipT: ReturnType<typeof setTimeout> | number = 0;
+function tipShow(target: HTMLElement, text: string): void {
   tipEl ??= document.body.appendChild(el(`<div class="tip glass"></div>`));
-  tipEl.textContent = text;
-  tipEl.classList.add('on');
-  const r = target.getBoundingClientRect(),
-    w = tipEl.offsetWidth,
-    h = tipEl.offsetHeight,
-    x = Math.max(8, Math.min(innerWidth - w - 8, r.left + r.width / 2 - w / 2));
-  tipEl.style.left = x + 'px';
-  tipEl.style.top = (r.top - h - 8 > 8 ? r.top - h - 8 : r.bottom + 8) + 'px';
-  const chk = () => {
-    if (!tipEl.classList.contains('on')) return;
+  // The one tooltip of the page: made once, never replaced.
+  const tipBox = tipEl;
+  tipBox.textContent = text;
+  tipBox.classList.add('on');
+  const r = target.getBoundingClientRect();
+  const w = tipBox.offsetWidth;
+  const h = tipBox.offsetHeight;
+  const x = Math.max(8, Math.min(innerWidth - w - 8, r.left + r.width / 2 - w / 2));
+  tipBox.style.left = x + 'px';
+  tipBox.style.top = (r.top - h - 8 > 8 ? r.top - h - 8 : r.bottom + 8) + 'px';
+  const chk = (): void => {
+    if (!tipBox.classList.contains('on')) return;
     if (!target.isConnected) {
       tipHide();
       return;
@@ -107,11 +144,11 @@ function tipShow(target, text) {
   };
   requestAnimationFrame(chk);
 } // the panel was re-rendered — the tooltip goes away
-export function tipHide() {
+export function tipHide(): void {
   clearTimeout(tipT);
   tipEl?.classList.remove('on');
 }
-export function tip(target, text, info) {
+export function tip(target: HTMLElement, text: string, info?: HTMLElement | null): void {
   target.addEventListener('pointerenter', e => {
     if (e.pointerType !== 'mouse') return;
     clearTimeout(tipT);
@@ -136,12 +173,14 @@ export function tip(target, text, info) {
     });
 }
 // Popup menu at a button: items — [icon, label, action, class]. Closes on an outside click and Escape.
-let pop = null;
-export function closePop() {
+let pop: HTMLElement | null = null;
+export function closePop(): void {
   pop?.remove();
   pop = null;
 }
-export function popover(anchor, items) {
+/** A menu item: its icon, its label, what it does and its button's classes. */
+export type PopoverItem = [icon: string, label: string, action: () => void, cls?: string];
+export function popover(anchor: HTMLElement, items: PopoverItem[]): void {
   closePop();
   const m = el(`<div class="menu glass pop"></div>`);
   for (const [ic, label, fn, cls] of items) {
@@ -157,8 +196,10 @@ export function popover(anchor, items) {
   const r = anchor.getBoundingClientRect();
   m.style.left = Math.max(8, Math.min(innerWidth - m.offsetWidth - 8, r.right - m.offsetWidth)) + 'px';
   m.style.top = Math.min(innerHeight - m.offsetHeight - 8, r.bottom + 6) + 'px';
-  const off = e => {
-    if (!m.contains(e.target) && e.target !== anchor && !anchor.contains(e.target)) {
+  const off = (e: PointerEvent): void => {
+    // A pointer event's target is a node.
+    const target = e.target as Node | null;
+    if (!m.contains(target) && target !== anchor && !anchor.contains(target)) {
       closePop();
       removeEventListener('pointerdown', off, true);
     }
@@ -173,23 +214,25 @@ export function popover(anchor, items) {
 }
 // Popup at a button with any content (all floor coverings): closes on an outside click and Escape. Returns the popup.
 export let popClosedAt = 0;
-export function panelPop(anchor, content, cls = '') {
+export function panelPop(anchor: HTMLElement, content: Node, cls = ''): HTMLElement {
   closePop();
   const m = el(`<div class="menu glass pop panel ${cls}"></div>`);
   m.appendChild(content);
   document.body.appendChild(m);
   pop = m;
-  const r = anchor.getBoundingClientRect(),
-    w = m.offsetWidth,
-    h = m.offsetHeight;
+  const r = anchor.getBoundingClientRect();
+  const w = m.offsetWidth;
+  const h = m.offsetHeight;
   m.style.left = Math.max(8, Math.min(innerWidth - w - 8, r.left - 8)) + 'px';
   m.style.top = (r.bottom + 6 + h > innerHeight - 8 ? Math.max(8, r.top - 6 - h) : r.bottom + 6) + 'px';
-  const off = e => {
+  const off = (e: PointerEvent): void => {
     if (!document.body.contains(m)) {
       removeEventListener('pointerdown', off, true);
       return;
     }
-    if (!m.contains(e.target) && !anchor.contains(e.target)) {
+    // A pointer event's target is a node.
+    const target = e.target as Node | null;
+    if (!m.contains(target) && !anchor.contains(target)) {
       closePop();
       popClosedAt = performance.now();
       removeEventListener('pointerdown', off, true);
@@ -206,14 +249,27 @@ export function panelPop(anchor, content, cls = '') {
 }
 // Collapsible section of the left panel; whether it is open is remembered between sessions.
 const SEC = 'home-twin-editor:sections';
-export function section(parent, key, title, {count, open = true, action} = {}) {
-  const saved = JSON.parse(localStorage.getItem(SEC) || '{}');
-  const d = el(
+/** A section's options: the count beside its title, open the first time, and a button in its title: label, action, tooltip. */
+export interface SectionOptions {
+  count?: number | string | null;
+  open?: boolean;
+  action?: [label: string, action: () => void, title?: string];
+}
+// Which sections are open, by key: written only here; a value edited by hand is not checked (it never was).
+type SectionsOpen = Record<string, boolean | undefined>;
+export function section(
+  parent: HTMLElement,
+  key: string,
+  title: string,
+  {count, open = true, action}: SectionOptions = {},
+): HTMLElement {
+  const saved = JSON.parse(localStorage.getItem(SEC) || '{}') as SectionsOpen;
+  const d = el<HTMLDetailsElement>(
     `<details class="sec"><summary>${icon('right', 14, 'chev')}<span>${esc(title)}</span>${count != null && count !== '' ? `<span class="count">${esc(count)}</span>` : ''}</summary><div class="sec-body"></div></details>`,
   );
   d.open = saved[key] ?? open;
   d.addEventListener('toggle', () => {
-    const s = JSON.parse(localStorage.getItem(SEC) || '{}');
+    const s = JSON.parse(localStorage.getItem(SEC) || '{}') as SectionsOpen;
     s[key] = d.open;
     localStorage.setItem(SEC, JSON.stringify(s));
   });
@@ -224,9 +280,9 @@ export function section(parent, key, title, {count, open = true, action} = {}) {
       e.stopPropagation();
       action[1]();
     };
-    d.querySelector('summary').appendChild(b);
+    find(d, 'summary').appendChild(b);
   }
   parent.appendChild(d);
-  return d.querySelector('.sec-body');
+  return find(d, '.sec-body');
 }
-export const fmtArea = a => num(Math.abs(a), 1) + t(' m²');
+export const fmtArea = (a: number): string => num(Math.abs(a), 1) + t(' m²');

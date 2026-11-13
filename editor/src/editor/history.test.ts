@@ -1,4 +1,3 @@
-// @ts-nocheck
 import {test, beforeEach, afterEach} from 'node:test';
 import assert from 'node:assert/strict';
 import {createHistory} from './history.ts';
@@ -6,21 +5,38 @@ import {createUnderlay} from './underlay.ts';
 import {emptyPlan, addRoom, addOpening, scalePlan, rotatePlan} from '../core/plan.ts';
 import {readPlan} from '../core/plan-file.ts';
 import {mergePlanLights} from './ha.ts';
+import type {Plan, PlanLight} from '../core/types.ts';
+import type {StoreOp} from './idb.ts';
+import type {UnderlaySnapshot} from './underlay.ts';
 
-let memory;
+// Plans with only the fields a test looks at: the history keeps whatever it is given.
+interface NumberedPlan {
+  id?: string;
+  n?: number;
+  help?: boolean;
+}
+interface StepPlan {
+  id?: string;
+  rooms: never[];
+  v: number;
+}
+
+let memory: Map<string, string>;
 beforeEach(() => {
   memory = new Map();
-  globalThis.localStorage = {
+  // Only the three calls the code makes.
+  const storage: Pick<Storage, 'getItem' | 'setItem' | 'removeItem'> = {
     getItem: k => memory.get(k) ?? null,
     setItem: (k, v) => memory.set(k, v),
     removeItem: k => memory.delete(k),
   };
+  globalThis.localStorage = storage as Storage;
 });
 afterEach(() => {
-  delete globalThis.localStorage;
+  Reflect.deleteProperty(globalThis, 'localStorage');
 });
 
-const apartment = () => {
+const apartment = (): Plan => {
   const p = emptyPlan();
   p.id = 'test';
   addRoom(
@@ -49,8 +65,8 @@ const apartment = () => {
 };
 
 test('rooms, openings, furniture, lights and sensors: undo/redo, reload and file all keep the same result', () => {
-  const h = createHistory(),
-    p = apartment();
+  const h = createHistory();
+  const p = apartment();
   h.reset(p);
   const states = [structuredClone(p)];
   const edits = [
@@ -79,21 +95,21 @@ test('rooms, openings, furniture, lights and sensors: undo/redo, reload and file
 });
 
 test('a new edit after undo cuts off redo; mutating the returned object does not corrupt the snapshot', () => {
-  const h = createHistory(),
-    p = apartment();
+  const h = createHistory();
+  const p = apartment();
   h.reset(p);
   p.furniture[0].x = 4;
   h.commit(p);
-  const old = h.undo();
+  const old = h.undo()!;
   old.furniture[0].x = 5;
   h.commit(old);
   assert.equal(h.redo(), null);
-  assert.equal(h.undo().furniture[0].x, 2);
-  assert.equal(h.redo().furniture[0].x, 5);
+  assert.equal(h.undo()!.furniture[0].x, 2);
+  assert.equal(h.redo()!.furniture[0].x, 5);
 });
 
 test('a housekeeping amend adds no step and does not destroy redo after undo', () => {
-  const h = createHistory();
+  const h = createHistory<NumberedPlan>();
   h.amend({n: 0});
   h.commit({n: 1});
   h.commit({n: 2});
@@ -105,7 +121,7 @@ test('a housekeeping amend adds no step and does not destroy redo after undo', (
 });
 
 test('history is capped at 200 snapshots; opening another plan starts a separate history', () => {
-  const h = createHistory();
+  const h = createHistory<NumberedPlan>();
   h.reset({n: 0});
   for (let n = 1; n <= 210; n++) h.commit({n});
   for (let n = 209; n >= 11; n--) assert.deepEqual(h.undo(), {n});
@@ -117,7 +133,7 @@ test('history is capped at 200 snapshots; opening another plan starts a separate
 });
 
 test('unavailable storage does not break history and does not report a successful write', () => {
-  const h = createHistory();
+  const h = createHistory<NumberedPlan>();
   h.reset({n: 0});
   const set = localStorage.setItem;
   localStorage.setItem = () => {
@@ -146,7 +162,7 @@ test('empty or corrupted storage is read without throwing', () => {
 });
 
 test('loading keeps lights whose entity is missing in HA; a returning entity keeps its place and gets the current name', () => {
-  const saved = [
+  const saved: PlanLight[] = [
     {id: 'l', name: 'Old', entity: 'light.l', area: 'old', placed: true, points: [[2, 3]], segments: []},
     {
       id: 'relay',
@@ -159,9 +175,11 @@ test('loading keeps lights whose entity is missing in HA; a returning entity kee
     },
   ];
   assert.deepEqual(mergePlanLights(saved, []), saved);
+  // The lamp from HA has only the fields the merge reads.
+  const lamp = (fields: Partial<PlanLight>): PlanLight => fields as PlanLight;
   const merged = mergePlanLights(
     saved,
-    [{id: 'l', name: 'New', entity: 'light.l', area: 'new', points: []}],
+    [lamp({id: 'l', name: 'New', entity: 'light.l', area: 'new', points: []})],
     [{entity: 'switch.l', name: 'New relay', area: 'room'}],
   );
   assert.equal(merged.length, 2);
@@ -176,19 +194,19 @@ test('loading keeps lights whose entity is missing in HA; a returning entity kee
 test('undoing scale and rotation restores the photo along with the plan, in storage too', () => {
   const u = createUnderlay();
   Object.assign(u, {img: {complete: true}, src: 'test-image', a: [0.1, 0], b: [0, 5]});
-  const h = createHistory(undefined, {capture: () => u.snapshot(), restore: s => u.restore(s)}),
-    p = apartment();
+  const h = createHistory(undefined, {capture: () => u.snapshot(), restore: s => u.restore(s)});
+  const p = apartment();
   h.reset(p);
   // The photo was moved separately from the rooms, then the whole apartment was rescaled.
   u.moveBy(1, 2);
   h.captureExtra();
-  const before = structuredClone(p),
-    photo = u.snapshot();
+  const before = structuredClone(p);
+  const photo = u.snapshot()!;
   scalePlan(p, [0, 0], 2);
   u.turn([0, 0], 0, 2);
   h.commit(p);
-  const scaled = structuredClone(p),
-    scaledPhoto = u.snapshot();
+  const scaled = structuredClone(p);
+  const scaledPhoto = u.snapshot();
   rotatePlan(p, [0, 0], Math.PI / 2);
   u.turn([0, 0], Math.PI / 2);
   h.commit(p);
@@ -196,7 +214,7 @@ test('undoing scale and rotation restores the photo along with the plan, in stor
   assert.deepEqual(u.snapshot(), scaledPhoto);
   assert.deepEqual(h.undo(), before);
   assert.deepEqual(u.snapshot(), photo);
-  assert.deepEqual(JSON.parse(memory.get('home-twin-editor:underlay')).a, photo.a);
+  assert.deepEqual(JSON.parse(memory.get('home-twin-editor:underlay')!).a, photo.a);
   assert.deepEqual(h.redo(), scaled);
   assert.deepEqual(u.snapshot(), scaledPhoto);
 });
@@ -204,7 +222,8 @@ test('undoing scale and rotation restores the photo along with the plan, in stor
 test('a snapshot of another photo does not move the new underlay; a corrupted placement does not break loading', async () => {
   const u = createUnderlay();
   Object.assign(u, {img: {complete: true}, src: 'new', a: [0.2, 0], b: [2, 3]});
-  u.restore({src: 'old', a: [1, 0], b: [0, 0]});
+  // A snapshot without the fingerprint (src instead of ph): not this photo's.
+  u.restore({src: 'old', a: [1, 0], b: [0, 0]} as unknown as UnderlaySnapshot);
   assert.deepEqual(u.a, [0.2, 0]);
   memory.set('home-twin-editor:underlay', '{broken');
   assert.equal(await u.load(), false);
@@ -214,53 +233,55 @@ test('a snapshot of another photo does not move the new underlay; a corrupted pl
 
 // Undo survives a reload: steps are in per-project storage (here in memory instead of IndexedDB).
 const mem = () => {
-  const m = new Map();
+  const m = new Map<string, unknown>();
   return {
     m,
-    get: async k => structuredClone(m.get(k)),
-    batch: async ops => {
+    get: async (k: string) => structuredClone(m.get(k)),
+    batch: async (ops: StoreOp[]) => {
       for (const [op, k, v] of ops) op === 'put' ? m.set(k, structuredClone(v)) : m.delete(k);
     },
   };
 };
-const plan = (v, id = 'p1') => ({id, rooms: [], v});
+const plan = (v: number, id = 'p1'): StepPlan => ({id, rooms: [], v});
+// What the history wrote under a key: an array (the index) or a project's steps.
+const stored = <Value>(store: ReturnType<typeof mem>, key: string): Value => store.m.get(key) as Value;
 
 test('undo steps and “Redo” are the same after a reload', async () => {
-  const store = mem(),
-    h = createHistory(null, {store});
+  const store = mem();
+  const h = createHistory<StepPlan>(null, {store});
   h.reset(plan(0));
   await h.ready;
   h.commit(plan(1));
   h.commit(plan(2));
   h.undo();
   await h.flush();
-  const h2 = createHistory(null, {store});
+  const h2 = createHistory<StepPlan>(null, {store});
   h2.reset(plan(1));
   await h2.ready;
   assert.deepEqual(h2.size(), {steps: 3, pos: 1}, 'plan matches a saved step — the whole history');
-  assert.equal(h2.redo().v, 2);
-  assert.equal(h2.undo().v, 1);
-  assert.equal(h2.undo().v, 0);
+  assert.equal(h2.redo()!.v, 2);
+  assert.equal(h2.undo()!.v, 1);
+  assert.equal(h2.undo()!.v, 0);
   assert.equal(h2.undo(), null);
 });
 
 test('plan changed without steps (file, failed write) — it becomes a new step after the saved ones, undo leads to them', async () => {
-  const store = mem(),
-    h = createHistory(null, {store});
+  const store = mem();
+  const h = createHistory<StepPlan>(null, {store});
   h.reset(plan(0));
   await h.ready;
   h.commit(plan(1));
   await h.flush();
-  const h2 = createHistory(null, {store});
+  const h2 = createHistory<StepPlan>(null, {store});
   h2.reset(plan(9));
   await h2.ready;
   assert.deepEqual(h2.size(), {steps: 3, pos: 2});
-  assert.equal(h2.undo().v, 1);
+  assert.equal(h2.undo()!.v, 1);
 });
 
 test('a new edit after undo — the undone branch is erased from storage too', async () => {
-  const store = mem(),
-    h = createHistory(null, {store});
+  const store = mem();
+  const h = createHistory<StepPlan>(null, {store});
   h.reset(plan(0));
   await h.ready;
   h.commit(plan(1));
@@ -274,12 +295,12 @@ test('a new edit after undo — the undone branch is erased from storage too', a
   const keys = [...store.m.keys()].filter(k => /^hist:p1:/.test(k));
   assert.equal(before, 3);
   assert.equal(keys.length, 2, 'steps 1 and 2 deleted, 0 and 5 remain');
-  assert.deepEqual(store.m.get('hist:p1').ns.length, 2);
+  assert.deepEqual(stored<{ns: number[]}>(store, 'hist:p1').ns.length, 2);
 });
 
 test('another project has its own history; the last six projects are kept', async () => {
-  const store = mem(),
-    h = createHistory(null, {store});
+  const store = mem();
+  const h = createHistory<StepPlan>(null, {store});
   for (let i = 0; i < 7; i++) {
     h.reset(plan(0, 'p' + i));
     await h.ready;
@@ -296,13 +317,13 @@ test('another project has its own history; the last six projects are kept', asyn
     false,
   );
   assert.equal(store.m.has('hist:p1'), true);
-  assert.deepEqual(store.m.get('hist:index').length, 6);
+  assert.deepEqual(stored<string[]>(store, 'hist:index').length, 6);
 });
 
 test('without storage — as before, in memory only', () => {
-  const h = createHistory();
+  const h = createHistory<StepPlan>();
   h.reset(plan(0));
   h.commit(plan(1));
-  assert.equal(h.undo().v, 0);
-  assert.equal(h.redo().v, 1);
+  assert.equal(h.undo()!.v, 0);
+  assert.equal(h.redo()!.v, 1);
 });

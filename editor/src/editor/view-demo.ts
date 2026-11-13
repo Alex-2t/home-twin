@@ -1,14 +1,21 @@
-// @ts-nocheck
 // “How to rotate” demo (D-035, the owner 2026-11-07): while a step asks to pick a view, a cursor moves over the 3D window, “grabs”
 // the model and drags it to the right — the model rotates with it — and back to the same view. Repeats every 3.6 s until the user
 // takes hold of the model. The camera returns exactly: rotation via view.spin, the offset is computed here (off).
 // Pressing the window pauses the demo, the model stays put; releasing without rotating (a click swaps the windows) — again after 1.5 s.
 //   run(on) — show or not (app.js decides: view step, model not yet rotated, 3D window visible, no “reduced motion”)
-const A = 0.45,
-  CYCLE = 3600,
-  START = 600;
-const ease = u => (u < 0.5 ? 2 * u * u : 1 - (-2 * u + 2) ** 2 / 2);
-export function createViewDemo(pane, view) {
+import type {PlanView3d} from './editor-types.ts';
+
+const A = 0.45;
+const CYCLE = 3600;
+const START = 600;
+const ease = (u: number): number => (u < 0.5 ? 2 * u * u : 1 - (-2 * u + 2) ** 2 / 2);
+
+/** The demo: run(on) shows it or stops it (a truthy value shows it). */
+export interface ViewDemo {
+  run(v: unknown): void;
+}
+
+export function createViewDemo(pane: HTMLElement, view: Partial<Pick<PlanView3d, 'spin'>>): ViewDemo {
   const el = document.createElement('div');
   el.className = 'drag-demo';
   el.hidden = true;
@@ -16,30 +23,30 @@ export function createViewDemo(pane, view) {
   el.innerHTML =
     '<i class="dd-ring"></i><svg viewBox="0 0 24 24" width="24" height="24"><path d="M4 2v17l4.4-4.1 3 6.6 2.6-1.2-3-6.5H17z"/></svg>';
   pane.appendChild(el);
-  let on = false,
-    raf = 0,
-    t0 = 0,
-    held = false,
-    off = 0;
-  const setOff = v => {
+  let on = false;
+  let raf = 0;
+  let t0 = 0;
+  let held = false;
+  let off = 0;
+  const setOff = (v: number): void => {
     if (Math.abs(v - off) < 1e-6) return;
     if (view.spin?.(v - off)) off = v;
   };
-  function frame(now) {
+  function frame(now: number): void {
     raf = requestAnimationFrame(frame);
     if (held || now < t0) {
       el.style.opacity = '0';
       setOff(0);
       return;
     }
-    const t = (now - t0) % CYCLE,
-      w = pane.clientWidth,
-      h = pane.clientHeight,
-      dx = Math.min(110, w * 0.28);
+    const t = (now - t0) % CYCLE;
+    const w = pane.clientWidth;
+    const h = pane.clientHeight;
+    const dx = Math.min(110, w * 0.28);
     // u — fraction of the way to the right (0…1): appear, grab, drag, hold, return, release, pause
-    let u = 0,
-      a = 1,
-      press = true;
+    let u = 0;
+    let a = 1;
+    let press = true;
     if (t < 300) {
       a = t / 300;
       press = false;
@@ -56,12 +63,13 @@ export function createViewDemo(pane, view) {
     el.classList.toggle('press', press);
     setOff(-A * u);
   } // rightwards — as in OrbitControls: the camera orbits left, the model turns right
-  const down = e => {
-    if (!on || e.target.closest('button,.pip-grip')) return;
+  const down = (e: PointerEvent): void => {
+    // A press inside the pane: its target is an element.
+    if (!on || (e.target as Element).closest('button,.pip-grip')) return;
     held = true;
     setOff(0);
   };
-  const up = () => {
+  const up = (): void => {
     if (!held) return;
     held = false;
     t0 = performance.now() + 1500;
@@ -71,11 +79,11 @@ export function createViewDemo(pane, view) {
   addEventListener('pointercancel', up, true);
   return {
     run(v) {
-      v = !!v;
-      if (v === on) return;
-      on = v;
+      const show = !!v;
+      if (show === on) return;
+      on = show;
       held = false;
-      if (v) {
+      if (show) {
         t0 = performance.now() + START;
         el.hidden = false;
         el.style.opacity = '0';

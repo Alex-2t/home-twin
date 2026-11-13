@@ -1,10 +1,117 @@
-// @ts-nocheck
 // The AI build's pins (D-073, D-076): the owner marks spots where something is wrong, on the plan or on the home in 3D, and
 // says what. This is what a spot is — its room and the item there, what the owner was looking at (view) and the photos they
 // added — and what goes to the service. A pin that did not work out last time comes back with why. Data only; the screen
 // is ai-review.js.
 import {pointIn, segDist} from '../core/geometry.ts';
 import {N} from '../i18n/i18n.ts';
+import type {FurnitureItem, HomeView, Point, Room} from '../core/types.ts';
+
+/** What the pins read of a plan: its rooms, and the ids and names of its items. */
+export interface PinPlan {
+  rooms: Room[];
+  furniture?: Array<Pick<FurnitureItem, 'id' | 'name'>>;
+}
+
+/** A spot the owner pinned: on the plan {p}, or in 3D what the view picked {p, z, inside, item} (scene.ts pick). */
+export interface PinHit {
+  p: Point;
+  z?: number;
+  /** A point a little inside the wall that was hit: the room comes from it. */
+  inside?: Point;
+  item?: string | null;
+}
+
+/** Whether the service made a pin: yes, in part, or not. */
+export type PinMade = 'yes' | 'partly' | 'no';
+
+/** A reason the service gives for a pin not made: its code (MISSED_REASON), its note for us, its words to the owner. */
+export interface PinReason {
+  code: string;
+  text?: string;
+  say?: string;
+}
+
+/** A pin as the service reads it back in its status (lastRound, rounds): the pin it got, whether it was made, and why not. */
+export interface RoundPin {
+  n: number;
+  x: number;
+  y: number;
+  z?: number;
+  room?: string;
+  roomName?: string;
+  item?: string;
+  itemName?: string;
+  text: string;
+  view?: string;
+  camera?: HomeView;
+  photos?: string[];
+  made: PinMade;
+  why?: PinReason[];
+  /** How the service understood the pin, in the owner's language. */
+  understood?: string;
+}
+
+/** A round of the owner's pins as the service judged it. */
+export interface PinRound {
+  round: number;
+  pins?: RoundPin[];
+}
+
+/**
+ * What comes back with a pin not made (retryOf): the round and the pin's number there (none in pins kept before rounds
+ * numbered them), made in part or not, the reasons' codes, what the service told the owner, how it understood the pin, and
+ * whether the owner sent it to the developer.
+ */
+export interface PinRetry {
+  round?: number;
+  n?: number;
+  made: PinMade;
+  codes: string[];
+  told?: Array<{code: string; say: string}>;
+  understood?: string;
+  reported?: boolean;
+}
+
+/**
+ * A pin the owner puts: the spot (z: in 3D), its room and item, the words, the view kept when it was put and the photos added
+ * (their names at the service), the camera it was put from in 3D, and why it came back (retry).
+ */
+export interface Pin {
+  x: number;
+  y: number;
+  z?: number;
+  room: string | null;
+  roomName: string | null;
+  item: string | null;
+  itemName: string | null;
+  text: string;
+  view: string | null;
+  photos: string[];
+  camera?: HomeView;
+  retry?: PinRetry;
+}
+
+/** The owner's notes on a build: the pins, and the words for the whole home. */
+export interface PinNotes {
+  pins: Pin[];
+  text: string;
+}
+
+/** A pin as the service gets it (the answer's pins): numbered, with only what it has. */
+export interface SentPin {
+  n: number;
+  x: number;
+  y: number;
+  z?: number;
+  room?: string;
+  roomName?: string | null;
+  item?: string;
+  itemName?: string | null;
+  text: string;
+  view?: string;
+  camera?: HomeView;
+  photos?: string[];
+}
 
 // A pin on an exterior wall seen from outside lands outside its room: the nearest room within this many metres counts.
 const NEAR_ROOM = 0.6;
@@ -30,11 +137,11 @@ export const MISSED_REASON = {
 };
 
 /** The room a spot is in, else the nearest one within `near` metres; null outside the home. */
-export function roomAt(plan, p, near = NEAR_ROOM) {
+export function roomAt(plan: Pick<PinPlan, 'rooms'>, p: Point, near = NEAR_ROOM): Room | null {
   const rooms = (plan.rooms || []).filter(room => !room.solid);
   const inside = rooms.find(room => pointIn(p, room.polygon));
   if (inside) return inside;
-  let nearest = null;
+  let nearest: Room | null = null;
   let nearestMetres = near;
   for (const room of rooms) {
     const ring = room.polygon;
@@ -53,7 +160,7 @@ export function roomAt(plan, p, near = NEAR_ROOM) {
  * A new pin from a spot: on the plan {p}, or in 3D what the view picked {p, z, inside, item}. The room comes from the point a
  * little inside (a wall hit), the item from the furniture hit.
  */
-export function newPin(plan, hit) {
+export function newPin(plan: PinPlan, hit: PinHit): Pin {
   const room = roomAt(plan, hit.inside || hit.p);
   const item = hit.item ? (plan.furniture || []).find(f => f.id === hit.item) : null;
   return {
@@ -71,10 +178,13 @@ export function newPin(plan, hit) {
 }
 
 /** What a pin points at, as the owner reads it in the list: "Sofa · Living room". */
-export const pinLabel = (pin, outside) => [pin.itemName, pin.roomName || outside].filter(Boolean).join(' · ');
+export const pinLabel = (
+  pin: {itemName?: string | null; roomName?: string | null},
+  outside: string,
+): string => [pin.itemName, pin.roomName || outside].filter(Boolean).join(' · ');
 
 /** The pins as the service gets them: only those with words, numbered in order. */
-export function pinsToSend(pins) {
+export function pinsToSend(pins: Pin[]): SentPin[] {
   return pins
     .filter(pin => pin.text.trim())
     .map((pin, i) => ({
@@ -96,7 +206,7 @@ export function pinsToSend(pins) {
  * owner's words and pictures, and why (`retry`: the service's reason codes, harness owner-result.ts). The owner can add a
  * photo or say it again, or delete them.
  */
-export function pinsToRetry(lastRound) {
+export function pinsToRetry(lastRound: PinRound | null | undefined): Pin[] {
   return (lastRound?.pins || [])
     .filter(pin => pin.made !== 'yes')
     .map(pin => ({
@@ -111,19 +221,22 @@ export function pinsToRetry(lastRound) {
       view: pin.view || null,
       ...(pin.camera ? {camera: pin.camera} : {}),
       photos: pin.photos || [],
-      retry: retryOf(lastRound.round, pin),
+      // The pins are lastRound's: it is there.
+      retry: retryOf(lastRound!.round, pin),
     }));
 }
 
-const reasonCodes = pin => [...new Set((pin.why || []).map(w => w.code))];
+const reasonCodes = (pin: RoundPin): string[] => [...new Set((pin.why || []).map(w => w.code))];
 
 /**
  * What comes back with a pin not made: the round, the pin's number, made in part or not, the reasons' codes, what the service
  * said to the owner in their language (`told`: what it can't do yet and why, what it asks, what it sees now) and how it
  * understood the pin.
  */
-function retryOf(round, pin) {
-  const told = (pin.why || []).filter(w => w.say).map(w => ({code: w.code, say: w.say}));
+function retryOf(round: number, pin: RoundPin): PinRetry {
+  const told = (pin.why || [])
+    .filter((w): w is PinReason & {say: string} => !!w.say)
+    .map(w => ({code: w.code, say: w.say}));
   return {
     round,
     n: pin.n,
@@ -140,13 +253,14 @@ function retryOf(round, pin) {
  * without its reason; one still not made shows its reason as it is now. A pin from before pins kept their number is found
  * by its words and its thing.
  */
-export function refreshRetries(pins, lastRound) {
+export function refreshRetries(pins: Pin[], lastRound: PinRound | null | undefined): Pin[] {
   const roundPins = lastRound?.pins || [];
-  return pins.flatMap(pin => {
-    if (!pin.retry || (pin.retry.round != null && pin.retry.round !== lastRound?.round)) return [pin];
+  return pins.flatMap((pin): Pin[] => {
+    const pinRetry = pin.retry;
+    if (!pinRetry || (pinRetry.round != null && pinRetry.round !== lastRound?.round)) return [pin];
     const now =
-      pin.retry.n != null
-        ? roundPins.find(roundPin => roundPin.n === pin.retry.n)
+      pinRetry.n != null
+        ? roundPins.find(roundPin => roundPin.n === pinRetry.n)
         : roundPins.find(
             roundPin => roundPin.text === pin.text && (roundPin.item || null) === (pin.item || null),
           );
@@ -157,11 +271,12 @@ export function refreshRetries(pins, lastRound) {
       const {retry, ...kept} = pin;
       return [kept];
     }
-    const {told, understood, ...kept} = pin.retry;
-    return [{...pin, retry: {...kept, ...retryOf(lastRound.round, now)}}];
+    const {told, understood, ...kept} = pinRetry;
+    // now is one of lastRound's pins: it is there.
+    return [{...pin, retry: {...kept, ...retryOf(lastRound!.round, now)}}];
   });
 }
 
 /** How many changes the owner asks for: each pin with words, and the note for the whole home. */
-export const changeCount = notes =>
+export const changeCount = (notes: PinNotes): number =>
   notes.pins.filter(pin => pin.text.trim()).length + (notes.text.trim() ? 1 : 0);

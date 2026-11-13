@@ -1,4 +1,3 @@
-// @ts-nocheck
 // Test panel — localhost only. A snapshot is the plan plus the plan photo (underlay); each wizard step has its own snapshot.
 // “Save” puts the current state into the current step's snapshot (after a reload the step is guessed from the plan:
 // lamps on the plan — “Lights”, HA links — “HA areas”, windows or doors — “Windows & doors”, rooms — “Split”).
@@ -10,8 +9,24 @@ import {idb} from './underlay.ts';
 import {el, esc} from './ui.ts';
 import {icon} from './icons.ts';
 import {emptyPlan} from '../core/plan.ts';
+import type {Plan, Point} from '../core/types.ts';
+import type {Editor, EditorFlows} from './editor-types.ts';
 
-const STEPS = [
+/** The steps that have a snapshot. */
+type SnapshotStep = 'rect' | 'split' | 'open' | 'names' | 'furniture' | 'lights';
+
+/** When each step's snapshot was saved, ms; legacy: the old single snapshot ('snap') stands for "Split". */
+interface SnapshotIndex extends Partial<Record<SnapshotStep, number>> {
+  legacy?: boolean;
+}
+
+/** A snapshot: the plan and the plan photo with its placement. */
+interface DevSnapshot {
+  plan: Plan;
+  underlay: {src: string; a: Point | null; b: Point | null; opacity: number; visible: boolean} | null;
+}
+
+const STEPS: Array<[SnapshotStep, string]> = [
   ['rect', 'Rectangle'],
   ['split', 'Split'],
   ['open', 'Windows & doors'],
@@ -20,27 +35,28 @@ const STEPS = [
   ['lights', 'Lights'],
 ];
 const KEY = 'home-twin-editor:dev';
-const nameOf = k => STEPS.find(s => s[0] === k)?.[1] || k;
-export function devPanel(ed, flows) {
+const nameOf = (k: SnapshotStep): string => STEPS.find(s => s[0] === k)?.[1] || k;
+export function devPanel(ed: Editor, flows: Pick<EditorFlows, 'hideStart'>): void {
   if (!['localhost', '127.0.0.1'].includes(location.hostname)) return;
-  const box = el(`<div class="dev glass"><b>Test</b></div>`),
-    save = el(`<button class="soft">Save</button>`);
+  const box = el(`<div class="dev glass"><b>Test</b></div>`);
+  const save = el(`<button class="soft">Save</button>`);
   box.append(save);
   document.body.append(box);
   // the previous panel version stored a single snapshot ('snap', time as a number) — treat it as the “Split” snapshot
-  const index = () => {
+  const index = (): SnapshotIndex => {
     const v = localStorage.getItem(KEY);
     if (!v) return {};
     if (/^\d+$/.test(v)) return {split: +v, legacy: true};
     try {
-      return JSON.parse(v);
+      // This panel writes it (localhost only); it is not checked.
+      return JSON.parse(v) as SnapshotIndex;
     } catch {
       return {};
     }
   };
-  const time = t =>
+  const time = (t: number): string =>
     new Date(t).toLocaleString('en', {day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit'});
-  const phase = () => {
+  const phase = (): SnapshotStep => {
     if (ed.modes.lights.wizardOn?.()) return 'lights';
     if (ed.modes.furniture.wizardOn?.()) return 'furniture';
     const w = ed.modes.rooms.wizardPhase?.();
@@ -56,20 +72,22 @@ export function devPanel(ed, flows) {
             ? 'split'
             : 'rect';
   };
-  const keyOf = (s, ix = index()) => (s === 'split' && ix.legacy ? 'snap' : 'snap:' + s);
-  function render() {
-    const ix = index(),
-      ph = phase();
+  const keyOf = (s: SnapshotStep, ix = index()): string =>
+    s === 'split' && ix.legacy ? 'snap' : 'snap:' + s;
+  function render(): void {
+    const ix = index();
+    const ph = phase();
     save.textContent = `Save: ${nameOf(ph)}`;
     save.title = `Save the plan and photo as the “${nameOf(ph)}” step snapshot`;
     box.style.width = '';
     box.querySelectorAll('[data-step]').forEach(b => b.remove());
     for (const [k, name] of STEPS) {
-      if (!ix[k]) continue;
-      const row = el(`<div class="row" data-step="${k}"></div>`),
-        b = el(
-          `<button class="soft go" title="“${esc(nameOf(k))}” snapshot from ${esc(time(ix[k]))}">→ ${name}</button>`,
-        );
+      const savedAt = ix[k];
+      if (!savedAt) continue;
+      const row = el(`<div class="row" data-step="${k}"></div>`);
+      const b = el(
+        `<button class="soft go" title="“${esc(nameOf(k))}” snapshot from ${esc(time(savedAt))}">→ ${name}</button>`,
+      );
       b.onclick = () => restore(k);
       row.append(b);
       // a step's own snapshot can be deleted: the first click shows “Delete?”, the second deletes; moving the mouse away cancels
@@ -94,7 +112,7 @@ export function devPanel(ed, flows) {
       box.append(row);
     }
   }
-  async function drop(k) {
+  async function drop(k: SnapshotStep): Promise<void> {
     let ix = index();
     await idb('del', keyOf(k, ix)).catch(() => {});
     if (k === 'split' && ix.legacy) ix = {};
@@ -112,9 +130,9 @@ export function devPanel(ed, flows) {
     save.title = `Save the plan and photo as the “${nameOf(ph)}” step snapshot`;
   }, 1000);
   save.onclick = async () => {
-    const u = ed.underlay,
-      ph = phase();
-    const snap = {
+    const u = ed.underlay;
+    const ph = phase();
+    const snap: DevSnapshot = {
       plan: structuredClone(ed.plan),
       underlay:
         u.ready && u.src ? {src: u.src, a: u.a, b: u.b, opacity: u.opacity, visible: u.visible} : null,
@@ -136,14 +154,15 @@ export function devPanel(ed, flows) {
       render();
     }, 1200);
   };
-  async function restore(step) {
+  async function restore(step: SnapshotStep): Promise<void> {
     if (!index()[step]) return;
-    const snap = await idb('get', keyOf(step)).catch(() => null);
+    // This panel wrote it (save above); it is not checked.
+    const snap = (await idb('get', keyOf(step)).catch(() => null)) as DevSnapshot | null;
     if (!snap) return;
     flows.hideStart();
     ed.step(null);
-    const u = ed.underlay,
-      s = snap.underlay;
+    const u = ed.underlay;
+    const s = snap.underlay;
     if (s) {
       await u.set(s.src, {
         place: () => {
@@ -154,7 +173,7 @@ export function devPanel(ed, flows) {
       Object.assign(u, {opacity: s.opacity, visible: s.visible});
       u.save();
     } else await u.clear();
-    const plan = step === 'rect' ? {...emptyPlan(), wall: snap.plan.wall} : structuredClone(snap.plan);
+    const plan: Plan = step === 'rect' ? {...emptyPlan(), wall: snap.plan.wall} : structuredClone(snap.plan);
     delete plan.id; // as a new project
     ed.setMain?.('plan');
     ed.setPlan(plan);

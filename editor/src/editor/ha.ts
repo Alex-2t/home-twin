@@ -1,4 +1,3 @@
-// @ts-nocheck
 // Connection to Home Assistant. The editor knows about HA only through this object, so in the HA panel a real one replaces it
 // without changes to the rest of the code:
 //   areas()     — areas: [{area_id, name}] (in HA: callWS {type:'config/area_registry/list'});
@@ -51,18 +50,70 @@
 //                 which opens the areas page in the user's own HA.
 // Until HA is connected — demo data (mockHA).
 import {demoStatistics, demoStateHistory} from './ha-demo.ts';
+import type {
+  DemoHaData,
+  DemoHaLayer,
+  DemoWeatherProfile,
+  HaArea,
+  HaEntityItem,
+  HaLayer,
+  HaSwitch,
+  HaWeather,
+  HaWeatherHour,
+  HassAttributes,
+  HassEntityState,
+  PlanLight,
+} from '../core/types.ts';
+
+/** A demo entity: HA's state, and the timer of a move it is making (a robot going home, a script running). */
+type DemoEntity = HassEntityState & {_t?: ReturnType<typeof setTimeout>};
+
+/**
+ * The attributes the demo's commands read and change. The demo's climate entities have all of their numbers and its covers a
+ * position (demo/kit.ts); _last: the mode an air conditioner goes back to when turned on.
+ */
+type DemoAttributes = HassAttributes & {
+  _last?: string;
+  temperature: number;
+  current_temperature: number;
+  min_temp: number;
+  max_temp: number;
+  current_position: number;
+};
+
+/** The fields of a command's data the demo reads: each service's call has the ones it needs (the editor makes them). */
+type DemoCallData = {
+  entity_id: string;
+  hvac_mode: string;
+  temperature: number;
+  fan_mode: string;
+  position: number;
+};
+
+/** A lamp of a saved plan as the merge reads it: an older file's lamp may lack its points or segments. */
+type SavedLamp = Omit<PlanLight, 'points' | 'segments'> & Partial<Pick<PlanLight, 'points' | 'segments'>>;
+
+/** The demo's weather always has its numbers. */
+export type DemoWeather = HaWeather & {temperature: number; feels: number; sunrise: number; sunset: number};
+
+/** An entity for "Favorites" as the demo lists it: a sensor's or a device's class and unit may be null. */
+type DemoEntityItem = Omit<HaEntityItem, 'cls' | 'unit'> & {cls?: string | null; unit?: string | null};
 // An entity that is missing right now is no reason to erase its placement from the saved file.
 // HA lamps as plan lamps, not placed yet. An HA light group (it has a member list) whose lamps are also in the list is not placed
 // on the plan — the lamps themselves are.
-export function haPlanLights(ha) {
-  const all = ha.lights(),
-    ids = new Set(all.map(l => l.entity));
+export function haPlanLights(ha: Pick<HaLayer, 'lights'>): PlanLight[] {
+  const all = ha.lights();
+  const ids = new Set(all.map(l => l.entity));
   return all
     .filter(l => !l.members?.some(id => ids.has(id)))
     .map(l => ({...l, on: true, placed: false, points: [], segments: [], room: null}));
 }
 
-export function mergePlanLights(saved, current, switches = []) {
+export function mergePlanLights(
+  saved: PlanLight[],
+  current: PlanLight[],
+  switches: HaSwitch[] = [],
+): PlanLight[] {
   const live = [
     ...current,
     ...saved
@@ -78,31 +129,34 @@ export function mergePlanLights(saved, current, switches = []) {
       const s = saved.find(l => l.id === h.id);
       return s ? {...h, ...s, name: h.name, entity: h.entity, area: h.area} : h;
     }),
-    ...saved.filter(s => !ids.has(s.id)).map(s => ({name: s.id, points: [], segments: [], ...s})),
+    // a lamp from an older file may lack its points or segments: they default to none
+    ...saved
+      .filter(s => !ids.has(s.id))
+      .map((s: SavedLamp) => ({name: s.id, points: [], segments: [], ...s})),
   ];
 }
 
 // Demo weather: a daily temperature cycle (minimum by 4 am, maximum by 4 pm) and hourly conditions from the profile,
 // sunrise and sunset from the profile in local time. Computed from the current hour, so the forecast strip is always live.
 // p: {low, high, sunrise:'07:05', sunset:'16:40', hours:[24 HA conditions, one per hour of the day]}
-export function demoWeather(p, now = Date.now()) {
-  const H = 3600e3,
-    start = new Date(now);
+export function demoWeather(p: DemoWeatherProfile, now = Date.now()): DemoWeather {
+  const H = 3600e3;
+  const start = new Date(now);
   start.setMinutes(0, 0, 0);
-  const temp = at => {
-    const d = new Date(at),
-      h = d.getHours() + d.getMinutes() / 60;
+  const temp = (at: number): number => {
+    const d = new Date(at);
+    const h = d.getHours() + d.getMinutes() / 60;
     return +(p.low + ((p.high - p.low) * (1 - Math.cos(((h - 4) / 24) * 2 * Math.PI))) / 2).toFixed(1);
   };
-  const cond = at => p.hours[new Date(at).getHours()] || 'cloudy';
-  const next = hm => {
-    const [h, m] = hm.split(':').map(Number),
-      d = new Date(now);
+  const cond = (at: number): string => p.hours[new Date(at).getHours()] || 'cloudy';
+  const next = (hm: string): number => {
+    const [h, m] = hm.split(':').map(Number);
+    const d = new Date(now);
     d.setHours(h, m, 0, 0);
     if (+d <= now) d.setDate(d.getDate() + 1);
     return +d;
   };
-  const hourly = [];
+  const hourly: HaWeatherHour[] = [];
   for (let i = 1; i <= 48; i++) {
     const at = +start + i * H;
     hourly.push({at, condition: cond(at), temperature: temp(at)});
@@ -133,15 +187,19 @@ export function mockHA({
   weather = null,
   stats = {},
   extra = [],
-}) {
-  const list = Object.entries(areas).map(([area_id, name]) => ({area_id, name, ...areaSensors[area_id]})),
-    subs = new Set(),
-    ssubs = new Set();
+}: DemoHaData): DemoHaLayer {
+  const list: HaArea[] = Object.entries(areas).map(([area_id, name]) => ({
+    area_id,
+    name,
+    ...areaSensors[area_id],
+  }));
+  const subs = new Set<() => void>();
+  const ssubs = new Set<() => void>();
   // Demo lamps: the entity state is L.on of the plan lamps (_lightsFrom), a light / switch command changes it. This way the bulb
   // in the Lights list and Preview see the same thing, and Preview talks to lamps only through entity() and call(), as with HA.
-  let planLights = () => [];
-  const lampsOf = e => planLights().filter(L => L.entity === e);
-  const lamp = e => {
+  let planLights = (): PlanLight[] => [];
+  const lampsOf = (e: string): PlanLight[] => planLights().filter(L => L.entity === e);
+  const lamp = (e: string): HassEntityState | null => {
     const L = lampsOf(e);
     return L.length ? {state: L.some(x => x.on !== false) ? 'on' : 'off', attributes: {}} : null;
   };
@@ -166,12 +224,20 @@ export function mockHA({
     // demo: a smooth curve towards the current value; the amplitude depends on the sensor kind, the pattern is unique to each (from the entity name)
     history: e => {
       const v = states[e];
-      if (!Number.isFinite(v)) return [];
+      // the same as !Number.isFinite(v), which takes only numbers
+      if (typeof v !== 'number' || !Number.isFinite(v)) return [];
       const cls = sensors.find(x => x.entity === e)?.cls;
-      const amp = {temperature: 0.6, humidity: 3.5, carbon_dioxide: 180, pm25: 3}[cls] ?? Math.abs(v) * 0.05;
+      const amplitudes: Record<string, number | undefined> = {
+        temperature: 0.6,
+        humidity: 3.5,
+        carbon_dioxide: 180,
+        pm25: 3,
+      };
+      // String(): a missing class is looked up as 'undefined' or 'null', as before
+      const amp = amplitudes[String(cls)] ?? Math.abs(v) * 0.05;
       let h = 0;
       for (const c of e) h = (h * 31 + c.charCodeAt(0)) >>> 0;
-      const out = [];
+      const out: number[] = [];
       for (let i = 0; i < 36; i++) {
         const x = i / 35;
         out.push(
@@ -210,10 +276,10 @@ export function mockHA({
     energy: () => Promise.resolve(stats.energy || null),
     devices: () => devices,
     entities: () => {
-      const out = new Map(),
-        add = x => {
-          if (x?.entity && !out.has(x.entity)) out.set(x.entity, x);
-        };
+      const out = new Map<string, DemoEntityItem>();
+      const add = (x: DemoEntityItem | null | undefined): void => {
+        if (x?.entity && !out.has(x.entity)) out.set(x.entity, x);
+      };
       for (const l of lights)
         add({entity: l.entity, name: l.name, area: l.area, domain: l.entity.split('.')[0]});
       for (const w of switches) add({entity: w.entity, name: w.name, area: w.area, domain: 'switch'});
@@ -223,21 +289,28 @@ export function mockHA({
         if (!s.cat && !s.hidden)
           add({entity: s.entity, name: s.name, area: s.area, domain: 'sensor', cls: s.cls, unit: s.unit});
       for (const x of extra) add(x);
-      return [...out.values()];
+      // a class or a unit may be null here (types.ts HaEntityItem has a string or none)
+      return [...out.values()] as HaEntityItem[];
     },
     // like hass.states: a sensor has its reading as a string, the unit and class in attributes
     entity: e => {
       if (entities[e]) return entities[e];
       if (/^(light|switch)\./.test(e)) return lamp(e);
       const s = sensors.find(x => x.entity === e);
+      // the unit and the class may be null here (types.ts HassAttributes has a string or none)
       return s && states[e] != null
-        ? {state: String(states[e]), attributes: {unit_of_measurement: s.unit, device_class: s.cls}}
+        ? {
+            state: String(states[e]),
+            attributes: {unit_of_measurement: s.unit, device_class: s.cls} as unknown as HassAttributes,
+          }
         : null;
     },
     _lightsFrom(f) {
       planLights = f;
     },
-    call: (domain, service, data = {}) => {
+    call: (domain, service, callData = {}) => {
+      // The editor's commands: each has the fields its service needs.
+      const data = callData as DemoCallData;
       const e = data.entity_id;
       if (
         (domain === 'light' || domain === 'switch') &&
@@ -260,9 +333,9 @@ export function mockHA({
           return r;
         });
       }
-      const x = entities[e];
+      const x: DemoEntity | undefined = entities[e];
       if (!x) return Promise.resolve(false);
-      const A = x.attributes;
+      const A = x.attributes as DemoAttributes;
       if (domain === 'climate') {
         const last = A._last || (x.state !== 'off' ? x.state : 'cool');
         if (service === 'set_hvac_mode' && A.hvac_modes?.includes(data.hvac_mode)) x.state = data.hvac_mode;
@@ -311,7 +384,8 @@ export function mockHA({
               ssubs.forEach(f => f());
             }
           }, 4000);
-        } else x.state = {start: 'cleaning', pause: 'paused', stop: 'idle'}[service];
+        } else
+          x.state = ({start: 'cleaning', pause: 'paused', stop: 'idle'} as Record<string, string>)[service];
       }
       // toggle, fan: on / off; scene — the activation time; a script runs for a couple of seconds; button — the press time
       else if (

@@ -1,4 +1,3 @@
-// @ts-nocheck
 // The tip on hover over the day / night button (D-068): what the current mode does and what a click turns on, and “Don't show again”. It stays while the pointer is over the
 // button or the tip, so its button can be pressed; once dismissed it does not show again, in the editor or the card (core/daynight.js).
 // btn — the button; box — a positioned element the tip goes into (its coordinates and edges); side — above, below or right of the button.
@@ -6,59 +5,69 @@
 // 'dn-tip-off' on the button (and 'daynight-tip-off' on window, core/daynight.js) tells the owners to put the title back.
 import {t} from '../i18n/i18n.ts';
 import {tipWanted, tipOff, readMode} from '../core/daynight.ts';
+import type {DayNightMode} from '../core/types.ts';
 
 // the current mode, then what a click turns on (the order is core/daynight.js MODES: auto → day → night → auto)
-const TEXT = {
+const TEXT: Record<DayNightMode, () => string> = {
   auto: () => t('Auto: night after sunset, day after sunrise.') + ' ' + t('Click for always day.'),
   day: () => t('Always day, at any hour.') + ' ' + t('Click for always night.'),
   night: () => t('Always night, at any hour.') + ' ' + t('Click for auto, by the sun.'),
 };
 
-export function dayNightTip(btn, box, side = 'above') {
+export function dayNightTip(
+  btn: HTMLElement | null | undefined,
+  box: Element | null | undefined,
+  side: 'above' | 'below' | 'right' = 'above',
+): void {
   if (!btn || !box || btn.dataset.dnTip) return;
+  // Checked above; open() below is a function declaration, which does not keep the check.
+  const button = btn;
+  const holder = box;
   btn.dataset.dnTip = '1';
-  let tip = null,
-    timer = 0;
-  const close = () => {
-      clearTimeout(timer);
-      tip?.remove();
-      tip = null;
-    },
-    later = () => {
-      clearTimeout(timer);
-      timer = setTimeout(close, 220);
-    };
+  let tip: HTMLElement | null = null;
+  let timer: ReturnType<typeof setTimeout> | number = 0;
+  const close = (): void => {
+    clearTimeout(timer);
+    tip?.remove();
+    tip = null;
+  };
+  const later = (): void => {
+    clearTimeout(timer);
+    timer = setTimeout(close, 220);
+  };
   btn.addEventListener('mouseenter', () => {
     clearTimeout(timer);
     if (!tip && tipWanted()) timer = setTimeout(open, 380);
   });
   btn.addEventListener('mouseleave', later);
   btn.addEventListener('click', close);
-  function open() {
-    if (!btn.isConnected) return;
+  function open(): void {
+    if (!button.isConnected) return;
     tip = document.createElement('div');
     tip.className = 'dn-tip';
     tip.setAttribute('role', 'tooltip');
     tip.innerHTML = '<p></p><button type="button"></button>';
-    tip.querySelector('p').textContent = TEXT[readMode()]();
-    const off = tip.querySelector('button');
+    // The markup just set has both. (The card's bundle has no ui.ts, so no find here.)
+    tip.querySelector('p')!.textContent = TEXT[readMode()]();
+    const off = tip.querySelector('button')!;
     off.textContent = t("Don't show again");
     off.onclick = e => {
       e.stopPropagation();
       tipOff();
       close();
-      btn.dispatchEvent(new Event('dn-tip-off'));
+      button.dispatchEvent(new Event('dn-tip-off'));
     };
     tip.onmouseenter = () => clearTimeout(timer);
     tip.onmouseleave = later;
     tip.onpointerdown = e => e.stopPropagation();
-    box.append(tip);
-    const B = box.getBoundingClientRect(),
-      b = btn.getBoundingClientRect(),
-      w = tip.offsetWidth,
-      h = tip.offsetHeight,
-      g = 8;
-    let x, y;
+    holder.append(tip);
+    const B = holder.getBoundingClientRect();
+    const b = button.getBoundingClientRect();
+    const w = tip.offsetWidth;
+    const h = tip.offsetHeight;
+    const g = 8;
+    let x: number;
+    let y: number;
     if (side === 'right') {
       x = b.right - B.left + g;
       y = b.top - B.top + b.height / 2 - h / 2;

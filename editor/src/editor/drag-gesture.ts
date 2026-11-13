@@ -1,24 +1,44 @@
-// @ts-nocheck
+import type {Vector} from '../core/types.ts';
+
 // All distances are CSS pixels: plan zoom and Retina don't change the gesture threshold.
 export const DRAG_HOLD_MS = 240;
 export const DRAG_SLOP = 4;
 
+/** The pointer fields the gesture reads. */
+export type GesturePointer = Pick<PointerEvent, 'pointerId' | 'clientX' | 'clientY'>;
+
+/** A press that may become a drag: begin on the press, move on each move (true: it is a drag now), end when it is over. */
+export interface DragGesture {
+  /** cursor: the grab's cursor to show after a hold or on the drag; null: none. */
+  begin(e: GesturePointer, cursor: string | null): void;
+  move(e: GesturePointer): boolean;
+  end(): void;
+}
+
+interface Press {
+  id: number;
+  x: number;
+  y: number;
+  cursor: string | null;
+  moved: boolean;
+}
+
 // Direction in plan coordinates (Y up), cursor in screen coordinates (Y down).
-export function axisCursor([x, y]) {
+export function axisCursor([x, y]: Vector): string {
   const angle = ((Math.atan2(-y, x) * 180) / Math.PI + 180) % 180;
   return ['ew-resize', 'nwse-resize', 'ns-resize', 'nesw-resize'][Math.round(angle / 45) % 4];
 }
 
 // A hold only shows the grab; geometry changes only on movement beyond the threshold.
-export function createDragGesture(showCursor) {
-  let press = null,
-    timer = null;
-  const reveal = () => {
+export function createDragGesture(showCursor: (cursor: string | null) => void): DragGesture {
+  let press: Press | null = null;
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  const reveal = (): void => {
     if (press?.cursor) showCursor(press.cursor);
   };
-  const end = () => {
+  const end = (): void => {
     clearTimeout(timer);
-    timer = null;
+    timer = undefined;
     press = null;
     showCursor(null);
   };
