@@ -17,6 +17,16 @@ New decisions are appended at the top of their section, old ones are not rewritt
 
 ## Decisions
 
+### D-088. The AI build's balance is on an account: sign-in by email code, Google or GitHub — **accepted** (2026-11-13)
+- The owner: clearing the browser must not lose the balance. Until now (D-085) the package hung on a key kept in the browser; now the payments service keeps accounts and their balance, and the browser only holds the service's session cookie (HttpOnly). Clearing the browser only signs out; signing in again brings the balance back, on any device. The service and the AI build answer at one address (`/pay/…`), so the cookie is first-party.
+- **Sign-in where the AI build needs it:** starting a build signed out, a build's link opened signed out, the header's “Sign in”. A sheet over the page: “Continue with Google / GitHub” where the service offers them, or a 6-digit code by email (no password; the code is checked as soon as it is typed whole). Google and GitHub leave the page and come back to the same address (`?ai=new` the upload, `?build=<id>` a build); the files already chosen are kept in the browser meanwhile and are back in their places. A provider's sign-in that fails reopens the sheet saying so.
+- **The account where it matters:** a round badge with the email's first letter in the AI build's headers, with a menu: the email, what is left (or “Nothing left on your account”: a new account and a used-up one look the same to the editor), buying more, “Sign out”. The balance bar in percent stays as in D-085: beside the button on the upload page, in the header of a build's page, above “Send” in the review — now from the account (`/pay/me`).
+- **Buying** is still the provider's checkout (D-086), opened for the signed-in account with its email locked, and it comes back to the page it left; the payment is claimed on the account, then the balance updates. Nothing left: the upload page offers “Buy a package · $20” and the build button waits; a 402 at start says “Nothing left on your account” and offers the same; a 401 at start opens the sign-in.
+- **A build that waits says why:** for money (“The package is used up”, top-up button; it goes on from where it stopped) or for the payments service (“Payments are not answering. The build waits and goes on by itself.”, no button).
+- **A build is shown only to its account.** The service answers 404 to another account and to a signed-out browser alike, so the editor asks the account and says which: “Sign in to see this build”, or “Not in this account” with “Switch account”. The start screen keeps following a build while signed out.
+- Without the payments service (local work) there are no accounts: no sign-in, builds start freely. The browser-held wallet and its localStorage key are gone (an old key is removed on load).
+- Code: `editor/src/editor/ai-account.ts` (the service's routes, its answers checked, the address on return, the balance in percent), `ai-account-ui.ts` (the sign-in sheet, the header's account, the card of a waiting build), `ai-build.ts`, `ai-review.ts`.
+
 ### D-087. The editor is TypeScript, formatted by Prettier — **accepted** (2026-11-13)
 - The owner: “let's do it properly first: move everything to TS, and only then go on”. The editor had grown as plain JavaScript in a dense style, with no types at all, while the AI build that uses its core (the catalog, plan checks, rendering) was already TypeScript and had to describe the editor's modules by hand.
 - **Every hand-written file is `.ts`**: `src/`, the tests, the demo homes, `build.ts`, the tools. Strict `tsc`, no `any`; the shared data shapes (the plan file, Home Assistant's states, the UI's saved state) are in `src/core/types.ts`.
@@ -30,6 +40,7 @@ New decisions are appended at the top of their section, old ones are not rewritt
 - **Back where it left:** a top-up for a waiting build comes back to that build, which goes on by itself; a first package comes back to the upload page. A payment that did not go through says so on the package's place.
 - Where the service takes no payments (testing), the package is still given free (D-085).
 - Code: `editor/src/editor/ai-wallet.js` (the offer, the checkout, the claim on return, the price in the owner's language), `ai-build.js` (`openAiFromAddress`, the buttons), `main.js`.
+- **Replaced in part by D-088** (2026-11-13): the package is bought on a signed-in account, not on this browser's key; the checkout and the claim on return stay as here.
 
 ### D-085. The AI build is paid from a package shown in percent; a build waits when it runs out — **accepted** (2026-11-12)
 - The owner: the AI build is sold as packages, like Claude's usage: a progress bar shows how much is spent and how much is left. It replaces the one purchase per home of D-063: a big home or many changes simply use more of the package, and a top-up adds another.
@@ -37,6 +48,7 @@ New decisions are appended at the top of their section, old ones are not rewritt
 - **Used up, the build waits where it is:** the next step waits instead of failing; the page says the package is used up and offers a top-up, and after it the build goes on from where it stopped. A new build starts only while something is left.
 - **No account:** the browser keeps the package's key; the service keeps what is on it. The payment itself comes with the service's payment provider; until then a package and a top-up are given free for testing.
 - Code: `editor/src/editor/ai-wallet.js` (the key, the shares as percents, the bar), the pause and top-up on the progress page in `ai-build.js`, the bar in the review in `ai-review.js`.
+- **Replaced in part by D-088** (2026-11-13): “No account” no longer holds — the balance is on an account at the payments service, and the browser keeps no key. Percent, never money, and the build waiting where it is, stay.
 
 ### D-084. Pieces of finish: the AI build may finish part of a wall or floor; by hand a pick covers it whole — **accepted** (2026-11-12)
 - The owner after a round: half a wall was slats and half paint, and the service could only answer "we can't do this yet". The owner: what the editor can't do must not stop the AI build; and it is fine, on purpose, that the AI build can do more than the editor's controls.
