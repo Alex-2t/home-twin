@@ -1,48 +1,171 @@
-// @ts-nocheck
 // Editor: state, history, the 2D–3D link, screen layout, mouse and keyboard.
 import {t} from '../i18n/i18n.ts';
-import {createView} from '../core/scene.ts';
+import {createView as untypedCreateView} from '../core/scene.ts';
 import {validate, wallsAt, offsetVar, edgeThickness, WALL} from '../core/geometry.ts';
 import {migrate, emptyPlan, roomById, wallDefaults, closeOuterOpen} from '../core/plan.ts';
 import {furnitureConflicts} from '../core/layout.ts';
 import {syncRuns} from '../core/runs.ts';
 import {syncFurnStrips} from '../core/fixtures.ts';
 import {byId, nameOf} from '../core/catalog.ts';
-import {sensorsMode} from './modes/sensors.ts';
-import {devicesMode} from './modes/devices.ts';
-import {createView2d} from './view2d.ts';
+import {sensorsMode as untypedSensorsMode} from './modes/sensors.ts';
+import {devicesMode as untypedDevicesMode} from './modes/devices.ts';
+import {createView2d as untypedCreateView2d} from './view2d.ts';
 import {createDragGesture} from './drag-gesture.ts';
-import {createHistory} from './history.ts';
+import {createHistory as untypedCreateHistory} from './history.ts';
 import {idbStore} from './idb.ts';
-import {createVersions} from './versions.ts';
-import {openVersions} from './versions-panel.ts';
-import {mergePlanLights} from './ha.ts';
-import {createUnderlay} from './underlay.ts';
+import {createVersions as untypedCreateVersions} from './versions.ts';
+import {openVersions as untypedOpenVersions} from './versions-panel.ts';
+import {mergePlanLights as untypedMergePlanLights} from './ha.ts';
+import {createUnderlay as untypedCreateUnderlay} from './underlay.ts';
 import {drawPlan, drawGuides, readPalette} from './draw.ts';
 import {icon, fillIcons} from './icons.ts';
-import {roomsMode, DRAW_RECT} from './modes/rooms.ts';
-import {furnitureMode} from './modes/furniture.ts';
-import {lightsMode} from './modes/lights.ts';
-import {$, el, ask, banner} from './ui.ts';
-import {createCoach} from './coach.ts';
+import {roomsMode as untypedRoomsMode, DRAW_RECT} from './modes/rooms.ts';
+import {furnitureMode as untypedFurnitureMode} from './modes/furniture.ts';
+import {lightsMode as untypedLightsMode} from './modes/lights.ts';
+import {$, el, ask as untypedAsk, banner as untypedBanner} from './ui.ts';
+import {createCoach as untypedCreateCoach} from './coach.ts';
 import {createViewDemo} from './view-demo.ts';
 import {createLook} from './look.ts';
 import {liveScene} from '../core/devices.ts';
-import {planWalls, planFurniture, planSpots} from '../core/plan-scene.ts';
-import {createPath} from './wizard-path.ts';
+import {planWalls, planFurniture, planSpots as untypedPlanSpots} from '../core/plan-scene.ts';
+import {createPath as untypedCreatePath} from './wizard-path.ts';
 import {stepReadyToFinish, areaOnPlan, lampWaits} from './wizard-state.ts';
 import {LANGS, getLang} from '../i18n/i18n.ts';
 import {readMode, saveMode, nextMode, isNight, tipWanted, onModeChange} from '../core/daynight.ts';
 import {dayNightTip} from './daynight-tip.ts';
+import type {
+  HaLamp,
+  HaLayer,
+  HaSwitch,
+  Lang,
+  Plan,
+  PlanLight,
+  Point,
+  SensorContext,
+  UiState,
+  Vector,
+} from '../core/types.ts';
+
+/** Safari's trackpad gesture: the two fingers' rotation in degrees and the pinch's scale. */
+interface GestureEvent extends UIEvent {
+  rotation: number;
+  scale: number;
+  clientX: number;
+  clientY: number;
+}
+
+/** A rectangle on the plan canvas: [left, top, right, bottom], CSS pixels from its top-left corner. */
+type PixelBox = [number, number, number, number];
+import type {
+  Aim,
+  BannerButton,
+  CanvasPoint,
+  BannerItem,
+  Coach,
+  DevicesMode,
+  Editor,
+  EditorHistory,
+  EditorTool,
+  FurnitureMode,
+  LightsMode,
+  Pane,
+  PaneRole,
+  ModeId,
+  PhotoStore,
+  PlanPointer,
+  PlanVersion,
+  PlanView2d,
+  PlanView3d,
+  RoomTool,
+  RoomsMode,
+  ScreenRect,
+  SensorSpot,
+  SensorsMode,
+  StepOptions,
+  Underlay,
+  UnderlaySnapshot,
+  VersionKind,
+  WizardPath,
+  WizardStep,
+} from './editor-types.ts';
+
+// ---------- the modules not typed yet ----------
+// Their results take the shapes editor-types.ts gives the editor's members, and the functions whose parameters their defaults typed
+// too narrowly get their signatures here. Once those modules are typed, their own types replace these.
+const ask = untypedAsk as unknown as Editor['ask'];
+const banner = untypedBanner as (text?: string | null, buttons?: BannerItem[]) => void;
+const createView = untypedCreateView as unknown as (el: HTMLElement) => PlanView3d;
+const createView2d = untypedCreateView2d as unknown as (cv: HTMLCanvasElement) => PlanView2d;
+const createHistory = untypedCreateHistory as unknown as (
+  onChange: (() => void) | undefined,
+  o: {
+    capture: () => UnderlaySnapshot | null | undefined;
+    restore: (snapshot: UnderlaySnapshot | null | undefined) => void;
+    store: typeof idbStore;
+  },
+) => EditorHistory;
+/** The versions store (versions.ts createVersions): the list, reading the project's, adding one, and whether one is due. */
+interface VersionsStore {
+  list(): PlanVersion[];
+  ready(): Promise<void>;
+  open(planId: string | undefined): Promise<void>;
+  add(
+    plan: Plan,
+    o: {kind: VersionKind; what: string | null; photo: UnderlaySnapshot | null; at?: number | null},
+  ): Promise<PlanVersion | null>;
+  due(): boolean;
+}
+const createVersions = untypedCreateVersions as unknown as (o: {store: typeof idbStore}) => VersionsStore;
+const openVersions = untypedOpenVersions as unknown as (ed: Editor) => {close(): void};
+const mergePlanLights = untypedMergePlanLights as unknown as (
+  saved: PlanLight[],
+  current: Array<HaLamp | PlanLight>,
+  switches: HaSwitch[],
+) => PlanLight[];
+const createUnderlay = untypedCreateUnderlay as unknown as (
+  onChange: () => void,
+  store?: PhotoStore,
+) => Underlay;
+const roomsMode = untypedRoomsMode as unknown as (ed: Editor) => RoomsMode;
+const furnitureMode = untypedFurnitureMode as unknown as (ed: Editor) => FurnitureMode;
+const lightsMode = untypedLightsMode as unknown as (ed: Editor) => LightsMode;
+const devicesMode = untypedDevicesMode as unknown as (ed: Editor) => DevicesMode;
+const sensorsMode = untypedSensorsMode as unknown as (ed: Editor) => SensorsMode;
+const createCoach = untypedCreateCoach as unknown as (work: HTMLElement, card: HTMLElement) => Coach;
+const createPath = untypedCreatePath as unknown as (ed: Editor) => WizardPath;
+const planSpots = untypedPlanSpots as unknown as (
+  plan: Plan,
+  ctx: SensorContext,
+  o: {moving: string | undefined; cam: Vector | undefined},
+) => SensorSpot[];
+
+/** What the editor is built from (boot.ts): HA's lamps as plan lamps, the HA layer, and where the plan photo is kept. */
+export interface AppOptions {
+  /** HA's lamps as plan lamps not placed yet (ha.ts haPlanLights). */
+  haLights: () => Array<HaLamp | PlanLight>;
+  ha: HaLayer;
+  /** None: this browser (underlay.ts browserPhotos). */
+  photos?: PhotoStore;
+}
 
 // A mouse wheel steps by 120 (wheelDelta), a trackpad — in small fractions and often with deltaX.
-const isMouseWheel = e =>
+const isMouseWheel = (e: WheelEvent & {wheelDeltaY?: number}): boolean =>
   e.deltaX === 0 && e.wheelDeltaY !== undefined && e.wheelDeltaY !== 0 && e.wheelDeltaY % 120 === 0;
 const UI = 'home-twin-editor:ui';
+// One element of our own markup inside root, typed as present like ui.ts $ (a missing one fails at its first use)
+const find = <ElementType extends Element = HTMLElement>(root: ParentNode, selector: string): ElementType =>
+  root.querySelector(selector) as ElementType;
+// the scene settings and the dashboard layout are not plan edits: a restored or undone plan keeps the ones there are now
+const carryOver = <Key extends 'scenes' | 'panel'>(key: Key, from: Plan, to: Plan): void => {
+  if (from[key]) to[key] = from[key];
+  else delete to[key];
+};
 
-export function createApp({haLights, ha, photos}) {
-  const areaName = id => ha.areas().find(a => a.area_id === id)?.name || id;
+export function createApp({haLights, ha, photos}: AppOptions): Editor {
+  const areaName = <AreaId extends string | null | undefined>(id: AreaId): string | AreaId =>
+    ha.areas().find(a => a.area_id === id)?.name || id;
   fillIcons();
+  // the rest of the editor's members are set below, before it is returned
   const ed = {
     plan: emptyPlan(),
     sel: {},
@@ -59,17 +182,17 @@ export function createApp({haLights, ha, photos}) {
     debug: new URLSearchParams(location.search).has('debug'),
     ask,
     banner,
-  };
+  } as Partial<Editor> as Editor;
   // A wizard step (“Split into rooms…”) stays until its “Done” is pressed. A temporary hint goes on top of it
   // and, once closed, brings the step back. A step lives in its own mode: gone to “Furniture” — hidden, back — visible again.
-  let step = null;
+  let step: WizardStep | null = null;
   // The wizard is pinned at the bottom; aim is used only for separate contextual hints outside the wizard.
   const coach = createCoach($('work'), $('banner'));
   const path = createPath(ed);
   ed.path = path;
-  function syncFinishHint() {
-    const bn = $('banner'),
-      button = bn.querySelector('.wizard-actions > button.primary');
+  function syncFinishHint(): void {
+    const bn = $('banner');
+    const button = bn.querySelector<HTMLElement>('.wizard-actions > button.primary');
     if (!button) return;
     // the view step: “Save view” pulses while there is something to save (ed.viewReady — below, at “Save view”)
     const ready =
@@ -83,30 +206,36 @@ export function createApp({haLights, ha, photos}) {
   }
   // a wizard step (has “Exit setup”) — the path strip at the top of the card
   // o.id — a stable hint key, o.short — a short instruction; the full text is available via the help button. o.look — shown in “Preview” too.
-  const show = (text, buttons, aim, o = {}) => {
-    const wizard = !!(text && buttons?.some(x => x.exit || x.path)),
-      phase = wizard ? path.cur() : null;
+  const show = (
+    text?: string | null,
+    buttons?: BannerItem[],
+    aim?: Aim | null,
+    o: StepOptions = {},
+  ): void => {
+    // an element on the card has none of these marks: undefined
+    const wizard = !!(text && buttons?.some(x => (x as BannerButton).exit || (x as BannerButton).path));
+    const phase = wizard ? path.cur() : null;
     if (phase) path.enter(phase);
     // The id does not depend on the text, the counter or the language: the first edit does not restart the tutorial.
-    const key = text && ed.plan.id + '|' + (o.id || phase || text.split('<small>')[0]),
-      bn = $('banner');
+    const key = text && ed.plan.id + '|' + (o.id || phase || text.split('<small>')[0]);
+    const bn = $('banner');
     banner(text, buttons);
     bn.classList.toggle('wizard-card', wizard);
     bn.classList.toggle('in-look', !!o.look);
     bn.classList.remove('short', 'has-path');
     document.body.dataset.wizard = phase || '';
     if (wizard) {
-      const message = bn.querySelector(':scope>span'),
-        full = message.innerHTML,
-        pe = path.el();
+      const message = bn.querySelector(':scope>span') as HTMLElement; // banner() puts the text in a span
+      const full = message.innerHTML;
+      const pe = path.el();
       if (pe) bn.prepend(pe);
       message.className = 'wizard-message';
       // “Exit setup” — on the right of the path row, like the close button in a header; on a narrow screen — as a cross
-      const ex = bn.querySelector(':scope>button.wizard-exit');
+      const ex = bn.querySelector<HTMLElement>(':scope>button.wizard-exit');
       if (ex && pe) {
         const label = ex.textContent;
         ex.replaceChildren(el('<span></span>'), el(icon('x', 14)));
-        ex.firstChild.textContent = label;
+        ex.firstChild!.textContent = label; // the span just put in
         ex.title = label;
         ex.setAttribute('aria-label', label);
         pe.append(ex);
@@ -142,24 +271,31 @@ export function createApp({haLights, ha, photos}) {
     }
     syncFinishHint();
     ed.syncSave?.();
+    // with a text there is its key
     if (text)
-      coach.show(key, wizard ? null : aim, {...o, fixed: wizard || o.fixed, compact: wizard || o.compact});
+      // coach.show takes a missing area as none
+      coach.show(key as string, (wizard ? null : aim) as Aim | null, {
+        ...o,
+        fixed: wizard || o.fixed,
+        compact: wizard || o.compact,
+      });
     else coach.hide();
   };
   // Each step has “Exit setup” (except “yes / no” questions: {exit:false}).
   // “Back” — to the previous step on the path (wizard-path.js); on the first step — correct the area, without a photo — to the start screen.
   ed.exitBtn = () => {
-    const b = [t('Exit setup'), () => ed.exitWizard(), 'quiet wizard-exit'];
+    const b: BannerButton = [t('Exit setup'), () => ed.exitWizard(), 'quiet wizard-exit'];
     b.exit = true;
     return b;
   };
   ed.backBtn = () => {
-    const b = [t('Back'), () => path.back()];
+    const b: BannerButton = [t('Back'), () => path.back()];
     b.back = true;
     return b;
   };
   ed.wizBtns = bs => {
-    bs = (bs || []).filter(b => !b.exit && !b.back);
+    // an element on the card has neither mark: undefined
+    bs = (bs || []).filter(b => !(b as BannerButton).exit && !(b as BannerButton).back);
     return [...(path.canBack() ? [ed.backBtn()] : []), ed.exitBtn(), ...bs];
   };
   ed.step = (text, buttons, aim, {exit = true, ...o} = {}) => {
@@ -179,16 +315,16 @@ export function createApp({haLights, ha, photos}) {
   ed.reducedMotion = () => motion.matches;
   motion.addEventListener('change', () => ed.draw());
   ed.view = createView($('view3d'));
-  ed.v = createView2d($('plan'));
+  ed.v = createView2d($('plan') as HTMLCanvasElement); // the plan's canvas
   // Screen areas for the step hint: plan points (the visible part), an element, a union of several.
   {
-    const box = pts => {
+    const box = (pts: Point[] | null | undefined): ScreenRect | null => {
       if (!pts?.length) return null;
       const c = ed.v.cv.getBoundingClientRect();
-      let l = Infinity,
-        tp = Infinity,
-        r = -Infinity,
-        b = -Infinity;
+      let l = Infinity;
+      let tp = Infinity;
+      let r = -Infinity;
+      let b = -Infinity;
       for (const p of pts) {
         const [X, Y] = ed.v.S(p);
         l = Math.min(l, X);
@@ -204,20 +340,22 @@ export function createApp({haLights, ha, photos}) {
         ? {left: c.left + l, top: c.top + tp, right: c.left + r, bottom: c.top + b}
         : null;
     };
-    const elBox = id => {
+    const elBox = (id: string): ScreenRect | null => {
       const e = $(id);
       if (!e || e.hidden || !e.offsetWidth || e.classList.contains('closed') || e.classList.contains('off'))
         return null;
       return e.getBoundingClientRect();
     };
-    const join = rs => {
+    const join = (rs: Array<ScreenRect | null>): ScreenRect | null => {
       rs = rs.filter(Boolean);
-      return rs.length
+      // the empty ones are gone
+      const found = rs as ScreenRect[];
+      return found.length
         ? {
-            left: Math.min(...rs.map(r => r.left)),
-            top: Math.min(...rs.map(r => r.top)),
-            right: Math.max(...rs.map(r => r.right)),
-            bottom: Math.max(...rs.map(r => r.bottom)),
+            left: Math.min(...found.map(r => r.left)),
+            top: Math.min(...found.map(r => r.top)),
+            right: Math.max(...found.map(r => r.right)),
+            bottom: Math.max(...found.map(r => r.bottom)),
           }
         : null;
     };
@@ -251,8 +389,8 @@ export function createApp({haLights, ha, photos}) {
   // Version history (versions.js, the dialog — versions-panel.js): mark — a snapshot now ('step' — a step passed, 'before' — before
   // a large edit, 'auto'); tick — after an edit, once every 10 minutes. Written with a delay, and the undo steps — before the tab closes.
   {
-    const V = createVersions({store: idbStore}),
-      photo = () => ed.underlay?.snapshot() ?? null;
+    const V = createVersions({store: idbStore});
+    const photo = (): UnderlaySnapshot | null => ed.underlay?.snapshot() ?? null;
     ed.versions = {
       list: V.list,
       ready: V.ready,
@@ -284,7 +422,8 @@ export function createApp({haLights, ha, photos}) {
 
   // Lamps “from Home Assistant”: the list comes from HA (for now — demo data), the plan stores only their place.
   // The placement is kept even for entities that are not in the HA list right now.
-  const mergeLights = saved => mergePlanLights(saved, haLights(), ha.switches?.() || []);
+  const mergeLights = (saved: PlanLight[]): PlanLight[] =>
+    mergePlanLights(saved, haLights(), ha.switches?.() || []);
   ed.setPlan = (plan, {fit = true} = {}) => {
     ed.cancelDrag?.();
     ed.capture = null;
@@ -325,15 +464,12 @@ export function createApp({haLights, ha, photos}) {
   };
   // restoring a version is an edit: ⌘Z brings it back. Scene settings and the dashboard layout stay current (as with undo);
   // HA lamps — reconciled with the current list, the photo position — from that version, if the photo is the same
-  ed.applyPlan = (p, photo) => {
+  ed.applyPlan = (input, photo) => {
     ed.cancelDrag?.();
     ed.capture = null;
-    p = migrate(structuredClone(p));
+    const p = migrate(structuredClone(input));
     p.id = ed.plan.id;
-    for (const k of ['scenes', 'panel']) {
-      if (ed.plan[k]) p[k] = ed.plan[k];
-      else delete p[k];
-    }
+    for (const k of ['scenes', 'panel'] as const) carryOver(k, ed.plan, p);
     p.lights = mergeLights(p.lights);
     ed.plan = p;
     ed.sel = {};
@@ -348,13 +484,10 @@ export function createApp({haLights, ha, photos}) {
   };
   // undo does not close the lamp panel if the lamp is still on the plan after undo. Scene settings (“Preview” → “Customize”) and
   // the dashboard layout (“Customize panel”) are not plan edits: undo does not roll them back
-  const restore = p => {
+  const restore = (p: Plan | null): void => {
     if (!p) return;
     const was = ed.sel.light;
-    for (const k of ['scenes', 'panel']) {
-      if (ed.plan[k]) p[k] = ed.plan[k];
-      else delete p[k];
-    }
+    for (const k of ['scenes', 'panel'] as const) carryOver(k, ed.plan, p);
     ed.history.save(p);
     ed.plan = p;
     ed.sel = was && p.lights?.some(l => l.id === was && l.placed) ? {light: was} : {};
@@ -379,7 +512,7 @@ export function createApp({haLights, ha, photos}) {
     ed.capture = null;
     ed.banner();
     document
-      .querySelectorAll('.modes [data-mode]')
+      .querySelectorAll<HTMLElement>('.modes [data-mode]')
       .forEach(b => b.classList.toggle('on', b.dataset.mode === id));
     document.body.dataset.mode = id;
     ed.mode.refresh?.();
@@ -394,9 +527,14 @@ export function createApp({haLights, ha, photos}) {
   };
 
   // ---------- validation, 3D, the problems badge ----------
-  const keys = {walls: '', lights: '', mask: ''};
-  let pending = false,
-    last = {};
+  const keys: {walls: string; lights: string; mask: string; view?: string} = {
+    walls: '',
+    lights: '',
+    mask: '',
+  };
+  let pending = false;
+  // the last 3D build: how long it took, or why it failed
+  let last: {ms?: number; fail?: string | null} = {};
   // HA areas are the source of names: a linked room always has its name from HA (renamed there — changed here),
   // the area was deleted in HA — the room is unlinked again. Demo rooms with an area id are linked by id.
   // the HA registries have not arrived yet (ha.ready) — an empty list does not mean “the areas were deleted”: links are not touched
@@ -420,7 +558,7 @@ export function createApp({haLights, ha, photos}) {
       }
     }
     for (const r of ed.plan.rooms)
-      if (r.zone?.area && !list.some(x => x.area_id === r.zone.area)) {
+      if (r.zone?.area && !list.some(x => x.area_id === r.zone!.area)) {
         r.zone.area = null;
         ch = true;
       }
@@ -439,7 +577,7 @@ export function createApp({haLights, ha, photos}) {
   // lists by area (lights, devices, sensors): first the plan rooms in their order, then “No area”,
   // at the end — areas that are not on the plan
   ed.sortAreas = list => {
-    const at = a => {
+    const at = (a: string): number => {
       if (!a) return 1e5;
       const i = ed.plan.rooms.findIndex(r => r.area === a || r.zone?.area === a);
       return i >= 0 ? i : 1e6;
@@ -469,9 +607,9 @@ export function createApp({haLights, ha, photos}) {
       ed.walls2d = ed.rails2d = ed.glass2d = null;
       if (keys.walls !== 'empty') keys.walls = '';
     }
-    const L = ed.plan.lights.filter(l => !ed.lampWaits(l)),
-      done = L.filter(l => (l.placed && !l.draft) || l.skip).length,
-      badge = $('lights-badge');
+    const L = ed.plan.lights.filter(l => !ed.lampWaits(l));
+    const done = L.filter(l => (l.placed && !l.draft) || l.skip).length;
+    const badge = $('lights-badge');
     badge.hidden = !L.length;
     badge.textContent = `${done}/${L.length}`;
     badge.classList.toggle('done', done === L.length);
@@ -497,11 +635,11 @@ export function createApp({haLights, ha, photos}) {
       // devices from HA (D-048): curtains — how far open, air conditioners — the airflow, open windows and doors glow
       const live = liveScene(plan, ha);
       ed.view.setFurniture(planFurniture(plan, live));
-      ed.view.setSensors(ed.spots);
+      ed.view.setSensors(ed.spots!); // update set them before this frame
       ed.view.setClimate?.(live.climate);
       ed.view.setContacts?.(live.contacts);
-      const placed = plan.lights.filter(l => l.placed),
-        lk = JSON.stringify([placed, plan.rooms]);
+      const placed = plan.lights.filter(l => l.placed);
+      const lk = JSON.stringify([placed, plan.rooms]);
       if (lk !== keys.lights) {
         keys.lights = lk;
         ed.view.setLights(placed, plan.rooms);
@@ -528,9 +666,9 @@ export function createApp({haLights, ha, photos}) {
             ed.glass2d = g.glassRails;
             ed.draw();
             last = {ms: performance.now() - t0, fail: null};
-            if (ed.debug) console.log('3D', last.ms.toFixed(0), 'ms');
+            if (ed.debug) console.log('3D', last.ms!.toFixed(0), 'ms'); // just set
           } catch (err) {
-            last = {fail: String(err.message || err).slice(0, 80)};
+            last = {fail: String((err as Error).message || err).slice(0, 80)}; // a thrown value, as it was read
           }
         }
       }
@@ -545,13 +683,13 @@ export function createApp({haLights, ha, photos}) {
   // The badge at the bottom of the plan — only when there is something to say. A click selects the culprit.
   ed.status = () => {
     const pill = $('pill');
-    let text = '',
-      warn = false,
-      go = null;
+    let text = '';
+    let warn = false;
+    let go = null;
     if (ed.errors.length) {
-      const e = ed.errors[0],
-        nm = roomById(ed.plan, e.room)?.name,
-        more = ed.errors.length - 1;
+      const e = ed.errors[0];
+      const nm = roomById(ed.plan, e.room)?.name;
+      const more = ed.errors.length - 1;
       text = more
         ? t('“{0}” {1} · {2} more — 3D on hold', nm, e.text, more)
         : t('“{0}” {1} — 3D on hold', nm, e.text);
@@ -562,10 +700,10 @@ export function createApp({haLights, ha, photos}) {
     } else if (last.fail) {
       text = t('Walls failed to build — 3D shows the previous plan');
     } else if (ed.mode.id === 'furniture' && ed.conflicts.size) {
-      const [id, why] = [...ed.conflicts][0],
-        g = ed.plan.furniture.find(f => f.id === id),
-        nm = g ? nameOf(g) : '',
-        more = ed.conflicts.size - 1;
+      const [id, why] = [...ed.conflicts][0];
+      const g = ed.plan.furniture.find(f => f.id === id);
+      const nm = g ? nameOf(g) : '';
+      const more = ed.conflicts.size - 1;
       warn = true;
       text = more ? t('“{0}” {1} · {2} more', nm, why, more) : t('“{0}” {1}', nm, why);
       go = () => ed.select('furn', id);
@@ -581,21 +719,21 @@ export function createApp({haLights, ha, photos}) {
   // The panel above the selection: the mode provides the content (refresh) and the selection frame in meters (anchor).
   // On the right of the first row — a handle: the panel can be moved aside if it covers something needed. The offset holds while the same thing is selected
   // (and moves with it); something else selected — the panel is back in its place. A double click on the handle resets it.
-  let ctxOff = null;
+  let ctxOff: {key: string; l: number; t: number} | null = null;
   // what the panel is about: another object — the panel is at it again. A mode can say broader (ctxPin): in the “Lights” step — the room, and
   // a dragged panel stays in place while the lamps of this room are gone through
-  const ctxKey = () => {
+  const ctxKey = (): string => {
     const pin = ed.mode.ctxPin?.();
     if (pin) return ed.mode.id + '|' + pin;
     const {part, vertex, ...s} = ed.sel;
     return ed.mode.id + '|' + JSON.stringify(s) + '|' + (ed.mode.ctxKey?.() ?? '');
   };
   // The panel moving to another object (hovered another room, selected something else) — smooth; panning and zooming — follows without delay.
-  let ctxLast = null,
-    ctxGlideT = 0;
-  const putCtx = (x, y, below) => {
-    const c = $('ctx'),
-      k = ctxKey();
+  let ctxLast: {k: string; x: number; y: number} | null = null;
+  let ctxGlideT: ReturnType<typeof setTimeout> | 0 = 0;
+  const putCtx = (x: number, y: number, below: boolean): void => {
+    const c = $('ctx');
+    const k = ctxKey();
     if (ctxLast && (ctxLast.k !== k || Math.hypot(x - ctxLast.x, y - ctxLast.y) > 120)) {
       c.classList.add('glide');
       clearTimeout(ctxGlideT);
@@ -606,11 +744,11 @@ export function createApp({haLights, ha, photos}) {
     c.style.left = x + 'px';
     c.style.top = y + 'px';
   };
-  let ctxDetailsKey = null;
+  let ctxDetailsKey: string | null = null;
   ed.showCtx = nodes => {
-    const c = $('ctx'),
-      k = ctxKey() + '|' + path.cur(),
-      opened = k === ctxDetailsKey ? [...c.querySelectorAll('details')].map(d => d.open) : [];
+    const c = $('ctx');
+    const k = ctxKey() + '|' + path.cur();
+    const opened = k === ctxDetailsKey ? [...c.querySelectorAll('details')].map(d => d.open) : [];
     ctxDetailsKey = k;
     c.innerHTML = '';
     if (!nodes) {
@@ -619,7 +757,7 @@ export function createApp({haLights, ha, photos}) {
       return;
     }
     c.append(...nodes);
-    const first = c.querySelector('.line');
+    const first = c.querySelector<HTMLElement>('.line');
     if (first) {
       const g = el(
         `<button class="ib grip" title="${t('Drag panel · double-click to reset')}">${icon('grip', 15)}</button>`,
@@ -636,19 +774,19 @@ export function createApp({haLights, ha, photos}) {
   };
   // dragged by the handle — the panel stays there on screen (the top-left in canvas coordinates): zooming and panning the plan do not move it
   // (the owner); a double click on the handle — back at the object
-  function gripDrag(g) {
+  function gripDrag(g: HTMLElement): void {
     g.onpointerdown = e => {
       e.preventDefault();
       e.stopPropagation();
       g.setPointerCapture(e.pointerId);
-      const c = $('ctx'),
-        r = c.getBoundingClientRect(),
-        cr = ed.v.cv.getBoundingClientRect();
-      const o = {key: ctxKey(), l: r.left - cr.left, t: r.top - cr.top},
-        x0 = e.clientX,
-        y0 = e.clientY,
-        l0 = o.l,
-        t0 = o.t;
+      const c = $('ctx');
+      const r = c.getBoundingClientRect();
+      const cr = ed.v.cv.getBoundingClientRect();
+      const o = {key: ctxKey(), l: r.left - cr.left, t: r.top - cr.top};
+      const x0 = e.clientX;
+      const y0 = e.clientY;
+      const l0 = o.l;
+      const t0 = o.t;
       ctxOff = o;
       g.onpointermove = ev => {
         o.l = l0 + ev.clientX - x0;
@@ -667,7 +805,7 @@ export function createApp({haLights, ha, photos}) {
       placeCtx();
     };
   }
-  function placeCtx() {
+  function placeCtx(): void {
     const c = $('ctx');
     if (c.hidden) return;
     const box = ed.mode.anchor?.();
@@ -677,31 +815,31 @@ export function createApp({haLights, ha, photos}) {
       return;
     }
     if (innerWidth <= 640) {
-      const cr = ed.v.cv.getBoundingClientRect(),
-        bn = $('banner'),
-        bottom = bn.hidden ? $('dock').getBoundingClientRect().top : bn.getBoundingClientRect().top;
+      const cr = ed.v.cv.getBoundingClientRect();
+      const bn = $('banner');
+      const bottom = bn.hidden ? $('dock').getBoundingClientRect().top : bn.getBoundingClientRect().top;
       c.style.maxHeight = Math.max(120, bottom - cr.top - 118) + 'px';
       putCtx(ed.v.w / 2, Math.max(112, bottom - cr.top - c.offsetHeight - 10), true);
       return;
     }
     c.style.maxHeight = '';
-    const [x0, y0, x1, y1] = box,
-      [X0, top] = ed.v.S([x0, y1]),
-      [X1, bottom] = ed.v.S([x1, y0]),
-      X = (X0 + X1) / 2;
+    const [x0, y0, x1, y1] = box;
+    const [X0, top] = ed.v.S([x0, y1]);
+    const [X1, bottom] = ed.v.S([x1, y0]);
+    const X = (X0 + X1) / 2;
     // Above the object; does not fit under the top panels — below it; does not fit there either (the bottom bar, the step banner) — beside it
     // (to the right, otherwise to the left; not over the 3D window); no room beside it either — at the top edge, over the object.
     // Only panels that are horizontally under the panel get in the way.
     // an open left panel (not pinned) lies over the plan — the panel above an object does not go under it
-    const cr = ed.v.cv.getBoundingClientRect(),
-      w = c.offsetWidth,
-      h = c.offsetHeight,
-      sr = floatingOpen() ? side.getBoundingClientRect().right - cr.left + 8 : 6;
+    const cr = ed.v.cv.getBoundingClientRect();
+    const w = c.offsetWidth;
+    const h = c.offsetHeight;
+    const sr = floatingOpen() ? side.getBoundingClientRect().right - cr.left + 8 : 6;
     // a collapsed left panel — the header under the logo: also at the top
-    const bounds = x => {
-      const across = id => {
-        const e = $(id),
-          r = e.getBoundingClientRect();
+    const bounds = (x: number): [number, number] => {
+      const across = (id: string): DOMRect | null => {
+        const e = $(id);
+        const r = e.getBoundingClientRect();
         return !e.hidden && r.width && r.right - cr.left > x - w / 2 && r.left - cr.left < x + w / 2
           ? r
           : null;
@@ -711,14 +849,14 @@ export function createApp({haLights, ha, photos}) {
           4,
           ...['topr', 'modes', 'brand', ...(side.classList.contains('closed') ? ['side'] : [])]
             .map(across)
-            .filter(Boolean)
+            .filter((r): r is DOMRect => Boolean(r))
             .map(r => r.bottom - cr.top + 6),
         ),
         Math.min(
           ed.v.h - 6,
           ...['dock', ...(coach.bottom() ? ['banner'] : [])]
             .map(across)
-            .filter(Boolean)
+            .filter((r): r is DOMRect => Boolean(r))
             .map(r => r.top - cr.top - 6),
         ),
       ];
@@ -732,61 +870,62 @@ export function createApp({haLights, ha, photos}) {
     // Beside is slightly better than below and above. It never covers the step hint, the top panels or the bottom bar.
     // It does not fit right against it anywhere (the object is almost full screen) — as before.
     if (!ctxOff && ed.plan.rooms.length) {
-      const rp = ed.plan.rooms.map(r => r.polygon.map(q => ed.v.S(q))),
-        ps = rp.flat(),
-        L = Math.min(...ps.map(q => q[0])),
-        R = Math.max(...ps.map(q => q[0])),
-        T = Math.min(...ps.map(q => q[1])),
-        B = Math.max(...ps.map(q => q[1])),
-        e = 0.35 * ed.v.sc;
-      const rbox = r => [
-          r.left - cr.left - 6,
-          r.top - cr.top - 6,
-          r.right - cr.left + 6,
-          r.bottom - cr.top + 6,
-        ],
-        bn = $('banner'),
-        pill = $('pill'),
-        pip = ed.role('3d') === 'win' ? rbox($('pane-3d').getBoundingClientRect()) : null,
-        hard = [!bn.hidden && bn.getBoundingClientRect(), !pill.hidden && pill.getBoundingClientRect()]
-          .filter(Boolean)
-          .map(rbox),
-        obs = [pip, ...hard].filter(Boolean);
-      const ov = (a, b) =>
+      const rp = ed.plan.rooms.map(r => r.polygon.map(q => ed.v.S(q)));
+      const ps = rp.flat();
+      const L = Math.min(...ps.map(q => q[0]));
+      const R = Math.max(...ps.map(q => q[0]));
+      const T = Math.min(...ps.map(q => q[1]));
+      const B = Math.max(...ps.map(q => q[1]));
+      const e = 0.35 * ed.v.sc;
+      const rbox = (r: ScreenRect): PixelBox => [
+        r.left - cr.left - 6,
+        r.top - cr.top - 6,
+        r.right - cr.left + 6,
+        r.bottom - cr.top + 6,
+      ];
+      const bn = $('banner');
+      const pill = $('pill');
+      const pip = ed.role('3d') === 'win' ? rbox($('pane-3d').getBoundingClientRect()) : null;
+      const hard = [!bn.hidden && bn.getBoundingClientRect(), !pill.hidden && pill.getBoundingClientRect()]
+        .filter((r): r is DOMRect => Boolean(r))
+        .map(rbox);
+      const obs = [pip, ...hard].filter((o): o is PixelBox => Boolean(o));
+      const ov = (a: PixelBox, b: PixelBox): number =>
         Math.max(0, Math.min(a[2], b[2]) - Math.max(a[0], b[0])) *
         Math.max(0, Math.min(a[3], b[3]) - Math.max(a[1], b[1]));
-      const inPoly = (x, y, P) => {
+      const inPoly = (x: number, y: number, P: CanvasPoint[]): boolean => {
         let c = false;
         for (let i = 0, j = P.length - 1; i < P.length; j = i++) {
-          const [xi, yi] = P[i],
-            [xj, yj] = P[j];
+          const [xi, yi] = P[i];
+          const [xj, yj] = P[j];
           if (yi > y !== yj > y && x < ((xj - xi) * (y - yi)) / (yj - yi) + xi) c = !c;
         }
         return c;
       };
       // what it covers: the share on rooms and the share on walls (inside the plan, but not in a room) — on a grid of points
-      const cover = r => {
-        let rm = 0,
-          wl = 0;
-        const N = 16,
-          M = 6;
+      const cover = (r: PixelBox): [number, number] => {
+        let rm = 0;
+        let wl = 0;
+        const N = 16;
+        const M = 6;
         for (let i = 0; i < N; i++)
           for (let j = 0; j < M; j++) {
-            const x = r[0] + ((i + 0.5) * (r[2] - r[0])) / N,
-              y = r[1] + ((j + 0.5) * (r[3] - r[1])) / M;
+            const x = r[0] + ((i + 0.5) * (r[2] - r[0])) / N;
+            const y = r[1] + ((j + 0.5) * (r[3] - r[1])) / M;
             if (rp.some(P => inPoly(x, y, P))) rm++;
             else if (x > L - e && x < R + e && y > T - e && y < B + e) wl++;
           }
         return [rm / (N * M), wl / (N * M)];
       };
-      const oh = bottom - top,
-        ow = X1 - X0,
-        ocy = (top + bottom) / 2,
-        W = ed.v.w - 6,
-        cand = [];
+      const oh = bottom - top;
+      const ow = X1 - X0;
+      const ocy = (top + bottom) / 2;
+      const W = ed.v.w - 6;
+      const cand: Array<{cx: number; ty: number; g: number; beside: boolean}> = [];
       // the gap: right against it (12 px) or, if only a wall is left to the plan edge, — right behind it
-      const gaps = d => (d >= 0 && d < 0.6 * ed.v.sc ? [12, Math.max(12, d + e + 14)] : [12]);
-      const along = (a, z, want, edges) => {
+      const gaps = (d: number): number[] =>
+        d >= 0 && d < 0.6 * ed.v.sc ? [12, Math.max(12, d + e + 14)] : [12];
+      const along = (a: number, z: number, want: number, edges: number[]): number[] => {
         if (a > z) return [];
         const v = [want, a, z, ...edges];
         for (let k = 1; k < 8; k++) v.push(a + ((z - a) * k) / 8);
@@ -794,11 +933,11 @@ export function createApp({haLights, ha, photos}) {
       };
       for (const right of [true, false])
         for (const g of gaps(right ? R - X1 : X0 - L)) {
-          const cx = right ? X1 + g + w / 2 : X0 - g - w / 2,
-            [mt, mb] = bounds(cx),
-            n = 0.5 * Math.min(h, oh),
-            a = cx - w / 2,
-            z = cx + w / 2;
+          const cx = right ? X1 + g + w / 2 : X0 - g - w / 2;
+          const [mt, mb] = bounds(cx);
+          const n = 0.5 * Math.min(h, oh);
+          const a = cx - w / 2;
+          const z = cx + w / 2;
           for (const ty of along(
             Math.max(mt, top - h + n),
             Math.min(mb - h, bottom - n),
@@ -809,27 +948,27 @@ export function createApp({haLights, ha, photos}) {
         }
       for (const down of [true, false])
         for (const g of gaps(down ? B - bottom : top - T)) {
-          const ty = down ? bottom + g : top - g - h,
-            n = 0.5 * Math.min(w, ow);
+          const ty = down ? bottom + g : top - g - h;
+          const n = 0.5 * Math.min(w, ow);
           for (const l of along(
             Math.max(sr, X0 - w + n),
             Math.min(W - w, X1 - n),
             X - w / 2,
             obs.filter(o => o[1] < ty + h && ty < o[3]).flatMap(o => [o[0] - w, o[2]]),
           )) {
-            const cx = l + w / 2,
-              [mt, mb] = bounds(cx);
+            const cx = l + w / 2;
+            const [mt, mb] = bounds(cx);
             if (ty >= mt && ty + h <= mb) cand.push({cx, ty, g, beside: false});
           }
         }
       const ok = cand.filter(c => {
-        const r = [c.cx - w / 2, c.ty, c.cx + w / 2, c.ty + h];
+        const r: PixelBox = [c.cx - w / 2, c.ty, c.cx + w / 2, c.ty + h];
         return r[0] >= sr && r[2] <= W && !hard.some(o => ov(r, o) > 0);
       });
-      const cost = c => {
-        const r = [c.cx - w / 2, c.ty, c.cx + w / 2, c.ty + h],
-          [rm, wl] = cover(r),
-          p = pip ? ov(r, pip) / (w * h) : 0;
+      const cost = (c: (typeof cand)[number]): number => {
+        const r: PixelBox = [c.cx - w / 2, c.ty, c.cx + w / 2, c.ty + h];
+        const [rm, wl] = cover(r);
+        const p = pip ? ov(r, pip) / (w * h) : 0;
         return (
           1000 * (rm + p) +
           300 * wl +
@@ -839,8 +978,8 @@ export function createApp({haLights, ha, photos}) {
         );
       };
       if (ok.length) {
-        let best = null,
-          bc = Infinity;
+        let best: (typeof cand)[number] | null = null;
+        let bc = Infinity;
         for (const c of ok) {
           const v = cost(c);
           if (v < bc) {
@@ -848,45 +987,52 @@ export function createApp({haLights, ha, photos}) {
             best = c;
           }
         }
-        putCtx(best.cx, best.ty, true);
+        putCtx(best!.cx, best!.ty, true); // ok has places, and any cost is below Infinity
         return;
       }
     }
-    const up = top - 12 - h >= minTop,
-      down = bottom + 12 + h <= maxBot;
-    let below = !up && (down || maxBot - bottom > top - minTop),
-      y = below ? bottom + 12 : top - 12;
+    const up = top - 12 - h >= minTop;
+    const down = bottom + 12 + h <= maxBot;
+    let below = !up && (down || maxBot - bottom > top - minTop);
+    let y = below ? bottom + 12 : top - 12;
     if (!up && !down) {
-      const pip = ed.role('3d') === 'win' ? $('pane-3d').getBoundingClientRect() : null,
-        beside = cx => {
-          const [mt, mb] = bounds(cx),
-            ty = Math.max(mt, Math.min(mb - h, top));
-          const L = cx - w / 2 + cr.left,
-            R = cx + w / 2 + cr.left,
-            ok =
-              cx - w / 2 >= sr &&
-              cx + w / 2 <= ed.v.w - 6 &&
-              ty + h <= mb &&
-              (!pip ||
-                R <= pip.left ||
-                L >= pip.right ||
-                ty + h + cr.top <= pip.top ||
-                ty + cr.top >= pip.bottom);
-          return ok ? ty : null;
-        };
-      const at = [X1 + 12 + w / 2, X0 - 12 - w / 2].map(cx => [cx, beside(cx)]).find(([, ty]) => ty != null);
+      const pip = ed.role('3d') === 'win' ? $('pane-3d').getBoundingClientRect() : null;
+      const beside = (cx: number): number | null => {
+        const [mt, mb] = bounds(cx);
+        const ty = Math.max(mt, Math.min(mb - h, top));
+        const L = cx - w / 2 + cr.left;
+        const R = cx + w / 2 + cr.left;
+        const ok =
+          cx - w / 2 >= sr &&
+          cx + w / 2 <= ed.v.w - 6 &&
+          ty + h <= mb &&
+          (!pip ||
+            R <= pip.left ||
+            L >= pip.right ||
+            ty + h + cr.top <= pip.top ||
+            ty + cr.top >= pip.bottom);
+        return ok ? ty : null;
+      };
+      const at = [X1 + 12 + w / 2, X0 - 12 - w / 2]
+        .map((cx): [number, number | null] => [cx, beside(cx)])
+        .find((place): place is [number, number] => place[1] != null);
       below = true;
       if (at) {
         x = at[0];
         y = at[1];
       } else {
         // does not fit fully anywhere — where it covers the object the least (the 3D window may be covered, but less)
-        const ov = (a, b) =>
-            Math.max(0, Math.min(a[2], b[2]) - Math.max(a[0], b[0])) *
-            Math.max(0, Math.min(a[3], b[3]) - Math.max(a[1], b[1])),
-          obj = [X0, top, X1, bottom],
-          pr = pip && [pip.left - cr.left, pip.top - cr.top, pip.right - cr.left, pip.bottom - cr.top],
-          cl = cx => Math.max(sr + w / 2, Math.min(ed.v.w - w / 2 - 6, cx));
+        const ov = (a: PixelBox, b: PixelBox): number =>
+          Math.max(0, Math.min(a[2], b[2]) - Math.max(a[0], b[0])) *
+          Math.max(0, Math.min(a[3], b[3]) - Math.max(a[1], b[1]));
+        const obj: PixelBox = [X0, top, X1, bottom];
+        const pr: PixelBox | null = pip && [
+          pip.left - cr.left,
+          pip.top - cr.top,
+          pip.right - cr.left,
+          pip.bottom - cr.top,
+        ];
+        const cl = (cx: number): number => Math.max(sr + w / 2, Math.min(ed.v.w - w / 2 - 6, cx));
         const cand = [
           [cl(X1 + 12 + w / 2), top],
           [cl(X0 - 12 - w / 2), top],
@@ -895,7 +1041,7 @@ export function createApp({haLights, ha, photos}) {
         ].map(([cx, ty]) => {
           const [mt, mb] = bounds(cx);
           ty = Math.max(mt, Math.min(mb - h, ty));
-          const r = [cx - w / 2, ty, cx + w / 2, ty + h];
+          const r: PixelBox = [cx - w / 2, ty, cx + w / 2, ty + h];
           return {cx, ty, cost: 3 * ov(r, obj) + (pr ? ov(r, pr) : 0)};
         });
         const b = cand.reduce((a, c) => (c.cost < a.cost ? c : a));
@@ -927,11 +1073,12 @@ export function createApp({haLights, ha, photos}) {
 
   // ---------- screen layout (D-017) ----------
   // The main view is full screen; the second one — a small window in the corner (win), side by side (dock) or collapsed (off). The left panel floats over the main one.
-  let savedUI;
+  let savedUI: unknown;
   try {
     savedUI = JSON.parse(localStorage.getItem(UI) || '{}');
   } catch {}
-  const ui = Object.assign(
+  // what saveUI wrote in this browser; main, pip and sideBy are checked below
+  const ui: UiState = Object.assign(
     {
       main: 'plan',
       pip: 'win',
@@ -940,30 +1087,30 @@ export function createApp({haLights, ha, photos}) {
       view: 40,
       sideBy: {},
     },
-    savedUI,
+    savedUI as Partial<UiState> | undefined,
   );
   if (!['plan', '3d'].includes(ui.main)) ui.main = 'plan';
   if (!['win', 'dock', 'off'].includes(ui.pip)) ui.pip = 'win';
   ui.sideBy ||= {};
-  const saveUI = () => {
+  const saveUI = (): void => {
     try {
       localStorage.setItem(UI, JSON.stringify(ui));
     } catch {}
   };
-  const work = $('work'),
-    side = $('side'),
-    panes = {plan: $('pane-plan'), '3d': $('pane-3d')},
-    root = document.documentElement.style;
+  const work = $('work');
+  const side = $('side');
+  const panes: Record<Pane, HTMLElement> = {plan: $('pane-plan'), '3d': $('pane-3d')};
+  const root = document.documentElement.style;
   // “Side by side” — only on a wide screen; on a narrow one the second view stays a small window.
   // “Preview” (D-047, look.js): 3D full screen, the home panel on the right; no plan and no small window, the ui layout does not change
   let look = false;
   const lookUI = createLook(ed, work);
   // “Bare” (the AI build's review, ai-review.js): one view alone, 'plan' or '3d', full screen, without the editor's tools; the
   // review's own panel covers bareRight pixels on the right (bareBottom at the bottom on a phone). The ui layout does not change.
-  let bare = null,
-    bareRight = 0,
-    bareBottom = 0;
-  const pipMode = () =>
+  let bare: Pane | null = null;
+  let bareRight = 0;
+  let bareBottom = 0;
+  const pipMode = (): PaneRole =>
     look || bare ? 'off' : ui.pip === 'dock' && (work.clientWidth || innerWidth) < 1100 ? 'win' : ui.pip;
   ed.role = id =>
     bare
@@ -977,21 +1124,21 @@ export function createApp({haLights, ha, photos}) {
         : id === ui.main
           ? 'main'
           : pipMode();
-  const big = r => r === 'main' || r === 'dock';
-  let pw = 0,
-    ph = 0,
-    planRole = null,
-    planSaved = null,
-    roleFit = null;
-  function layout() {
-    const W = work.clientWidth || innerWidth,
-      H = work.clientHeight || innerHeight;
+  const big = (r: PaneRole): boolean => r === 'main' || r === 'dock';
+  let pw = 0;
+  let ph = 0;
+  let planRole: PaneRole | null = null;
+  let planSaved: {sc: number; c: Point} | null = null;
+  let roleFit: (() => void) | null = null;
+  function layout(): void {
+    const W = work.clientWidth || innerWidth;
+    const H = work.clientHeight || innerHeight;
     pw = Math.round(Math.max(200, Math.min(W * 0.45, ui.pipW)));
     ph = Math.round(Math.max(140, Math.min(H * 0.6, ui.pipH || pw * 0.66)));
     for (const [id, p] of Object.entries(panes)) {
-      const r = ed.role(id);
+      const r = ed.role(id as Pane); // the keys of panes are the views
       p.className = `pane ${id === 'plan' ? 'plan-pane' : 'view-pane'} ${r === 'win' ? 'pip' : r}${id === '3d' && pipGrow ? ' grow' : ''}`;
-      const d = p.querySelector('[data-c=dock]');
+      const d = p.querySelector<HTMLElement>('[data-c=dock]');
       if (d) {
         d.innerHTML = icon(r === 'dock' ? 'window' : 'columns', 15);
         d.title = r === 'dock' ? t('Small window in the corner') : t('Side by side, half screen');
@@ -1034,17 +1181,17 @@ export function createApp({haLights, ha, photos}) {
   // it is resized pulses for the first 2.4 seconds or until it is pressed — also once per project (ed.hints: pipGrow:<id>,
   // pipGrip:<id>). Once started, the pulse runs to the end, even if the window is already wider than 440 px.
   // pipGrow — the window is growing now: the grow class (styles.css) smoothly changes the size and sends an accent ring around it three times.
-  let pipAsk = false,
-    pipTimer = 0,
-    pipOn = false,
-    pipGrow = false;
-  const PIP_HINT = () => 'pipGrip:' + ed.plan.id,
-    PIP_GROW = () => 'pipGrow:' + ed.plan.id;
+  let pipAsk = false;
+  let pipTimer: ReturnType<typeof setTimeout> | 0 = 0;
+  let pipOn = false;
+  let pipGrow = false;
+  const PIP_HINT = (): string => 'pipGrip:' + ed.plan.id;
+  const PIP_GROW = (): string => 'pipGrow:' + ed.plan.id;
   ed.pipHint = on => {
     pipAsk = on;
     syncPipHint();
   };
-  function syncPipHint() {
+  function syncPipHint(): void {
     const can = pipAsk && ed.role('3d') === 'win' && !!ed.hints && ed.hints.count(PIP_HINT()) < 1;
     if (can && !pipOn && pw < 440) {
       pipOn = true;
@@ -1063,10 +1210,10 @@ export function createApp({haLights, ha, photos}) {
       clearTimeout(pipTimer);
       pipTimer = 0;
     }
-    panes['3d'].querySelector('.pip-grip').classList.toggle('pulse', pipOn);
+    find(panes['3d'], '.pip-grip').classList.toggle('pulse', pipOn);
   }
-  let growTimer = 0;
-  function growPip(k) {
+  let growTimer: ReturnType<typeof setTimeout> | 0 = 0;
+  function growPip(k: number): void {
     pipGrow = true;
     layout(); // first the class with the transition, then the new size — then it moves smoothly
     requestAnimationFrame(() => {
@@ -1081,7 +1228,7 @@ export function createApp({haLights, ha, photos}) {
     growTimer = setTimeout(endGrow, 2400);
   }
   // the corner was grabbed — the growth and the ring end at once: with a transition the window would lag behind the mouse
-  function endGrow() {
+  function endGrow(): void {
     clearTimeout(growTimer);
     growTimer = 0;
     if (!pipGrow) return;
@@ -1098,7 +1245,7 @@ export function createApp({haLights, ha, photos}) {
     layout();
   };
   ed.swap = () => ed.setMain(ui.main === 'plan' ? '3d' : 'plan');
-  const setPip = p => {
+  const setPip = (p: UiState['pip']): void => {
     ui.pip = p;
     saveUI();
     layout();
@@ -1108,21 +1255,21 @@ export function createApp({haLights, ha, photos}) {
     const c = el(
       `<span class="pane-ctl"><button class="ib" data-c="swap" title="${t('Swap (Tab)')}">${icon('swap', 15)}</button><button class="ib" data-c="dock"></button><button class="ib" data-c="hide" title="${t('Hide')}">${icon('hide', 15)}</button></span>`,
     );
-    p.querySelector('.view-tools').appendChild(c);
-    c.querySelector('[data-c=swap]').onclick = e => {
+    find(p, '.view-tools').appendChild(c);
+    find(c, '[data-c=swap]').onclick = e => {
       e.stopPropagation();
       ed.swap();
     };
-    c.querySelector('[data-c=dock]').onclick = e => {
+    find(c, '[data-c=dock]').onclick = e => {
       e.stopPropagation();
       setPip(pipMode() === 'dock' ? 'win' : 'dock');
     };
-    c.querySelector('[data-c=hide]').onclick = e => {
+    find(c, '[data-c=hide]').onclick = e => {
       e.stopPropagation();
       setPip('off');
     };
     // The window size — by the top-left corner.
-    const g = p.querySelector('.pip-grip');
+    const g = find(p, '.pip-grip');
     g.addEventListener('pointerdown', e => {
       e.preventDefault();
       e.stopPropagation();
@@ -1133,33 +1280,33 @@ export function createApp({haLights, ha, photos}) {
         syncPipHint();
       }
       const s = {x: e.clientX, y: e.clientY, w: pw, h: ph};
-      const mv = ev => {
-          ui.pipW = s.w - (ev.clientX - s.x);
-          ui.pipH = s.h - (ev.clientY - s.y);
-          layout();
-        },
-        up = () => {
-          g.removeEventListener('pointermove', mv);
-          for (const type of ['pointerup', 'pointercancel', 'lostpointercapture'])
-            g.removeEventListener(type, up);
-          ui.pipW = pw;
-          ui.pipH = ph;
-          saveUI();
-        };
+      const mv = (ev: PointerEvent): void => {
+        ui.pipW = s.w - (ev.clientX - s.x);
+        ui.pipH = s.h - (ev.clientY - s.y);
+        layout();
+      };
+      const up = (): void => {
+        g.removeEventListener('pointermove', mv);
+        for (const type of ['pointerup', 'pointercancel', 'lostpointercapture'])
+          g.removeEventListener(type, up);
+        ui.pipW = pw;
+        ui.pipH = ph;
+        saveUI();
+      };
       g.addEventListener('pointermove', mv);
       for (const type of ['pointerup', 'pointercancel', 'lostpointercapture']) g.addEventListener(type, up);
     });
   }
   // A click on the small window swaps the views: on the plan — always, on 3D — if it was not rotated.
-  panes.plan.querySelector('.pip-cover').onclick = () => ed.swap();
+  find(panes.plan, '.pip-cover').onclick = () => ed.swap();
   {
-    let d = null;
+    let d: {x: number; y: number; t: number} | null = null;
     const p = panes['3d'];
     p.addEventListener(
       'pointerdown',
       e => {
         d =
-          ed.role('3d') === 'win' && !e.target.closest('button,.pip-grip')
+          ed.role('3d') === 'win' && !(e.target as Element).closest('button,.pip-grip') // a press on an element
             ? {x: e.clientX, y: e.clientY, t: performance.now()}
             : null;
       },
@@ -1175,7 +1322,7 @@ export function createApp({haLights, ha, photos}) {
     );
   }
   const div = $('divider');
-  const setView = pct => {
+  const setView = (pct: number): void => {
     ui.view = Math.round(Math.max(20, Math.min(75, pct)));
     saveUI();
     layout();
@@ -1183,14 +1330,14 @@ export function createApp({haLights, ha, photos}) {
   div.addEventListener('pointerdown', e => {
     div.setPointerCapture(e.pointerId);
     div.classList.add('drag');
-    const r = work.getBoundingClientRect(),
-      mv = ev => setView(((r.right - ev.clientX) / r.width) * 100),
-      up = () => {
-        div.classList.remove('drag');
-        div.removeEventListener('pointermove', mv);
-        for (const type of ['pointerup', 'pointercancel', 'lostpointercapture'])
-          div.removeEventListener(type, up);
-      };
+    const r = work.getBoundingClientRect();
+    const mv = (ev: PointerEvent): void => setView(((r.right - ev.clientX) / r.width) * 100);
+    const up = (): void => {
+      div.classList.remove('drag');
+      div.removeEventListener('pointermove', mv);
+      for (const type of ['pointerup', 'pointercancel', 'lostpointercapture'])
+        div.removeEventListener(type, up);
+    };
     div.addEventListener('pointermove', mv);
     for (const type of ['pointerup', 'pointercancel', 'lostpointercapture']) div.addEventListener(type, up);
   });
@@ -1199,16 +1346,16 @@ export function createApp({haLights, ha, photos}) {
 
   // Floating panels centered in the free part of the screen: the modes and the bottom bar — between the edges of the main view,
   // badges — to the right of the open left panel; all — without running onto the 3D window, the title and the buttons on the right.
-  function placeFloats() {
-    const W = work.clientWidth,
-      R = look ? lookUI.width() + 12 : pipMode() === 'dock' ? (W * ui.view) / 100 + 5 : 0,
-      open = !look && !side.classList.contains('closed');
-    const pinL = ui.pinned && open ? side.offsetWidth : 0,
-      floatL = open ? side.offsetLeft + side.offsetWidth + 12 : 12;
-    const brandR = $('brand').offsetLeft + $('brand').offsetWidth + 8,
-      toprL = W - $('topr').offsetWidth - 20,
-      pipL = pipMode() === 'win' ? W - 12 - pw - 10 : W;
-    const put = (e, a, b, lo, hi, mid) => {
+  function placeFloats(): void {
+    const W = work.clientWidth;
+    const R = look ? lookUI.width() + 12 : pipMode() === 'dock' ? (W * ui.view) / 100 + 5 : 0;
+    const open = !look && !side.classList.contains('closed');
+    const pinL = ui.pinned && open ? side.offsetWidth : 0;
+    const floatL = open ? side.offsetLeft + side.offsetWidth + 12 : 12;
+    const brandR = $('brand').offsetLeft + $('brand').offsetWidth + 8;
+    const toprL = W - $('topr').offsetWidth - 20;
+    const pipL = pipMode() === 'win' ? W - 12 - pw - 10 : W;
+    const put = (e: HTMLElement, a: number, b: number, lo: number, hi: number, mid?: boolean): void => {
       if (e.hidden) return;
       const w = e.offsetWidth;
       let c = (a + b) / 2;
@@ -1227,14 +1374,21 @@ export function createApp({haLights, ha, photos}) {
     // menu); the problems badge — above the hint, if it is at the bottom
     // lane — between the open side panel and the 3D window: there the card covers neither. Too narrow for it (a tablet held upright
     // with the catalog open) — the card goes right of the panel and above the 3D window (wide); narrower still — over the panel, as before
-    const lane = () => {
-      const W = work.clientWidth,
-        R = pipMode() === 'dock' ? (W * ui.view) / 100 + 5 : 0,
-        open = !side.classList.contains('closed'),
-        win = pipMode() === 'win',
-        floatL = open ? side.offsetLeft + side.offsetWidth + 12 : 12,
-        pipL = win ? W - 12 - pw - 10 : W,
-        pip = win ? panes[ui.main === '3d' ? 'plan' : '3d'].getBoundingClientRect() : null;
+    const lane = (): {
+      W: number;
+      R: number;
+      floatL: number;
+      right: number;
+      wide: number;
+      pipT: number | null;
+    } => {
+      const W = work.clientWidth;
+      const R = pipMode() === 'dock' ? (W * ui.view) / 100 + 5 : 0;
+      const open = !side.classList.contains('closed');
+      const win = pipMode() === 'win';
+      const floatL = open ? side.offsetLeft + side.offsetWidth + 12 : 12;
+      const pipL = win ? W - 12 - pw - 10 : W;
+      const pip = win ? panes[ui.main === '3d' ? 'plan' : '3d'].getBoundingClientRect() : null;
       return {
         W,
         R,
@@ -1248,9 +1402,9 @@ export function createApp({haLights, ha, photos}) {
     coach.env ??= {
       home: (w, h) => {
         const {W, R, floatL, right, wide, pipT} = lane();
-        let y = Math.max(110, $('dock').offsetTop - 8 - h),
-          left,
-          edge;
+        let y = Math.max(110, $('dock').offsetTop - 8 - h);
+        let left;
+        let edge;
         if (right - floatL >= w) {
           left = floatL;
           edge = right;
@@ -1266,8 +1420,8 @@ export function createApp({haLights, ha, photos}) {
         return {x: Math.round(c - w / 2), y};
       },
       free: () => {
-        const W = work.clientWidth,
-          R = pipMode() === 'dock' ? (W * ui.view) / 100 + 5 : 0;
+        const W = work.clientWidth;
+        const R = pipMode() === 'dock' ? (W * ui.view) / 100 + 5 : 0;
         return {
           l: 12,
           r: W - R - 12,
@@ -1287,16 +1441,16 @@ export function createApp({haLights, ha, photos}) {
           : pipMode() === 'win'
             ? panes.plan.getBoundingClientRect()
             : null,
-        document.querySelector('.dev')?.getBoundingClientRect(),
+        document.querySelector<HTMLElement>('.dev')?.getBoundingClientRect(),
       ],
     };
     // the wizard card's width (D-043: at 1024 px with the catalog open it covered the catalog's bottom): 680 px if the lane has them,
     // else as wide as the lane (from 440 px; the buttons wrap below), else as wide as the room right of the panel (lifted above the 3D window)
     {
-      const g = lane(),
-        lane1 = g.right - g.floatL,
-        wide = g.wide - g.floatL,
-        b = $('banner');
+      const g = lane();
+      const lane1 = g.right - g.floatL;
+      const wide = g.wide - g.floatL;
+      const b = $('banner');
       const fit =
         lane1 >= 680
           ? 680
@@ -1340,7 +1494,7 @@ export function createApp({haLights, ha, photos}) {
     ed.view.setTheme(t === 'dark');
     if (look) lookUI.refresh();
     document
-      .querySelectorAll('#theme-seg [data-th]')
+      .querySelectorAll<HTMLElement>('#theme-seg [data-th]')
       .forEach(b => b.classList.toggle('on', b.dataset.th === (ui.theme || 'auto')));
     ed.draw();
   };
@@ -1353,9 +1507,9 @@ export function createApp({haLights, ha, photos}) {
   {
     const sel = $('lang');
     for (const [id, name] of LANGS) sel.appendChild(el(`<option value="${id}">${name}</option>`));
-    sel.value = getLang();
+    (sel as HTMLSelectElement).value = getLang();
     sel.onchange = () => {
-      ui.lang = sel.value;
+      ui.lang = (sel as HTMLSelectElement).value as Lang; // the language list offers LANGS
       saveUI();
       location.reload();
     };
@@ -1364,8 +1518,9 @@ export function createApp({haLights, ha, photos}) {
     if ((ui.theme || 'auto') === 'auto') ed.applyTheme();
   });
   document
-    .querySelectorAll('#theme-seg [data-th]')
-    .forEach(b => (b.onclick = () => ed.setTheme(b.dataset.th)));
+    .querySelectorAll<HTMLElement>('#theme-seg [data-th]')
+    // the theme buttons carry the themes
+    .forEach(b => (b.onclick = () => ed.setTheme(b.dataset.th as NonNullable<UiState['theme']>)));
   ed.applyTheme();
 
   // The left panel: each mode has its own “open / collapsed”. Until the user chooses — by meaning:
@@ -1381,8 +1536,8 @@ export function createApp({haLights, ha, photos}) {
   };
   // in the “Outline” and “Rooms” wizard steps the list is collapsed: everything is done on the plan, an open list would cover it (the owner).
   // Opened by the user — open until the end of the step; after the wizard — as chosen for the mode
-  let wizSide = null;
-  const wizStep = () => {
+  let wizSide: {k: string; open: boolean} | null = null;
+  const wizStep = (): 'rect' | 'split' | null => {
     const k = ed.mode.id === 'rooms' && ed.path?.cur();
     return k === 'rect' || k === 'split' ? k : null;
   };
@@ -1397,8 +1552,8 @@ export function createApp({haLights, ha, photos}) {
   // Pinned (📌) — a column on the left: the main view starts after it, nothing is covered. Collapsed — always a header on top.
   let sideState = '';
   ed.applySide = () => {
-    const open = ed.sideOpen(),
-      st = open + '|' + !!ui.pinned;
+    const open = ed.sideOpen();
+    const st = open + '|' + !!ui.pinned;
     if (st === sideState) return;
     sideState = st;
     $('side-chev').innerHTML = icon(open ? 'up' : 'down', 15);
@@ -1427,12 +1582,12 @@ export function createApp({haLights, ha, photos}) {
     ed.applySide();
   };
   ed.sideHead = (t, c = '') => {
-    side.querySelector('.t').textContent = t;
-    side.querySelector('.c').textContent = c;
+    find(side, '.t').textContent = t;
+    find(side, '.c').textContent = c;
   };
   $('side-head').onclick = $('side-chev').onclick = () => ed.toggleSide();
-  const floatingOpen = () => !ui.pinned && !side.classList.contains('closed');
-  function insets3d() {
+  const floatingOpen = (): boolean => !ui.pinned && !side.classList.contains('closed');
+  function insets3d(): void {
     if (bare) {
       ed.view.setInsets(0, bareRight, bareBottom);
       return;
@@ -1447,24 +1602,26 @@ export function createApp({haLights, ha, photos}) {
   // The whole plan (or only points — “zoom to the room”) — into the part of the screen not covered by panels.
   // o.card — fit taking the step hint into account: there is no room for it beside the area — leave room at the bottom; o.pad — margins
   ed.fit = (points, o = {}) => {
-    const only = Array.isArray(points) && points.length,
-      pts = [...(only ? points : ed.plan.rooms.flatMap(r => r.polygon))];
+    const only = Array.isArray(points) && points.length;
+    const pts = [...(only ? points : ed.plan.rooms.flatMap(r => r.polygon))];
     // a margin for the outer walls (they are outside the room outlines)
     if (pts.length) {
-      const xs = pts.map(p => p[0]),
-        ys = pts.map(p => p[1]),
-        e = 0.35;
+      const xs = pts.map(p => p[0]);
+      const ys = pts.map(p => p[1]);
+      const e = 0.35;
       pts.push([Math.min(...xs) - e, Math.min(...ys) - e], [Math.max(...xs) + e, Math.max(...ys) + e]);
     }
     if (!pts.length && ed.underlay.ready) {
-      const {width: w, height: h} = ed.underlay.img;
+      const {width: w, height: h} = ed.underlay.img!; // a ready photo has its image
       pts.push(
-        ...[
-          [0, 0],
-          [w, 0],
-          [w, h],
-          [0, h],
-        ].map(ed.underlay.toWorld),
+        ...(
+          [
+            [0, 0],
+            [w, 0],
+            [w, h],
+            [0, h],
+          ] satisfies Point[]
+        ).map(ed.underlay.toWorld),
       );
     }
     const r = ed.role('plan');
@@ -1475,13 +1632,15 @@ export function createApp({haLights, ha, photos}) {
       return;
     }
     // Fit into what is not covered by the left panel and the 3D window (the window is avoided on the right or at the bottom — wherever the plan comes out larger).
-    let ins = {l: innerWidth > 760 && r === 'main' && floatingOpen() ? side.offsetWidth + 24 : 0};
+    let ins: {l: number; r?: number; t?: number; b?: number} = {
+      l: innerWidth > 760 && r === 'main' && floatingOpen() ? side.offsetWidth + 24 : 0,
+    };
     // at the top — the title and the modes, at the bottom — the bottom bar
     ins.t = innerWidth <= 760 ? 176 : 60;
     ins.b = innerWidth <= 760 ? 110 : 64;
     if (r === 'main' && pipMode() === 'win') {
-      const A = {...ins, r: pw + 24},
-        B = {...ins, b: ph + 24};
+      const A = {...ins, r: pw + 24};
+      const B = {...ins, b: ph + 24};
       ins = ed.v.fit(pts, 24, A) >= ed.v.fit(pts, 24, B) ? A : B;
     }
     const pad = o.pad ?? (only ? 60 : 24);
@@ -1490,13 +1649,13 @@ export function createApp({haLights, ha, photos}) {
     // the card's place — where it was put (style.top), not where it is now: it may still be moving
     if ((o.card || innerWidth <= 760) && !$('banner').hidden) {
       coach.place();
-      const bn = $('banner'),
-        wt = work.getBoundingClientRect().top,
-        btop = wt + parseFloat(bn.style.top || '0'),
-        cr = ed.v.cv.getBoundingClientRect(),
-        low = Math.max(...pts.map(p => ed.v.S(p)[1])) + cr.top;
+      const bn = $('banner');
+      const wt = work.getBoundingClientRect().top;
+      const btop = wt + parseFloat(bn.style.top || '0');
+      const cr = ed.v.cv.getBoundingClientRect();
+      const low = Math.max(...pts.map(p => ed.v.S(p)[1])) + cr.top;
       if (bn.dataset.side === 'bottom' && low > btop - 8) {
-        ins = {...ins, b: Math.max(ins.b, cr.bottom - btop + 12)};
+        ins = {...ins, b: Math.max(ins.b!, cr.bottom - btop + 12)}; // set above
         ed.v.fit(pts, pad, ins);
         coach.place();
       }
@@ -1512,23 +1671,24 @@ export function createApp({haLights, ha, photos}) {
   // Zoom: the mouse wheel or a pinch. The whole plan — Home or Shift+1. As in Figma and Photoshop.
   const cv = ed.v.cv;
   cv.tabIndex = -1;
-  let pan = null,
-    space = false,
-    press = null,
-    lastPointer = null;
+  // panning: where it started and the view then; a press: its pointer, a modal tool's drag, the plan before a drag; the pointer
+  let pan: {X: number; Y: number; ox: number; oy: number; fitted: boolean | undefined} | null = null;
+  let space = false;
+  let press: {id: number; modal?: boolean; before?: Plan | null} | null = null;
+  let lastPointer: Omit<PlanPointer, 'buttons'> | null = null;
   ed.hand = false;
-  const P = e => ed.v.W([e.offsetX, e.offsetY]);
-  const gesture = createDragGesture(cursor => {
+  const P = (e: {offsetX: number; offsetY: number}): Point => ed.v.W([e.offsetX, e.offsetY]);
+  const gesture = createDragGesture((cursor: string | null) => {
     document.documentElement.classList.toggle('plan-drag', !!cursor);
     if (cursor) {
       root.setProperty('--drag-cursor', cursor);
       cv.style.cursor = cursor;
     } else root.removeProperty('--drag-cursor');
   });
-  const handCursor = () => {
+  const handCursor = (): void => {
     if (!ed.drag) cv.style.cursor = pan ? 'grabbing' : ed.hand || space ? 'grab' : '';
   };
-  const refreshCursor = () => {
+  const refreshCursor = (): void => {
     if (ed.hand || space || pan) {
       handCursor();
       return;
@@ -1541,7 +1701,7 @@ export function createApp({haLights, ha, photos}) {
     }
   };
   ed.refreshCursor = refreshCursor;
-  const release = () => {
+  const release = (): void => {
     const id = press?.id;
     press = null;
     gesture.end();
@@ -1549,8 +1709,8 @@ export function createApp({haLights, ha, photos}) {
   };
   ed.cancelDrag = () => {
     if (!press) return false;
-    const before = press.before,
-      changed = ed.drag?.moved;
+    const before = press.before;
+    const changed = ed.drag?.moved;
     ed.mode.cancelDrag?.();
     if (changed && before) ed.plan = before;
     if (pan) {
@@ -1571,11 +1731,11 @@ export function createApp({haLights, ha, photos}) {
   // Exactly one tool (a state machine): select | rect | poly (only “Plan”) | hand | rotate.
   // Turning on another one turns off the previous one; a repeated click on the active one, V or Esc — back to select.
   // Plan rotation is modal (ed.capture), when it ends by itself — ed.toolDone. Space — a temporary hand, does not change the tool.
-  const ROOM_TOOLS = ['rect', 'poly', 'split'];
+  const ROOM_TOOLS: EditorTool[] = ['rect', 'poly', 'split'];
   ed.tool = 'select';
-  const syncTools = () =>
+  const syncTools = (): void =>
     document
-      .querySelectorAll('#dock [data-tool]')
+      .querySelectorAll<HTMLElement>('#dock [data-tool]')
       .forEach(b => b.classList.toggle('on', b.dataset.tool === ed.tool));
   ed.syncTools = syncTools;
   // setTool — just turn on; toggleTool — for the bar buttons and H: pressing the active one again returns to select
@@ -1593,10 +1753,11 @@ export function createApp({haLights, ha, photos}) {
     ed.tool = t;
     ed.hand = t === 'hand';
     handCursor();
-    if (ed.mode.id === 'rooms') ed.modes.rooms.setTool(ROOM_TOOLS.includes(t) ? t : 'select');
+    // a tool of ROOM_TOOLS is the rooms mode's own
+    if (ed.mode.id === 'rooms') ed.modes.rooms.setTool(ROOM_TOOLS.includes(t) ? (t as RoomTool) : 'select');
     if (ROOM_TOOLS.includes(t)) ed.setMain('plan');
     syncTools();
-    if (t === 'rotate') ed.flows.rotatePlan();
+    if (t === 'rotate') ed.flows!.rotatePlan(); // boot.ts adds flows before a tool can be chosen
     refreshCursor();
   };
   // the “Select” button for the bottom bar — the same tool in all modes
@@ -1621,8 +1782,8 @@ export function createApp({haLights, ha, photos}) {
     ed.guides = [];
     press = {id: e.pointerId};
     lastPointer = {offsetX: e.offsetX, offsetY: e.offsetY, shiftKey: e.shiftKey};
-    const p = P(e),
-      grab = ed.hand || space || e.button === 1 || e.button === 2;
+    const p = P(e);
+    const grab = ed.hand || space || e.button === 1 || e.button === 2;
     if (!grab && ed.capture && e.button === 0) {
       ed.capture.down(p, e);
       if (press && ed.capture?.dragCursor) {
@@ -1703,13 +1864,14 @@ export function createApp({haLights, ha, photos}) {
   cv.addEventListener('contextmenu', e => e.preventDefault());
   let lastPinch = 0;
   // The room panel, the banner and the hints lie over the plan: the wheel and gestures over them keep moving the plan instead of being cut off
-  const overPlan = [cv, ...['ctx', 'banner', 'ask'].map(id => $(id))],
-    onPlan = (type, fn) => overPlan.forEach(x => x.addEventListener(type, fn, {passive: false}));
-  const at = e => {
+  const overPlan = [cv, ...['ctx', 'banner', 'ask'].map(id => $(id))];
+  const onPlan = <PlanEvent extends Event>(type: string, fn: (e: PlanEvent) => void): void =>
+    overPlan.forEach(x => x.addEventListener(type, fn as EventListener, {passive: false}));
+  const at = (e: {clientX: number; clientY: number}): CanvasPoint => {
     const r = cv.getBoundingClientRect();
     return [e.clientX - r.left, e.clientY - r.top];
   };
-  onPlan('wheel', e => {
+  onPlan<WheelEvent>('wheel', e => {
     if (e.defaultPrevented) return;
     e.preventDefault();
     if (ed.drag || pan) return;
@@ -1734,12 +1896,12 @@ export function createApp({haLights, ha, photos}) {
   });
   // Safari: a real trackpad gesture — a two-finger rotation (like a map) and a pinch. Rotation — only in rotate mode,
   // so that a regular pinch does not rotate the plan. Zoom — here, only if the browser did not send the pinch as a wheel with Ctrl.
-  let g0 = null;
-  onPlan('gesturestart', e => {
+  let g0: {rot: number; scale: number; x: number; y: number} | null = null;
+  onPlan<GestureEvent>('gesturestart', e => {
     e.preventDefault();
     g0 = {rot: e.rotation || 0, scale: e.scale || 1, x: e.clientX, y: e.clientY};
   });
-  onPlan('gesturechange', e => {
+  onPlan<GestureEvent>('gesturechange', e => {
     e.preventDefault();
     if (!g0) return;
     const r = cv.getBoundingClientRect();
@@ -1755,14 +1917,14 @@ export function createApp({haLights, ha, photos}) {
     }
     g0.scale = e.scale;
   });
-  onPlan('gestureend', e => {
+  onPlan<GestureEvent>('gestureend', e => {
     e.preventDefault();
     g0 = null;
     ed.capture?.spinEnd?.();
   });
 
   addEventListener('pointerup', e => {
-    const b = e.target.closest?.('button');
+    const b = (e.target as Element).closest?.('button'); // a pointer is released over an element (or the document)
     if (b) setTimeout(() => b.blur());
   });
   // ---------- keyboard ----------
@@ -1771,7 +1933,7 @@ export function createApp({haLights, ha, photos}) {
     keysBox.hidden = false;
   };
   keysBox.onclick = e => {
-    if (e.target === keysBox || e.target.closest('[data-close]')) keysBox.hidden = true;
+    if (e.target === keysBox || (e.target as Element).closest('[data-close]')) keysBox.hidden = true;
   };
   addEventListener('keyup', e => {
     if (e.code === 'Space') {
@@ -1786,13 +1948,13 @@ export function createApp({haLights, ha, photos}) {
     handCursor();
   });
   addEventListener('keydown', e => {
-    if (e.target.closest?.('input,select,textarea,button,summary,a')) return;
+    if ((e.target as Element).closest?.('input,select,textarea,button,summary,a')) return; // an element or the document
     if (look) {
       if (e.key === 'Escape') lookUI.esc();
       return;
     } // there are no edits in “Preview”: the editor keys do not work
-    const mod = e.metaKey || e.ctrlKey,
-      k = e.key.toLowerCase();
+    const mod = e.metaKey || e.ctrlKey;
+    const k = e.key.toLowerCase();
     if (mod && /^[zя]$/.test(k)) {
       e.preventDefault();
       e.shiftKey ? ed.redo() : ed.undo();
@@ -1859,8 +2021,8 @@ export function createApp({haLights, ha, photos}) {
   });
   // When the layout or the window size changes, the plan center stays in place.
   new ResizeObserver(() => {
-    const first = !ed.v.w,
-      c = first ? null : ed.v.W([ed.v.w / 2, ed.v.h / 2]);
+    const first = !ed.v.w;
+    const c = first ? null : ed.v.W([ed.v.w / 2, ed.v.h / 2]); // null only the first time, which fits
     ed.v.resize();
     if (!ed.v.w) return;
     if (roleFit) {
@@ -1869,16 +2031,16 @@ export function createApp({haLights, ha, photos}) {
       f();
     } else if (first || ed.v.fitted) ed.fit();
     else {
-      ed.v.ox = ed.v.w / 2 - c[0] * ed.v.sc;
-      ed.v.oy = ed.v.h / 2 + c[1] * ed.v.sc;
+      ed.v.ox = ed.v.w / 2 - c![0] * ed.v.sc;
+      ed.v.oy = ed.v.h / 2 + c![1] * ed.v.sc;
     }
     ed.draw();
   }).observe(cv);
-  document.querySelectorAll('.modes [data-mode]').forEach(
+  document.querySelectorAll<HTMLElement>('.modes [data-mode]').forEach(
     b =>
       (b.onclick = () => {
         ed.setLook(false);
-        ed.setMode(b.dataset.mode);
+        ed.setMode(b.dataset.mode as ModeId); // the mode buttons carry the modes
       }),
   );
   // “Preview”: entering — 3D to the home view (as on the card); leaving — the mode we were in. An unsaved lights edit
@@ -1915,7 +2077,7 @@ export function createApp({haLights, ha, photos}) {
     look = v;
     document.body.dataset.look = v ? 'on' : '';
     document
-      .querySelectorAll('.modes [data-mode]')
+      .querySelectorAll<HTMLElement>('.modes [data-mode]')
       .forEach(b => b.classList.toggle('on', !v && b.dataset.mode === ed.mode.id));
     $('look-btn').classList.toggle('on', v);
     if (v) lookUI.open();
@@ -1938,7 +2100,7 @@ export function createApp({haLights, ha, photos}) {
   $('rotate-plan').onclick = () => ed.toggleTool('rotate');
   $('fit').onclick = $('zoom').onclick = () => ed.fit();
   $('help').onclick = ed.showKeys;
-  const zoomBy = k => {
+  const zoomBy = (k: number): void => {
     ed.v.zoomAt(ed.v.w / 2, ed.v.h / 2, k);
     ed.v.fitted = false;
     ed.draw();
@@ -1955,7 +2117,7 @@ export function createApp({haLights, ha, photos}) {
     ed.view.home();
   };
   // The view step is the first tile of “Sensors”: saved — the step moves on, wherever it was pressed (the card or 3D).
-  const viewAsk = () => step?.mode === ed.mode && !!ed.modes?.sensors.needView?.();
+  const viewAsk = (): boolean => step?.mode === ed.mode && !!ed.modes?.sensors.needView?.();
   ed.saveView = ({quiet} = {}) => {
     const inSens = !!ed.modes.sensors.needView?.();
     const v = ed.view.getView();
@@ -1975,7 +2137,7 @@ export function createApp({haLights, ha, photos}) {
   };
   $('save-view').onclick = $('save-view-pip').onclick = e => {
     e.stopPropagation();
-    if (e.currentTarget.classList.contains('done')) return;
+    if ((e.currentTarget as HTMLElement).classList.contains('done')) return; // the button the handler is on
     ed.saveView();
   };
   // The step text (the owner, 2026-11-07: “makes no damn sense”): what is in 3D now and what to do.
@@ -1993,15 +2155,15 @@ export function createApp({haLights, ha, photos}) {
   // “Save view” at 3D — only in the “Sensors” step (at other times it is unclear what it is for — the owner).
   // There it is always visible: there is something to save (no view yet or the model was rotated) — it pulses; saved — “View saved”,
   // inactive until the model is rotated again. In the view step a cursor moves over the 3D window and shows how to rotate (view-demo.js).
-  let viewMoved = false,
-    asked = false;
+  let viewMoved = false;
+  let asked = false;
   const demo = createViewDemo(panes['3d'], ed.view);
   ed.viewReady = () => viewAsk() && (!ed.plan.view || viewMoved);
   ed.syncSave = () => {
     if (!ed.modes) return;
-    const ask = viewAsk(),
-      scope = step?.mode === ed.mode && !!ed.modes.sensors.wizardOn?.(),
-      live = !ed.plan.view || viewMoved;
+    const ask = viewAsk();
+    const scope = step?.mode === ed.mode && !!ed.modes.sensors.wizardOn?.();
+    const live = !ed.plan.view || viewMoved;
     if (ask && !asked && ed.role('3d') === 'off') setPip('win'); // a step about 3D, and the window is collapsed — show it
     asked = ask;
     for (const id of ['save-view', 'save-view-pip']) {
@@ -2010,7 +2172,7 @@ export function createApp({haLights, ha, photos}) {
       b.classList.toggle('pulse', scope && live);
       b.classList.toggle('done', scope && !live);
       b.setAttribute('aria-disabled', String(scope && !live));
-      b.querySelector('span').textContent = live ? t('Save view') : t('View saved');
+      find(b, 'span').textContent = live ? t('Save view') : t('View saved');
       b.title = live
         ? t('Save as the home view — your home opens with it, and the card shows it')
         : t('Rotate the model to save a new view');
@@ -2018,11 +2180,11 @@ export function createApp({haLights, ha, photos}) {
     demo.run(ask && !viewMoved && !ed.reducedMotion() && ed.role('3d') !== 'off');
     syncFinishHint();
     // in the HA panel the plan is saved in HA (ed.remote: 'saved' | 'offline' | 'conflict'), otherwise — in this browser
-    const saved = document.querySelector('.saved'),
-      draft = ed.plan.lights.some(l => l.draft),
-      remote = ed.remote?.(),
-      off = remote === 'offline' || remote === 'conflict',
-      failed = off || (!remote && !!ed.history.error);
+    const saved = document.querySelector<HTMLElement>('.saved');
+    const draft = ed.plan.lights.some(l => l.draft);
+    const remote = ed.remote?.();
+    const off = remote === 'offline' || remote === 'conflict';
+    const failed = off || (!remote && !!ed.history.error);
     if (saved) {
       saved.replaceChildren(
         el(icon(failed ? 'alert' : 'check', 14)),
@@ -2051,16 +2213,17 @@ export function createApp({haLights, ha, photos}) {
     ed.syncSave();
   });
   // Default wall thicknesses are a plan property (the house is like that), so they change through the history.
-  const near = (sel, v) => {
+  const near = (sel: HTMLSelectElement, v: number): void => {
     let best = sel.options[0];
     for (const o of sel.options) if (Math.abs(+o.value - v) < Math.abs(+best.value - v)) best = o;
     sel.value = best.value;
   };
   ed.syncSettings = () => {
     const d = wallDefaults(ed.plan);
-    near($('wall-outer'), d.outer);
-    near($('wall-inner'), d.inner);
-    $('wall-each').checked = !!ui.wallEach;
+    // the thickness lists and the per-wall checkbox
+    near($('wall-outer') as HTMLSelectElement, d.outer);
+    near($('wall-inner') as HTMLSelectElement, d.inner);
+    ($('wall-each') as HTMLInputElement).checked = !!ui.wallEach;
   };
   // Per-wall thickness is off: two shared thicknesses are enough 99% of the time. When on, it shows the thickness in the wall menu and a handle.
   // This is a user setting (not a plan one): thicknesses from the plan (for example, from an AI draft) are always visible in 3D.
@@ -2070,7 +2233,7 @@ export function createApp({haLights, ha, photos}) {
     },
   };
   // Tutorial hints: how many times shown (stored in this browser). done — do not show again.
-  const setHint = (k, n) => {
+  const setHint = (k: string, n: number): void => {
     ui.hints = {...ui.hints, [k]: n};
     saveUI();
   };
@@ -2098,7 +2261,7 @@ export function createApp({haLights, ha, photos}) {
     ed.commit();
     ed.draw();
     ed.banner(t('Setup closed — carry on in the modes at the top.'), [
-      ...(k
+      ...((k
         ? [
             [
               t('Undo'),
@@ -2108,16 +2271,17 @@ export function createApp({haLights, ha, photos}) {
               },
             ],
           ]
-        : []),
+        : []) satisfies BannerItem[]),
       [t('Got it'), () => ed.banner(), true],
     ]);
   };
+  // a plan without an id reads and keeps its steps under "undefined", as a key it becomes
   ed.wizard = {
-    get: id => ui.wiz?.[id] || null,
+    get: id => ui.wiz?.[id as string] || null,
     set: (id, v) => {
       const w = {...(ui.wiz || {})};
-      delete w[id];
-      if (v) w[id] = v;
+      delete w[id as string];
+      if (v) w[id as string] = v;
       const ks = Object.keys(w);
       for (const k of ks.slice(0, Math.max(0, ks.length - 10))) delete w[k];
       ui.wiz = w;
@@ -2125,7 +2289,7 @@ export function createApp({haLights, ha, photos}) {
     },
   };
   $('wall-each').onchange = e => {
-    ui.wallEach = e.target.checked;
+    ui.wallEach = (e.target as HTMLInputElement).checked; // the checkbox the handler is on
     saveUI();
     ed.mode.refresh?.();
     ed.draw();
@@ -2135,28 +2299,28 @@ export function createApp({haLights, ha, photos}) {
     ['wall-inner', 'inner'],
   ])
     $(id).onchange = e => {
-      ed.plan.wall = {...ed.plan.wall, [k]: +e.target.value};
+      ed.plan.wall = {...ed.plan.wall, [k]: +(e.target as HTMLSelectElement).value}; // the list the handler is on
       ed.commit();
     };
   // Day / night (D-068): auto — by the sun (it opens as it is outside, turns night after sunset and day after sunrise), or always day,
   // always night (core/daynight.js). The button steps auto → day → night; the label says the mode, the icon what is shown now.
   // The sun: ha.sunDown (sun.sun in HA, the weather profile in the demo), checked on HA changes and once a minute (the demo has no sun events)
-  let night = null,
-    dayMode = readMode();
-  const dnButtons = () => {
-    const label = dayMode === 'auto' ? t('Auto') : night ? t('Night') : t('Day'),
-      title = t('Day / night') + ': ' + label;
+  let night: boolean | null = null;
+  let dayMode = readMode();
+  const dnButtons = (): void => {
+    const label = dayMode === 'auto' ? t('Auto') : night ? t('Night') : t('Day');
+    const title = t('Day / night') + ': ' + label;
     $('daynight').innerHTML = icon(night ? 'moon' : 'sun') + `<span>${label}</span>`;
     $('daynight-pip').innerHTML = icon(night ? 'moon' : 'sun', 15);
     for (const id of ['daynight', 'daynight-pip']) {
       const b = $(id);
-      b.classList.toggle('on', night);
+      b.classList.toggle('on', !!night); // null (before the first check) is false, as the DOM reads it
       b.classList.toggle('auto', dayMode === 'auto');
       b.title = tipWanted() ? '' : title;
       b.setAttribute('aria-label', title);
     }
   };
-  const showNight = (force = false) => {
+  const showNight = (force = false): void => {
     const n = isNight(dayMode, ha.sunDown?.());
     if (n === night && !force) return;
     night = n;
