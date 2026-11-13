@@ -11,4 +11,5 @@ integration/dev/
 custom_components/home_twin/frontend/
 __pycache__/
 editor/demo/own*.mjs
+editor/demo/own*.ts
 docs/research/images/onboarding-audit-2026-11-06/
