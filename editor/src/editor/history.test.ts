@@ -7,7 +7,6 @@ import {readPlan} from '../core/plan-file.ts';
 import {mergePlanLights} from './ha.ts';
 import type {Plan, PlanLight} from '../core/types.ts';
 import type {StoreOp} from './idb.ts';
-import type {UnderlaySnapshot} from './underlay.ts';
 
 // Plans with only the fields a test looks at: the history keeps whatever it is given.
 interface NumberedPlan {
@@ -222,9 +221,17 @@ test('undoing scale and rotation restores the photo along with the plan, in stor
 test('a snapshot of another photo does not move the new underlay; a corrupted placement does not break loading', async () => {
   const u = createUnderlay();
   Object.assign(u, {img: {complete: true}, src: 'new', a: [0.2, 0], b: [2, 3]});
-  // A snapshot without the fingerprint (src instead of ph): not this photo's.
-  u.restore({src: 'old', a: [1, 0], b: [0, 0]} as unknown as UnderlaySnapshot);
+  // The snapshot of another photo, taken as undo takes it: its fingerprint is not this photo's.
+  const old = createUnderlay();
+  Object.assign(old, {img: {complete: true}, src: 'old', a: [1, 0], b: [0, 0]});
+  u.restore(old.snapshot());
   assert.deepEqual(u.a, [0.2, 0]);
+  assert.deepEqual(u.b, [2, 3]);
+  // The same photo's snapshot does move it: the fingerprint is what told the two apart.
+  const same = createUnderlay();
+  Object.assign(same, {img: {complete: true}, src: 'new', a: [1, 0], b: [0, 0]});
+  u.restore(same.snapshot());
+  assert.deepEqual(u.a, [1, 0]);
   memory.set('home-twin-editor:underlay', '{broken');
   assert.equal(await u.load(), false);
   memory.set('home-twin-editor:underlay', JSON.stringify({a: [0, 0], b: [0, 0]}));

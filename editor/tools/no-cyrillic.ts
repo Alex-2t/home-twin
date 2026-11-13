@@ -50,9 +50,9 @@ for (const f of files) {
   }
   const comments: Comment[] = [];
   let ast: Program;
-  // TypeScript: the types become spaces, so every line and column stays where it was
-  const code = /\.ts$/.test(f) ? stripTypes(src) : src;
   try {
+    // TypeScript: the types become spaces, so every line and column stays where it was (a TypeScript syntax error throws here)
+    const code = /\.ts$/.test(f) ? stripTypes(src) : src;
     ast = acorn.parse(code, {
       ecmaVersion: 'latest',
       sourceType: 'module',
@@ -61,6 +61,8 @@ for (const f of files) {
       allowHashBang: true,
     });
   } catch {
+    // a file that cannot be parsed is checked line by line
+    console.log(`cannot parse ${f}: checked line by line`);
     lines.forEach((l, i) => {
       if (CYR.test(l) && !allowed(i + 1)) bad.push(`${f}:${i + 1}: ${l.trim().slice(0, 80)}`);
     });

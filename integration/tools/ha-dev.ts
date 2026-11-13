@@ -206,11 +206,13 @@ async function seed(): Promise<void> {
     );
     if (bad.length) console.log("failed:", bad.length, bad[0].error.message);
   }
-  // the integration's entries (an error answer has no length either)
+  // the integration's entries: a list, or {error} when HA did not take the command (that is not "no entries")
   const entries = (
     await ws([{ type: "config_entries/get", domain: "home_twin" }])
-  )[0] as unknown[] | undefined;
-  if (!entries?.length) {
+  )[0];
+  if (!Array.isArray(entries))
+    throw new Error("config_entries/get failed: " + JSON.stringify(entries));
+  if (!entries.length) {
     const f = await fetch(HA + "/api/config/config_entries/flow", {
       method: "POST",
       headers: {

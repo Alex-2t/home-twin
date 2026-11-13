@@ -68,9 +68,9 @@ export function scan(): {keys: Map<string, Set<string>>; bad: Finding[]} {
     const allowed = (n: number): boolean => /allow-cyrillic/.test(lines[n - 1] || '');
     const comments: Comment[] = [];
     let ast: Program;
-    // TypeScript: the types become spaces, so every line and column stays where it was
-    const code = f.endsWith('.ts') ? stripTypes(src) : src;
     try {
+      // TypeScript: the types become spaces, so every line and column stays where it was (a TypeScript syntax error throws here)
+      const code = f.endsWith('.ts') ? stripTypes(src) : src;
       ast = acorn.parse(code, {
         ecmaVersion: 'latest',
         sourceType: 'module',
@@ -78,7 +78,7 @@ export function scan(): {keys: Map<string, Set<string>>; bad: Finding[]} {
         onComment: comments,
       });
     } catch (e) {
-      // acorn throws a SyntaxError that also says where (loc); anything else thrown has a message too
+      // acorn throws a SyntaxError that also says where (loc); stripping the types throws an Error that says it in its message
       const error = e as {loc?: {line: number}; message: string};
       bad.push({file: f, line: error.loc?.line, text: 'cannot parse: ' + error.message});
       continue;
@@ -149,7 +149,8 @@ export function scan(): {keys: Map<string, Set<string>>; bad: Finding[]} {
 
 if (process.argv[1] === new URL(import.meta.url).pathname) {
   const {keys, bad} = scan();
-  for (const b of bad) console.log(`${b.file}:${b.line}  ${b.text}`);
+  // a file the types could not be stripped from has no line
+  for (const b of bad) console.log(`${b.file}${b.line === undefined ? '' : ':' + b.line}  ${b.text}`);
   console.log(`keys ${keys.size}, Cyrillic in code: ${bad.length}`);
   if (process.argv.includes('--keys')) {
     const out = Object.fromEntries(
