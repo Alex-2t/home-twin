@@ -1559,5 +1559,9 @@
  "Not in this account": "Не в этом аккаунте",
  "Signed in as {0}. Sign in with the account that started it.": "Вы вошли как {0}. Войдите в аккаунт, с которого её начали.",
  "Switch account": "Сменить аккаунт",
- "It is shown only to the account that started it.": "Её видит только аккаунт, с которого её начали."
+ "It is shown only to the account that started it.": "Её видит только аккаунт, с которого её начали.",
+ "Up to {0}% of your package": "До {0}% вашего пакета",
+ "About {0}–{1}% of your package": "Примерно {0}–{1}% вашего пакета",
+ "An estimate: a bigger home or more furniture takes more": "Это оценка: большой дом или много мебели потребует больше",
+ "More than is left: it pauses for a top-up": "Больше, чем осталось: работа встанет до пополнения"
 }

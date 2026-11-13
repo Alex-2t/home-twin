@@ -535,6 +535,11 @@ button.aib-link{height:auto;min-width:0;padding:0;border-radius:4px;color:var(--
 .aib-tips li{display:flex;gap:9px;align-items:center}.aib-tips .ic{color:var(--acc)}
 .aib-go{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:14px;margin-top:24px;padding-top:18px;border-top:1px solid var(--line)}
 .aib-time{display:flex;align-items:center;gap:8px;color:var(--mut)}
+.aib-go-facts{display:flex;flex-direction:column;gap:6px}.aib-go-cost:empty{display:none}
+/* What an action will about take (D-NEXT): a quiet line; a plain warning when it is more than what is left */
+.aib-cost{display:grid;grid-template-columns:auto minmax(0,1fr);align-items:center;gap:2px 8px;color:var(--mut);font-size:13px;font-variant-numeric:tabular-nums}
+.aib-cost>.ic{color:var(--acc)}.aib-review-account .aib-cost{flex-basis:100%;font-size:12.5px;column-gap:7px}
+.aib-cost-short{grid-column:2;color:var(--warn)}.aib-cost.short>.ic{color:var(--warn)}
 button.aib-big{height:46px;padding:0 22px;border-radius:12px;font-size:15px;box-shadow:0 8px 24px color-mix(in srgb,var(--acc) 32%,transparent)}
 .aib-sending{display:flex;flex-direction:column;gap:7px;margin-top:16px;color:var(--mut)}.aib-sending.err{color:var(--bad)}
 .aib-meter{display:block;height:4px;border-radius:2px;background:var(--chip);overflow:hidden}.aib-meter>i{display:block;height:100%;width:0;background:var(--acc);transition:width .2s}

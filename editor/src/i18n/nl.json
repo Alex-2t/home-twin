@@ -1559,5 +1559,9 @@
  "Not in this account": "Niet in dit account",
  "Signed in as {0}. Sign in with the account that started it.": "Ingelogd als {0}. Log in met het account dat hem startte.",
  "Switch account": "Ander account",
- "It is shown only to the account that started it.": "Alleen het account dat hem startte, ziet hem."
+ "It is shown only to the account that started it.": "Alleen het account dat hem startte, ziet hem.",
+ "Up to {0}% of your package": "Tot {0}% van je pakket",
+ "About {0}–{1}% of your package": "Ongeveer {0}–{1}% van je pakket",
+ "An estimate: a bigger home or more furniture takes more": "Een schatting: een groter huis of meer meubels kosten meer",
+ "More than is left: it pauses for a top-up": "Meer dan er over is: het pauzeert tot je bijvult"
 }

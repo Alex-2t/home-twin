@@ -1559,5 +1559,9 @@
  "Not in this account": "Nicht in diesem Konto",
  "Signed in as {0}. Sign in with the account that started it.": "Angemeldet als {0}. Melde dich mit dem Konto an, das ihn gestartet hat.",
  "Switch account": "Konto wechseln",
- "It is shown only to the account that started it.": "Nur das Konto, das ihn gestartet hat, sieht ihn."
+ "It is shown only to the account that started it.": "Nur das Konto, das ihn gestartet hat, sieht ihn.",
+ "Up to {0}% of your package": "Bis zu {0} % Ihres Pakets",
+ "About {0}–{1}% of your package": "Etwa {0}–{1} % Ihres Pakets",
+ "An estimate: a bigger home or more furniture takes more": "Eine Schätzung: ein größeres Zuhause oder mehr Möbel brauchen mehr",
+ "More than is left: it pauses for a top-up": "Mehr als übrig ist: es pausiert bis zum Aufladen"
 }

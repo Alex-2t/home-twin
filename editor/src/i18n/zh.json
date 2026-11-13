@@ -1559,5 +1559,9 @@
  "Not in this account": "不在此账号中",
  "Signed in as {0}. Sign in with the account that started it.": "当前登录：{0}。请用发起它的账号登录。",
  "Switch account": "切换账号",
- "It is shown only to the account that started it.": "只有发起它的账号能看到。"
+ "It is shown only to the account that started it.": "只有发起它的账号能看到。",
+ "Up to {0}% of your package": "最多占套餐的 {0}%",
+ "About {0}–{1}% of your package": "约占套餐的 {0}–{1}%",
+ "An estimate: a bigger home or more furniture takes more": "这是估算：房屋越大、家具越多，用量越多",
+ "More than is left: it pauses for a top-up": "超过剩余额度：将暂停，直到充值"
 }
