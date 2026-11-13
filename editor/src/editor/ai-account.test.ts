@@ -6,15 +6,20 @@ import {
   AccountError,
   accountFrom,
   accountOffer,
+  balanceFrom,
   balanceMeter,
   balancePercents,
+  buyButtonInner,
   buyLabel,
   checkoutUrl,
   claimPayment,
   currentAccount,
+  emptyBalanceText,
+  emptyStartText,
   isSignedOut,
   offerFrom,
   pathOf,
+  paymentClaimText,
   priceText,
   providerSignInUrl,
   readReturn,
@@ -68,20 +73,29 @@ async function withService(
 }
 
 test('a little used is at least 1 %; not used up is at most 99 %', () => {
-  assert.deepEqual(balancePercents({used: 0, left: 1, empty: false}), {used: 0, left: 100});
-  assert.deepEqual(balancePercents({used: 0.001, left: 0.999, empty: false}), {used: 1, left: 99});
-  assert.deepEqual(balancePercents({used: 0.36, left: 0.64, empty: false}), {used: 36, left: 64});
-  assert.deepEqual(balancePercents({used: 0.998, left: 0.002, empty: false}), {used: 99, left: 1});
-  assert.deepEqual(balancePercents({used: 1, left: 0, empty: true}), {used: 100, left: 0});
+  assert.deepEqual(balancePercents({used: 0, left: 1, empty: false, bought: true}), {used: 0, left: 100});
+  assert.deepEqual(balancePercents({used: 0.001, left: 0.999, empty: false, bought: true}), {
+    used: 1,
+    left: 99,
+  });
+  assert.deepEqual(balancePercents({used: 0.36, left: 0.64, empty: false, bought: true}), {
+    used: 36,
+    left: 64,
+  });
+  assert.deepEqual(balancePercents({used: 0.998, left: 0.002, empty: false, bought: true}), {
+    used: 99,
+    left: 1,
+  });
+  assert.deepEqual(balancePercents({used: 1, left: 0, empty: true, bought: true}), {used: 100, left: 0});
 });
 
 test('the meter fills with what is used and says what is left; nothing without an account', () => {
-  const html = balanceMeter({used: 0.36, left: 0.64, empty: false});
+  const html = balanceMeter({used: 0.36, left: 0.64, empty: false, bought: true});
   assert.match(html, /width:36%/);
   assert.match(html, /64% left/);
   assert.match(html, /Package: 36% used, 64% left/);
   assert.doesNotMatch(html, /\$/);
-  assert.match(balanceMeter({used: 1, left: 0, empty: true}), /aib-wallet empty/);
+  assert.match(balanceMeter({used: 1, left: 0, empty: true, bought: true}), /aib-wallet empty/);
   assert.equal(balanceMeter(null), '');
 });
 
@@ -108,19 +122,60 @@ test('the offer is checked: email is always a way in, unknown ways and modes are
   assert.throws(() => offerFrom(null), AccountError);
 });
 
-test('the account is checked: shares stay between 0 and 1, a missing balance is nothing left', () => {
+test('the account is checked: shares stay between 0 and 1, a missing balance is nothing bought', () => {
   const account = accountFrom({
     email: 'someone@example.com',
     providers: ['github', 'myspace'],
-    balance: {used: 1.2, left: -0.2, empty: true},
+    balance: {used: 1.2, left: -0.2, empty: true, bought: true},
   });
   assert.deepEqual(account, {
     email: 'someone@example.com',
     providers: ['github'],
-    balance: {used: 1, left: 0, empty: true},
+    balance: {used: 1, left: 0, empty: true, bought: true},
   });
-  assert.deepEqual(accountFrom({email: 'a@example.com'}).balance, {used: 1, left: 0, empty: true});
+  assert.deepEqual(accountFrom({email: 'a@example.com'}).balance, {
+    used: 1,
+    left: 0,
+    empty: true,
+    bought: false,
+  });
+  // A service that does not say whether anything was bought: an empty balance reads as used up.
+  assert.equal(balanceFrom({used: 1, left: 0, empty: true}).bought, true);
   assert.throws(() => accountFrom({balance: {}}), AccountError);
+});
+
+test('an empty balance says whether a first package is needed or nothing is left', () => {
+  const fresh = {used: 1, left: 0, empty: true, bought: false};
+  const usedUp = {used: 1, left: 0, empty: true, bought: true};
+  assert.equal(emptyBalanceText(fresh), 'No package yet');
+  assert.equal(emptyBalanceText(usedUp), 'Nothing left on your account');
+  assert.equal(emptyStartText(fresh), 'Buy your first package to build');
+  assert.equal(emptyStartText(usedUp), 'Nothing left on your account');
+  assert.equal(emptyStartText(null), 'Nothing left on your account');
+});
+
+test('while the checkout is in test mode its buttons carry a "test" mark', () => {
+  assert.match(
+    buyButtonInner(PAID),
+    /^Buy a package · \$20<span class="aib-test-mark" title="[^"]+">test<\/span>$/,
+  );
+  assert.equal(buyButtonInner({...PAID, mode: 'live'}, {topUp: true}), 'Top up · $20');
+  assert.equal(buyButtonInner(FREE), 'Top up');
+  assert.match(pausedCard('balance', {offer: PAID}).html, /aib-test-mark/);
+  assert.doesNotMatch(pausedCard('balance', {offer: {...PAID, mode: 'live'}}).html, /aib-test-mark/);
+});
+
+test('a payment that was not counted says why plainly', () => {
+  assert.equal(paymentClaimText(new AccountError('PAYMENT_FAILED', 402)), 'The payment did not go through');
+  assert.equal(paymentClaimText(new AccountError('PAYMENT_UNKNOWN', 404)), 'The payment was not found');
+  assert.equal(
+    paymentClaimText(new AccountError('PAYMENT_NOT_OURS', 409)),
+    'This payment is not for a package here',
+  );
+  assert.equal(
+    paymentClaimText(new AccountError('SERVER', 500)),
+    'Could not check the payment: The service is not answering. Try again in a minute.',
+  );
 });
 
 test('no payments service here: no accounts; signed out: no account', async () => {
@@ -132,7 +187,7 @@ test('no payments service here: no accounts; signed out: no account', async () =
   });
   await withService(
     200,
-    {email: 'a@example.com', providers: [], balance: {used: 0.5, left: 0.5, empty: false}},
+    {email: 'a@example.com', providers: [], balance: {used: 0.5, left: 0.5, empty: false, bought: true}},
     async seen => {
       const account = await currentAccount('/base');
       assert.equal(account?.balance.left, 0.5);
@@ -164,7 +219,7 @@ test('every call that changes something is JSON, as the service asks', async () 
   });
   await withService(
     200,
-    {email: 'a@example.com', providers: [], balance: {used: 0, left: 1, empty: false}},
+    {email: 'a@example.com', providers: [], balance: {used: 0, left: 1, empty: false, bought: true}},
     async seen => {
       await claimPayment('', 'pay/../x');
       assert.equal(seen[0].url, '/pay/payments/pay%2F..%2Fx/claim');

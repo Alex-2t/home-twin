@@ -1559,5 +1559,11 @@
  "Not in this account": "Absente de ce compte",
  "Signed in as {0}. Sign in with the account that started it.": "Connecté en tant que {0}. Connectez-vous avec le compte qui l’a lancée.",
  "Switch account": "Changer de compte",
- "It is shown only to the account that started it.": "Seul le compte qui l’a lancée peut la voir."
+ "It is shown only to the account that started it.": "Seul le compte qui l’a lancée peut la voir.",
+ "Buy your first package to build": "Achetez votre premier forfait pour créer",
+ "No package yet": "Pas encore de forfait",
+ "Test payments: no real money": "Paiements de test : pas d’argent réel",
+ "test|payments": "test",
+ "The payment was not found": "Paiement introuvable",
+ "This payment is not for a package here": "Ce paiement ne correspond à aucun forfait ici"
 }

@@ -468,6 +468,13 @@ body[data-look=on] :is(#side,#dock,#banner:not(.in-look),#pill,#topr,#pip-show,#
 .aib-start-meter{grid-column:2;display:block;height:4px;margin-top:8px;border-radius:2px;background:var(--chip);overflow:hidden}
 .aib-start-meter>i{display:block;height:100%;width:0;border-radius:2px;background:linear-gradient(90deg,#6366f1,#a855f7);transition:width .6s ease-out}
 /* a new build while one is followed: a button of its own under the card, as wide as it, never read as the heading of the cards below */
+/* the account's other builds, offered under the card on a browser that follows none (D-088): one compact row each */
+.aib-start-more{display:flex;flex-direction:column;gap:4px;margin:0 0 8px}.aib-start-more[hidden]{display:none}
+.aib-start-row{display:grid;grid-template-columns:auto auto minmax(0,1fr) auto;align-items:center;gap:10px;width:100%;height:44px;padding:0 12px 0 8px;border-radius:12px;background:var(--panel);border:1px solid var(--line);text-align:left}
+.aib-start-row:hover{border-color:var(--acc);background:var(--panel-solid)}.aib-start-row b{font-size:13.5px;font-weight:600;white-space:nowrap}
+.aib-start-row span:not(.aib-start-row-badge){color:var(--mut);font-size:12.5px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.aib-start-row>.ic{color:var(--acc)}
+.aib-start-row-badge{width:28px;height:28px;border-radius:8px;display:grid;place-items:center;overflow:hidden;color:#fff;background:linear-gradient(135deg,#6366f1,#a855f7 55%,#f59e0b)}
+.aib-start-row-badge img{width:100%;height:100%;object-fit:cover}.aib-start-row-badge .aib-start-spin{width:13px;height:13px;border-width:2px}
 .aib-start-new{display:flex;width:100%;height:48px;margin:0 0 18px;gap:8px;border:1.5px dashed var(--line2);border-radius:14px;color:var(--tx);font-size:14.5px;font-weight:600}
 .aib-start-new:hover{border-color:var(--acc);border-style:solid;color:var(--acc);background:var(--acc2)}
 body[data-bare] :is(#side,#dock,#banner,#pill,#topr,#pip-show,#divider,#brand,#modes,#ctx,.spot,.dev,.pane .view-tools,.pane-tag,.pane-empty,.pip-grip,.pip-cover){display:none!important}
@@ -489,11 +496,13 @@ body.aib-pinning :is(#pane-plan,#pane-3d) canvas{cursor:crosshair!important}
 .aib-wallet.empty{color:var(--bad)}.aib-wallet.empty .ic{color:var(--bad)}.aib-wallet.empty .aib-meter>i{background:var(--bad)}
 .aib-go-account{display:flex;flex-wrap:wrap;align-items:center;gap:6px 10px}.aib-go-account:empty{display:none}.aib-go-account button.primary{height:36px;padding:0 14px;border-radius:10px}
 .aib-wallet-err{color:var(--bad);font-size:12px;flex-basis:100%}
-.aib-go-line{flex-basis:100%;margin-top:-6px;color:var(--bad);font-size:12.5px;text-align:right}
+.aib-go-line{flex-basis:100%;margin-top:-6px;color:var(--bad);font-size:12.5px;text-align:right}.aib-go-line.aib-go-hint{color:var(--mut)}
 .aib-review-account{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:6px 10px}.aib-review-account:empty{display:none}.aib-review-account button.soft{height:28px;font-size:12.5px}
 /* the account (D-088): "Sign in" while signed out; signed in, its round badge (the balance beside it on a build's page) with a menu */
 .aib-account{position:relative;display:flex;align-items:center;gap:10px}.aib-account:empty{display:none}.aib-head>b+.aib-account{margin-left:auto}
 button.aib-sign-in{height:32px;padding:0 12px;font-weight:500}
+/* the checkout takes test cards only: its buttons say so */
+.aib-test-mark{margin-left:6px;padding:1px 5px;border-radius:5px;font-size:10px;font-weight:600;letter-spacing:.04em;text-transform:uppercase;line-height:1.4;background:color-mix(in srgb,currentColor 18%,transparent)}
 .aib-avatar{width:32px;height:32px;min-width:32px;padding:0;border-radius:50%;display:inline-grid;place-items:center;flex:none;font-size:13.5px;font-weight:600;color:#fff;background:linear-gradient(135deg,#6366f1,#a855f7)}
 button.aib-avatar:hover{background:linear-gradient(135deg,#6366f1,#a855f7);filter:brightness(1.1)}
 .aib-account-menu{top:calc(100% + 8px);right:0;min-width:260px;max-width:min(320px,calc(100vw - 24px))}
@@ -534,7 +543,7 @@ button.aib-link{height:auto;min-width:0;padding:0;border-radius:4px;color:var(--
 .aib-tips{list-style:none;margin:18px 0 0;padding:0;display:flex;flex-direction:column;gap:7px;color:var(--mut)}
 .aib-tips li{display:flex;gap:9px;align-items:center}.aib-tips .ic{color:var(--acc)}
 .aib-go{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:14px;margin-top:24px;padding-top:18px;border-top:1px solid var(--line)}
-.aib-time{display:flex;align-items:center;gap:8px;color:var(--mut)}
+.aib-time{flex:1 1 180px;min-width:0;display:flex;align-items:center;gap:8px;color:var(--mut)}
 button.aib-big{height:46px;padding:0 22px;border-radius:12px;font-size:15px;box-shadow:0 8px 24px color-mix(in srgb,var(--acc) 32%,transparent)}
 .aib-sending{display:flex;flex-direction:column;gap:7px;margin-top:16px;color:var(--mut)}.aib-sending.err{color:var(--bad)}
 .aib-meter{display:block;height:4px;border-radius:2px;background:var(--chip);overflow:hidden}.aib-meter>i{display:block;height:100%;width:0;background:var(--acc);transition:width .2s}

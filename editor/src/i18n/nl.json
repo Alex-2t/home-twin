@@ -1559,5 +1559,11 @@
  "Not in this account": "Niet in dit account",
  "Signed in as {0}. Sign in with the account that started it.": "Ingelogd als {0}. Log in met het account dat hem startte.",
  "Switch account": "Ander account",
- "It is shown only to the account that started it.": "Alleen het account dat hem startte, ziet hem."
+ "It is shown only to the account that started it.": "Alleen het account dat hem startte, ziet hem.",
+ "Buy your first package to build": "Koop je eerste pakket om te bouwen",
+ "No package yet": "Nog geen pakket",
+ "Test payments: no real money": "Testbetalingen: geen echt geld",
+ "test|payments": "test",
+ "The payment was not found": "De betaling is niet gevonden",
+ "This payment is not for a package here": "Deze betaling is niet voor een pakket hier"
 }

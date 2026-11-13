@@ -1559,5 +1559,11 @@
  "Not in this account": "Не в этом аккаунте",
  "Signed in as {0}. Sign in with the account that started it.": "Вы вошли как {0}. Войдите в аккаунт, с которого её начали.",
  "Switch account": "Сменить аккаунт",
- "It is shown only to the account that started it.": "Её видит только аккаунт, с которого её начали."
+ "It is shown only to the account that started it.": "Её видит только аккаунт, с которого её начали.",
+ "Buy your first package to build": "Купите первый пакет, чтобы собрать",
+ "No package yet": "Пакета пока нет",
+ "Test payments: no real money": "Тестовые платежи: без настоящих денег",
+ "test|payments": "тест",
+ "The payment was not found": "Платёж не найден",
+ "This payment is not for a package here": "Этот платёж не за пакет здесь"
 }

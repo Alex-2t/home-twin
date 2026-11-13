@@ -1559,5 +1559,11 @@
  "Not in this account": "不在此账号中",
  "Signed in as {0}. Sign in with the account that started it.": "当前登录：{0}。请用发起它的账号登录。",
  "Switch account": "切换账号",
- "It is shown only to the account that started it.": "只有发起它的账号能看到。"
+ "It is shown only to the account that started it.": "只有发起它的账号能看到。",
+ "Buy your first package to build": "购买第一个套餐即可开始构建",
+ "No package yet": "还没有套餐",
+ "Test payments: no real money": "测试支付：不扣真实费用",
+ "test|payments": "测试",
+ "The payment was not found": "未找到这笔付款",
+ "This payment is not for a package here": "这笔付款不是本站的套餐"
 }

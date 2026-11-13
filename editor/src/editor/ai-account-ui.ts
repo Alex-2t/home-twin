@@ -8,8 +8,8 @@ import {el, esc, find} from './ui.ts';
 import {icon} from './icons.ts';
 import {
   balanceMeter,
-  balancePercents,
-  buyLabel,
+  buyButtonInner,
+  emptyBalanceText,
   providerSignInUrl,
   refusalText,
   sendSignInCode,
@@ -301,16 +301,16 @@ export function accountBar(options: AccountBarOptions): AccountBar {
   }
 
   function openMenu(account: Account): void {
-    const {left} = balancePercents(account.balance);
-    // Nothing left reads in words: a new account has bought nothing yet, and a full red bar would say it used it all.
+    // Nothing left reads in words: a full red bar says little, and a new account has used nothing.
     const balance = account.balance.empty
-      ? `<span class="aib-wallet">${icon('wallet', 14)}<span>${esc(t('Nothing left on your account'))}</span></span>`
+      ? `<span class="aib-wallet">${icon('wallet', 14)}<span>${esc(emptyBalanceText(account.balance))}</span></span>`
       : balanceMeter(account.balance);
+    const buyInner = buyButtonInner(view.offer, {topUp: account.balance.bought});
     menu = el(`<div class="aib-account-menu menu glass" role="menu">
       <div class="aib-account-who"><span class="aib-avatar">${esc(initialOf(account.email))}</span><b>${esc(account.email)}</b></div>
       <hr>
       <div class="aib-account-balance">${balance}</div>
-      <button data-act="buy">${icon('wallet', 16)}<span>${esc(buyLabel(view.offer, {topUp: left > 0}))}</span></button>
+      <button data-act="buy">${icon('wallet', 16)}<span>${buyInner}</span></button>
       <hr>
       <button data-act="sign-out">${icon('logOut', 16)}<span>${esc(t('Sign out'))}</span></button>
     </div>`);
@@ -383,12 +383,12 @@ export function pausedCard(
   }
   if (paused !== 'balance') return {key: '', html: ''};
   const why = line || t('The build waits. Top up and it goes on from where it stopped.');
-  const label = buyLabel(offer, {topUp: true});
+  const buttonInner = buyButtonInner(offer, {topUp: true});
   return {
-    key: `paused:balance:${why}:${label}`,
+    key: `paused:balance:${why}:${buttonInner}`,
     html: `<div class="aib-card asking">
       <span class="aib-card-ic">${icon('wallet', 20)}</span>
       <span class="aib-card-text"><b>${esc(t('The package is used up'))}</b><small>${esc(why)}</small></span>
-      <button class="primary" data-act="top-up">${esc(label)}</button></div>`,
+      <button class="primary" data-act="top-up">${buttonInner}</button></div>`,
   };
 }

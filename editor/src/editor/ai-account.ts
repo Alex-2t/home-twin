@@ -7,11 +7,13 @@
 //   POST <api>/pay/auth/email/verify         {email, code} → the account; the service sets the session cookie
 //   GET  <api>/pay/auth/<google|github>/start?return=<path>   the provider's sign-in, then back to <path>
 //                                            (a failed one comes back with ?signin=failed, a cancelled one ?signin=cancelled)
-//   GET  <api>/pay/me                        the account {email, providers, balance}; 401 SIGNED_OUT
+//   GET  <api>/pay/me                        the account {email, providers, balance}; 401 SIGNED_OUT. The balance is
+//                                            {used, left, empty, bought}: bought is false until a first package
 //   POST <api>/pay/auth/sign-out
 //   POST <api>/pay/checkout                  {return, lang} → {url}: the provider's checkout for one package; it comes back to
 //                                            <return>?paid=1&payment_id=…&status=…
-//   POST <api>/pay/payments/<id>/claim       the payment checked with the provider and counted once → the account
+//   POST <api>/pay/payments/<id>/claim       the payment checked with the provider and counted once → the account;
+//                                            402 PAYMENT_FAILED, 404 PAYMENT_UNKNOWN, 409 PAYMENT_NOT_OURS
 //   POST <api>/pay/test/top-up               a free test package, only where the service takes no payments
 // Public POSTs are JSON (the service refuses anything else). A refusal says why in {error}: a code such as SIGNED_OUT.
 // Where the AI build runs without the service (local work), /pay/offer answers 404: there are no accounts, builds are free.
@@ -40,11 +42,15 @@ export interface Offer {
   signIn: SignInWay[];
 }
 
-/** What is left on the account: shares from 0 to 1 of all that was bought, and whether nothing is left. */
+/**
+ * What is left on the account: shares from 0 to 1 of all that was bought, whether nothing is left, and whether a package
+ * was ever bought (a new account is empty too, but it has used nothing).
+ */
 export interface BalanceShare {
   used: number;
   left: number;
   empty: boolean;
+  bought: boolean;
 }
 
 /** The signed-in account (GET /pay/me): its email, the providers it has signed in with, and its balance. */
@@ -105,8 +111,11 @@ export function offerFrom(data: unknown): Offer {
 
 /** The balance's shares in the service's answer; a missing balance reads as nothing left. */
 export function balanceFrom(value: unknown): BalanceShare {
-  if (!isFields(value)) return {used: 1, left: 0, empty: true};
-  return {used: shareOf(value.used), left: shareOf(value.left), empty: value.empty === true};
+  if (!isFields(value)) return {used: 1, left: 0, empty: true, bought: false};
+  const empty = value.empty === true;
+  // A service that does not say yet: something left means something was bought; nothing left reads as used up.
+  const bought = typeof value.bought === 'boolean' ? value.bought : true;
+  return {used: shareOf(value.used), left: shareOf(value.left), empty, bought};
 }
 
 /** The account in the service's answer; throws when the answer is not one. */
@@ -255,9 +264,20 @@ export function refusalText(error: unknown): string {
   if (error.code === 'CODE_EXPIRED') return t('The code has expired. Send a new one.');
   if (error.code === 'CODE_TRIES') return t('Too many tries. Send a new code.');
   if (error.code === 'PAYMENT_FAILED') return t('The payment did not go through');
+  if (error.code === 'PAYMENT_UNKNOWN') return t('The payment was not found');
+  if (error.code === 'PAYMENT_NOT_OURS') return t('This payment is not for a package here');
   if (error.status >= 500 || error.status === 0)
     return t('The service is not answering. Try again in a minute.');
   return error.code;
+}
+
+/** The claim's own refusals: said as they are (the payment did not go through, is not found, is not ours). */
+const PAYMENT_REFUSALS = new Set(['PAYMENT_FAILED', 'PAYMENT_UNKNOWN', 'PAYMENT_NOT_OURS']);
+
+/** Why the payment the browser came back with was not counted, in the owner's words. */
+export function paymentClaimText(error: unknown): string {
+  if (error instanceof AccountError && PAYMENT_REFUSALS.has(error.code)) return refusalText(error);
+  return t('Could not check the payment: {0}', refusalText(error));
 }
 
 /** Whether a failure means this browser is signed out. */
@@ -279,13 +299,35 @@ export function priceText(price: Price | null | undefined): string {
 }
 
 /**
- * The button that gets one more package: with its price where it is bought ("Top up" once the account is known to have had
- * one: usedUp, or something left), a free top-up where packages are given for testing.
+ * The button that gets one more package: with its price where it is bought ("Top up" once the account has bought one), a
+ * free top-up where packages are given for testing.
  */
 export function buyLabel(offer: Offer | null, {topUp = false}: {topUp?: boolean} = {}): string {
   if (offer?.payments !== 'dodo') return t('Top up');
   const price = priceText(offer.price);
   return topUp ? t('Top up · {0}', price) : t('Buy a package · {0}', price);
+}
+
+/** An empty balance in words: a new account has no package yet; one that bought has nothing left. */
+export function emptyBalanceText(share: BalanceShare): string {
+  return share.bought ? t('Nothing left on your account') : t('No package yet');
+}
+
+/** Why a build cannot start with an empty balance: the first package, or nothing left of what was bought. */
+export function emptyStartText(share: BalanceShare | null | undefined): string {
+  return share && !share.bought ? t('Buy your first package to build') : t('Nothing left on your account');
+}
+
+/** Whether the checkout takes test cards only (Dodo's test mode): its buttons say so. */
+export const isTestCheckout = (offer: Offer | null): boolean =>
+  offer?.payments === 'dodo' && offer.mode === 'test';
+
+/** A buy or top-up button's inside, as markup: its label, and a small "test" mark while the checkout is in test mode. */
+export function buyButtonInner(offer: Offer | null, options: {topUp?: boolean} = {}): string {
+  const label = esc(buyLabel(offer, options));
+  if (!isTestCheckout(offer)) return label;
+  const title = esc(t('Test payments: no real money'));
+  return `${label}<span class="aib-test-mark" title="${title}">${esc(t('test|payments'))}</span>`;
 }
 
 /**

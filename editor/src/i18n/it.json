@@ -1559,5 +1559,11 @@
  "Not in this account": "Non è in questo account",
  "Signed in as {0}. Sign in with the account that started it.": "Accesso come {0}. Accedi con l’account che l’ha avviata.",
  "Switch account": "Cambia account",
- "It is shown only to the account that started it.": "La vede solo l’account che l’ha avviata."
+ "It is shown only to the account that started it.": "La vede solo l’account che l’ha avviata.",
+ "Buy your first package to build": "Acquista il tuo primo pacchetto per creare",
+ "No package yet": "Ancora nessun pacchetto",
+ "Test payments: no real money": "Pagamenti di prova: nessun denaro reale",
+ "test|payments": "prova",
+ "The payment was not found": "Pagamento non trovato",
+ "This payment is not for a package here": "Questo pagamento non è per un pacchetto qui"
 }

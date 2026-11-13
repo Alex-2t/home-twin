@@ -35,13 +35,15 @@ import type {Pin, PinNotes, PinRetry, PinRound} from './ai-pins.ts';
 import {
   accountOffer,
   balanceMeter,
-  buyLabel,
+  buyButtonInner,
   checkoutUrl,
   claimPayment,
   currentAccount,
+  emptyStartText,
   forgetOldWallet,
   isSignedOut,
   pathOf,
+  paymentClaimText,
   readReturn,
   refusalText,
   signOut,
@@ -393,42 +395,87 @@ export async function aiService(api = ''): Promise<boolean> {
   }
 }
 
-/** Whether the AI build has accounts here and this browser is signed out (an account's build is then not shown to it). */
-async function signedOutWithAccounts(api: string): Promise<boolean> {
-  try {
-    const offer = await accountOffer(api);
-    if (!offer) return false;
-    return !(await currentAccount(api));
-  } catch {
-    return false;
-  }
-}
-
 // ---------- the files chosen for a build, kept while the browser is away ----------
 
 // A provider's sign-in and the checkout leave the page: the files chosen are kept here meanwhile, and are back on the upload
-// page when the browser returns.
+// page when the browser returns — with whether the build is to start once signed in (the sign-in came from its button).
 const CHOSEN_FILES = 'ai-build:chosen-files';
 
+/** The files kept while the browser was away, and whether the build starts once the owner is signed in. */
+interface KeptFiles extends ChosenFiles {
+  startWhenSignedIn: boolean;
+}
+
 /** The files chosen, kept until the upload page opens again; nothing is kept when none are chosen. */
-async function keepChosen(files: ChosenFiles): Promise<void> {
+async function keepChosen(files: ChosenFiles, startWhenSignedIn = false): Promise<void> {
   if (!files.plan && !files.videos.length) return;
-  await idb('put', CHOSEN_FILES, {plan: files.plan, videos: files.videos});
+  await idb('put', CHOSEN_FILES, {plan: files.plan, videos: files.videos, startWhenSignedIn});
 }
 
 /** The files kept before the browser left, taken out of the store (they are kept only once); null when there are none. */
-async function takeChosen(): Promise<ChosenFiles | null> {
+async function takeChosen(): Promise<KeptFiles | null> {
   try {
     const saved = await idb('get', CHOSEN_FILES);
     if (!saved) return null;
     await idb('del', CHOSEN_FILES);
-    const fields = saved as {plan?: unknown; videos?: unknown};
+    const fields = saved as {plan?: unknown; videos?: unknown; startWhenSignedIn?: unknown};
     const plan = fields.plan instanceof File ? fields.plan : null;
     const videos = Array.isArray(fields.videos) ? fields.videos.filter(video => video instanceof File) : [];
-    return {plan, videos};
+    return {plan, videos, startWhenSignedIn: fields.startWhenSignedIn === true};
   } catch {
     return null;
   }
+}
+
+// ---------- the account's builds, offered on a browser that follows none ----------
+
+// The builds whose finished home this browser has shown: a finished build is offered only to a browser that never showed it.
+const SEEN_BUILDS = 'home-twin-editor:ai-builds-seen';
+// At most this many are remembered (the oldest go first).
+const SEEN_BUILDS_KEPT = 50;
+
+function seenBuilds(): Set<string> {
+  try {
+    const saved: unknown = JSON.parse(localStorage.getItem(SEEN_BUILDS) || '[]');
+    const ids = Array.isArray(saved) ? saved.filter(id => typeof id === 'string') : [];
+    return new Set(ids);
+  } catch {
+    return new Set();
+  }
+}
+
+function markSeen(id: string): void {
+  const ids = [...seenBuilds()].filter(seen => seen !== id);
+  ids.push(id);
+  try {
+    localStorage.setItem(SEEN_BUILDS, JSON.stringify(ids.slice(-SEEN_BUILDS_KEPT)));
+  } catch {}
+}
+
+/**
+ * When a build was started, ms, read from its id: the editor names a build home-<the time in base 36> (the status has no
+ * time of its own); null for an id named otherwise.
+ */
+export function buildStartedAt(id: string | undefined): number | null {
+  const match = /^home-([0-9a-z]+)$/.exec(id || '');
+  if (!match) return null;
+  const time = parseInt(match[1], 36);
+  return Number.isFinite(time) ? time : null;
+}
+
+/**
+ * The account's builds to offer on the start screen, newest first: those not finished, and a finished one only if this
+ * browser never showed its home. Builds whose time is not known keep the service's order, after the others.
+ */
+export function offeredBuilds<Status extends {id?: string; finished?: boolean}>(
+  builds: Status[],
+  seen: Set<string>,
+): Status[] {
+  const offered = builds.filter(build => !build.finished || !seen.has(build.id || ''));
+  const timed = offered.filter(build => buildStartedAt(build.id) !== null);
+  const untimed = offered.filter(build => buildStartedAt(build.id) === null);
+  timed.sort((a, b) => (buildStartedAt(b.id) || 0) - (buildStartedAt(a.id) || 0));
+  return [...timed, ...untimed];
 }
 
 // ---------- the build this browser follows ----------
@@ -502,26 +549,80 @@ function planSvg(plan: Plan): string {
 
 // ---------- the start screen's card ----------
 
+/** What the start screen says of a build: its state, a title and a short note. */
+interface BuildCardText {
+  state: 'ready' | 'stopped' | 'running' | 'done';
+  title: string;
+  note: string;
+}
+
+function buildCardText(status: BuildStatus): BuildCardText {
+  if (status.finished) {
+    return {
+      state: 'done',
+      title: t('Your home is ready'),
+      note: t('It opens in the editor: everything stays changeable.'),
+    };
+  }
+  if (status.waiting === 'final') {
+    return {
+      state: 'ready',
+      title: t('Your home is ready'),
+      note: t('Look at it in 3D and say what to change.'),
+    };
+  }
+  if (status.error || !status.alive) {
+    return {state: 'stopped', title: t('The build stopped'), note: t('Open it to try again.')};
+  }
+  const title = status.revising ? t('Changing your home…') : t('Your home is being built');
+  const note = [t(currentStage(status).label), etaText(status.eta)].filter(Boolean).join(' · ');
+  return {state: 'running', title, note};
+}
+
+// The account's other builds under the card: a few rows at most, newest first.
+const MORE_BUILDS_SHOWN = 2;
+
 /**
  * The start screen's AI card (flows.js offerAi): "Build with AI", or — while a build this browser follows is on its way — that
- * build: the stage it is at, the time left and a bar, kept up to date while the start screen is shown. Opens the build, or
- * the upload for a new one.
+ * build: the stage it is at, the time left and a bar, kept up to date while the start screen is shown. A browser that follows
+ * none, signed in, is offered the account's builds instead (offeredBuilds): the newest in the card, a few more in rows under
+ * it. Opens the build, or the upload for a new one.
  */
 export function aiStartCard(ed: Editor, card: HTMLElement, {api = ''}: {api?: string} = {}): void {
   const idle = card.innerHTML;
+  const more = el(`<div class="aib-start-more" hidden></div>`);
   const another = el(
     `<button class="aib-start-new" hidden>${icon('plus', 18)}${esc(t('Start another build'))}</button>`,
   );
-  card.after(another);
+  card.after(more, another);
   let shown: BuildStatus | null = null;
   let timer: ReturnType<typeof setTimeout> | number = 0;
+  // Whether the AI build has accounts here, asked once; the account's builds are offered only then.
+  let accountsHere: Promise<boolean> | null = null;
+  // "Start another build" on an offered build: the offer stays away while this page is open.
+  let offerDismissed = false;
 
   const open = (id: string | null): AiBuildScreen => openAiBuild(ed, {api, id});
-  card.onclick = () => open(shown ? followedBuild() : null);
+  card.onclick = () => open(shown?.id || null);
   another.onclick = () => {
     follow(null);
+    offerDismissed = true;
     show(null);
+    showMore([]);
     open(null);
+  };
+  more.addEventListener('click', e => {
+    const row = targetOf(e).closest<HTMLElement>('[data-id]');
+    if (row?.dataset.id) open(row.dataset.id);
+  });
+
+  const badgeOf = (status: BuildStatus, text: BuildCardText): string => {
+    // The service's status names its build (status.id).
+    const shot = `<img src="${api}/api/builds/${encodeURIComponent(status.id as string)}/shot" alt="">`;
+    if ((text.state === 'ready' || text.state === 'done') && status.has?.shot) return shot;
+    if (text.state === 'ready' || text.state === 'done') return icon('house', 20);
+    if (text.state === 'stopped') return icon('alert', 20);
+    return '<i class="aib-start-spin"></i>';
   };
 
   function show(status: BuildStatus | null): void {
@@ -533,40 +634,42 @@ export function aiStartCard(ed: Editor, card: HTMLElement, {api = ''}: {api?: st
       delete card.dataset.state;
       return;
     }
-    const stopped = !!status.error || !status.alive;
-    const ready = status.waiting === 'final';
-    const state = ready ? 'ready' : stopped ? 'stopped' : 'running';
-    const title = ready
-      ? t('Your home is ready')
-      : stopped
-        ? t('The build stopped')
-        : status.revising
-          ? t('Changing your home…')
-          : t('Your home is being built');
-    const note = ready
-      ? t('Look at it in 3D and say what to change.')
-      : stopped
-        ? t('Open it to try again.')
-        : [t(currentStage(status).label), etaText(status.eta)].filter(Boolean).join(' · ');
-    // The service's status names its build (status.id).
-    const badge =
-      ready && status.has?.shot
-        ? `<img src="${api}/api/builds/${encodeURIComponent(status.id as string)}/shot" alt="">`
-        : ready
-          ? icon('house', 20)
-          : stopped
-            ? icon('alert', 20)
-            : '<i class="aib-start-spin"></i>';
-    if (card.dataset.state !== state) {
-      card.dataset.state = state;
+    const text = buildCardText(status);
+    const stateKey = `${text.state}:${status.id}`;
+    if (card.dataset.state !== stateKey) {
+      card.dataset.state = stateKey;
       card.innerHTML = `<span class="ci aib-start-badge"></span><b></b><span class="aib-start-note"></span><i class="aib-start-meter"><i></i></i>${icon('right', 18)}`;
-      find(card, '.aib-start-badge').innerHTML = badge;
+      find(card, '.aib-start-badge').innerHTML = badgeOf(status, text);
     }
-    find(card, 'b').textContent = title;
-    find(card, '.aib-start-note').textContent = note;
+    find(card, 'b').textContent = text.title;
+    find(card, '.aib-start-note').textContent = text.note;
     const meter = find(card, '.aib-start-meter');
-    meter.hidden = ready || stopped;
+    meter.hidden = text.state !== 'running';
     barOf(meter).style.width = percent(status.share || 0);
+  }
+
+  // The account's other builds, one compact row each.
+  function showMore(builds: BuildStatus[]): void {
+    more.hidden = !builds.length;
+    more.innerHTML = builds
+      .map(build => {
+        const text = buildCardText(build);
+        const badge = `<span class="aib-start-row-badge" data-state="${text.state}">${badgeOf(build, text)}</span>`;
+        return `<button class="aib-start-row" data-id="${esc(build.id)}">${badge}<b>${esc(text.title)}</b><span>${esc(text.note)}</span>${icon('right', 15)}</button>`;
+      })
+      .join('');
+  }
+
+  // The account's builds this browser may be offered; none without accounts (local work lists every build there).
+  async function accountBuilds(): Promise<BuildStatus[]> {
+    accountsHere ||= accountOffer(api)
+      .then(offer => !!offer)
+      .catch(() => false);
+    if (offerDismissed || !(await accountsHere)) return [];
+    const res = await fetch(`${api}/api/builds`, {cache: 'no-store'});
+    if (!res.ok) return [];
+    const builds = (await res.json()) as BuildStatus[];
+    return offeredBuilds(builds, seenBuilds());
   }
 
   async function refresh(): Promise<void> {
@@ -575,19 +678,27 @@ export function aiStartCard(ed: Editor, card: HTMLElement, {api = ''}: {api?: st
     const id = followedBuild();
     const onScreen = !card.closest<HTMLElement>('#start')?.hidden && !document.hidden;
     if (!onScreen) return;
-    if (!id) return show(null);
     try {
+      if (!id) {
+        const offered = await accountBuilds();
+        show(offered[0] || null);
+        showMore(offered.slice(1, 1 + MORE_BUILDS_SHOWN));
+        return;
+      }
+      showMore([]);
       const res = await fetch(`${api}/api/builds/${encodeURIComponent(id)}`, {cache: 'no-store'});
+      // An account's build is not shown while this browser is signed out: it stays followed, and shows again once the
+      // owner signs in. Not there (or another account's): nothing to follow.
+      if (res.status === 401) return show(null);
       if (res.status === 404) {
-        // An account's build is not shown while this browser is signed out: it stays followed, and shows again once the
-        // owner signs in.
-        if (!(await signedOutWithAccounts(api))) follow(null);
+        follow(null);
         return show(null);
       }
       if (!res.ok) return;
       const status = (await res.json()) as BuildStatus;
       // Its home was opened: nothing more to follow.
       if (status.finished) {
+        markSeen(id);
         follow(null);
         return show(null);
       }
@@ -625,7 +736,7 @@ export async function openAiFromAddress(
     try {
       claimed = await claimPayment(api, back.payment);
     } catch (error) {
-      notice = t('Could not check the payment: {0}', refusalText(error));
+      notice = paymentClaimText(error);
     }
   }
   const signInNotice = back.signIn === 'failed' ? t('Could not sign in. Try again or use your email.') : null;
@@ -702,10 +813,14 @@ export function openAiBuild(ed: Editor, options: AiBuildOptions = {}): AiBuildSc
   let accountTrouble: string | null = null;
   // A line for the owner on the account's place: why a top-up or a payment did not go through, a build that could not start.
   let accountLine: string | null = notice;
+  // The line only says a first package is needed: it reads as a hint, not as a fault.
+  let accountLineIsHint = false;
   // The build is not shown to this browser: signed out, or signed in with another account (the service answers 404 to both).
   let locked: 'signed-out' | 'other' | null = null;
   // The owner signed out here: the build's page does not ask them to sign in again by itself.
   let signedOutHere = false;
+  // The owner pressed "Build my home" signed out: once signed in, the build starts (startAfterSignIn).
+  let startWhenSignedIn = false;
   let signInSheet: SignInSheet | null = null;
   let headBar: AccountBar | null = null;
   // The account's place in the review, above its send button (the review fills it with this page's renderReviewAccount).
@@ -754,30 +869,47 @@ export function openAiBuild(ed: Editor, options: AiBuildOptions = {}): AiBuildSc
     return headBar.element;
   }
 
-  function askSignIn(reason: SignInReason, line: string | null = null): void {
+  // fromBuildButton: the owner pressed "Build my home" signed out — once signed in, the build starts by itself.
+  function askSignIn(reason: SignInReason, line: string | null = null, fromBuildButton = false): void {
     if (!offer || signInSheet) return;
+    if (fromBuildButton) startWhenSignedIn = true;
     signInSheet = openSignIn(root, {
       api,
       offer,
       reason,
       notice: line,
       returnPath: () => pathOf(location.href),
-      beforeLeave: () => (screen === 'upload' ? keepChosen(chosen) : Promise.resolve()),
+      beforeLeave: () => (screen === 'upload' ? keepChosen(chosen, startWhenSignedIn) : Promise.resolve()),
       onSignedIn: signedIn => {
         signInSheet = null;
         account = signedIn;
         accountLine = null;
+        accountLineIsHint = false;
         signedOutHere = false;
         renderAccount();
         if (locked) {
           locked = null;
           poll();
         }
+        startAfterSignIn();
       },
       onClose: () => {
         signInSheet = null;
+        startWhenSignedIn = false;
       },
     });
+  }
+
+  // Signed in after pressing "Build my home": the build starts, as the owner asked. With nothing on the account, the package
+  // is offered instead: no build, nothing spent.
+  function startAfterSignIn(): void {
+    if (!startWhenSignedIn || screen !== 'upload' || !account) return;
+    startWhenSignedIn = false;
+    if (offer && account.balance.empty) {
+      sayEmptyStart();
+      return;
+    }
+    if (chosen.plan && chosen.videos.length) send(chosen);
   }
 
   function closeSignIn(): void {
@@ -801,6 +933,7 @@ export function openAiBuild(ed: Editor, options: AiBuildOptions = {}): AiBuildSc
     if (!offer) return;
     if (!account) return askSignIn(screen === 'upload' ? 'build' : 'account');
     accountLine = null;
+    accountLineIsHint = false;
     if (button) button.disabled = true;
     try {
       if (offer.payments === 'dodo') {
@@ -823,22 +956,6 @@ export function openAiBuild(ed: Editor, options: AiBuildOptions = {}): AiBuildSc
     renderAccount();
   }
 
-  // The build answered 404: with accounts, it may be another account's, or this browser is signed out (the service says
-  // the same to both). Asked of the account; the page then says which and offers the way in.
-  async function explainMissing(): Promise<boolean> {
-    await accountReady;
-    if (!offer) return false;
-    let who: Account | null = null;
-    try {
-      who = await currentAccount(api);
-    } catch {
-      return false;
-    }
-    account = who;
-    lockOut(who ? 'other' : 'signed-out');
-    return true;
-  }
-
   // The build is not shown here: the page says why and stops asking until the owner signs in.
   function lockOut(why: 'signed-out' | 'other'): void {
     locked = why;
@@ -851,6 +968,13 @@ export function openAiBuild(ed: Editor, options: AiBuildOptions = {}): AiBuildSc
     if (why === 'signed-out' && !signedOutHere) askSignIn('see');
   }
 
+  // Why the build cannot start with nothing on the account, under the package's button.
+  function sayEmptyStart(): void {
+    accountLine = emptyStartText(account?.balance);
+    accountLineIsHint = !!account && !account.balance.bought;
+    renderGo();
+  }
+
   // The account's place on the upload page, beside its button: the balance, or the package to buy first. Under them, on a
   // line of its own: why a build could not start, or a payment did not go through.
   function renderGo(): void {
@@ -861,12 +985,13 @@ export function openAiBuild(ed: Editor, options: AiBuildOptions = {}): AiBuildSc
     let slotHtml = '';
     if (offer && balance && !balance.empty) slotHtml = balanceMeter(balance);
     else if (offer && balance?.empty) {
-      slotHtml = `<button class="primary" data-act="buy">${esc(buyLabel(offer))}</button>`;
+      slotHtml = `<button class="primary" data-act="buy">${buyButtonInner(offer, {topUp: balance.bought})}</button>`;
     }
     slot.innerHTML = slotHtml;
     const line = accountLine || accountTrouble;
     lineNode.hidden = !line;
     lineNode.textContent = line || '';
+    lineNode.classList.toggle('aib-go-hint', accountLineIsHint && line === accountLine);
     syncStart();
   }
 
@@ -879,7 +1004,7 @@ export function openAiBuild(ed: Editor, options: AiBuildOptions = {}): AiBuildSc
       return;
     }
     const topUp = balance.empty
-      ? `<button class="soft" data-act="top-up">${esc(buyLabel(offer, {topUp: true}))}</button>`
+      ? `<button class="soft" data-act="top-up">${buyButtonInner(offer, {topUp: true})}</button>`
       : '';
     const line = accountLine ? `<small class="aib-wallet-err">${esc(accountLine)}</small>` : '';
     slot.innerHTML = balanceMeter(balance) + topUp + line;
@@ -955,15 +1080,23 @@ export function openAiBuild(ed: Editor, options: AiBuildOptions = {}): AiBuildSc
 
   // ---------- talking to the service ----------
 
-  // A failed answer of the build's own routes as an Error in its words. There, 404 with accounts means the build is not shown
-  // to this browser (signed out, or another account's): the page then says which and offers the way in (explainMissing).
+  // A failed answer of the build's own routes as an Error in its words. With accounts, 401 means this browser is signed out
+  // and 404 that the build is another account's (or not there): the page says which and offers the way in (lockOut).
   async function failureOf(res: Response): Promise<Error> {
     const data: unknown = await res.json().catch(() => ({}));
     const message = (data as ServiceError).error || res.statusText;
-    if (res.status !== 404 || !(await explainMissing())) return new Error(message);
-    return new Error(
-      locked === 'signed-out' ? t('You are signed out. Sign in again.') : t('Not in this account'),
-    );
+    // The sign-in that a 401 opens needs the offer.
+    await accountReady;
+    if (res.status === 401) {
+      account = null;
+      lockOut('signed-out');
+      return new Error(t('You are signed out. Sign in again.'));
+    }
+    if (res.status === 404 && offer) {
+      lockOut('other');
+      return new Error(t('Not in this account'));
+    }
+    return new Error(message);
   }
 
   async function getJson(path: string): Promise<unknown> {
@@ -1001,6 +1134,8 @@ export function openAiBuild(ed: Editor, options: AiBuildOptions = {}): AiBuildSc
       const s = (await getJson('')) as BuildStatus;
       if (answered && s.waiting !== answered) answered = null;
       status = answered && s.waiting === answered ? {...s, waiting: null} : s;
+      // Its finished home was shown in this browser: it is not offered here again (offeredBuilds).
+      if (status.finished) markSeen(buildId);
       noteSpending(status);
       if (status.has?.plan && !planRead) await loadPlanRead();
       if (status.waiting !== 'final') shownFinal = false;
@@ -1136,15 +1271,20 @@ export function openAiBuild(ed: Editor, options: AiBuildOptions = {}): AiBuildSc
       });
     }
     // Back from a provider's sign-in or the checkout: the files chosen before are back in their places.
-    takeChosen().then(kept => {
+    // Signed in there from the build button: the build starts once the account is known (startAfterSignIn).
+    takeChosen().then(async kept => {
       if (!kept || screen !== 'upload') return;
       if (kept.plan) setFiles('plan', [kept.plan]);
       if (kept.videos.length) setFiles('video', kept.videos);
+      if (!kept.startWhenSignedIn) return;
+      startWhenSignedIn = true;
+      await accountReady;
+      startAfterSignIn();
     });
     find(root, '[data-act=exit]').onclick = exit;
     // Signed out, the button opens the sign-in; else it is on only with a plan, a video and something left (syncStart).
     start.onclick = () => {
-      if (offer && !account) askSignIn('build');
+      if (offer && !account) askSignIn('build', null, true);
       else send(chosen);
     };
     renderGo();
@@ -1163,6 +1303,7 @@ export function openAiBuild(ed: Editor, options: AiBuildOptions = {}): AiBuildSc
     sending.classList.remove('err');
     line.textContent = t('Uploading…');
     accountLine = null;
+    accountLineIsHint = false;
     renderGo();
     const form = new FormData();
     // The language the owner reads: the build names the rooms and the furniture in it.
@@ -1199,11 +1340,11 @@ export function openAiBuild(ed: Editor, options: AiBuildOptions = {}): AiBuildSc
         if (xhr.status === 401) {
           account = null;
           renderAccount();
-          askSignIn('build');
+          askSignIn('build', null, true);
           return;
         }
-        accountLine = t('Nothing left on your account');
         await refreshAccount();
+        sayEmptyStart();
         return;
       }
       if (xhr.status >= 300 || !data.id) return failed(data.error || xhr.statusText);
@@ -1791,6 +1932,7 @@ export function openAiBuild(ed: Editor, options: AiBuildOptions = {}): AiBuildSc
   // The home is the owner's now: the editor as usual, the 3D large.
   function finish(): void {
     close();
+    if (buildId) markSeen(buildId);
     follow(null);
     setAddress(null);
     ed.setMain('3d');
