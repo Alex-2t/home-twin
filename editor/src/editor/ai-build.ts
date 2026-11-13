@@ -1,4 +1,3 @@
-// @ts-nocheck
 // The AI build (the paid "build my home" service; D-063, D-072, D-073, D-074): screens of its own, apart from the editor's tools.
 //   start    — the start screen's card: "Build with AI", or the build this browser follows, live (aiStartCard)
 //   upload   — the plan photo and a video of the home; the build starts
@@ -20,7 +19,7 @@
 //   POST <api>/api/builds/<id>/top-up             one more package on the build's own: a build waiting for it goes on
 // The package (what is left of what was bought, in percent; D-085): ai-wallet.js.
 import {t, N, getLang} from '../i18n/i18n.ts';
-import {el, esc} from './ui.ts';
+import {el, esc, find} from './ui.ts';
 import {icon} from './icons.ts';
 import {readPlan} from '../core/plan-file.ts';
 import {emptyPlan} from '../core/plan.ts';
@@ -28,6 +27,7 @@ import {kindName, localRoomName, numberAlike} from '../core/overview.ts';
 import {byId} from '../core/catalog.ts';
 import {openReview} from './ai-review.ts';
 import {changeCount, pinsToSend, pinsToRetry, refreshRetries} from './ai-pins.ts';
+import type {Pin, PinNotes, PinRetry, PinRound} from './ai-pins.ts';
 import {
   buyPackage,
   claimFromAddress,
@@ -37,6 +37,149 @@ import {
   walletMeter,
   walletOffer,
 } from './ai-wallet.ts';
+import type {Wallet, WalletOffer, WalletShare} from './ai-wallet.ts';
+import type {Outline, Plan} from '../core/types.ts';
+import type {Editor, EditorFlows} from './editor-types.ts';
+
+// ---------- what the service answers ----------
+// The service is ours (the harness's build server writes its answers as the API above says): its answers are read as these
+// types, not checked field by field; the code minds the fields that can be missing, as it always did.
+
+/**
+ * A step of the build as its status lists it (the harness's tools/steps.ts): its state, its usual time and the time it still
+ * needs.
+ */
+interface BuildStep {
+  name: string;
+  state: string;
+  typical?: number;
+  left?: number;
+}
+
+/**
+ * A room of the video: its name on the plan once matched, else its guess in English; left out (not on the plan), waiting for
+ * the plan, done; it has a frame to show; how many pieces were found there.
+ */
+interface VideoRoom {
+  id: string;
+  name?: string;
+  guess?: string;
+  left?: boolean;
+  waits?: boolean;
+  done?: boolean;
+  frame?: boolean;
+  pieces?: number;
+}
+
+/** A piece of furniture as the build lists it: its catalog type or model, the call's words, its room, how it is made, its state. */
+interface BuildPiece {
+  id?: string;
+  room?: string;
+  type?: string;
+  model?: string;
+  label: string;
+  how?: string;
+  state?: string;
+}
+
+/** The plan call at work: its round (above 0: fixing what our code found), thinking or writing, the rooms and openings found. */
+interface PlanCall {
+  round: number;
+  phase?: string;
+  rooms: string[];
+  openings?: number;
+}
+
+/** A room's call at work: thinking, writing or done, and the pieces written so far. */
+interface RoomCall {
+  phase?: string;
+  pieces: BuildPiece[];
+}
+
+/** What the calls have found so far (live): the plan, each room's call, the pieces being made and made, the rooms checked. */
+interface BuildLive {
+  plan?: PlanCall;
+  rooms?: Record<string, RoomCall>;
+  making?: BuildPiece[];
+  made?: BuildPiece[];
+  work?: BuildPiece[];
+  madeCount?: number;
+  checking?: string[];
+  checked?: string[];
+}
+
+/** A build's status (GET /api/builds/<id>). A status made here after a failure has only steps, rooms, has and the error. */
+interface BuildStatus {
+  id?: string;
+  steps: BuildStep[];
+  rooms: VideoRoom[];
+  /** What the service has to show: the plan as read, the plan photo, the home in 3D. */
+  has: {plan?: boolean; photo?: boolean; shot?: boolean};
+  /** The checkpoint the build waits at ('final': the owner's review). */
+  waiting?: string | null;
+  revising?: boolean;
+  alive?: boolean;
+  error?: string;
+  /** The error is in our code, not in the files. */
+  ourCode?: boolean;
+  /** Waiting for a top-up. */
+  paused?: boolean;
+  /** Its home was opened. */
+  finished?: boolean;
+  /** Seconds left. */
+  eta?: number | null;
+  /** How far the whole build is, 0–1. */
+  share?: number;
+  wallet?: WalletShare | null;
+  live?: BuildLive;
+  lastRound?: PinRound | null;
+  rounds?: PinRound[];
+}
+
+/** A failed answer says why in {error}. */
+interface ServiceError {
+  error?: string;
+}
+
+/** What the owner sees as a stage, and its state now. */
+interface Stage {
+  key: 'plan' | 'rooms' | 'furniture' | 'assembly' | 'final';
+  steps: string[];
+  label: string;
+  note: string;
+}
+type StageState = 'todo' | 'ask' | 'running' | 'done';
+
+/** The plan as read: its outline and what it holds. */
+interface PlanRead {
+  svg: string;
+  rooms: number;
+  openings: number;
+}
+
+/** The owner's notes as this browser keeps them (saveNotes). */
+interface SavedNotes {
+  pins?: unknown;
+  text?: string;
+}
+
+/** The files chosen for a build: the plan photo and the videos. */
+interface ChosenFiles {
+  plan: File | null;
+  videos: File[];
+}
+
+/** The AI build over the editor (openAiBuild). */
+export interface AiBuildScreen {
+  close(): void;
+}
+
+// What went wrong, in the words of the Error that fetch, JSON or the service threw.
+const messageOf = (error: unknown): string => (error as Error).message;
+// A meter's bar is its one child (<i class="aib-meter"><i></i></i>).
+const barOf = (meter: HTMLElement): HTMLElement => meter.firstChild as HTMLElement;
+// The element an event is on: a click lands on an element.
+const targetOf = (e: Event): Element => e.target as Element;
 
 const POLL_MS = 2000;
 const START_POLL_MS = 3000;
@@ -48,7 +191,7 @@ const PHRASE_SECONDS = 5;
 
 // What the owner sees as stages; each is a few of the build's own steps (the harness's tools/steps.ts). The plan runs beside
 // the rooms, so two stages can run at once.
-const STAGES = [
+const STAGES: Stage[] = [
   {
     key: 'plan',
     steps: ['plan'],
@@ -80,8 +223,25 @@ const STAGES = [
     note: N('A last look over the whole home'),
   },
 ];
+// The steps that have lines of their own, and the plan call fixing its plan.
+type PhraseStep =
+  | 'plan'
+  | 'planFix'
+  | 'split'
+  | 'frames'
+  | 'recon'
+  | 'rooms'
+  | 'bind'
+  | 'ours'
+  | 'parts'
+  | 'colours'
+  | 'assemble'
+  | 'check'
+  | 'revise'
+  | 'shot'
+  | 'report';
 // What each step does while it has nothing new to show, named in turn: each line true of that step (a dry word now and then).
-const PHRASES = {
+const PHRASES: Record<PhraseStep, string[]> = {
   plan: [
     N('Looking at the drawing'),
     N('Finding the outer walls'),
@@ -187,27 +347,28 @@ const ROOM_PHRASES = [N('Looking…'), N('Walls, doors, windows…'), N('Listing
 
 // A room of the video: its name on the plan once matched (read off the plan, often in English), else what its guess in English
 // ("rear terrace") is — in the owner's language either way.
-const roomName = room =>
+const roomName = (room: Pick<VideoRoom, 'name' | 'guess'>): string =>
   room.name ? (getLang() === 'en' ? room.name : localRoomName(room.name, t)) : kindName(room.guess, t);
 
 // Each room of the video by its id, named (roomName); two that would read the same are numbered in video order.
-function videoRoomNames(rooms) {
+// Looked up by a room that may be missing (an id the status does not list yet).
+function videoRoomNames(rooms: VideoRoom[]): Map<string | undefined, string> {
   const names = numberAlike(rooms.map(roomName));
   return new Map(rooms.map((room, index) => [room.id, names[index]]));
 }
 
 // A piece of furniture as the build lists it ({type, model?, label}): our catalog's name in the owner's language when the room
 // call matched it to one, else the call's own words.
-function pieceName(piece) {
+function pieceName(piece: BuildPiece): string {
   const model = byId(piece.type) || (piece.model ? byId(piece.model) : null);
   return model ? t(model.name).replace(/­/g, '') : piece.label;
 }
 
 /** Whether the AI build's service answers here: only then does the start screen offer it. */
-export async function aiService(api = '') {
+export async function aiService(api = ''): Promise<boolean> {
   try {
     const res = await fetch(`${api}/api/health`, {cache: 'no-store'});
-    return res.ok && (await res.json()).ok === true;
+    return res.ok && ((await res.json()) as {ok?: unknown}).ok === true;
   } catch {
     return false;
   }
@@ -215,7 +376,7 @@ export async function aiService(api = '') {
 
 // ---------- the build this browser follows ----------
 
-function followedBuild() {
+function followedBuild(): string | null {
   try {
     return localStorage.getItem(FOLLOWED);
   } catch {
@@ -223,7 +384,7 @@ function followedBuild() {
   }
 }
 
-function follow(id) {
+function follow(id: string | null): void {
   try {
     if (id) localStorage.setItem(FOLLOWED, id);
     else localStorage.removeItem(FOLLOWED);
@@ -232,7 +393,7 @@ function follow(id) {
 
 // ---------- reading a status ----------
 
-function stageState(status, stage) {
+function stageState(status: BuildStatus | null | undefined, stage: Stage): StageState {
   if (!status?.steps?.length) return 'todo';
   if (status.waiting === 'final' && stage.key === 'final') return 'ask';
   if (status.revising && (stage.key === 'assembly' || stage.key === 'final'))
@@ -245,30 +406,31 @@ function stageState(status, stage) {
 }
 
 // The stage the build is busiest with: the last one running (the plan runs beside the rooms).
-function currentStage(status) {
+function currentStage(status: BuildStatus): Stage {
   const running = STAGES.filter(stage => stageState(status, stage) === 'running');
-  return running.at(-1) || STAGES.find(stage => stageState(status, stage) !== 'done') || STAGES.at(-1);
+  // STAGES is not empty.
+  return running.at(-1) || STAGES.find(stage => stageState(status, stage) !== 'done') || STAGES.at(-1)!;
 }
 
 // How far a stage is, by its steps' usual time and the time they still need (the build server's estimate).
-function stageShare(status, stage) {
+function stageShare(status: BuildStatus, stage: Stage): number {
   const steps = status.steps.filter(x => stage.steps.includes(x.name));
   const typical = steps.reduce((sum, x) => sum + (x.typical || 0), 0);
   const left = steps.reduce((sum, x) => sum + (x.left || 0), 0);
   return typical ? Math.max(0.03, Math.min(0.97, 1 - left / typical)) : 0;
 }
 
-function etaText(seconds) {
+function etaText(seconds: number | null | undefined): string {
   if (seconds == null) return '';
   if (seconds < 40) return t('Almost done');
   const minutes = Math.max(1, Math.round(seconds / 60));
   return t('About {0, plural, one {# minute} other {# minutes}} left', minutes);
 }
 
-const percent = share => `${Math.round(Math.max(0, Math.min(1, share)) * 100)}%`;
+const percent = (share: number): string => `${Math.round(Math.max(0, Math.min(1, share)) * 100)}%`;
 
 /** A small outline of the plan's rooms, north up. */
-function planSvg(plan) {
+function planSvg(plan: Plan): string {
   const rings = plan.rooms.filter(room => !room.solid).map(room => room.polygon);
   const xs = rings.flat().map(p => p[0]);
   const ys = rings.flat().map(p => p[1]);
@@ -276,7 +438,7 @@ function planSvg(plan) {
   const y1 = Math.max(...ys);
   const w = Math.max(...xs) - x0;
   const h = y1 - Math.min(...ys);
-  const d = ring =>
+  const d = (ring: Outline): string =>
     'M' + ring.map(([x, y]) => `${(x - x0).toFixed(2)} ${(y1 - y).toFixed(2)}`).join('L') + 'Z';
   return `<svg viewBox="-.3 -.3 ${(w + 0.6).toFixed(2)} ${(h + 0.6).toFixed(2)}" aria-hidden="true">${rings.map(r => `<path d="${d(r)}"/>`).join('')}</svg>`;
 }
@@ -288,16 +450,16 @@ function planSvg(plan) {
  * build: the stage it is at, the time left and a bar, kept up to date while the start screen is shown. Opens the build, or
  * the upload for a new one.
  */
-export function aiStartCard(ed, card, {api = ''} = {}) {
+export function aiStartCard(ed: Editor, card: HTMLElement, {api = ''}: {api?: string} = {}): void {
   const idle = card.innerHTML;
   const another = el(
     `<button class="aib-start-new" hidden>${icon('plus', 18)}${esc(t('Start another build'))}</button>`,
   );
   card.after(another);
-  let shown = null;
-  let timer = 0;
+  let shown: BuildStatus | null = null;
+  let timer: ReturnType<typeof setTimeout> | number = 0;
 
-  const open = id => openAiBuild(ed, {api, id});
+  const open = (id: string | null): AiBuildScreen => openAiBuild(ed, {api, id});
   card.onclick = () => open(shown ? followedBuild() : null);
   another.onclick = () => {
     follow(null);
@@ -305,7 +467,7 @@ export function aiStartCard(ed, card, {api = ''} = {}) {
     open(null);
   };
 
-  function show(status) {
+  function show(status: BuildStatus | null): void {
     shown = status;
     another.hidden = !status;
     card.classList.toggle('aib-following', !!status);
@@ -329,9 +491,10 @@ export function aiStartCard(ed, card, {api = ''} = {}) {
       : stopped
         ? t('Open it to try again.')
         : [t(currentStage(status).label), etaText(status.eta)].filter(Boolean).join(' · ');
+    // The service's status names its build (status.id).
     const badge =
       ready && status.has?.shot
-        ? `<img src="${api}/api/builds/${encodeURIComponent(status.id)}/shot" alt="">`
+        ? `<img src="${api}/api/builds/${encodeURIComponent(status.id as string)}/shot" alt="">`
         : ready
           ? icon('house', 20)
           : stopped
@@ -340,20 +503,20 @@ export function aiStartCard(ed, card, {api = ''} = {}) {
     if (card.dataset.state !== state) {
       card.dataset.state = state;
       card.innerHTML = `<span class="ci aib-start-badge"></span><b></b><span class="aib-start-note"></span><i class="aib-start-meter"><i></i></i>${icon('right', 18)}`;
-      card.querySelector('.aib-start-badge').innerHTML = badge;
+      find(card, '.aib-start-badge').innerHTML = badge;
     }
-    card.querySelector('b').textContent = title;
-    card.querySelector('.aib-start-note').textContent = note;
-    const meter = card.querySelector('.aib-start-meter');
+    find(card, 'b').textContent = title;
+    find(card, '.aib-start-note').textContent = note;
+    const meter = find(card, '.aib-start-meter');
     meter.hidden = ready || stopped;
-    meter.firstChild.style.width = percent(status.share || 0);
+    barOf(meter).style.width = percent(status.share || 0);
   }
 
-  async function refresh() {
+  async function refresh(): Promise<void> {
     clearTimeout(timer);
     timer = setTimeout(refresh, START_POLL_MS);
     const id = followedBuild();
-    const onScreen = !card.closest('#start')?.hidden && !document.hidden;
+    const onScreen = !card.closest<HTMLElement>('#start')?.hidden && !document.hidden;
     if (!onScreen) return;
     if (!id) return show(null);
     try {
@@ -363,7 +526,7 @@ export function aiStartCard(ed, card, {api = ''} = {}) {
         return show(null);
       }
       if (!res.ok) return;
-      const status = await res.json();
+      const status = (await res.json()) as BuildStatus;
       // Its home was opened: nothing more to follow.
       if (status.finished) {
         follow(null);
@@ -387,7 +550,10 @@ export function aiStartCard(ed, card, {api = ''} = {}) {
  * The AI build the address asks for: ?build=<id> opens that build's progress. Back from the checkout (?payment_id=…), the
  * payment is counted first, then the build it was for opens, or the upload page.
  */
-export async function openAiFromAddress(ed, {api = ''} = {}) {
+export async function openAiFromAddress(
+  ed: Editor,
+  {api = ''}: {api?: string} = {},
+): Promise<AiBuildScreen | null> {
   const params = new URLSearchParams(location.search);
   const id = params.get('build');
   if (!id && !params.has('payment_id') && !params.has('paid')) return null;
@@ -401,39 +567,51 @@ export async function openAiFromAddress(ed, {api = ''} = {}) {
 }
 
 // notice — a line for the owner on arrival (a payment that did not go through), on the package's place.
-export function openAiBuild(ed, {api = '', id = null, flows = ed.flows, notice = null} = {}) {
+export function openAiBuild(
+  ed: Editor,
+  {
+    api = '',
+    id = null,
+    flows = ed.flows,
+    notice = null,
+  }: {api?: string; id?: string | null; flows?: EditorFlows; notice?: string | null} = {},
+): AiBuildScreen {
   const root = el(`<div class="aib"></div>`);
   document.body.append(root);
   flows?.hideStart();
   let buildId = id;
-  let status = null;
-  let screen = null;
-  let review = null;
-  let timer = 0;
+  let status: BuildStatus | null = null;
+  let screen: 'upload' | 'progress' | 'review' | null = null;
+  let review: {close(): void} | null = null;
+  let timer: ReturnType<typeof setTimeout> | number = 0;
   let closed = false;
   // The checkpoint answered just now: until the build moves on, it does not count as waiting.
-  let answered = null;
+  let answered: string | null = null;
   // The finished home opens by itself once; after "back" the owner opens it from its card.
   let shownFinal = false;
   // The plan as read: its outline and what it holds, once the plan call is done.
-  let planRead = null;
+  let planRead: PlanRead | null = null;
   // Why the last top-up did not go through, in words, said on the card that offers it.
   let topUpError = notice;
   // How a package comes from the service (bought at a checkout, or given free) and its price; asked once.
-  let offer = null;
-  const paid = () => offer?.payments === 'dodo';
+  let offer: WalletOffer | null = null;
+  const paid = (): boolean => offer?.payments === 'dodo';
   walletOffer(api)
     .then(found => {
       offer = found;
       if (screen === 'progress') renderProgress();
     })
     .catch(() => {});
-  const base = () => `${api}/api/builds/${encodeURIComponent(buildId)}`;
+  // The build's own pages are asked for once it has its id.
+  const base = (): string => `${api}/api/builds/${encodeURIComponent(buildId as string)}`;
+  // The status the progress shows: it is drawn only once there is one (renderProgress stops before without it), and the
+  // owner's buttons that lead to the review and the home come with one.
+  const shown = (): BuildStatus => status as BuildStatus;
   if (buildId) follow(buildId);
 
   // ---------- the address and the editor underneath ----------
 
-  function setAddress(value) {
+  function setAddress(value: string | null): void {
     const url = new URL(location.href);
     if (value) url.searchParams.set('build', value);
     else url.searchParams.delete('build');
@@ -441,52 +619,53 @@ export function openAiBuild(ed, {api = '', id = null, flows = ed.flows, notice =
   }
 
   // The service builds the home: the editor's own setup steps stay out of the way, without the "setup paused" note.
-  function quietSetup() {
+  function quietSetup(): void {
     ed.exitWizard();
     ed.banner();
   }
 
   // A full-screen page of the AI build is up: the 3D under it draws nothing.
-  function cover(on) {
+  function cover(on: boolean): void {
     if (on) ed.view.pause?.();
     else ed.view.resume?.();
   }
 
   // ---------- notes kept while the owner looks (pins and words), per build ----------
 
-  const notesKey = () => `${NOTES}${buildId}:final`;
-  function loadNotes() {
+  const notesKey = (): string => `${NOTES}${buildId}:final`;
+  function loadNotes(): PinNotes {
     try {
-      const saved = JSON.parse(localStorage.getItem(notesKey()) || 'null');
-      if (saved && Array.isArray(saved.pins)) return {pins: saved.pins, text: saved.text || ''};
+      // Kept by saveNotes; what is inside the pins is not checked (it never was).
+      const saved = JSON.parse(localStorage.getItem(notesKey()) || 'null') as SavedNotes | null;
+      if (saved && Array.isArray(saved.pins)) return {pins: saved.pins as Pin[], text: saved.text || ''};
     } catch {}
     return {pins: [], text: ''};
   }
-  function saveNotes(notes) {
+  function saveNotes(notes: PinNotes): void {
     try {
       localStorage.setItem(notesKey(), JSON.stringify(notes));
     } catch {}
   }
-  function clearNotes() {
+  function clearNotes(): void {
     try {
       localStorage.removeItem(notesKey());
     } catch {}
   }
   // The pins of the service's last round that did not work out come back once, as pins to look at again; those already back
   // follow what the service says of the round now.
-  const retriedKey = () => `${NOTES}${buildId}:retried`;
-  function notesWithRetries() {
+  const retriedKey = (): string => `${NOTES}${buildId}:retried`;
+  function notesWithRetries(): PinNotes {
     const notes = loadNotes();
     const round = status?.lastRound?.round;
     if (!round) return notes;
-    notes.pins = refreshRetries(notes.pins, status.lastRound);
+    notes.pins = refreshRetries(notes.pins, status?.lastRound);
     saveNotes(notes);
     let retried = 0;
     try {
       retried = Number(localStorage.getItem(retriedKey()) || 0);
     } catch {}
     if (retried >= round) return notes;
-    notes.pins.push(...pinsToRetry(status.lastRound));
+    notes.pins.push(...pinsToRetry(status?.lastRound));
     saveNotes(notes);
     try {
       localStorage.setItem(retriedKey(), String(round));
@@ -496,40 +675,41 @@ export function openAiBuild(ed, {api = '', id = null, flows = ed.flows, notice =
 
   // ---------- talking to the service ----------
 
-  async function getJson(path) {
+  async function getJson(path: string): Promise<unknown> {
     const res = await fetch(base() + path, {cache: 'no-store'});
-    if (!res.ok) throw new Error((await res.json().catch(() => ({}))).error || res.statusText);
+    if (!res.ok)
+      throw new Error(((await res.json().catch(() => ({}))) as ServiceError).error || res.statusText);
     return res.json();
   }
 
   // A pin's picture to the service → its name there.
-  async function uploadPicture(blob, kind) {
+  async function uploadPicture(blob: Blob, kind: 'view' | 'photo'): Promise<string> {
     const res = await fetch(`${base()}/pin-photo?kind=${kind}`, {
       method: 'POST',
       headers: {'content-type': blob.type || 'application/octet-stream'},
       body: blob,
     });
-    const data = await res.json().catch(() => ({}));
+    const data = (await res.json().catch(() => ({}))) as {file: string} & ServiceError;
     if (!res.ok) throw new Error(data.error || res.statusText);
     return data.file;
   }
 
-  async function post(path, body) {
+  async function post(path: string, body?: unknown): Promise<unknown> {
     const res = await fetch(base() + path, {
       method: 'POST',
       headers: {'content-type': 'application/json'},
       body: JSON.stringify(body || {}),
     });
-    const data = await res.json().catch(() => ({}));
-    if (!res.ok) throw new Error(data.error || res.statusText);
+    const data: unknown = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error((data as ServiceError).error || res.statusText);
     return data;
   }
 
-  async function poll() {
+  async function poll(): Promise<void> {
     clearTimeout(timer);
     if (closed || !buildId) return;
     try {
-      const s = await getJson('');
+      const s = (await getJson('')) as BuildStatus;
       if (answered && s.waiting !== answered) answered = null;
       status = answered && s.waiting === answered ? {...s, waiting: null} : s;
       if (status.has?.plan && !planRead) await loadPlanRead();
@@ -540,13 +720,13 @@ export function openAiBuild(ed, {api = '', id = null, flows = ed.flows, notice =
         startReview();
       } else if (screen === 'progress') renderProgress();
     } catch (e) {
-      status = {...(status || {steps: [], rooms: [], has: {}}), error: e.message};
+      status = {...(status || {steps: [], rooms: [], has: {}}), error: messageOf(e)};
       if (screen === 'progress') renderProgress();
     }
     timer = setTimeout(poll, POLL_MS);
   }
 
-  async function loadPlanRead() {
+  async function loadPlanRead(): Promise<void> {
     try {
       const res = await fetch(`${base()}/plan`, {cache: 'no-store'});
       if (!res.ok) return;
@@ -561,11 +741,18 @@ export function openAiBuild(ed, {api = '', id = null, flows = ed.flows, notice =
 
   // ---------- the upload ----------
 
-  function showUpload() {
+  function showUpload(): void {
     screen = 'upload';
     cover(true);
-    const files = {plan: null, videos: []};
-    const drop = (kind, ic, title, note, accept, multiple) => `
+    const files: ChosenFiles = {plan: null, videos: []};
+    const drop = (
+      kind: string,
+      ic: string,
+      title: string,
+      note: string,
+      accept: string,
+      multiple: boolean,
+    ): string => `
       <label class="aib-drop" data-kind="${kind}">
         <input type="file" accept="${accept}" ${multiple ? 'multiple' : ''} hidden>
         <span class="aib-drop-ic">${icon(ic, 20)}</span>
@@ -597,48 +784,49 @@ export function openAiBuild(ed, {api = '', id = null, flows = ed.flows, notice =
           <div class="aib-sending" hidden><i class="aib-meter"><i></i></i><span></span></div>
         </main>
       </div>`;
-    const start = root.querySelector('[data-act=start]');
+    const start = find<HTMLButtonElement>(root, '[data-act=start]');
     // The package the build spends from: a build starts only while something is left on it. Without one, or with it used up,
     // it is bought here first (given free where the service takes no payments).
-    let wallet = null;
-    const sync = () => {
+    let wallet: Wallet | null = null;
+    const sync = (): void => {
       start.disabled = !files.plan || !files.videos.length || !wallet || wallet.empty;
     };
     // The button that gets a package, if one is needed now: [what it does, its label].
-    const walletAction = () => {
+    const walletAction = (): [act: string, label: string] | null => {
       const price = priceText(offer?.price);
       if (!wallet) return paid() ? ['buy', t('Buy a package · {0}', price)] : null;
       if (!wallet.empty) return null;
       return ['top-up', paid() ? t('Top up · {0}', price) : t('Top up')];
     };
     // line: what to say under the package, already in words.
-    const showWallet = line => {
-      const slot = root.querySelector('.aib-go-wallet');
+    const showWallet = (line: string | null): void => {
+      const slot = find(root, '.aib-go-wallet');
       const action = walletAction();
       const button = action
         ? `<button class="${wallet ? 'soft' : 'primary'}" data-act="${action[0]}">${esc(action[1])}</button>`
         : '';
       const why = line ? `<small class="aib-wallet-err">${esc(line)}</small>` : '';
       slot.innerHTML = walletMeter(wallet) + button + why;
-      const node = slot.querySelector('[data-act]');
+      const node = slot.querySelector<HTMLButtonElement>('[data-act]');
       if (node) node.onclick = () => getPackage(node);
     };
-    const getPackage = async node => {
+    const getPackage = async (node: HTMLButtonElement): Promise<void> => {
       node.disabled = true;
       if (paid()) {
         node.textContent = t('Opening the payment…');
         try {
           await buyPackage(api, {wallet: wallet?.key || null});
         } catch (e) {
-          showWallet(t('Could not open the payment: {0}', e.message));
+          showWallet(t('Could not open the payment: {0}', messageOf(e)));
         }
         return;
       }
       try {
-        wallet = await topUpWallet(api, wallet.key);
+        // A free top-up is offered only on a package (walletAction).
+        wallet = await topUpWallet(api, wallet!.key);
         showWallet(null);
       } catch (e) {
-        showWallet(t('Could not top up: {0}', e.message));
+        showWallet(t('Could not top up: {0}', messageOf(e)));
       }
       sync();
     };
@@ -649,34 +837,35 @@ export function openAiBuild(ed, {api = '', id = null, flows = ed.flows, notice =
         showWallet(notice);
         sync();
       })
-      .catch(e => showWallet(e.message));
-    const setFiles = (kind, list) => {
-      const label = root.querySelector(`.aib-drop[data-kind=${kind}]`);
-      const shown = label.querySelector('.aib-drop-file');
+      .catch((e: unknown) => showWallet(messageOf(e)));
+    const setFiles = (kind: string | undefined, list: File[]): void => {
+      const label = find(root, `.aib-drop[data-kind=${kind}]`);
+      const shown = find(label, '.aib-drop-file');
       if (kind === 'plan') {
         const image = list.find(f => f.type.startsWith('image/'));
         if (!image) return;
         files.plan = image;
         shown.innerHTML = `<img alt="">`;
-        shown.querySelector('img').src = URL.createObjectURL(image);
+        find<HTMLImageElement>(shown, 'img').src = URL.createObjectURL(image);
       } else {
         const videos = list.filter(f => f.type.startsWith('video/'));
         if (!videos.length) return;
         files.videos = videos;
         const megabytes = videos.reduce((sum, f) => sum + f.size, 0) / 1e6;
         shown.innerHTML = `<video muted playsinline preload="metadata"></video><small></small>`;
-        shown.querySelector('video').src = URL.createObjectURL(videos[0]) + '#t=1';
-        shown.querySelector('small').textContent =
+        find<HTMLVideoElement>(shown, 'video').src = URL.createObjectURL(videos[0]) + '#t=1';
+        find(shown, 'small').textContent =
           t('{0, plural, one {# video} other {# videos}}', videos.length) + ` · ${Math.round(megabytes)} MB`;
       }
       shown.hidden = false;
       label.classList.add('has');
       sync();
     };
-    for (const label of root.querySelectorAll('.aib-drop')) {
+    for (const label of root.querySelectorAll<HTMLElement>('.aib-drop')) {
       const kind = label.dataset.kind;
-      const input = label.querySelector('input');
-      input.onchange = () => setFiles(kind, [...input.files]);
+      const input = find<HTMLInputElement>(label, 'input');
+      // A file input always has its list.
+      input.onchange = () => setFiles(kind, [...input.files!]);
       label.addEventListener('dragover', e => {
         e.preventDefault();
         label.classList.add('over');
@@ -685,19 +874,21 @@ export function openAiBuild(ed, {api = '', id = null, flows = ed.flows, notice =
       label.addEventListener('drop', e => {
         e.preventDefault();
         label.classList.remove('over');
-        setFiles(kind, [...e.dataTransfer.files]);
+        // A drop carries its data.
+        setFiles(kind, [...e.dataTransfer!.files]);
       });
     }
-    root.querySelector('[data-act=exit]').onclick = exit;
-    start.onclick = () => send(files, wallet);
+    find(root, '[data-act=exit]').onclick = exit;
+    // The button is on only with a plan, a video and something left on the package (sync).
+    start.onclick = () => send(files, wallet as Wallet);
   }
 
   // The files go up with a progress bar (fetch reports no upload progress); then the build's progress.
-  function send(files, wallet) {
-    const sending = root.querySelector('.aib-sending');
-    const bar = sending.querySelector('.aib-meter>i');
-    const line = sending.querySelector('span');
-    const start = root.querySelector('[data-act=start]');
+  function send(files: ChosenFiles, wallet: Wallet): void {
+    const sending = find(root, '.aib-sending');
+    const bar = find(sending, '.aib-meter>i');
+    const line = find(sending, 'span');
+    const start = find<HTMLButtonElement>(root, '[data-act=start]');
     start.disabled = true;
     sending.hidden = false;
     sending.classList.remove('err');
@@ -707,7 +898,8 @@ export function openAiBuild(ed, {api = '', id = null, flows = ed.flows, notice =
     form.append('lang', getLang());
     // The package the build spends from.
     form.append('wallet', wallet.key);
-    form.append('plan', files.plan);
+    // There is a plan: the button is on only with one (sync).
+    form.append('plan', files.plan as File);
     for (const video of files.videos) form.append('video', video);
     const xhr = new XMLHttpRequest();
     xhr.open('POST', `${api}/api/builds`);
@@ -717,16 +909,16 @@ export function openAiBuild(ed, {api = '', id = null, flows = ed.flows, notice =
       bar.style.width = `${Math.round(share * 100)}%`;
       line.textContent = t('Uploading… {0}%', Math.round(share * 100));
     };
-    const failed = message => {
+    const failed = (message: string): void => {
       sending.classList.add('err');
       line.textContent = t('Could not upload: {0}', message);
       start.disabled = false;
     };
     xhr.onerror = () => failed(t('no connection'));
     xhr.onload = async () => {
-      let data = {};
+      let data: {id?: string} & ServiceError = {};
       try {
-        data = JSON.parse(xhr.responseText);
+        data = JSON.parse(xhr.responseText) as {id?: string} & ServiceError;
       } catch {}
       if (xhr.status >= 300 || !data.id) return failed(data.error || xhr.statusText);
       // A new home: the plan open now is kept aside ("Restore previous plan"), the editor starts clean.
@@ -745,7 +937,7 @@ export function openAiBuild(ed, {api = '', id = null, flows = ed.flows, notice =
 
   // ---------- the progress ----------
 
-  function showProgress() {
+  function showProgress(): void {
     closeReview();
     screen = 'progress';
     cover(true);
@@ -782,9 +974,10 @@ export function openAiBuild(ed, {api = '', id = null, flows = ed.flows, notice =
           <button class="soft" data-act="copy">${esc(t('Copy link'))}</button>
         </footer>
       </div>`;
-    root.querySelector('[data-act=exit]').onclick = exit;
-    root.querySelector('[data-act=copy]').onclick = async e => {
-      const button = e.currentTarget;
+    find(root, '[data-act=exit]').onclick = exit;
+    find(root, '[data-act=copy]').onclick = async e => {
+      // The button the handler is on.
+      const button = e.currentTarget as HTMLButtonElement;
       try {
         await navigator.clipboard.writeText(location.href);
         button.textContent = t('Copied');
@@ -792,26 +985,30 @@ export function openAiBuild(ed, {api = '', id = null, flows = ed.flows, notice =
         button.textContent = location.href;
       }
     };
-    root.querySelector('.aib-cta').addEventListener('click', onCta);
+    find(root, '.aib-cta').addEventListener('click', onCta);
     renderProgress();
   }
 
-  const stepRunning = name => status.steps?.find(x => x.name === name)?.state === 'running';
-  const roomById = id => status.rooms?.find(room => room.id === id);
-  const nameOf = room => videoRoomNames(status.rooms || []).get(room?.id) ?? roomName(room || {guess: ''});
+  const stepRunning = (name: string): boolean =>
+    shown().steps?.find(x => x.name === name)?.state === 'running';
+  const roomById = (id: string | undefined): VideoRoom | undefined =>
+    shown().rooms?.find(room => room.id === id);
+  const nameOf = (room: VideoRoom | undefined): string =>
+    videoRoomNames(shown().rooms || []).get(room?.id) ?? roomName(room || {guess: ''});
   // A line that changes every few seconds, the same for everyone looking at the same moment; offset — another place in the turn.
-  const turn = () => Math.floor(Date.now() / 1000 / PHRASE_SECONDS);
-  const inTurn = (list, offset = 0) => list[(turn() + offset) % list.length];
+  const turn = (): number => Math.floor(Date.now() / 1000 / PHRASE_SECONDS);
+  const inTurn = <Item>(list: Item[], offset = 0): Item => list[(turn() + offset) % list.length];
   // What the step does, in turn.
-  const phrase = step => t(inTurn(PHRASES[step]));
+  const phrase = (step: PhraseStep): string => t(inTurn(PHRASES[step]));
   // Every other turn: a line about the work in hand (its room or piece in turn too), what the step does between — the line never
   // stands still for long, and each room still gets its turn.
-  const inHalfTurn = list => list[Math.floor(turn() / 2) % list.length];
-  const between = (line, step) => (turn() % 2 ? t(inHalfTurn(PHRASES[step])) : line);
+  const inHalfTurn = <Item>(list: Item[]): Item => list[Math.floor(turn() / 2) % list.length];
+  const between = (line: string, step: PhraseStep): string =>
+    turn() % 2 ? t(inHalfTurn(PHRASES[step])) : line;
 
   // What the plan call is at: thinking (what it works out, in turn), writing (the rooms as they come), or fixing what our code found.
-  function planLine() {
-    const call = status.live?.plan;
+  function planLine(): string {
+    const call = shown().live?.plan;
     if (call && call.round > 0) return phrase('planFix');
     if (call?.phase === 'writing' && call.rooms.length) return t('Found: {0}', call.rooms.at(-1));
     if (call?.phase === 'writing') return t('Writing down the plan');
@@ -819,9 +1016,10 @@ export function openAiBuild(ed, {api = '', id = null, flows = ed.flows, notice =
   }
 
   // The line under a running stage: what it is working on right now.
-  function stageLine(stage) {
+  function stageLine(stage: Stage): string {
+    const status = shown();
     if (status.paused) return t('Waiting for a top-up');
-    const live = status.live || {};
+    const live: BuildLive = status.live || {};
     if (stage.key === 'plan') return planLine();
     if (stage.key === 'rooms') {
       if (stepRunning('split')) return phrase('split');
@@ -829,8 +1027,9 @@ export function openAiBuild(ed, {api = '', id = null, flows = ed.flows, notice =
       const rooms = Object.entries(live.rooms || {});
       const writing = rooms.filter(([, call]) => call.phase === 'writing' && call.pieces.length);
       if (writing.length) {
-        const [id, call] = writing.at(-1);
-        return `${nameOf(roomById(id))}: ${pieceName(call.pieces.at(-1))}`;
+        // The room written last, and its piece written last: both lists have something (checked above).
+        const [id, call] = writing.at(-1)!;
+        return `${nameOf(roomById(id))}: ${pieceName(call.pieces.at(-1)!)}`;
       }
       const looking = rooms
         .filter(([, call]) => call.phase !== 'done')
@@ -861,8 +1060,9 @@ export function openAiBuild(ed, {api = '', id = null, flows = ed.flows, notice =
   }
 
   // The small count beside a stage's name.
-  function stageMeta(stage, state) {
-    const live = status.live || {};
+  function stageMeta(stage: Stage, state: StageState): string {
+    const status = shown();
+    const live: BuildLive = status.live || {};
     if (state === 'ask') return t('Ready to check');
     if (state !== 'running') return '';
     if (stage.key === 'plan' && live.plan?.rooms?.length)
@@ -880,7 +1080,7 @@ export function openAiBuild(ed, {api = '', id = null, flows = ed.flows, notice =
   }
 
   // A line that changed comes in softly; the same line stays still.
-  function setLine(node, text) {
+  function setLine(node: HTMLElement, text: string): void {
     node.hidden = !text;
     if (node.textContent === text) return;
     node.textContent = text;
@@ -889,13 +1089,13 @@ export function openAiBuild(ed, {api = '', id = null, flows = ed.flows, notice =
     node.classList.add('aib-swap');
   }
 
-  function renderSteps() {
+  function renderSteps(): void {
     STAGES.forEach((stage, i) => {
-      const item = root.querySelector(`.aib-step[data-stage="${stage.key}"]`);
+      const item = find(root, `.aib-step[data-stage="${stage.key}"]`);
       const state = stageState(status, stage);
       if (!item.classList.contains(`st-${state}`)) {
         item.className = `aib-step st-${state}`;
-        item.querySelector('.aib-dot').innerHTML =
+        find(item, '.aib-dot').innerHTML =
           state === 'done'
             ? icon('check', 13)
             : state === 'running'
@@ -904,17 +1104,17 @@ export function openAiBuild(ed, {api = '', id = null, flows = ed.flows, notice =
                 ? icon('eye', 13)
                 : String(i + 1);
       }
-      item.querySelector('em').textContent = stageMeta(stage, state);
-      setLine(item.querySelector('.aib-step-live'), state === 'running' ? stageLine(stage) : '');
-      const bar = item.querySelector('.aib-step-bar');
+      find(item, 'em').textContent = stageMeta(stage, state);
+      setLine(find(item, '.aib-step-live'), state === 'running' ? stageLine(stage) : '');
+      const bar = find(item, '.aib-step-bar');
       bar.hidden = state !== 'running';
-      if (state === 'running') bar.firstChild.style.width = percent(stageShare(status, stage));
+      if (state === 'running') barOf(bar).style.width = percent(stageShare(shown(), stage));
     });
   }
 
   // The card at the top of the live part: what the owner can do now, or what the build is busy with for them.
-  function ctaCard() {
-    const s = status;
+  function ctaCard(): {key: string; html: string} {
+    const s = shown();
     if (s.error) {
       // An error of our own code is said in words; its message stays on hover, for us.
       const why = s.ourCode ? t('An error in our code, not in the files') : s.error;
@@ -928,7 +1128,7 @@ export function openAiBuild(ed, {api = '', id = null, flows = ed.flows, notice =
     }
     if (s.paused) {
       const why = topUpError || t('The build waits. Top up and it goes on from where it stopped.');
-      const label = paid() ? t('Top up · {0}', priceText(offer.price)) : t('Top up');
+      const label = paid() ? t('Top up · {0}', priceText(offer?.price)) : t('Top up');
       return {
         key: `paused:${why}:${label}`,
         html: `<div class="aib-card asking">
@@ -969,14 +1169,16 @@ export function openAiBuild(ed, {api = '', id = null, flows = ed.flows, notice =
   }
 
   // The plan: its photo with a line going over it and what the call has found so far; once read, a short card of what it holds.
-  function renderReading() {
-    const box = root.querySelector('.aib-reading');
+  function renderReading(): void {
+    const status = shown();
+    const box = find(root, '.aib-reading');
     const reading = !!status.has?.photo && !status.has?.plan && !status.error;
     const read = !!planRead;
     box.hidden = !reading && !read;
     const mode = read ? 'read' : reading ? 'reading' : '';
     if (box.dataset.mode !== mode) {
       box.dataset.mode = mode;
+      // 'read': the plan is read (planRead is there).
       box.innerHTML =
         mode === 'reading'
           ? `<div class="aib-scan"><img src="${base()}/photo" alt=""><i></i></div>
@@ -984,7 +1186,7 @@ export function openAiBuild(ed, {api = '', id = null, flows = ed.flows, notice =
              <div class="aib-tags"></div>`
           : mode === 'read'
             ? `<div class="aib-card aib-plan-read">
-                <span class="aib-card-thumb plan">${planRead.svg}</span>
+                <span class="aib-card-thumb plan">${planRead!.svg}</span>
                 <span class="aib-card-text"><b>${esc(t('The plan is read'))}</b><small></small></span>
                 <span class="aib-done">${icon('check', 15)}</span></div>`
             : '';
@@ -994,13 +1196,13 @@ export function openAiBuild(ed, {api = '', id = null, flows = ed.flows, notice =
       const next = !stepRunning('plan') && !status.live?.plan;
       box.classList.toggle('aib-waiting', next);
       setLine(
-        box.querySelector('.aib-reading-line span'),
+        find(box, '.aib-reading-line span'),
         next ? t('Your plan is next: first the video is cut into rooms') : planLine(),
       );
       const call = status.live?.plan;
       const names = call?.rooms || [];
-      const tags = box.querySelector('.aib-tags');
-      let count = tags.querySelector('.aib-tag-count');
+      const tags = find(box, '.aib-tags');
+      let count = tags.querySelector<HTMLElement>('.aib-tag-count');
       const shown = tags.querySelectorAll('.aib-tag:not(.aib-tag-count)').length;
       for (const name of names.slice(shown))
         tags.insertBefore(el(`<span class="aib-tag">${icon('check', 12)}${esc(name)}</span>`), count);
@@ -1013,30 +1215,33 @@ export function openAiBuild(ed, {api = '', id = null, flows = ed.flows, notice =
         count.textContent = t('{0, plural, one {# door or window} other {# doors and windows}}', openings);
     }
     if (mode === 'read') {
-      box.querySelector('small').textContent = [
-        t('{0, plural, one {# room} other {# rooms}}', planRead.rooms),
-        t('{0, plural, one {# door or window} other {# doors and windows}}', planRead.openings),
+      // The plan is read (planRead is there).
+      const counts = planRead!;
+      find(box, 'small').textContent = [
+        t('{0, plural, one {# room} other {# rooms}}', counts.rooms),
+        t('{0, plural, one {# door or window} other {# doors and windows}}', counts.openings),
       ].join(' · ');
     }
   }
 
   // The furniture being matched with our models or made from parts, and the pieces done: while the furniture stage runs. Each
   // piece keeps its chip where it first came; only its state changes (chips coming and going and moving read as flicker).
-  function renderMaking() {
-    const box = root.querySelector('.aib-making');
-    const live = status.live || {};
-    const work = live.work || [
+  function renderMaking(): void {
+    const status = shown();
+    const box = find(root, '.aib-making');
+    const live: BuildLive = status.live || {};
+    const work: BuildPiece[] = live.work || [
       ...(live.making || []).map(piece => ({...piece, state: 'busy'})),
       ...(live.made || []).map(piece => ({...piece, state: 'done'})),
     ];
     const show = stageState(status, STAGES[2]) === 'running' && work.length > 0;
     box.hidden = !show;
     if (!show) return;
-    box.querySelector('h3 span').textContent = live.madeCount ? t('{0} ready', live.madeCount) : '';
-    const chips = box.querySelector('.aib-chips');
+    find(box, 'h3 span').textContent = live.madeCount ? t('{0} ready', live.madeCount) : '';
+    const chips = find(box, '.aib-chips');
     for (const piece of work) {
       const key = `${piece.room}/${piece.id}`;
-      let chip = chips.querySelector(`[data-key="${CSS.escape(key)}"]`);
+      let chip = chips.querySelector<HTMLElement>(`[data-key="${CSS.escape(key)}"]`);
       if (!chip) {
         chip = el(
           `<span class="aib-chip" data-key="${esc(key)}"><i class="aib-chip-state"></i><b></b><small></small></span>`,
@@ -1046,19 +1251,20 @@ export function openAiBuild(ed, {api = '', id = null, flows = ed.flows, notice =
       const state = piece.state === 'busy' ? 'busy' : 'done';
       if (chip.dataset.state !== state) {
         chip.dataset.state = state;
-        chip.querySelector('.aib-chip-state').innerHTML =
+        find(chip, '.aib-chip-state').innerHTML =
           state === 'busy' ? '<i class="spin"></i>' : icon('check', 12);
       }
       const name = pieceName(piece);
       const where = nameOf(roomById(piece.room));
-      if (chip.querySelector('b').textContent !== name) chip.querySelector('b').textContent = name;
-      if (chip.querySelector('small').textContent !== where) chip.querySelector('small').textContent = where;
+      if (find(chip, 'b').textContent !== name) find(chip, 'b').textContent = name;
+      if (find(chip, 'small').textContent !== where) find(chip, 'small').textContent = where;
     }
   }
 
   // Under a room of the video: the furniture found as its call writes, then how many pieces; the pieces made there now.
-  function roomLine(room, looking) {
-    const live = status.live || {};
+  function roomLine(room: VideoRoom, looking: boolean): string {
+    const status = shown();
+    const live: BuildLive = status.live || {};
     const call = live.rooms?.[room.id];
     // A garden or a terrace: its call waits for the plan, and is left out when the plan does not show it.
     if (room.left) return t('Not on the plan: not built');
@@ -1081,13 +1287,14 @@ export function openAiBuild(ed, {api = '', id = null, flows = ed.flows, notice =
     return t('{0, plural, one {# piece} other {# pieces}}', room.pieces || call?.pieces?.length || 0);
   }
 
-  function renderRooms() {
-    const box = root.querySelector('.aib-rooms');
+  function renderRooms(): void {
+    const status = shown();
+    const box = find(root, '.aib-rooms');
     const rooms = status.rooms || [];
     const looking = stepRunning('rooms');
     const furnishing = stageState(status, STAGES[2]) === 'running';
     for (const room of rooms) {
-      let figure = box.querySelector(`[data-id="${room.id}"]`);
+      let figure = box.querySelector<HTMLElement>(`[data-id="${room.id}"]`);
       if (!figure) {
         figure = el(`<figure class="aib-room" data-id="${esc(room.id)}">
           <span class="aib-frame"><img alt="" hidden></span>
@@ -1095,14 +1302,14 @@ export function openAiBuild(ed, {api = '', id = null, flows = ed.flows, notice =
           <small class="aib-room-line"></small></figure>`);
         box.append(figure);
       }
-      const img = figure.querySelector('img');
+      const img = find<HTMLImageElement>(figure, 'img');
       if (room.frame && !img.getAttribute('src')) {
         img.onload = () => {
           img.hidden = false;
         };
         img.src = `${base()}/frame/${encodeURIComponent(room.id)}`;
       }
-      figure.querySelector('.aib-room-name').textContent = nameOf(room);
+      find(figure, '.aib-room-name').textContent = nameOf(room);
       const busyHere = furnishing && (status.live?.making || []).some(work => work.room === room.id);
       const state = busyHere
         ? 'running'
@@ -1115,17 +1322,17 @@ export function openAiBuild(ed, {api = '', id = null, flows = ed.flows, notice =
               : 'todo';
       if (figure.dataset.state !== state) {
         figure.dataset.state = state;
-        figure.querySelector('.aib-room-state').innerHTML =
+        find(figure, '.aib-room-state').innerHTML =
           state === 'done' ? icon('check', 13) : state === 'running' ? '<i class="spin"></i>' : '';
       }
-      const line = figure.querySelector('.aib-room-line');
+      const line = find(figure, '.aib-room-line');
       const text = roomLine(room, looking);
       if (line.textContent !== text) line.textContent = text;
     }
-    root.querySelector('.aib-found').hidden = !rooms.length;
+    find(root, '.aib-found').hidden = !rooms.length;
   }
 
-  function renderProgress() {
+  function renderProgress(): void {
     if (screen !== 'progress') return;
     const s = status;
     const title = !s
@@ -1139,22 +1346,22 @@ export function openAiBuild(ed, {api = '', id = null, flows = ed.flows, notice =
             : s.revising
               ? t('Changing your home…')
               : t('Building your home');
-    root.querySelector('.aib-title').textContent = title;
-    root.querySelector('.aib-eta').textContent = s ? etaText(s.eta) : '';
+    find(root, '.aib-title').textContent = title;
+    find(root, '.aib-eta').textContent = s ? etaText(s.eta) : '';
     // The package beside the time: drawn again only when its shares change (the bar would restart its motion).
-    const walletSlot = root.querySelector('.aib-head-wallet');
+    const walletSlot = find(root, '.aib-head-wallet');
     const meter = walletMeter(s?.wallet);
     if (walletSlot.dataset.meter !== meter) {
       walletSlot.dataset.meter = meter;
       walletSlot.innerHTML = meter;
     }
-    const overall = root.querySelector('.aib-overall');
+    const overall = find(root, '.aib-overall');
     overall.hidden = !s || !!s.error;
-    overall.firstChild.style.width = percent(s?.share || 0);
+    barOf(overall).style.width = percent(s?.share || 0);
     if (!s) return;
     renderSteps();
     const cta = ctaCard();
-    const box = root.querySelector('.aib-cta');
+    const box = find(root, '.aib-cta');
     if (box.dataset.key !== cta.key) {
       box.dataset.key = cta.key;
       box.innerHTML = cta.html;
@@ -1164,12 +1371,13 @@ export function openAiBuild(ed, {api = '', id = null, flows = ed.flows, notice =
     renderRooms();
   }
 
-  async function onCta(e) {
-    const act = e.target.closest('[data-act]')?.dataset.act;
+  async function onCta(e: MouseEvent): Promise<void> {
+    const act = targetOf(e).closest<HTMLElement>('[data-act]')?.dataset.act;
     if (act === 'review') startReview();
     else if (act === 'open') openHome();
     else if (act === 'top-up') {
-      const button = e.target.closest('[data-act]');
+      // The top-up button: act came from it.
+      const button = targetOf(e).closest('[data-act]') as HTMLButtonElement;
       button.disabled = true;
       if (paid()) {
         // To the checkout; it comes back to this build, which goes on once the payment is counted.
@@ -1177,24 +1385,24 @@ export function openAiBuild(ed, {api = '', id = null, flows = ed.flows, notice =
         try {
           await buyPackage(api, {build: buildId});
         } catch (err) {
-          topUpError = t('Could not open the payment: {0}', err.message);
+          topUpError = t('Could not open the payment: {0}', messageOf(err));
           renderProgress();
         }
         return;
       }
       try {
-        status = await post('/top-up');
+        status = (await post('/top-up')) as BuildStatus;
         topUpError = null;
       } catch (err) {
-        topUpError = t('Could not top up: {0}', err.message);
+        topUpError = t('Could not top up: {0}', messageOf(err));
       }
       renderProgress();
     } else if (act === 'resume') {
       try {
-        status = await post('/resume');
+        status = (await post('/resume')) as BuildStatus;
         renderProgress();
       } catch (err) {
-        status = {...status, error: err.message};
+        status = {...shown(), error: messageOf(err)};
         renderProgress();
       }
     }
@@ -1202,7 +1410,7 @@ export function openAiBuild(ed, {api = '', id = null, flows = ed.flows, notice =
 
   // ---------- the review ----------
 
-  async function loadIntoEditor() {
+  async function loadIntoEditor(): Promise<void> {
     const res = await fetch(`${base()}/home`, {cache: 'no-store'});
     if (!res.ok) throw new Error(res.statusText);
     const plan = readPlan(await res.text());
@@ -1211,11 +1419,11 @@ export function openAiBuild(ed, {api = '', id = null, flows = ed.flows, notice =
     quietSetup();
   }
 
-  async function startReview() {
+  async function startReview(): Promise<void> {
     try {
       await loadIntoEditor();
     } catch (e) {
-      status = {...status, error: e.message};
+      status = {...shown(), error: messageOf(e)};
       renderProgress();
       return;
     }
@@ -1223,7 +1431,7 @@ export function openAiBuild(ed, {api = '', id = null, flows = ed.flows, notice =
     root.innerHTML = '';
     review = openReview(ed, {
       host: root,
-      photo: status.has?.photo ? `${base()}/photo` : null,
+      photo: shown().has?.photo ? `${base()}/photo` : null,
       notes: notesWithRetries(),
       onChange: saveNotes,
       onBack: showProgress,
@@ -1233,17 +1441,19 @@ export function openAiBuild(ed, {api = '', id = null, flows = ed.flows, notice =
       lastRound: status?.lastRound || null,
       pastRounds: status?.rounds || [],
       wallet: status?.wallet || null,
-      onReport: pin => post('/feedback', {round: pin.retry.round, n: pin.retry.n}),
+      // Only a pin that came back has the button (ai-review.ts report).
+      onReport: pin =>
+        post('/feedback', {round: (pin.retry as PinRetry).round, n: (pin.retry as PinRetry).n}),
     });
   }
 
-  function closeReview() {
+  function closeReview(): void {
     review?.close();
     review = null;
   }
 
   // The owner's answer: changes go to the build and the progress shows them being made; "all right" opens the home.
-  async function answer(notes) {
+  async function answer(notes: PinNotes): Promise<void> {
     const count = changeCount(notes);
     const text = notes.text.trim();
     const body = count
@@ -1252,17 +1462,17 @@ export function openAiBuild(ed, {api = '', id = null, flows = ed.flows, notice =
     await post('/answer', body);
     clearNotes();
     answered = 'final';
-    status = {...status, waiting: null};
+    status = {...shown(), waiting: null};
     if (!count) return finish();
     showProgress();
     poll();
   }
 
-  async function openHome() {
+  async function openHome(): Promise<void> {
     try {
       await loadIntoEditor();
     } catch (e) {
-      status = {...status, error: e.message};
+      status = {...shown(), error: messageOf(e)};
       renderProgress();
       return;
     }
@@ -1271,7 +1481,7 @@ export function openAiBuild(ed, {api = '', id = null, flows = ed.flows, notice =
 
   // ---------- the end ----------
 
-  function close() {
+  function close(): void {
     closed = true;
     clearTimeout(timer);
     closeReview();
@@ -1281,7 +1491,7 @@ export function openAiBuild(ed, {api = '', id = null, flows = ed.flows, notice =
   }
 
   // The home is the owner's now: the editor as usual, the 3D large.
-  function finish() {
+  function finish(): void {
     close();
     follow(null);
     setAddress(null);
@@ -1292,10 +1502,11 @@ export function openAiBuild(ed, {api = '', id = null, flows = ed.flows, notice =
   }
 
   // Back to the start screen; a build that goes on shows there, and can be followed again by its link.
-  function exit() {
+  function exit(): void {
     close();
     setAddress(null);
-    ed.showStart();
+    // flows.ts adds it before the AI build can open.
+    ed.showStart!();
   }
 
   if (buildId) {

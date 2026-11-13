@@ -1,16 +1,16 @@
-// @ts-nocheck
-import {test} from 'node:test';
+import {test, type TestContext} from 'node:test';
 import assert from 'node:assert/strict';
 import {axisCursor, createDragGesture, DRAG_HOLD_MS} from './drag-gesture.ts';
+import type {Vector} from '../core/types.ts';
 
 const pointer = (x = 100, y = 100, id = 1) => ({pointerId: id, clientX: x, clientY: y});
-function setup(t) {
+function setup(t: TestContext) {
   t.mock.timers.enable({apis: ['setTimeout']});
-  let cursor = null;
+  let cursor: string | null = null;
   const g = createDragGesture(c => {
     cursor = c;
   });
-  return {g, cursor: () => cursor, tick: ms => t.mock.timers.tick(ms)};
+  return {g, cursor: () => cursor, tick: (ms: number) => t.mock.timers.tick(ms)};
 }
 test('a short click and mouse jitter do not start a drag', t => {
   const {g, cursor, tick} = setup(t);
@@ -59,14 +59,15 @@ test('a new gesture does not inherit the previous timer; a click action does not
   assert.equal(g.move(pointer(110, 100)), true);
 });
 test('arrows match the movement axis on the plan, including for rotated furniture', () => {
-  for (const [axis, cursor] of [
+  const cases: Array<[Vector, string]> = [
     [[1, 0], 'ew-resize'],
     [[0, 1], 'ns-resize'],
     [[1, 1], 'nesw-resize'],
     [[1, -1], 'nwse-resize'],
-  ]) {
+  ];
+  for (const [axis, cursor] of cases) {
     assert.equal(axisCursor(axis), cursor);
-    assert.equal(axisCursor(axis.map(x => -x)), cursor);
+    assert.equal(axisCursor([-axis[0], -axis[1]]), cursor);
   }
   assert.equal(axisCursor([1, 0.1]), 'ew-resize');
   assert.equal(axisCursor([0.1, 1]), 'ns-resize');

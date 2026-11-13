@@ -1,11 +1,42 @@
-// @ts-nocheck
 // Six stages D-041; states D-042; the card and the path strip D-043. Confirmation and deferral are stored in the plan.
 // Next goes forward along the path; the summary lists what is unfinished. “Run setup” returns to the first unfinished step.
 import {t, N} from '../i18n/i18n.ts';
 import {icon} from './icons.ts';
 import {stepFacts, stepStatus, recordStep} from './wizard-state.ts';
+import {find} from './ui.ts';
+import type {OnboardingStepId} from '../core/types.ts';
+import type {BannerItem, Editor, PathStep, PathStepStatus} from './editor-types.ts';
 
-export const MAND = [
+/** The guided path (D-041–D-043): which step is on, the path strip, going forward and back. */
+export interface WizardPath {
+  /** The step on now; null: the path is not running. */
+  cur(): PathStep | null;
+  status(step: OnboardingStepId): PathStepStatus;
+  done(step: OnboardingStepId): boolean;
+  /** Marks the step started (others: nothing). */
+  enter(step: PathStep): void;
+  /** "Run setup": the first step not passed, else the end. */
+  resume(): void;
+  /** The questions before the summary: show the devices, show the readings. */
+  askDevices(): void;
+  ask(): void;
+  /** The step is done (defer: for later): on to the next one. */
+  after(from: OnboardingStepId, o?: {defer?: boolean}): void;
+  canBack(): boolean;
+  back(): void;
+  go(step: OnboardingStepId): void;
+  /** The summary. */
+  finale(): void;
+  /** The path strip for the card; null: the path is not running. */
+  el(): HTMLElement | null;
+}
+
+/** A mode that may have something to show in its step (devices, sensors). */
+interface OptionalStepMode {
+  available?(): boolean;
+}
+
+export const MAND: Array<[OnboardingStepId, string]> = [
   ['rect', N('Outline')],
   ['split', N('Rooms')],
   ['open', N('Windows & doors')],
@@ -15,13 +46,14 @@ export const MAND = [
 ];
 // The view for the card is part of “Sensors” (their first tile), there is no separate item (the owner, 2026-11-07).
 // “Devices” (D-048) — air conditioners, curtains, door/window sensors; asked about before sensors.
-export const OPT = [
+export const OPT: Array<[OnboardingStepId, string, string]> = [
   ['devices', N('Devices'), 'airVent'],
   ['sensors', N('Sensors on walls'), 'thermo'],
 ];
-const ALL = [...MAND, ...OPT],
-  nameOf = k => t(ALL.find(s => s[0] === k)?.[1] || k);
-const statusName = s =>
+const ALL = [...MAND, ...OPT];
+const nameOf = (k: PathStep): string => t(ALL.find(s => s[0] === k)?.[1] || k);
+const isStep = (k: PathStep): k is OnboardingStepId => ALL.some(s => s[0] === k);
+const statusName = (s: PathStepStatus): string =>
   s === 'confirmed'
     ? t('Done')
     : s === 'deferred'
@@ -30,10 +62,11 @@ const statusName = s =>
         ? t('In progress')
         : t('Not started');
 
-export function createPath(ed) {
-  const P = {},
-    id = () => ed.plan.id,
-    state = () => ed.wizard.get(id()) || {};
+export function createPath(ed: Editor): WizardPath {
+  // Its members are set below, before it is returned.
+  const P = {} as WizardPath;
+  const id = (): string | undefined => ed.plan.id;
+  const state = () => ed.wizard.get(id()) || {};
   // Old “passed” marks are carried over once. A partial result stays deferred.
   const migrate = () => {
     if (ed.plan.onboarding) return;
@@ -45,8 +78,8 @@ export function createPath(ed) {
   const save = () => ed.history?.amend(ed.plan);
   // which step the wizard is on now: the step key, 'fin' — “Finishing touches”, null — the wizard is not running
   P.cur = () => {
-    const m = ed.modes,
-      w = state();
+    const m = ed.modes;
+    const w = state();
     if (w.fin) return 'fin';
     if (w.askDev || m.devices?.wizardOn?.()) return 'devices';
     if (w.ask || m.sensors.wizardOn?.()) return 'sensors';
@@ -60,15 +93,17 @@ export function createPath(ed) {
   };
   P.done = k => P.status(k) === 'confirmed';
   P.enter = k => {
-    if (!ALL.some(s => s[0] === k)) return;
+    if (!isStep(k)) return;
     migrate();
-    if (!ed.plan.onboarding.steps[k]) {
+    // migrate() has just made sure the plan has onboarding.
+    if (!ed.plan.onboarding!.steps[k]) {
       recordStep(ed.plan, k, 'in_progress');
       save();
     }
   };
-  const can = k => (k === 'rect' ? !ed.plan.rooms.length : ed.plan.rooms.length > 0);
-  const nextMand = from => {
+  const can = (k: OnboardingStepId): boolean =>
+    k === 'rect' ? !ed.plan.rooms.length : ed.plan.rooms.length > 0;
+  const nextMand = (from: OnboardingStepId | null | undefined): OnboardingStepId | null | undefined => {
     const i = MAND.findIndex(s => s[0] === from);
     if (from && i < 0) return null;
     return MAND.slice(i + 1)
@@ -83,14 +118,15 @@ export function createPath(ed) {
   // After the main steps — one question about readings on the walls (D-034), if HA has something to show and it was not decided yet.
   // “Show” — the “Sensors” step (the first tile is the 3D view), “Skip” — the step is deferred, then the summary.
   // Before it — the same about devices (D-048): “Home Assistant has 2 air conditioners, 3 curtains. Show them in the model?”
-  const undecided = (k, mode) => !!mode?.available?.() && !['confirmed', 'deferred'].includes(P.status(k));
-  const toEnd = () =>
+  const undecided = (k: OnboardingStepId, mode: OptionalStepMode | null | undefined): boolean =>
+    !!mode?.available?.() && !['confirmed', 'deferred'].includes(P.status(k));
+  const toEnd = (): void =>
     undecided('devices', ed.modes.devices)
       ? P.askDevices()
       : undecided('sensors', ed.modes.sensors)
         ? P.ask()
         : P.finale();
-  const later = k => {
+  const later = (k: OnboardingStepId): void => {
     ed.wizard.set(id(), null);
     migrate();
     recordStep(ed.plan, k, 'deferred');
@@ -100,8 +136,9 @@ export function createPath(ed) {
     ed.step(null);
     ed.banner();
     ed.wizard.set(id(), {askDev: true});
-    const c = ed.modes.devices.counts?.() || {},
-      n = k => c[{climate: 'ac', cover: 'cover', contact: 'contact'}[k]] || 0;
+    const c: Partial<ReturnType<typeof ed.modes.devices.counts>> = ed.modes.devices.counts?.() || {};
+    const n = (k: 'climate' | 'cover' | 'contact'): number =>
+      c[({climate: 'ac', cover: 'cover', contact: 'contact'} as const)[k]] || 0;
     const what = [
       n('climate') && t('{0, plural, one {# air conditioner} other {# air conditioners}}', n('climate')),
       n('cover') && t('{0, plural, one {# curtain} other {# curtains}}', n('cover')),
@@ -158,15 +195,16 @@ export function createPath(ed) {
   };
   // “Back”: a mandatory step — to the previous one on the path; the summary and “Sensors” (with the question about them) → Lights
   // (a mandatory step is not passed — to it); “Outline” and “Rooms” — the area dialog (to correct it); “Outline” without a photo — the start screen
-  const photo = () => ed.underlay.ready;
+  const photo = (): boolean => ed.underlay.ready;
   P.canBack = () => !!P.cur();
   P.back = () => {
     const k = P.cur();
     ed.capture = null;
     ed.v.cv.style.cursor = '';
     if (k === 'rect' || k === 'split') {
-      if (k === 'split' || photo()) ed.askArea();
-      else ed.showStart();
+      // flows.ts sets both when the editor starts, before any step runs.
+      if (k === 'split' || photo()) ed.askArea!();
+      else ed.showStart!();
       return;
     }
     const i = MAND.findIndex(s => s[0] === k);
@@ -205,18 +243,18 @@ export function createPath(ed) {
   P.finale = () => {
     ed.wizard.set(id(), {fin: true});
     const toBoard = !!ed.ha?.board && !ed.ha.board.exists();
-    const open = MAND.filter(([k]) => P.status(k) !== 'confirmed'),
-      result = document.createElement('div');
+    const open = MAND.filter(([k]) => P.status(k) !== 'confirmed');
+    const result = document.createElement('div');
     result.className = 'wizard-result';
     for (const [k] of open) {
-      const s = P.status(k),
-        f = stepFacts(ed.plan, k),
-        b = document.createElement('button');
+      const s = P.status(k);
+      const f = stepFacts(ed.plan, k);
+      const b = document.createElement('button');
       b.type = 'button';
       b.dataset.status = s;
       b.innerHTML = icon(s === 'confirmed' ? 'check' : 'right', 14) + '<span></span><small></small>';
-      b.querySelector('span').textContent = nameOf(k);
-      b.querySelector('small').textContent =
+      find(b, 'span').textContent = nameOf(k);
+      find(b, 'small').textContent =
         statusName(s) + (['names', 'lights'].includes(k) ? ` · ${f.ready}/${f.total}` : '');
       b.disabled = !can(k);
       b.onclick = () => P.go(k);
@@ -232,7 +270,7 @@ export function createPath(ed) {
         ...(open.length ? [result] : []),
         back,
         ...(open.length
-          ? [
+          ? ([
               [
                 t('Continue later'),
                 () => {
@@ -240,7 +278,7 @@ export function createPath(ed) {
                   ed.step(null);
                 },
               ],
-            ]
+            ] satisfies BannerItem[])
           : []),
         // in HA, while the Home Twin dashboard does not exist, the main step is putting the home there (D-059)
         [
@@ -252,7 +290,10 @@ export function createPath(ed) {
           },
           !toBoard,
         ],
-        ...(toBoard ? [[t('Add to dashboard'), () => ed.flows.addBoard(), true]] : []),
+        // flows.ts sets ed.flows when the editor starts.
+        ...(toBoard
+          ? ([[t('Add to dashboard'), () => ed.flows!.addBoard(), true]] satisfies BannerItem[])
+          : []),
       ],
       null,
       {exit: false, id: 'fin', fixed: true},
@@ -266,10 +307,10 @@ export function createPath(ed) {
     const box = document.createElement('nav');
     box.className = 'path';
     box.setAttribute('aria-label', t('All steps'));
-    const dot = (k, label, opt) => {
-      const cur = k === k0,
-        s = P.status(k),
-        b = document.createElement('button');
+    const dot = (k: OnboardingStepId, label: string, opt: boolean): HTMLButtonElement => {
+      const cur = k === k0;
+      const s = P.status(k);
+      const b = document.createElement('button');
       b.type = 'button';
       b.className =
         'dot' +

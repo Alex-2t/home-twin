@@ -1,11 +1,16 @@
-// @ts-nocheck
 import {test} from 'node:test';
 import assert from 'node:assert/strict';
 import {stepFacts, stepStatus, recordStep, stepReadyToFinish, lampWaits} from './wizard-state.ts';
 import {emptyPlan, migrate} from '../core/plan.ts';
 import {createPath} from './wizard-path.ts';
+import type {FurnitureItem, Plan, PlanLight, Room} from '../core/types.ts';
+import type {Editor, PathStep} from './editor-types.ts';
 
-const room = () => ({
+// The tests give lamps, openings and the editor only the fields the code under test reads.
+const lamp = (fields: Partial<PlanLight>): PlanLight => fields as PlanLight;
+const fakeEditor = (fields: object): Editor => fields as Editor;
+
+const room = (): Room => ({
   id: 'r',
   area: 'bedroom',
   polygon: [
@@ -16,32 +21,36 @@ const room = () => ({
   ],
 });
 test('finish hint: all rooms linked; undoing the last link removes it', () => {
-  const p = {
+  const p: Plan = {
     ...emptyPlan(),
-    rooms: Array.from({length: 6}, (_, i) => ({...room(), id: 'r' + i, area: i === 5 ? null : 'area' + i})),
+    rooms: Array.from({length: 6}, (_, i) => ({
+      ...room(),
+      id: 'r' + i,
+      area: i === 5 ? undefined : 'area' + i,
+    })),
   };
   assert.equal(stepReadyToFinish(p, 'names'), false);
   p.rooms[5].noArea = true;
   assert.equal(stepReadyToFinish(p, 'names'), false);
   p.rooms[5].area = 'area5';
   assert.equal(stepReadyToFinish(p, 'names'), true);
-  p.rooms[5].area = null;
+  p.rooms[5].area = undefined;
   assert.equal(stepReadyToFinish(p, 'names'), false);
 });
 test('finish hint counts both zones and does not require linking shafts', () => {
-  const r = room(),
-    p = {...emptyPlan(), rooms: [r, {...room(), id: 'shaft', solid: true, area: null}]};
+  const r = room();
+  const p: Plan = {...emptyPlan(), rooms: [r, {...room(), id: 'shaft', solid: true, area: undefined}]};
   r.zone = {a: [3, 0], b: [3, 6], left: true, area: null};
   assert.equal(stepReadyToFinish(p, 'names'), false);
   r.zone.area = 'kitchen';
   assert.equal(stepReadyToFinish(p, 'names'), true);
 });
 test('lights finish hint waits for confirmation and does not count skipped lamps as done', () => {
-  const p = {...emptyPlan(), lights: [{placed: true}, {placed: true, draft: true}]};
+  const p: Plan = {...emptyPlan(), lights: [lamp({placed: true}), lamp({placed: true, draft: true})]};
   assert.equal(stepReadyToFinish(p, 'lights'), false);
   delete p.lights[1].draft;
   assert.equal(stepReadyToFinish(p, 'lights'), true);
-  p.lights[1] = {placed: false, skip: true};
+  p.lights[1] = lamp({placed: false, skip: true});
   assert.equal(stepReadyToFinish(p, 'lights'), false);
 });
 test('an empty list and stages without an exact count do not prompt to finish', () => {
@@ -49,11 +58,11 @@ test('an empty list and stages without an exact count do not prompt to finish', 
   assert.equal(stepReadyToFinish(p, 'names'), false);
   assert.equal(stepReadyToFinish(p, 'lights'), false);
   Object.assign(p, {rooms: [room()], openings: [{}], furniture: [{}], sensors: [{}], view: {}});
-  for (const k of ['rect', 'split', 'open', 'furniture', 'sensors', 'fin'])
-    assert.equal(stepReadyToFinish(p, k), false, k);
+  const steps: PathStep[] = ['rect', 'split', 'open', 'furniture', 'sensors', 'fin'];
+  for (const k of steps) assert.equal(stepReadyToFinish(p, k), false, k);
 });
 test('one insertion does not finish the whole stage; confirmation and deferral survive loading', () => {
-  const p = {...emptyPlan(), rooms: [room()], furniture: [{id: 'bed'}]};
+  const p: Plan = {...emptyPlan(), rooms: [room()], furniture: [{id: 'bed'} as FurnitureItem]};
   assert.equal(stepStatus(p, 'furniture'), 'in_progress');
   recordStep(p, 'furniture', 'confirmed');
   recordStep(p, 'open', 'deferred');
@@ -64,25 +73,22 @@ test('one insertion does not finish the whole stage; confirmation and deferral s
   assert.equal(stepStatus(loaded, 'furniture'), 'in_progress');
 });
 test('a draft and a skipped lamp do not count as confirmed lights', () => {
-  const p = {
+  const p: Plan = {
     ...emptyPlan(),
-    lights: [
-      {placed: true, draft: true},
-      {placed: false, skip: true},
-    ],
+    lights: [lamp({placed: true, draft: true}), lamp({placed: false, skip: true})],
   };
   assert.equal(stepFacts(p, 'lights').ready, 0);
   assert.equal(stepFacts(p, 'lights').complete, false);
   recordStep(p, 'lights', 'confirmed');
   assert.equal(stepStatus(p, 'lights'), 'in_progress');
-  p.lights = [{placed: true}];
+  p.lights = [lamp({placed: true})];
   assert.equal(stepStatus(p, 'lights'), 'confirmed');
-  p.lights.push({placed: false});
+  p.lights.push(lamp({placed: false}));
   assert.equal(stepStatus(p, 'lights'), 'in_progress');
 });
 test('linking counts both zones, and a skip does not turn into a link', () => {
-  const r = room(),
-    p = {...emptyPlan(), rooms: [r]};
+  const r = room();
+  const p: Plan = {...emptyPlan(), rooms: [r]};
   r.zone = {a: [3, 0], b: [3, 6], left: true, area: null};
   assert.deepEqual(stepFacts(p, 'names'), {total: 2, ready: 1, complete: false, started: true});
   r.zone.noArea = true;
@@ -91,11 +97,11 @@ test('linking counts both zones, and a skip does not turn into a link', () => {
   assert.equal(stepFacts(p, 'names').complete, true);
 });
 test('shafts and small parts do not require linking, an empty lights list is allowed', () => {
-  const p = {
+  const p: Plan = {
     ...emptyPlan(),
     rooms: [
       room(),
-      {...room(), solid: true, area: null},
+      {...room(), solid: true, area: undefined},
       {
         id: 'tiny',
         polygon: [
@@ -115,7 +121,7 @@ test('shafts and small parts do not require linking, an empty lights list is all
   assert.equal(stepStatus(p, 'lights'), 'confirmed');
 });
 test('the outline is finished by drawing, a single room requires explicit confirmation', () => {
-  const p = {...emptyPlan(), rooms: [room()]};
+  const p: Plan = {...emptyPlan(), rooms: [room()]};
   assert.equal(stepStatus(p, 'rect'), 'confirmed');
   assert.equal(stepStatus(p, 'split'), 'in_progress');
   recordStep(p, 'split', 'confirmed');
@@ -123,16 +129,16 @@ test('the outline is finished by drawing, a single room requires explicit confir
 });
 
 test('navigation goes forward, resume returns to deferred steps, migration does not count partial lights as done', () => {
-  const p = {...emptyPlan(), id: 'p', rooms: [room()], lights: [{placed: true, draft: true}]};
-  const ed = {
+  const p: Plan = {...emptyPlan(), id: 'p', rooms: [room()], lights: [lamp({placed: true, draft: true})]};
+  const ed = fakeEditor({
     plan: p,
-    hints: {count: k => (k === 'pass:p:lights' ? 1 : 0)},
+    hints: {count: (k: string) => (k === 'pass:p:lights' ? 1 : 0)},
     wizard: {get: () => null},
     history: {amend: () => {}},
     modes: {rooms: {}, lights: {}, furniture: {}, sensors: {}},
-  };
+  });
   const path = createPath(ed);
-  let next;
+  let next: string | undefined;
   path.go = k => (next = k);
   path.finale = () => (next = 'fin');
   assert.equal(path.status('lights'), 'deferred');
@@ -149,16 +155,16 @@ test('navigation goes forward, resume returns to deferred steps, migration does 
 });
 
 test('after the main steps — a question about readings on the walls; once skipped, it is not asked again', () => {
-  const p = {...emptyPlan(), id: 'p', rooms: [room()]};
-  const ed = {
+  const p: Plan = {...emptyPlan(), id: 'p', rooms: [room()]};
+  const ed = fakeEditor({
     plan: p,
     hints: {count: () => 0},
     wizard: {get: () => null},
     history: {amend: () => {}},
     modes: {rooms: {}, lights: {}, furniture: {}, sensors: {available: () => true}},
-  };
+  });
   const path = createPath(ed);
-  let next;
+  let next: string | undefined;
   path.go = k => (next = k);
   path.finale = () => (next = 'fin');
   path.ask = () => (next = 'ask');
@@ -176,7 +182,7 @@ test('after the main steps — a question about readings on the walls; once skip
 });
 
 test('lights: lamps from areas that are not on the plan do not block finishing the step', () => {
-  const p = {
+  const p: Plan = {
     ...emptyPlan(),
     rooms: [
       {
@@ -191,9 +197,9 @@ test('lights: lamps from areas that are not on the plan do not block finishing t
       },
     ],
     lights: [
-      {area: 'bed', placed: true},
-      {area: 'kids', placed: false},
-      {area: 'bed', placed: false},
+      lamp({area: 'bed', placed: true}),
+      lamp({area: 'kids', placed: false}),
+      lamp({area: 'bed', placed: false}),
     ],
   };
   assert.deepEqual(

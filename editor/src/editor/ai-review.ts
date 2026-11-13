@@ -1,4 +1,3 @@
-// @ts-nocheck
 // The AI build's review (D-073, D-074): the finished home alone, full screen, in 3D or on the plan, with a panel to answer.
 // It opens with the pin in hand and a hint: the owner turns the home, puts numbered pins where something is wrong and says
 // what, adds a word for the whole home, and answers: all right, or send the changes. Dragging moves the view with either
@@ -8,10 +7,42 @@
 // they add, dropped or pasted onto its bubble or its row (D-076): the service's model sees what they mean. Pins that did
 // not work out last time come back with why.
 import {t} from '../i18n/i18n.ts';
-import {el, esc} from './ui.ts';
+import {$, el, esc, find} from './ui.ts';
 import {icon} from './icons.ts';
 import {newPin, pinLabel, changeCount, MAX_PIN_PHOTOS, MISSED_REASON} from './ai-pins.ts';
+import type {Pin, PinHit, PinNotes, PinRetry, PinRound, RoundPin} from './ai-pins.ts';
 import {walletMeter} from './ai-wallet.ts';
+import type {WalletShare} from './ai-wallet.ts';
+import type {CanvasPoint, Editor, Pane} from './editor-types.ts';
+
+/** What openReview is given (see its comment). */
+export interface ReviewOptions {
+  host: HTMLElement;
+  photo?: string | null;
+  notes: PinNotes;
+  onChange: (notes: PinNotes) => void;
+  onBack: () => void;
+  onSend: (notes: PinNotes) => Promise<void>;
+  upload?: ((blob: Blob, kind: 'view' | 'photo') => Promise<string>) | null;
+  pictureUrl?: ((name: string) => string) | null;
+  lastRound?: PinRound | null;
+  pastRounds?: PinRound[];
+  onReport?: ((pin: Pin) => Promise<unknown>) | null;
+  wallet?: WalletShare | null;
+}
+
+/** The review's tools: look around, or put pins. */
+type ReviewTool = 'look' | 'pin';
+
+/** A pin of an earlier round that was made, with its round. */
+type PastPin = RoundPin & {round: number};
+
+/** A spot on the sketch, in its canvas pixels; an arrow from one to another. */
+type SketchPoint = [number, number];
+type SketchArrow = [from: SketchPoint, to: SketchPoint];
+
+/** A handler on a target for the events of its own type (a pointer, a key, a drag). */
+type Listener = [target: EventTarget, type: string, handler: (e: never) => void];
 
 // The panel on the right (a sheet at the bottom on a narrow screen): the views fit into what it leaves free.
 const PANEL_WIDTH = 340;
@@ -24,27 +55,35 @@ const PHOTO_PIXELS = 1600;
 const RING = '#d6249f';
 // Each reason in the service's own words for this pin when it gave them (what it can't do yet and why, what it asks, what it
 // sees now — in the owner's language), else the reason's usual words.
-const saidFor = (retry, code) =>
+const saidFor = (retry: PinRetry | undefined, code: string): string =>
   (retry?.told || [])
     .filter(told => told.code === code)
     .map(told => told.say)
     .join(' ');
-const missedText = retry =>
+// The reasons by any code the service sends: one this list does not have reads as none.
+const missedReasons: Partial<Record<string, string>> = MISSED_REASON;
+const missedText = (retry: PinRetry): string =>
   (retry?.codes || [])
-    .map(code => saidFor(retry, code) || t(MISSED_REASON[code] || MISSED_REASON.unchanged))
+    .map(code => saidFor(retry, code) || t(missedReasons[code] || MISSED_REASON.unchanged))
     .join(' · ');
 // Under a pin that comes back: not done, or done in part, and why (the owner: "Last time: …" told them nothing). What the app
 // can't do yet, and what was not understood, say so plainly (the owner: "why was it unclear?" — it was understood, and the
 // app could not do it).
-const retryText = retry => {
+const retryText = (retry: PinRetry): string => {
   const codes = retry?.codes || [];
-  const only = code => codes.length > 0 && codes.every(each => each === code) && saidFor(retry, code);
+  const only = (code: string): string | false =>
+    codes.length > 0 && codes.every(each => each === code) && saidFor(retry, code);
   if (only('cannot')) return t('We can’t do this yet: {0}', saidFor(retry, 'cannot'));
   if (only('unclear')) return t('Not understood: {0}', saidFor(retry, 'unclear'));
   return t(retry.made === 'partly' ? 'Done in part: {0}' : 'Not done: {0}', missedText(retry));
 };
-const understoodText = retry => (retry?.understood ? t('Understood as: {0}', retry.understood) : '');
-const isPicture = file => /^image\//.test(file.type) || /\.(heic|heif)$/i.test(file.name || '');
+const understoodText = (retry: PinRetry | undefined): string =>
+  retry?.understood ? t('Understood as: {0}', retry.understood) : '';
+const isPicture = (file: File): boolean =>
+  /^image\//.test(file.type) || /\.(heic|heif)$/i.test(file.name || '');
+// The element an event is on: clicks and pointers on the page land on elements. Where the page itself can be the target (keys,
+// drags over the window), the code asks `closest?.` as it always did.
+const targetOf = (e: Event): Element => e.target as Element;
 
 /**
  * host — where the review's panels go; photo — the plan photo to compare with; notes — {pins, text}, changed in place;
@@ -55,7 +94,7 @@ const isPicture = file => /^image\//.test(file.type) || /\.(heic|heif)$/i.test(f
  * shares (ai-wallet.js), shown above the button that sends the changes.
  */
 export function openReview(
-  ed,
+  ed: Editor,
   {
     host,
     photo = null,
@@ -69,19 +108,19 @@ export function openReview(
     pastRounds = [],
     onReport = null,
     wallet = null,
-  },
-) {
+  }: ReviewOptions,
+): {close(): void} {
   // The pins of earlier rounds that were made: listed faded in the panel, not on the home; one shows on the home while its row is
   // pointed at or opened (one that was not done after all can be pinned again).
-  const pastPins = pastRounds.flatMap(round =>
+  const pastPins: PastPin[] = pastRounds.flatMap(round =>
     (round.pins || []).filter(pin => pin.made === 'yes').map(pin => ({...pin, round: round.round})),
   );
-  let pastOpen = null;
-  let pastHovered = null;
-  let view = '3d';
-  let tool = 'pin';
-  let active = null;
-  let hovered = null;
+  let pastOpen: number | null = null;
+  let pastHovered: number | null = null;
+  let view: Pane = '3d';
+  let tool: ReviewTool = 'pin';
+  let active: number | null = null;
+  let hovered: number | null = null;
   let photoOpen = false;
   let collapsed = false;
   let sending = false;
@@ -153,39 +192,39 @@ export function openReview(
     </div>
   </div>`);
   host.append(box);
-  const panel = box.querySelector('.aib-panel');
-  const pop = box.querySelector('.aib-pop:not(.aib-past-pop)');
-  const pastPop = box.querySelector('.aib-past-pop');
-  const popText = pop.querySelector('textarea');
-  const general = box.querySelector('.aib-general');
+  const panel = find(box, '.aib-panel');
+  const pop = find(box, '.aib-pop:not(.aib-past-pop)');
+  const pastPop = find(box, '.aib-past-pop');
+  const popText = find<HTMLTextAreaElement>(pop, 'textarea');
+  const general = find<HTMLTextAreaElement>(box, '.aib-general');
   general.value = notes.text;
-  const hint = box.querySelector('.aib-hint');
+  const hint = find(box, '.aib-hint');
   const pinLayer = el(`<div class="aib-pins"></div>`);
-  const panes = {plan: document.getElementById('pane-plan'), '3d': document.getElementById('pane-3d')};
+  const panes: Record<Pane, HTMLElement> = {plan: $('pane-plan'), '3d': $('pane-3d')};
 
   // ---------- the view ----------
 
-  const narrow = () => innerWidth < NARROW;
-  function insets() {
+  const narrow = (): boolean => innerWidth < NARROW;
+  function insets(): {left: number; right: number; bottom: number} {
     const left = photoOpen && !narrow() ? Math.min(innerWidth * 0.42, 620) + 24 : 0;
     if (narrow()) return {left: 0, right: 0, bottom: (collapsed ? 56 : panel.offsetHeight) + 16};
     return {left, right: PANEL_WIDTH + 32, bottom: 0};
   }
 
   // The tools sit in the middle of what the panels leave free (a phone: their own place at the top, styles.css).
-  function placeTools() {
-    const tools = box.querySelector('.aib-tools');
+  function placeTools(): void {
+    const tools = find(box, '.aib-tools');
     const ins = insets();
     tools.style.left = narrow() ? '' : `${(ins.left + innerWidth - ins.right) / 2}px`;
   }
 
   // The hint and the pin tool's pulse: until the first pin, or until the owner closes it.
-  function hideHint() {
+  function hideHint(): void {
     hint.hidden = true;
-    box.querySelector('[data-tool=pin]').classList.remove('aib-pulse');
+    find(box, '[data-tool=pin]').classList.remove('aib-pulse');
   }
 
-  function fit() {
+  function fit(): void {
     placeTools();
     if (view === 'plan') {
       const points = ed.plan.rooms.flatMap(room => room.polygon);
@@ -197,28 +236,30 @@ export function openReview(
     } else ed.view.home();
   }
 
-  function setView(next) {
+  function setView(next: Pane): void {
     view = next;
     // Daylight while the owner checks: colours and finishes are what they compare with their video.
     if (view === '3d') ed.view.setNight(false);
     const ins = insets();
     ed.setBare(view, {right: ins.right, bottom: ins.bottom});
     panes[view].append(pinLayer);
-    for (const b of box.querySelectorAll('[data-view]')) b.classList.toggle('on', b.dataset.view === view);
+    for (const b of box.querySelectorAll<HTMLElement>('[data-view]'))
+      b.classList.toggle('on', b.dataset.view === view);
     // A frame later: the editor fits a view that changed its place (the small window → the whole screen) when its size changes,
     // which comes after this frame's callbacks; the review's own fit, minding its panel, goes after that.
     requestAnimationFrame(() => requestAnimationFrame(fit));
   }
 
-  function setTool(next) {
+  function setTool(next: ReviewTool): void {
     tool = next;
-    for (const b of box.querySelectorAll('[data-tool]')) b.classList.toggle('on', b.dataset.tool === tool);
+    for (const b of box.querySelectorAll<HTMLElement>('[data-tool]'))
+      b.classList.toggle('on', b.dataset.tool === tool);
     document.body.classList.toggle('aib-pinning', tool === 'pin');
   }
 
   // ---------- pins ----------
 
-  function addPin(hit) {
+  function addPin(hit: PinHit): void {
     hideHint();
     const pin = newPin(ed.plan, hit);
     notes.pins.push(pin);
@@ -227,7 +268,7 @@ export function openReview(
     changed();
   }
 
-  function removePin(i) {
+  function removePin(i: number): void {
     notes.pins.splice(i, 1);
     active = null;
     pop.hidden = true;
@@ -235,8 +276,9 @@ export function openReview(
   }
 
   // The pin being written: its words in the bubble beside it. Left without words or photos, it goes.
-  const empty = pin => !pin.text.trim() && !pin.photos?.length && !(uploading.get(pin) > 0);
-  function setActive(i) {
+  const empty = (pin: Pin): boolean =>
+    !pin.text.trim() && !pin.photos?.length && !((uploading.get(pin) ?? 0) > 0);
+  function setActive(i: number | null): void {
     if (i != null && pastOpen != null) {
       pastOpen = null;
       pastPop.hidden = true;
@@ -251,12 +293,12 @@ export function openReview(
     pop.hidden = i == null;
     if (i != null) {
       const pin = notes.pins[i];
-      pop.querySelector('.aib-num').textContent = String(i + 1);
-      pop.querySelector('.aib-pop-target').textContent = pinLabel(pin, t('Outside'));
-      const retry = pop.querySelector('.aib-retry');
+      find(pop, '.aib-num').textContent = String(i + 1);
+      find(pop, '.aib-pop-target').textContent = pinLabel(pin, t('Outside'));
+      const retry = find(pop, '.aib-retry');
       retry.hidden = !pin.retry;
       retry.textContent = pin.retry ? retryText(pin.retry) : '';
-      const understood = pop.querySelector('.aib-understood');
+      const understood = find(pop, '.aib-understood');
       understood.textContent = understoodText(pin.retry);
       understood.hidden = !understood.textContent;
       renderReport(pin);
@@ -272,16 +314,16 @@ export function openReview(
   // ---------- pictures: what the owner saw, and the photos they add ----------
 
   // Pictures on their way to the service, per pin.
-  const uploading = new Map();
+  const uploading = new Map<Pin, number>();
 
-  function photoError(text) {
-    const line = pop.querySelector('.aib-photo-err');
+  function photoError(text: string): void {
+    const line = find(pop, '.aib-photo-err');
     line.hidden = !text;
     line.textContent = text;
   }
 
-  function renderThumbs() {
-    const row = pop.querySelector('.aib-thumbs');
+  function renderThumbs(): void {
+    const row = pop.querySelector<HTMLElement>('.aib-thumbs');
     if (!row) return;
     const pin = active != null ? notes.pins[active] : null;
     const busy = pin ? uploading.get(pin) || 0 : 0;
@@ -302,8 +344,8 @@ export function openReview(
       ...pin.photos.map((name, k) => {
         const thumb = el(`<span class="aib-thumb"><a target="_blank" rel="noopener"><img alt=""></a>
           <button class="ib" data-act="photo-remove" data-k="${k}" title="${esc(t('Remove the photo'))}">${icon('x', 11)}</button></span>`);
-        thumb.querySelector('a').href = pictureUrl?.(name) || '#';
-        thumb.querySelector('img').src = pictureUrl?.(name) || '';
+        find<HTMLAnchorElement>(thumb, 'a').href = pictureUrl?.(name) || '#';
+        find<HTMLImageElement>(thumb, 'img').src = pictureUrl?.(name) || '';
         return thumb;
       }),
       ...Array.from({length: busy}, () => el(`<span class="aib-thumb busy"><i class="spin"></i></span>`)),
@@ -312,22 +354,23 @@ export function openReview(
   }
 
   // A photo made smaller before it goes (a phone's photo is many megabytes); one the browser cannot read goes as it is.
-  async function shrink(file) {
+  async function shrink(file: File): Promise<Blob> {
     try {
       const bitmap = await createImageBitmap(file, {imageOrientation: 'from-image'});
       const k = Math.min(1, PHOTO_PIXELS / Math.max(bitmap.width, bitmap.height));
       const canvas = document.createElement('canvas');
       canvas.width = Math.round(bitmap.width * k);
       canvas.height = Math.round(bitmap.height * k);
-      canvas.getContext('2d').drawImage(bitmap, 0, 0, canvas.width, canvas.height);
+      // A new canvas always gives its 2D context.
+      canvas.getContext('2d')!.drawImage(bitmap, 0, 0, canvas.width, canvas.height);
       bitmap.close?.();
-      return (await new Promise(resolve => canvas.toBlob(resolve, 'image/jpeg', 0.85))) || file;
+      return (await new Promise<Blob | null>(resolve => canvas.toBlob(resolve, 'image/jpeg', 0.85))) || file;
     } catch {
       return file;
     }
   }
 
-  async function addPhotos(pin, files) {
+  async function addPhotos(pin: Pin | undefined, files: Iterable<File>): Promise<void> {
     if (!upload || !pin) return;
     const pictures = [...files].filter(isPicture);
     if (!pictures.length) return photoError(t('Only pictures can be added.'));
@@ -342,9 +385,11 @@ export function openReview(
           const name = await upload(await shrink(file), 'photo');
           pin.photos.push(name);
         } catch (e) {
-          photoError(t('Could not add the photo: {0}', e.message));
+          // upload and shrink fail with an Error.
+          photoError(t('Could not add the photo: {0}', (e as Error).message));
         } finally {
-          uploading.set(pin, uploading.get(pin) - 1);
+          // Counted above, before the upload.
+          uploading.set(pin, uploading.get(pin)! - 1);
           changed();
           renderThumbs();
         }
@@ -353,7 +398,7 @@ export function openReview(
   }
 
   // The view as it is now (on the plan, its canvas), at most VIEW_PIXELS wide, with the pin's spot ringed when given.
-  function viewCanvas(pin) {
+  function viewCanvas(pin: Pin | null): HTMLCanvasElement | null {
     const source = view === 'plan' ? ed.v.cv : ed.view.snapshot?.();
     if (!source?.width) return null;
     const ratio = source.width / (source.clientWidth || source.width);
@@ -361,7 +406,8 @@ export function openReview(
     const canvas = document.createElement('canvas');
     canvas.width = Math.round(source.width * k);
     canvas.height = Math.round(source.height * k);
-    const g = canvas.getContext('2d');
+    // A new canvas always gives its 2D context.
+    const g = canvas.getContext('2d')!;
     g.fillStyle = getComputedStyle(document.body).backgroundColor || '#f3f4f6';
     g.fillRect(0, 0, canvas.width, canvas.height);
     g.drawImage(source, 0, 0, canvas.width, canvas.height);
@@ -371,7 +417,7 @@ export function openReview(
       for (const [colour, width] of [
         ['#fff', 7],
         [RING, 4],
-      ]) {
+      ] as const) {
         g.beginPath();
         g.arc(at[0] * ratio * k, at[1] * ratio * k, radius, 0, Math.PI * 2);
         g.strokeStyle = colour;
@@ -384,7 +430,7 @@ export function openReview(
 
   // A screenshot with arrows: the view as it is now; the owner drags from where to where (as many arrows as they like), and it is
   // added to the pin's photos.
-  function openSketch(pin) {
+  function openSketch(pin: Pin): void {
     const shot = viewCanvas(null);
     if (!shot || !upload) return;
     const overlay = el(`<div class="aib-sketch">
@@ -397,17 +443,18 @@ export function openReview(
       <canvas></canvas>
     </div>`);
     document.body.append(overlay);
-    const canvas = overlay.querySelector('canvas');
+    const canvas = find<HTMLCanvasElement>(overlay, 'canvas');
     canvas.width = shot.width;
     canvas.height = shot.height;
-    const g = canvas.getContext('2d');
+    // A new canvas always gives its 2D context.
+    const g = canvas.getContext('2d')!;
     const width = Math.max(4, shot.width / 220);
-    const arrows = [];
-    let drawing = null;
-    const arrow = ([a, b]) => {
+    const arrows: SketchArrow[] = [];
+    let drawing: SketchArrow | null = null;
+    const arrow = ([a, b]: SketchArrow): void => {
       const angle = Math.atan2(b[1] - a[1], b[0] - a[0]);
       const head = width * 4.5;
-      const tip = (turn, length) => [
+      const tip = (turn: number, length: number): SketchPoint => [
         b[0] - length * Math.cos(angle + turn),
         b[1] - length * Math.sin(angle + turn),
       ];
@@ -416,7 +463,7 @@ export function openReview(
       for (const [colour, line] of [
         ['#fff', width + 4],
         ['#ff3b30', width],
-      ]) {
+      ] as const) {
         g.strokeStyle = colour;
         g.fillStyle = colour;
         g.lineWidth = line;
@@ -433,12 +480,12 @@ export function openReview(
         if (colour === '#fff') g.stroke();
       }
     };
-    const draw = () => {
+    const draw = (): void => {
       g.drawImage(shot, 0, 0);
       for (const a of drawing ? [...arrows, drawing] : arrows) arrow(a);
     };
     draw();
-    const at = e => {
+    const at = (e: PointerEvent): SketchPoint => {
       const r = canvas.getBoundingClientRect();
       return [
         ((e.clientX - r.left) * canvas.width) / r.width,
@@ -462,24 +509,24 @@ export function openReview(
       drawing = null;
       draw();
     });
-    const close = () => {
+    const close = (): void => {
       overlay.remove();
       removeEventListener('keydown', onKey, true);
     };
-    const onKey = e => {
+    const onKey = (e: KeyboardEvent): void => {
       if (e.key !== 'Escape') return;
       e.stopPropagation();
       close();
     };
     addEventListener('keydown', onKey, true);
-    overlay.querySelector('.aib-sketch-bar').addEventListener('click', async e => {
-      const k = e.target.closest('[data-k]')?.dataset.k;
+    find(overlay, '.aib-sketch-bar').addEventListener('click', async e => {
+      const k = targetOf(e).closest<HTMLElement>('[data-k]')?.dataset.k;
       if (k === 'undo') {
         arrows.pop();
         draw();
       } else if (k === 'cancel') close();
       else if (k === 'attach') {
-        const blob = await new Promise(resolve => canvas.toBlob(resolve, 'image/jpeg', 0.85));
+        const blob = await new Promise<Blob | null>(resolve => canvas.toBlob(resolve, 'image/jpeg', 0.85));
         close();
         if (blob) addPhotos(pin, [new File([blob], 'screenshot.jpg', {type: 'image/jpeg'})]);
       }
@@ -488,13 +535,13 @@ export function openReview(
 
   // What the owner was looking at when they put the pin, the spot ringed. A pin put in 3D keeps the camera too: the service
   // looks at the changed home from there, to tell whether what the owner pinned is put right as they see it (D-081).
-  async function keepView(pin) {
+  async function keepView(pin: Pin): Promise<void> {
     if (view === '3d') pin.camera = ed.view.getView();
     if (!upload) return;
     try {
       const canvas = viewCanvas(pin);
       if (!canvas) return;
-      const blob = await new Promise(resolve => canvas.toBlob(resolve, 'image/jpeg', 0.82));
+      const blob = await new Promise<Blob | null>(resolve => canvas.toBlob(resolve, 'image/jpeg', 0.82));
       if (!blob) return;
       const name = await upload(blob, 'view');
       if (notes.pins.includes(pin)) {
@@ -504,7 +551,7 @@ export function openReview(
     } catch {} // the view helps the service; a pin goes without it as well
   }
 
-  function renderPins() {
+  function renderPins(): void {
     const shownPast = pastPins
       .map((pin, k) => ({pin, k}))
       .filter(({k}) => k === pastOpen || k === pastHovered);
@@ -529,20 +576,22 @@ export function openReview(
 
   // ---------- the pins of earlier rounds that were made ----------
 
-  function openPast(k) {
+  function openPast(k: number): void {
     setActive(null);
     pastOpen = k;
     const pin = pastPins[k];
     pastPop.hidden = pin == null;
     if (pin) {
-      pastPop.querySelector('.aib-pop-target').textContent = pinLabel(pin, t('Outside'));
-      pastPop.querySelector('.aib-past-when').textContent = t('Done in round {0}', pin.round);
-      pastPop.querySelector('.aib-past-text').textContent = pin.text;
-      pastPop.querySelector('.aib-thumbs').replaceChildren(
+      find(pastPop, '.aib-pop-target').textContent = pinLabel(pin, t('Outside'));
+      find(pastPop, '.aib-past-when').textContent = t('Done in round {0}', pin.round);
+      find(pastPop, '.aib-past-text').textContent = pin.text;
+      find(pastPop, '.aib-thumbs').replaceChildren(
         ...(pin.photos || []).map(name => {
-          const thumb = el(`<a class="aib-thumb" target="_blank" rel="noopener"><img alt=""></a>`);
+          const thumb = el<HTMLAnchorElement>(
+            `<a class="aib-thumb" target="_blank" rel="noopener"><img alt=""></a>`,
+          );
           thumb.href = pictureUrl?.(name) || '#';
-          thumb.querySelector('img').src = pictureUrl?.(name) || '';
+          find<HTMLImageElement>(thumb, 'img').src = pictureUrl?.(name) || '';
           return thumb;
         }),
       );
@@ -551,7 +600,7 @@ export function openReview(
     renderPast();
   }
 
-  function closePast() {
+  function closePast(): void {
     pastOpen = null;
     pastPop.hidden = true;
     renderPins();
@@ -559,8 +608,8 @@ export function openReview(
   }
 
   // Not done after all: a pin of this round at the same spot, with the same words and pictures, to send again.
-  function pinAgain() {
-    const pin = pastPins[pastOpen];
+  function pinAgain(): void {
+    const pin = pastOpen == null ? undefined : pastPins[pastOpen];
     if (!pin) return;
     notes.pins.push({
       x: pin.x,
@@ -579,47 +628,49 @@ export function openReview(
     changed();
   }
 
-  function renderPast() {
-    const details = box.querySelector('.aib-past');
+  function renderPast(): void {
+    const details = find(box, '.aib-past');
     details.hidden = !pastPins.length;
     if (!pastPins.length) return;
-    details.querySelector('summary').textContent = t(
+    find(details, 'summary').textContent = t(
       '{0, plural, one {# change done earlier} other {# changes done earlier}}',
       pastPins.length,
     );
-    details.querySelector('.aib-notes').replaceChildren(
+    find(details, '.aib-notes').replaceChildren(
       ...pastPins.map((pin, k) => {
         const row = el(`<li class="aib-note past" data-p="${k}">
           <span class="aib-num">${icon('check', 12)}</span>
           <span class="aib-note-body"><small></small><span></span></span></li>`);
         row.classList.toggle('on', k === pastOpen);
-        row.querySelector('small').textContent = pinLabel(pin, t('Outside'));
-        row.querySelector('.aib-note-body>span').textContent = pin.text;
+        find(row, 'small').textContent = pinLabel(pin, t('Outside'));
+        find(row, '.aib-note-body>span').textContent = pin.text;
         return row;
       }),
     );
   }
 
   // Each frame: pins follow the view (pan, zoom, orbit); the bubble follows its pin.
-  function place() {
+  function place(): void {
     const pane = panes[view];
     const paneBox = pane.getBoundingClientRect();
-    let activeAt = null;
-    let pastAt = null;
-    pinLayer.childNodes.forEach(b => {
+    let activeAt: CanvasPoint | null = null;
+    let pastAt: CanvasPoint | null = null;
+    // The layer holds only the pins' buttons.
+    (pinLayer.childNodes as NodeListOf<HTMLElement>).forEach(b => {
       const past = b.dataset.p != null;
-      const pin = past ? pastPins[+b.dataset.p] : notes.pins[+b.dataset.i];
+      const pin = past ? pastPins[Number(b.dataset.p)] : notes.pins[Number(b.dataset.i)];
       if (!pin) return;
       const [x, y] = view === 'plan' ? ed.v.S([pin.x, pin.y]) : ed.view.project([pin.x, pin.y], pin.z ?? 0);
       // `translate`, not `transform`: the bigger active pin's `scale` would scale a transform's offset too
       b.style.translate = `${x.toFixed(1)}px ${y.toFixed(1)}px`;
-      if (!past && +b.dataset.i === active) activeAt = [paneBox.left + x, paneBox.top + y];
-      if (past && +b.dataset.p === pastOpen) pastAt = [paneBox.left + x, paneBox.top + y];
+      if (!past && Number(b.dataset.i) === active) activeAt = [paneBox.left + x, paneBox.top + y];
+      if (past && Number(b.dataset.p) === pastOpen) pastAt = [paneBox.left + x, paneBox.top + y];
     });
-    for (const [bubble, at] of [
+    const bubbles: Array<[HTMLElement, CanvasPoint | null]> = [
       [pop, activeAt],
       [pastPop, pastAt],
-    ]) {
+    ];
+    for (const [bubble, at] of bubbles) {
       if (!at || bubble.hidden) continue;
       const w = bubble.offsetWidth;
       const h = bubble.offsetHeight;
@@ -634,13 +685,13 @@ export function openReview(
   }
 
   // The hint points at the pin tool, wherever the tools have moved (a phone: under them, styles.css).
-  function placeHint() {
+  function placeHint(): void {
     if (hint.hidden || narrow()) return;
-    const button = box.querySelector('[data-tool=pin]').getBoundingClientRect();
+    const button = find(box, '[data-tool=pin]').getBoundingClientRect();
     hint.style.left = `${(button.left + button.width / 2).toFixed(0)}px`;
   }
 
-  function loop() {
+  function loop(): void {
     if (closed) return;
     place();
     placeHint();
@@ -649,8 +700,8 @@ export function openReview(
 
   // ---------- the panel ----------
 
-  function renderNotes() {
-    const list = box.querySelector('.aib-notes');
+  function renderNotes(): void {
+    const list = find(box, '.aib-notes');
     list.replaceChildren(
       ...notes.pins.map((pin, i) => {
         const row = el(`<li class="aib-note" data-i="${i}">
@@ -660,26 +711,26 @@ export function openReview(
           <button class="ib" data-act="pin-delete" title="${esc(t('Delete'))}">${icon('trash', 14)}</button>
         </li>`);
         row.classList.toggle('on', i === active);
-        row.querySelector('small').textContent = pinLabel(pin, t('Outside'));
-        const retry = row.querySelector('.aib-retry');
+        find(row, 'small').textContent = pinLabel(pin, t('Outside'));
+        const retry = find(row, '.aib-retry');
         retry.hidden = !pin.retry;
         retry.textContent = pin.retry ? retryText(pin.retry) : '';
-        const understood = row.querySelector('.aib-understood');
+        const understood = find(row, '.aib-understood');
         understood.textContent = understoodText(pin.retry);
         understood.hidden = !understood.textContent;
-        const words = row.querySelector('.aib-note-body>span');
+        const words = find(row, '.aib-note-body>span');
         words.textContent = pin.text.trim() || t('What is wrong here?');
         words.classList.toggle('muted', !pin.text.trim());
         return row;
       }),
     );
-    box.querySelector('.aib-empty').hidden = notes.pins.length > 0;
+    find(box, '.aib-empty').hidden = notes.pins.length > 0;
     renderSend();
   }
 
   // How the last round went: how many pins worked out; those that did not are pinned again.
-  function renderLast() {
-    const line = box.querySelector('.aib-last');
+  function renderLast(): void {
+    const line = find(box, '.aib-last');
     const pins = lastRound?.pins || [];
     line.hidden = !pins.length;
     if (!pins.length) return;
@@ -691,33 +742,33 @@ export function openReview(
         : t('{0} of {1} changes are made. The rest are pinned again, each with why.', done, pins.length);
   }
 
-  function renderSend() {
+  function renderSend(): void {
     const count = changeCount(notes);
-    const button = box.querySelector('[data-act=send]');
+    const button = find<HTMLButtonElement>(box, '[data-act=send]');
     button.disabled = sending;
     button.innerHTML = sending
       ? `<i class="spin"></i>${esc(t('Sending…'))}`
       : count
         ? esc(t('Send {0, plural, one {# change} other {# changes}}', count))
         : esc(t('All right, finish'));
-    const after = box.querySelector('.aib-after');
+    const after = find(box, '.aib-after');
     if (after.classList.contains('err')) return;
     after.textContent = count
       ? t('We change your home and show it again.')
       : t('It opens in the editor: everything stays changeable.');
   }
 
-  function changed() {
+  function changed(): void {
     onChange(notes);
     renderPins();
     renderNotes();
   }
 
-  async function send() {
+  async function send(): Promise<void> {
     if (sending) return;
     setActive(null);
     sending = true;
-    const after = box.querySelector('.aib-after');
+    const after = find(box, '.aib-after');
     after.classList.remove('err');
     renderSend();
     try {
@@ -725,21 +776,22 @@ export function openReview(
     } catch (e) {
       sending = false;
       after.classList.add('err');
-      after.textContent = t('Could not send: {0}', e.message);
+      // onSend fails with an Error (ai-build.ts post).
+      after.textContent = t('Could not send: {0}', (e as Error).message);
       renderSend();
     }
   }
 
-  function togglePhoto() {
+  function togglePhoto(): void {
     photoOpen = !photoOpen;
-    box.querySelector('.aib-photo-big').hidden = !photoOpen;
+    find(box, '.aib-photo-big').hidden = !photoOpen;
     fit();
   }
 
-  function toggleCollapsed() {
+  function toggleCollapsed(): void {
     collapsed = !collapsed;
     panel.classList.toggle('collapsed', collapsed);
-    const b = panel.querySelector('[data-act=collapse]');
+    const b = find(panel, '[data-act=collapse]');
     b.innerHTML = icon(collapsed ? 'up' : 'down', 16);
     b.title = collapsed ? t('Expand') : t('Collapse');
     const ins = insets();
@@ -749,21 +801,22 @@ export function openReview(
   // ---------- sending a pin to the developer ----------
 
   // A pin that came back (not done, can't do yet, not understood) can go to the developer, once: the button says it went.
-  const reporting = new Set();
-  function renderReport(pin) {
-    const button = pop.querySelector('.aib-report');
+  const reporting = new Set<Pin>();
+  function renderReport(pin: Pin): void {
+    const button = pop.querySelector<HTMLButtonElement>('.aib-report');
     if (!button) return;
     button.hidden = !pin?.retry;
     const sent = !!pin?.retry?.reported;
     button.disabled = sent || reporting.has(pin);
-    button.querySelector('span').textContent = sent ? t('Sent to the developer') : t('Send to the developer');
+    find(button, 'span').textContent = sent ? t('Sent to the developer') : t('Send to the developer');
   }
-  async function report(pin) {
+  async function report(pin: Pin | undefined): Promise<void> {
     if (!pin?.retry || pin.retry.reported || reporting.has(pin)) return;
     reporting.add(pin);
     renderReport(pin);
     try {
-      await onReport(pin);
+      // The button that leads here is there only with onReport.
+      await onReport!(pin);
       pin.retry = {...pin.retry, reported: true};
       changed();
     } catch {
@@ -777,11 +830,12 @@ export function openReview(
   // ---------- input ----------
 
   box.addEventListener('click', e => {
-    const target = e.target.closest('[data-act],[data-tool],[data-view],.aib-note');
-    if (target?.classList.contains('past')) return openPast(+target.dataset.p);
+    const target = targetOf(e).closest<HTMLElement>('[data-act],[data-tool],[data-view],.aib-note');
+    if (target?.classList.contains('past')) return openPast(Number(target.dataset.p));
     if (!target) return;
-    if (target.dataset.tool) return setTool(target.dataset.tool);
-    if (target.dataset.view) return setView(target.dataset.view);
+    // The markup's tools and views are these.
+    if (target.dataset.tool) return setTool(target.dataset.tool as ReviewTool);
+    if (target.dataset.view) return setView(target.dataset.view as Pane);
     const act = target.dataset.act;
     if (act === 'back') return onBack();
     if (act === 'hint-close') return hideHint();
@@ -790,27 +844,28 @@ export function openReview(
     if (act === 'collapse') return toggleCollapsed();
     if (act === 'send') return send();
     if (act === 'pin-done') return setActive(null);
-    if (act === 'pin-photo') return pop.querySelector('input[type=file]')?.click();
+    if (act === 'pin-photo') return pop.querySelector<HTMLInputElement>('input[type=file]')?.click();
     if (act === 'pin-sketch' && active != null) return openSketch(notes.pins[active]);
     if (act === 'past-close') return closePast();
     if (act === 'past-again') return pinAgain();
     if (act === 'pin-report' && active != null) return report(notes.pins[active]);
     if (act === 'photo-remove' && active != null) {
-      notes.pins[active].photos.splice(+target.dataset.k, 1);
+      notes.pins[active].photos.splice(Number(target.dataset.k), 1);
       changed();
       return renderThumbs();
     }
     if (act === 'pin-delete') {
-      const row = target.closest('.aib-note');
-      return removePin(row ? +row.dataset.i : active);
+      const row = target.closest<HTMLElement>('.aib-note');
+      // Not on a row: the bubble's button, and the bubble is open only with a pin active.
+      return removePin(row ? Number(row.dataset.i) : (active as number));
     }
-    if (target.classList.contains('aib-note')) setActive(+target.dataset.i);
+    if (target.classList.contains('aib-note')) setActive(Number(target.dataset.i));
   });
   box.addEventListener('pointerover', e => {
-    const row = e.target.closest('.aib-note');
+    const row = targetOf(e).closest<HTMLElement>('.aib-note');
     const past = row?.classList.contains('past');
-    const next = row && !past ? +row.dataset.i : null;
-    const nextPast = past ? +row.dataset.p : null;
+    const next = row && !past ? Number(row.dataset.i) : null;
+    const nextPast = row && past ? Number(row.dataset.p) : null;
     if (next !== hovered || nextPast !== pastHovered) {
       hovered = next;
       pastHovered = nextPast;
@@ -819,7 +874,8 @@ export function openReview(
   });
   // Off the rows, to the home or anywhere outside the panel: no row is pointed at.
   box.addEventListener('pointerout', e => {
-    if (e.relatedTarget?.closest?.('.aib-note')) return;
+    // Where the pointer went: an element, or nothing (out of the window).
+    if ((e.relatedTarget as Element | null)?.closest?.('.aib-note')) return;
     if (hovered == null && pastHovered == null) return;
     hovered = null;
     pastHovered = null;
@@ -847,8 +903,10 @@ export function openReview(
   general.addEventListener('keydown', e => e.stopPropagation());
   // Photos: chosen, pasted into the bubble, or dropped onto it or onto a pin's row.
   pop.querySelector('input[type=file]')?.addEventListener('change', e => {
-    if (active != null) addPhotos(notes.pins[active], e.target.files);
-    e.target.value = '';
+    // The file input the handler is on; a file input always has its list.
+    const input = e.target as HTMLInputElement;
+    if (active != null) addPhotos(notes.pins[active], input.files!);
+    input.value = '';
   });
   popText.addEventListener('paste', e => {
     const files = [...(e.clipboardData?.files || [])].filter(isPicture);
@@ -858,47 +916,48 @@ export function openReview(
   });
   // A file dropped anywhere goes to the pin under it (its row) or the pin being written, never opens in the browser in the
   // page's place.
-  const carriesFiles = e => [...(e.dataTransfer?.types || [])].includes('Files');
-  const dropPin = e => {
-    const row = e.target.closest?.('.aib-note');
-    return row ? +row.dataset.i : active;
+  const carriesFiles = (e: DragEvent): boolean => [...(e.dataTransfer?.types || [])].includes('Files');
+  const dropPin = (e: DragEvent): number | null => {
+    const row = targetOf(e).closest?.<HTMLElement>('.aib-note');
+    return row ? Number(row.dataset.i) : active;
   };
-  let lit = null;
-  const light = target => {
+  let lit: Element | null = null;
+  const light = (target: Element | null): void => {
     if (lit === target) return;
     lit?.classList.remove('aib-drop');
     lit = target;
     lit?.classList.add('aib-drop');
   };
-  function dragOver(e) {
+  // dataTransfer: carriesFiles saw it.
+  function dragOver(e: DragEvent): void {
     if (!carriesFiles(e)) return;
     e.preventDefault();
     const i = upload ? dropPin(e) : null;
-    e.dataTransfer.dropEffect = i == null ? 'none' : 'copy';
-    light(i == null ? null : e.target.closest?.('.aib-note') || pop);
+    e.dataTransfer!.dropEffect = i == null ? 'none' : 'copy';
+    light(i == null ? null : targetOf(e).closest?.('.aib-note') || pop);
   }
-  function dragLeave(e) {
+  function dragLeave(e: DragEvent): void {
     if (!e.relatedTarget) light(null);
   }
-  function drop(e) {
+  function drop(e: DragEvent): void {
     if (!carriesFiles(e)) return;
     e.preventDefault();
     light(null);
     const i = upload ? dropPin(e) : null;
     if (i == null || !notes.pins[i]) return;
     if (i !== active) setActive(i);
-    addPhotos(notes.pins[i], e.dataTransfer.files);
+    addPhotos(notes.pins[i], e.dataTransfer!.files);
   }
   pinLayer.addEventListener('click', e => {
-    const b = e.target.closest('.aib-pin');
-    if (b?.dataset.p != null) openPast(+b.dataset.p);
-    else if (b) setActive(+b.dataset.i);
+    const b = targetOf(e).closest<HTMLElement>('.aib-pin');
+    if (b?.dataset.p != null) openPast(Number(b.dataset.p));
+    else if (b) setActive(Number(b.dataset.i));
   });
 
   // The plan: the editor's own clicks never reach it — a drag pans, a click puts a pin (the wheel still zooms, as in the editor).
-  let press = null;
-  const onPin = e => !!e.target.closest?.('.aib-pin');
-  function planDown(e) {
+  let press: {id: number; x: number; y: number; ox: number; oy: number; moved: boolean} | null = null;
+  const onPin = (e: Event): boolean => !!targetOf(e).closest?.('.aib-pin');
+  function planDown(e: PointerEvent): void {
     if (view !== 'plan' || onPin(e)) return;
     e.stopPropagation();
     e.preventDefault();
@@ -907,7 +966,7 @@ export function openReview(
       panes.plan.setPointerCapture(e.pointerId);
     } catch {} // a pointer the browser no longer tracks
   }
-  function planMove(e) {
+  function planMove(e: PointerEvent): void {
     if (view !== 'plan' || onPin(e)) return;
     e.stopPropagation();
     if (!press || e.pointerId !== press.id) return;
@@ -920,7 +979,7 @@ export function openReview(
     ed.v.fitted = false;
     ed.draw();
   }
-  function planUp(e) {
+  function planUp(e: PointerEvent): void {
     if (view !== 'plan' || !press || e.pointerId !== press.id) return;
     e.stopPropagation();
     const click = !press.moved;
@@ -931,17 +990,17 @@ export function openReview(
     const [x, y] = ed.v.W([e.clientX - canvas.left, e.clientY - canvas.top]);
     addPin({p: [+x.toFixed(3), +y.toFixed(3)]});
   }
-  const stop = e => {
+  const stop = (e: Event): void => {
     if (view === 'plan') e.stopPropagation();
   };
 
   // The 3D: dragging orbits as always; a click (no drag) with the pin tool puts a pin on what is under it.
-  let press3d = null;
-  function down3d(e) {
+  let press3d: {id: number; x: number; y: number} | null = null;
+  function down3d(e: PointerEvent): void {
     if (view !== '3d' || onPin(e)) return;
     press3d = {id: e.pointerId, x: e.clientX, y: e.clientY};
   }
-  function up3d(e) {
+  function up3d(e: PointerEvent): void {
     if (view !== '3d' || !press3d || e.pointerId !== press3d.id) return;
     const moved = Math.hypot(e.clientX - press3d.x, e.clientY - press3d.y) > CLICK_PX;
     press3d = null;
@@ -952,8 +1011,8 @@ export function openReview(
   }
 
   // Keys: V and P choose the tool, Esc closes the bubble; the editor's shortcuts are off while the review is open.
-  function keys(e) {
-    if (e.target.closest?.('.aib-review textarea')) return;
+  function keys(e: KeyboardEvent): void {
+    if (targetOf(e).closest?.('.aib-review textarea')) return;
     const key = e.key.toLowerCase();
     if (key === 'v') setTool('look');
     else if (key === 'p') setTool('pin');
@@ -962,13 +1021,13 @@ export function openReview(
     e.stopPropagation();
   }
 
-  function resized() {
+  function resized(): void {
     const ins = insets();
     ed.setBare(view, {right: ins.right, bottom: ins.bottom});
     placeTools();
   }
 
-  const listeners = [
+  const listeners: Listener[] = [
     [panes.plan, 'pointerdown', planDown],
     [panes.plan, 'pointermove', planMove],
     [panes.plan, 'pointerup', planUp],
@@ -980,14 +1039,15 @@ export function openReview(
     [window, 'dragleave', dragLeave],
     [window, 'drop', drop],
   ];
-  for (const [target, type, fn] of listeners) target.addEventListener(type, fn, true);
+  // Each handler is on the events of its own type.
+  for (const [target, type, fn] of listeners) target.addEventListener(type, fn as EventListener, true);
   addEventListener('resize', resized);
 
-  function close() {
+  function close(): void {
     if (closed) return;
     closed = true;
     cancelAnimationFrame(raf);
-    for (const [target, type, fn] of listeners) target.removeEventListener(type, fn, true);
+    for (const [target, type, fn] of listeners) target.removeEventListener(type, fn as EventListener, true);
     removeEventListener('resize', resized);
     document.body.classList.remove('aib-pinning');
     pinLayer.remove();
@@ -998,7 +1058,7 @@ export function openReview(
 
   setTool(tool);
   if (notes.pins.length) hideHint();
-  else box.querySelector('[data-tool=pin]').classList.add('aib-pulse');
+  else find(box, '[data-tool=pin]').classList.add('aib-pulse');
   setView(view);
   renderPins();
   renderNotes();
