@@ -1,4 +1,3 @@
-// @ts-nocheck
 // The “Plan” mode: rooms. Selecting and dragging corners, walls and rooms; rectangle; “Split” — cutting a room with a line.
 // Wall: a click opens the menu (length, add a corner, remove the wall); a separate wall's thickness — only if enabled in the settings.
 import {t} from '../../i18n/i18n.ts';
@@ -56,60 +55,324 @@ import {
 import {setRoomArea} from '../../core/layout.ts';
 import {$, el, esc, fmtArea, popover, panelPop, closePop, popClosedAt} from '../ui.ts';
 import {icon} from '../icons.ts';
-import {pal, FONT, dimLabel, labelAt} from '../draw.ts';
+import {FONT, dimLabel, labelAt} from '../draw.ts';
 import {openingsTool} from './openings.ts';
+import {pal} from './typed-helpers.ts';
+import type {OpeningHit, OpeningsTool} from './openings.ts';
+import type {
+  EdgeFinish,
+  EdgeRef,
+  FloorPiece,
+  MultiPolygon,
+  OpeningKind,
+  Outline,
+  Plan,
+  Point,
+  Room,
+  RoomZone,
+  Segment,
+  SplitPart,
+  Vector,
+  WallInfo,
+  WallStretch,
+  WizardProgress,
+  ZoneParts,
+} from '../../core/types.ts';
+import type {
+  Aim,
+  BannerItem,
+  Editor,
+  PlanBox,
+  PlanView2d,
+  RoomTool,
+  RoomsMode,
+  RoomsWizardPhase,
+  Selection,
+  StepOptions,
+  WallSelection,
+} from '../editor-types.ts';
+
+/** The rooms mode as this file builds it: with the hook it calls after a room is drawn (nothing sets it today). */
+interface RoomsModeHooks extends RoomsMode {
+  onRoomAdded?(room: Room): void;
+}
+
+/** The selected wall (wallOf): the stretch under the click from a to b, on its room side from ea to eb. */
+type SelectedWall = WallStretch & {ea: Point; eb: Point};
+
+/** A step card as ed.step takes it: the text, its buttons and the area it points at. */
+type StepCard = [text: string, buttons: BannerItem[], aim: Aim | null | undefined];
+
+/**
+ * The rooms mode's guided steps (wiz): the step on now, and what each step's card was last shown for, so the same card is not
+ * shown again. Restored from the project's saved progress, whose other fields come along unread.
+ */
+interface RoomsWizard extends Omit<WizardProgress, 'at'> {
+  /** The card shown before the first rectangle, to go back to; null: "draw a rectangle". */
+  back: StepCard | null;
+  /** The step on now; null: the next wizard() picks it. */
+  at: RoomsWizardPhase | null;
+  /** The windows and doors card: shown for "has openings|what is selected". */
+  opened?: string | null;
+  /** The split card: shown for "there is more than one room". */
+  splitHas?: boolean | null;
+  /** The link rooms card: shown for these counts. */
+  named?: string | null;
+  /** The link rooms step: the cell asked about (a room, or z: its zone's part); null: the next one in reading order. */
+  cur?: {id: string; z: boolean} | null;
+}
+
+/** A cell of the link rooms step: a room, or a part of it (z: its zone's part, else the rest), with its outline. */
+interface RoomCell {
+  r: Room;
+  z: boolean;
+  poly: Outline;
+}
+
+/** A wall spot: edge i of a room, t along it (0–1). */
+interface WallSpot {
+  room: Room;
+  i: number;
+  t: number;
+}
+
+/** A circle on a room side that drags a zone border off it: the side's start a and its inward normal; p: the circle. */
+interface ZoneHandleHit {
+  kind: 'zonehandle';
+  room: Room;
+  i: number;
+  a: Point;
+  nIn: Vector;
+  p: Point;
+}
+
+/** A room's zone border; p: its middle, where its circle is. */
+interface ZoneLineHit {
+  kind: 'zoneline';
+  room: Room;
+  zp: ZoneParts;
+  p?: Point;
+}
+
+/** A zone circle to draw and to catch: on a side, or in the middle of a border. */
+type ZoneHandle = ZoneHandleHit | (ZoneLineHit & {p: Point});
+
+/** A room side under the pointer, t along it (0–1); body: the pointer is on the wall's fill beside it. */
+interface EdgeHit {
+  kind: 'edge';
+  room: Room;
+  i: number;
+  t: number;
+  body?: boolean;
+}
+
+/** What is under the pointer (hit). */
+type RoomHit =
+  | ZoneHandleHit
+  | ZoneLineHit
+  | {kind: 'thick'; W: SelectedWall}
+  | {kind: 'vertex'; room: Room; i: number}
+  | OpeningHit
+  | EdgeHit
+  | {kind: 'room'; room: Room};
+
+/** A rectangle being drawn: by dragging, or (click) by two clicks, a corner and then the opposite one. */
+interface RectDraft {
+  kind: 'rect';
+  a: Point;
+  b: Point;
+  click?: boolean;
+  points?: undefined;
+}
+
+/** An outline being clicked corner by corner. */
+interface PolyDraft {
+  kind: 'poly';
+  points: Point[];
+  click?: undefined;
+  a?: undefined;
+  b?: undefined;
+}
+
+type RoomDraft = RectDraft | PolyDraft;
+
+/** A zone border being dragged across its room, from start along n. */
+interface ZoneLineDrag {
+  kind: 'zoneline';
+  room: Room;
+  start: Point;
+  z0: RoomZone;
+  n: Vector;
+  moved?: boolean;
+}
+
+/** A zone border being dragged off side i (its start a, its inward normal). */
+interface ZoneHandleDrag {
+  kind: 'zonehandle';
+  room: Room;
+  i: number;
+  a: Point;
+  nIn: Vector;
+  start: Point;
+  moved?: boolean;
+}
+
+/** A wall's thickness being dragged by its handle: from t0, the pointer p0 across the wall from its middle m0. */
+interface ThickDrag {
+  kind: 'thick';
+  W: SelectedWall;
+  orig: Map<string, Outline>;
+  t0: number;
+  m0: Point;
+  p0: number;
+  start?: undefined;
+  moved?: boolean;
+}
+
+/** A corner being dragged. */
+interface VertexDrag {
+  kind: 'vertex';
+  room: Room;
+  i: number;
+  start?: undefined;
+  moved?: boolean;
+}
+
+/** A wall being dragged along its normal n, with the neighbours' edges on it. */
+interface EdgeDrag {
+  kind: 'edge';
+  room: Room;
+  i: number;
+  t: number;
+  n: Vector;
+  start: Point;
+  orig: Map<string, Outline>;
+  edges: EdgeRef[];
+  moved?: boolean;
+}
+
+/** A whole room being dragged, with its floor pieces as they were. */
+interface RoomBodyDrag {
+  kind: 'room';
+  room: Room;
+  start: Point;
+  orig: Map<string, Outline>;
+  floorPieces: FloorPiece[] | undefined;
+  moved?: boolean;
+}
+
+/** What the rooms mode drags; moved: past the 3 px threshold. */
+type RoomDrag = ZoneLineDrag | ZoneHandleDrag | ThickDrag | VertexDrag | EdgeDrag | RoomBodyDrag;
+
+/** The split line through the pointer (cutAt): its room, the chord, the two parts and their areas, the wall it follows, a part too thin. */
+interface CutLine {
+  room: Room;
+  ch: Segment;
+  parts: [SplitPart, SplitPart];
+  areas: number[];
+  wall: Segment;
+  narrow: boolean;
+}
+
+/** A room side's length label on the plan (canvas px), clicked to type the length. */
+interface DimHit {
+  X: number;
+  Y: number;
+  room: string;
+  i: number;
+}
+
+/** A finish as the swatches show it (surfaces.ts FLOOR_KINDS, WALL_KINDS). */
+interface FinishKind {
+  label: string;
+}
+
+/** The floor's or the walls' finishes (FIN): the kinds by key, the frequent ones, the popup's groups, a swatch and the base colour. */
+interface FinishCatalog {
+  kinds: Record<string, FinishKind>;
+  quick: string[];
+  groups: Array<[group: string, kinds: string[]]>;
+  swatch(kind: string, tint: string | null): string;
+  base(kind: string, tint: string | null): string;
+}
+
+/**
+ * A row of finish swatches (floorState, wallState, sideState): what is chosen now (auto: guessed, autoTip says how), whether the
+ * AI build put pieces there, and what a pick, a custom colour, a reset and "Same as room" do.
+ */
+interface FinishState {
+  type: 'floor' | 'wall';
+  key: string;
+  title: string;
+  cur: string;
+  tint: string | null;
+  auto: boolean;
+  autoTip: string;
+  ai: boolean;
+  pick(kind: string): void;
+  setTint(hex: string): void;
+  reset(): void;
+  same?: (() => void) | null;
+}
+
+/** The open finish popup: its row's key, whose panel it belongs to, and the row's state now. */
+interface FinishPopup {
+  key: string;
+  owner: string;
+  get: () => FinishState;
+}
 
 // the “draw a rectangle” step — one text for the “Draw from scratch” start, ⌘Z after the first rectangle and “Split” without rooms
 export const DRAW_RECT = `${t('Mark two opposite corners of your apartment.')}<small>${t('Draw a rectangle that fits your whole home.')}</small>`;
-export function roomsMode(ed) {
-  let tool = 'select',
-    drag = null,
-    draft = null,
-    hover = null,
-    lastClick = {},
-    hoverWall = null,
-    aim = null,
-    aimKey = null,
-    thickMore = false,
-    cut = null,
-    dimHits = [],
-    buildPop = null;
+export function roomsMode(ed: Editor): RoomsMode {
+  let tool: RoomTool = 'select';
+  let drag: RoomDrag | null = null;
+  let draft: RoomDraft | null = null;
+  let hover: Point | null = null;
+  let lastClick: {id: string; t: number} | {id?: undefined; t?: undefined} = {};
+  let hoverWall: WallSelection | null = null;
+  let aim: WallSelection | null = null;
+  let aimKey: string | null = null;
+  let thickMore = false;
+  let cut: CutLine | null = null;
+  let dimHits: DimHit[] = [];
+  let buildPop: HTMLElement | null = null;
   // Typical thicknesses (for handle snapping, when per-wall thickness is enabled).
   const PRESETS = {in: [0.1, 0.12, 0.2, 0.3], out: [0.25, 0.3, 0.38, 0.51, 0.64]};
-  const each = () => ed.prefs?.wallEach;
-  const len = (a, b) => Math.hypot(b[0] - a[0], b[1] - a[1]);
-  const cm = x => Math.round(x * 100);
+  const each = (): boolean => ed.prefs?.wallEach;
+  const len = (a: Point, b: Point): number => Math.hypot(b[0] - a[0], b[1] - a[1]);
+  const cm = (x: number): number => Math.round(x * 100);
   // The selected wall: sel.wall = {room, i} — a room side; the wall info is fresh every time (after edits the sides move).
-  const wallOf = w => {
+  const wallOf = (w: WallSelection | null | undefined): SelectedWall | null => {
     const r = w && roomById(plan(), w.room);
     if (!r || w.i >= r.polygon.length) return null;
-    const W = wallAt(plan(), r, w.i, w.t ?? 0.5),
-      [lo, hi] = W.seg;
+    const W = wallAt(plan(), r, w.i, w.t ?? 0.5) as SelectedWall; // ea and eb are set just below
+    const [lo, hi] = W.seg;
     W.ea = W.a;
     W.eb = W.b;
     W.a = [W.ea[0] + W.u[0] * lo, W.ea[1] + W.u[1] * lo];
     W.b = [W.ea[0] + W.u[0] * hi, W.ea[1] + W.u[1] * hi];
     return W;
   };
-  const selWall = () => wallOf(sel().wall);
+  const selWall = (): SelectedWall | null => wallOf(sel().wall);
   // The wall band from room A: from its inner face to the outer one (or to the neighbour's face).
-  const span = W => (W.interior ? W.gap + WALL.inner : W.t - WALL.inner);
-  const faceMid = W => {
-    const m = [(W.a[0] + W.b[0]) / 2, (W.a[1] + W.b[1]) / 2],
-      d = span(W);
+  const span = (W: WallInfo): number => (W.interior ? W.gap + WALL.inner : W.t - WALL.inner);
+  const faceMid = (W: WallInfo): Point => {
+    const m = [(W.a[0] + W.b[0]) / 2, (W.a[1] + W.b[1]) / 2];
+    const d = span(W);
     return [m[0] + W.n[0] * d, m[1] + W.n[1] * d];
   };
   // the thickness label is on the wall axis, slightly to the side along it, so as not to cover the handle
-  const bandMid = W => {
-    const m = [(W.a[0] + W.b[0]) / 2, (W.a[1] + W.b[1]) / 2],
-      d = (span(W) - WALL.inner) / 2,
-      k = Math.min(34 / v().sc, Math.hypot(W.b[0] - W.a[0], W.b[1] - W.a[1]) / 3);
+  const bandMid = (W: WallInfo): Point => {
+    const m = [(W.a[0] + W.b[0]) / 2, (W.a[1] + W.b[1]) / 2];
+    const d = (span(W) - WALL.inner) / 2;
+    const k = Math.min(34 / v().sc, Math.hypot(W.b[0] - W.a[0], W.b[1] - W.a[1]) / 3);
     return [m[0] + W.n[0] * d + W.u[0] * k, m[1] + W.n[1] * d + W.u[1] * k];
   };
-  const inMP = (p, mp) =>
+  const inMP = (p: Point, mp: MultiPolygon): boolean =>
     mp.some(([outer, ...holes]) => pointIn(p, outer) && !holes.some(h => pointIn(p, h)));
-  const m = {id: 'rooms'},
-    ops = openingsTool(ed);
+  const m = {id: 'rooms'} as RoomsModeHooks; // its members are set below, before app.ts calls any
+  const ops: OpeningsTool = openingsTool(ed);
   m.dragCursor = () =>
     ops.dragCursor() ||
     (drag
@@ -127,34 +390,34 @@ export function roomsMode(ed) {
     cut = null;
     ops.cancelDrag();
   };
-  const v = () => ed.v,
-    plan = () => ed.plan,
-    sel = () => ed.sel;
+  const v = (): PlanView2d => ed.v;
+  const plan = (): Plan => ed.plan;
+  const sel = (): Selection => ed.sel;
   // internal: called only by ed.setTool (the single tool state machine in app.js)
   // The “rectangle → split” wizard follows the plan, not the clicks: ⌘Z or deleting the only room
   // go back to “Draw a rectangle”, the room is back — “Split” again. Finished — via “Done”.
-  const RECT_STEP = [DRAW_RECT, [], ed.aim.photo];
+  const RECT_STEP: StepCard = [DRAW_RECT, [], ed.aim.photo];
   const SPLIT_STEP = `${t('Split into rooms: a click adds a wall.')}<small>${t('Tip: all horizontal walls first, then vertical ones. Delete extras later.')}</small><small>${t('Select and delete any extra area outside your apartment.')}</small><small>${t('You can also paint the floor and walls: select a room with the arrow.')}</small>`;
   // a strip above the bottom bar, does not move; after the first split — on one line (the owner)
-  const SPLIT_O = () => ({id: 'split', fixed: true});
+  const SPLIT_O = (): StepOptions => ({id: 'split', fixed: true});
   const OPEN_STEP = `${t('Now windows and doors: click a wall where they are in the photo and choose “Window” or “Door”. When all are added, click “Done”.')}<small>${t('Drag an opening along the wall or by its edges. Delete extras.')}</small>`;
   // The “Link rooms” step: the wizard itself goes in order (top to bottom, left to right), highlights a room without a link and
   // asks for its area; a click on another room selects that one instead. Shafts and pieces smaller than 1 m² are not asked about.
-  const linkable = () => plan().rooms.filter(r => !r.solid && Math.abs(area(r.polygon)) >= SMALL);
-  const reading = rs => {
-    const k = r => {
-      const ys = r.polygon.map(q => q[1]),
-        xs = r.polygon.map(q => q[0]);
+  const linkable = (): Room[] => plan().rooms.filter(r => !r.solid && Math.abs(area(r.polygon)) >= SMALL);
+  const reading = (rs: Room[]): Room[] => {
+    const k = (r: Room): [number, number] => {
+      const ys = r.polygon.map(q => q[1]);
+      const xs = r.polygon.map(q => q[0]);
       return [-Math.round(Math.max(...ys) * 2), Math.min(...xs)];
     };
     return [...rs].sort((a, b) => {
-      const ka = k(a),
-        kb = k(b);
+      const ka = k(a);
+      const kb = k(b);
       return ka[0] - kb[0] || ka[1] - kb[1];
     });
   };
   // The step cell is the whole room or a part of it, if it has two areas (a border without a wall, room.zone).
-  const cells = () =>
+  const cells = (): RoomCell[] =>
     linkable().flatMap(r => {
       const zp = zoneParts(r);
       return zp
@@ -164,34 +427,39 @@ export function roomsMode(ed) {
           ]
         : [{r, z: false, poly: r.polygon}];
     });
-  const cellArea = c => (c.z ? c.r.zone.area : c.r.area),
-    cellSkip = c => (c.z ? c.r.zone.noArea : c.r.noArea);
-  const readingCells = cs => {
-    const k = c => [-Math.round(Math.max(...c.poly.map(q => q[1])) * 2), Math.min(...c.poly.map(q => q[0]))];
+  // a zone's part is a cell only when the room has a zone
+  const cellArea = (c: RoomCell): string | null | undefined => (c.z ? c.r.zone!.area : c.r.area);
+  const cellSkip = (c: RoomCell): boolean | undefined => (c.z ? c.r.zone!.noArea : c.r.noArea);
+  const readingCells = (cs: RoomCell[]): RoomCell[] => {
+    const k = (c: RoomCell): [number, number] => [
+      -Math.round(Math.max(...c.poly.map(q => q[1])) * 2),
+      Math.min(...c.poly.map(q => q[0])),
+    ];
     return [...cs].sort((a, b) => {
-      const ka = k(a),
-        kb = k(b);
+      const ka = k(a);
+      const kb = k(b);
       return ka[0] - kb[0] || ka[1] - kb[1];
     });
   };
-  const curCell = () => {
+  const curCell = (): RoomCell | null => {
     if (wiz?.at !== 'names') return null;
-    const cs = cells(),
-      w = wiz.cur,
-      c = w && cs.find(c => c.r.id === w.id && c.z === !!w.z);
+    const cs = cells();
+    const w = wiz.cur;
+    const c = w && cs.find(c => c.r.id === w.id && c.z === !!w.z);
     if (c) return c;
     return readingCells(cs).find(c => !cellArea(c) && !cellSkip(c)) || null;
   };
-  const curRoom = () => curCell()?.r || null;
+  const curRoom = (): Room | null => curCell()?.r || null;
   // nothing done on the step — the button honestly says “Skip”, something done — “Done”
-  function openStep() {
-    const has = plan().openings.length > 0,
-      W = selWall(),
-      choose = W && !W.open && ['window', 'door'].some(k => ops.can(W, k)),
-      state = sel().opening ? 'edit' : choose ? 'choose' : 'wall',
-      key = has + '|' + state;
-    if (wiz.opened === key) return;
-    wiz.opened = key;
+  function openStep(): void {
+    const has = plan().openings.length > 0;
+    const W = selWall();
+    const choose = W && !W.open && (['window', 'door'] as const).some(k => ops.can(W, k));
+    const state = sel().opening ? 'edit' : choose ? 'choose' : 'wall';
+    const key = has + '|' + state;
+    // the step cards are shown only by wizard(), while a step is on
+    if (wiz!.opened === key) return;
+    wiz!.opened = key;
     const short =
       state === 'edit'
         ? t('Move the opening and drag its edges.')
@@ -213,7 +481,7 @@ export function roomsMode(ed) {
     );
   }
   // “Done” without a single window — ask again (the owner): doors were placed but windows forgotten. The answer is for this time only.
-  function openDone() {
+  function openDone(): void {
     if (plan().openings.some(o => o.kind === 'window')) {
       ed.path.after('open');
       return;
@@ -230,10 +498,11 @@ export function roomsMode(ed) {
     ]);
   }
   // “Rooms”: until split — “Skip” is unobtrusive (it was tempting to press “Done” just to make the card go away — the owner)
-  function splitStep() {
+  function splitStep(): void {
     const has = plan().rooms.length > 1;
-    if (wiz.splitHas === has) return;
-    wiz.splitHas = has;
+    // shown only by wizard(), while a step is on
+    if (wiz!.splitHas === has) return;
+    wiz!.splitHas = has;
     ed.step(
       SPLIT_STEP,
       [[has ? t('Done') : t('One room'), () => ed.path.after('split'), has]],
@@ -241,19 +510,20 @@ export function roomsMode(ed) {
       SPLIT_O(),
     );
   }
-  function areasStep() {
-    const rs = cells(),
-      n = rs.filter(cellArea).length,
-      k = rs.filter(c => !cellArea(c) && cellSkip(c)).length,
-      left = rs.length - n - k;
-    const used = new Set(plan().rooms.flatMap(r => [r.area, zoneParts(r) && r.zone.area])),
-      rest = ed.ha
-        .areas()
-        .filter(a => !used.has(a.area_id))
-        .map(a => a.name);
+  function areasStep(): void {
+    const rs = cells();
+    const n = rs.filter(cellArea).length;
+    const k = rs.filter(c => !cellArea(c) && cellSkip(c)).length;
+    const left = rs.length - n - k;
+    const used = new Set(plan().rooms.flatMap(r => [r.area, zoneParts(r) && r.zone!.area])); // zoneParts: it has a zone
+    const rest = ed.ha
+      .areas()
+      .filter(a => !used.has(a.area_id))
+      .map(a => a.name);
     const key = [n, k, rs.length, rest.join()].join('/');
-    if (wiz.named === key) return;
-    wiz.named = key;
+    // shown only by wizard(), while a step is on
+    if (wiz!.named === key) return;
+    wiz!.named = key;
     const tail = k
       ? t('Linked {0} of {1} · skipped {2}.', n, rs.length, k)
       : t('Linked {0} of {1}.', n, rs.length);
@@ -271,14 +541,14 @@ export function roomsMode(ed) {
     );
   }
   // next — the “Furniture” step (modes/furniture.js), after it “Lights” (modes/lights.js): lighting is often on furniture
-  function toFurniture() {
+  function toFurniture(): void {
     wiz = null;
     ed.step(null);
     ed.wizard?.set(plan().id, {furn: true});
     ed.modes.furniture?.reset?.();
     ed.setMode('furniture');
   }
-  function toLights() {
+  function toLights(): void {
     wiz = null;
     ed.step(null);
     ed.wizard?.set(plan().id, {lights: true});
@@ -287,14 +557,14 @@ export function roomsMode(ed) {
   } // the step from scratch — from the first room
   m.unnamed = r => wiz?.at === 'names' && !r.area && !r.solid;
   m.unnamedZone = r => wiz?.at === 'names' && !r.zone?.area;
-  let wiz = null;
+  let wiz: RoomsWizard | null = null;
   // a new plan: the wizard is as it was left in this project (after a reload the step is in place), taken on the first draw
   let restore = false;
   m.reset = () => {
     wiz = null;
     restore = true;
   };
-  const persist = () => ed.wizard?.set(plan().id, wiz && {open: !!wiz.open, names: !!wiz.names});
+  const persist = (): void => ed.wizard?.set(plan().id, wiz && {open: !!wiz.open, names: !!wiz.names});
   // for the test panel: which step the wizard is on and jumping to a step ('rect' | 'split' | 'open' | 'names' | 'furniture' | 'lights' | null — no wizard)
   m.wizardPhase = () => wiz?.at || null;
   m.wizardAt = at => {
@@ -315,12 +585,13 @@ export function roomsMode(ed) {
     wiz = {back: null, at: null, open: at === 'open' || at === 'names', names: at === 'names'};
     wizard();
   };
-  function wizard() {
+  function wizard(): void {
     if (restore && ed.mode === m) {
       restore = false;
       const s = ed.wizard?.get(plan().id);
       if (s && !s.lights && !s.furn && !s.sens && !s.fin && !s.view && !wiz)
-        wiz = {back: null, at: null, ...s};
+        // a saved progress has `at` only in the lights step, which is not restored here; the lines below set at anyway
+        wiz = {back: null, at: null, ...s} as RoomsWizard;
     }
     if (!wiz || ed.mode !== m) return;
     const at = !plan().rooms.length ? 'rect' : wiz.names ? 'names' : wiz.open ? 'open' : 'split';
@@ -388,19 +659,19 @@ export function roomsMode(ed) {
   // Circles for two areas: for the room highlighted on the step without a division — in the middle of each side longer than 60 cm,
   // right on its line (the circle catches the click before the wall; by the rest of the line the wall is dragged as usual); for a divided
   // room — in the middle of the border (the “Link rooms” step or the selected room).
-  function zoneHandles() {
-    const out = [];
+  function zoneHandles(): ZoneHandle[] {
+    const out: ZoneHandle[] = [];
     if (tool !== 'select' || ed.mode !== m) return out;
     const cc = curCell();
     if (cc && !sel().room && !zoneParts(cc.r)) {
-      const P = cc.r.polygon,
-        s = area(P) > 0 ? 1 : -1;
+      const P = cc.r.polygon;
+      const s = area(P) > 0 ? 1 : -1;
       P.forEach((a, i) => {
-        const b = P[(i + 1) % P.length],
-          L = len(a, b);
+        const b = P[(i + 1) % P.length];
+        const L = len(a, b);
         if (L < 0.6) return;
-        const u = [(b[0] - a[0]) / L, (b[1] - a[1]) / L],
-          nIn = [-u[1] * s, u[0] * s];
+        const u = [(b[0] - a[0]) / L, (b[1] - a[1]) / L];
+        const nIn: Vector = [-u[1] * s, u[0] * s];
         out.push({kind: 'zonehandle', room: cc.r, i, a, nIn, p: [(a[0] + b[0]) / 2, (a[1] + b[1]) / 2]});
       });
     }
@@ -419,12 +690,12 @@ export function roomsMode(ed) {
   // ---------- hit testing and snapping ----------
   // The “Windows & doors” step (D-044): where the opening will land — the wall under the pointer, otherwise the nearest wall of the room under the pointer
   // (outside the apartment — up to 36 px). The band of the future opening “runs” along it, a click selects the wall at that same point.
-  const aimOn = () => wiz?.at === 'open' && tool === 'select' && !drag && !sel().opening;
-  function openAim(p, h) {
+  const aimOn = (): boolean => wiz?.at === 'open' && tool === 'select' && !drag && !sel().opening;
+  function openAim(p: Point, h: RoomHit | null): WallSpot | null {
     if (h?.kind === 'edge') return {room: h.room, i: h.i, t: h.t};
     if (h && h.kind !== 'room') return null;
     const lim = h ? Infinity : 36 / v().sc;
-    let best = null;
+    let best: (WallSpot & {d: number}) | null = null;
     for (const r of h ? [h.room] : plan().rooms) {
       if (r.solid) continue;
       const P = r.polygon;
@@ -438,10 +709,10 @@ export function roomsMode(ed) {
   }
   // while the band is visible, a ring spreads from it — once every 1.4 s, like on pulsing buttons
   let ghostTick = false;
-  function pulseGhost() {
+  function pulseGhost(): void {
     if (ghostTick) return;
     ghostTick = true;
-    const tick = () => {
+    const tick = (): void => {
       if (ed.mode !== m || !aimOn() || !(aim || sel().wall)) {
         ghostTick = false;
         return;
@@ -451,14 +722,14 @@ export function roomsMode(ed) {
     };
     requestAnimationFrame(tick);
   }
-  function hit(p) {
+  function hit(p: Point): RoomHit | null {
     {
       const tol = v().tol();
       const zh = zoneHandles().find(h => dist2(p, h.p) < (tol * 1.1) ** 2);
       if (zh) return zh;
     }
-    const tol = v().tol(),
-      order = [...plan().rooms].sort((a, b) => (b.id === sel().room) - (a.id === sel().room));
+    const tol = v().tol();
+    const order = [...plan().rooms].sort((a, b) => +(b.id === sel().room) - +(a.id === sel().room));
     const W = selWall();
     if (each() && W && !W.open && dist2(p, faceMid(W)) < (tol * 1.3) ** 2) return {kind: 'thick', W};
     for (const r of order)
@@ -489,16 +760,17 @@ export function roomsMode(ed) {
     return null;
   }
   // To x and y of other corners (alignment, right angles), otherwise to the grid.
-  function snapPoint(p, skip, free) {
+  function snapPoint(p: Point, skip?: ((r: Room, i: number) => boolean) | null, free?: boolean): Point {
     ed.guides = [];
     if (free) return p;
     const tol = v().tol();
-    let [x, y] = p,
-      bx = tol,
-      by = tol,
-      gx = null,
-      gy = null;
-    const consider = q => {
+    let [x, y] = p;
+    let bx = tol;
+    let by = tol;
+    // set by consider, inside the loops' callbacks
+    let gx = null as Point | null;
+    let gy = null as Point | null;
+    const consider = (q: Point): void => {
       if (Math.abs(q[0] - p[0]) < bx) {
         bx = Math.abs(q[0] - p[0]);
         gx = q;
@@ -529,24 +801,24 @@ export function roomsMode(ed) {
   // Right at a wall (closer than NEAR pixels) — parallel to it: this is a strong hint “the wall is here”. Tab rotates and holds the direction
   // until the pointer comes to a wall or leaves the room. The position snaps to the corners of other rooms and to the grid; Shift — no snapping.
   const NEAR = 25;
-  let cutDir = null,
-    cutLock = false,
-    cutRoom = null,
-    mv = [0, 0],
-    lastP = null;
-  function trackMove(p) {
+  let cutDir: Vector | null = null;
+  let cutLock = false;
+  let cutRoom: string | null = null;
+  let mv: Vector = [0, 0];
+  let lastP: Point | null = null;
+  function trackMove(p: Point): void {
     if (!lastP) {
       lastP = p;
       return;
     }
-    const sc = v().sc,
-      d = [(p[0] - lastP[0]) * sc, (p[1] - lastP[1]) * sc];
+    const sc = v().sc;
+    const d = [(p[0] - lastP[0]) * sc, (p[1] - lastP[1]) * sc];
     lastP = p;
     mv = [mv[0] * 0.75 + d[0], mv[1] * 0.75 + d[1]];
   }
-  function cutAt(p, free) {
+  function cutAt(p: Point, free: boolean): CutLine | null {
     const r = [...plan().rooms]
-      .sort((a, b) => (b.id === sel().room) - (a.id === sel().room))
+      .sort((a, b) => +(b.id === sel().room) - +(a.id === sel().room))
       .find(r => pointIn(p, r.polygon));
     if (!r) {
       cutRoom = null;
@@ -559,18 +831,23 @@ export function roomsMode(ed) {
       cutDir = null;
       mv = [0, 0];
     }
-    let best = null;
+    // the nearest room side; set inside the callback, and a room always has a side longer than 1e-6
+    let best = null as {d: number; a: Point; b: Point} | null;
     r.polygon.forEach((a, i) => {
       const b = r.polygon[(i + 1) % r.polygon.length];
       if (len(a, b) < 1e-6) return;
       const [d] = segDist(p, a, b);
       if (!best || d < best.d) best = {d, a, b};
     });
-    const u = [(best.b[0] - best.a[0]) / len(best.a, best.b), (best.b[1] - best.a[1]) / len(best.a, best.b)],
-      nn = [-u[1], u[0]];
-    const along = q => Math.abs(q[0] * u[0] + q[1] * u[1]),
-      across = q => Math.abs(q[0] * nn[0] + q[1] * nn[1]);
-    if (best.d * v().sc < NEAR) {
+    const nearest = best!;
+    const u: Vector = [
+      (nearest.b[0] - nearest.a[0]) / len(nearest.a, nearest.b),
+      (nearest.b[1] - nearest.a[1]) / len(nearest.a, nearest.b),
+    ];
+    const nn: Vector = [-u[1], u[0]];
+    const along = (q: Vector): number => Math.abs(q[0] * u[0] + q[1] * u[1]);
+    const across = (q: Vector): number => Math.abs(q[0] * nn[0] + q[1] * nn[1]);
+    if (nearest.d * v().sc < NEAR) {
       cutDir = u;
       cutLock = false;
       mv = [0, 0];
@@ -584,18 +861,17 @@ export function roomsMode(ed) {
       }
       if (!cutDir) cutDir = u;
     }
-    // hold the direction out of the two possible for this room (along the nearest wall or across)
+    // hold the direction out of the two possible for this room (along the nearest wall or across); set above, or locked by Tab
+    const held = cutDir!;
     const dir =
-      Math.abs(cutDir[0] * u[0] + cutDir[1] * u[1]) >= Math.abs(cutDir[0] * nn[0] + cutDir[1] * nn[1])
-        ? u
-        : nn;
+      Math.abs(held[0] * u[0] + held[1] * u[1]) >= Math.abs(held[0] * nn[0] + held[1] * nn[1]) ? u : nn;
     cutDir = dir;
     const n = [-dir[1], dir[0]];
-    let c = [...p];
+    let c: Point = [...p];
     ed.guides = [];
     if (!free) {
-      const tol = v().tol(),
-        pr = q => (q[0] - p[0]) * n[0] + (q[1] - p[1]) * n[1];
+      const tol = v().tol();
+      const pr = (q: Point): number => (q[0] - p[0]) * n[0] + (q[1] - p[1]) * n[1];
       let off = null;
       for (const o of plan().rooms)
         for (const q of o.polygon) {
@@ -617,26 +893,26 @@ export function roomsMode(ed) {
     if (!parts) return null;
     const areas = parts.map(x => Math.abs(area(x.pts)));
     const widths = parts.map(x => {
-        const pr = x.pts.map(q => q[0] * n[0] + q[1] * n[1]);
-        return Math.max(...pr) - Math.min(...pr);
-      }),
-      narrow = Math.min(...widths) < 0.1 - 1e-6;
+      const pr = x.pts.map(q => q[0] * n[0] + q[1] * n[1]);
+      return Math.max(...pr) - Math.min(...pr);
+    });
+    const narrow = Math.min(...widths) < 0.1 - 1e-6;
     // highlight the wall the line is parallel to (the nearest such one)
-    const par =
+    const par: Segment =
       dir === u
-        ? [best.a, best.b]
-        : (() => {
-            let w = null;
+        ? [nearest.a, nearest.b]
+        : ((): Segment => {
+            let w = null as {d: number; a: Point; b: Point} | null; // set inside the callback
             r.polygon.forEach((a, i) => {
-              const b = r.polygon[(i + 1) % r.polygon.length],
-                l = len(a, b);
+              const b = r.polygon[(i + 1) % r.polygon.length];
+              const l = len(a, b);
               if (l < 1e-6) return;
               if (Math.abs(((b[0] - a[0]) * dir[0] + (b[1] - a[1]) * dir[1]) / l) > 0.995) {
                 const [d] = segDist(p, a, b);
                 if (!w || d < w.d) w = {d, a, b};
               }
             });
-            return w ? [w.a, w.b] : [best.a, best.b];
+            return w ? [w.a, w.b] : [nearest.a, nearest.b];
           })();
     return {room: r, ch, parts, areas, wall: par, narrow};
   }
@@ -651,19 +927,19 @@ export function roomsMode(ed) {
   };
   // In “Split” the room panel (name, area, “⋯”, trash) is at the room under the pointer, the same as for the selected one.
   // The panel moves to another room with a delay: on the way to the panel the pointer may touch a neighbouring one.
-  let xRoom = null,
-    xTimer = 0,
-    xPend,
-    roomMore = null,
-    hintRoom = null;
+  let xRoom: string | null = null;
+  let xTimer: ReturnType<typeof setTimeout> | 0 = 0;
+  let xPend: string | null | undefined;
+  let roomMore: string | null = null;
+  let hintRoom: string | null = null;
   // in “Split” the panel is at the room under the pointer, but not while only the whole apartment is outlined: nothing to set up yet (the owner)
-  const ctxRoom = () =>
+  const ctxRoom = (): string | null | undefined =>
     hintRoom ||
     sel().room ||
     (tool === 'split' && plan().rooms.length > 1 ? xRoom : null) ||
     (tool === 'select' && !sel().wall && !sel().opening ? curRoom()?.id : null);
   // on the “Link rooms” step rooms are clicked — the room under the pointer is tinted the same way (except the already selected one)
-  let nameHover = null;
+  let nameHover: string | null = null;
   m.tintRoom = () =>
     wiz?.at === 'names' && tool === 'select'
       ? nameHover !== sel().room && nameHover !== curRoom()?.id
@@ -676,11 +952,12 @@ export function roomsMode(ed) {
   // above it a panel with “⋯” open and a “Yes / No” question — this shows where it is. A click elsewhere or Esc closes the question.
   // Asked the first 3 times (once is not enough to remember); whoever turned on the switch under “⋯” themselves already knows, not asked again.
   // the count is per project: in a new project the question is asked the first 3 times again
-  const SMALL = 1,
-    HINT_TIMES = 3,
-    HINT = () => 'solidAsk:' + plan().id;
-  const tiny = r => !!r && !r.solid && Math.abs(area(r.polygon)) < SMALL && plan().rooms.length > 1;
-  function offerSolid(ids) {
+  const SMALL = 1;
+  const HINT_TIMES = 3;
+  const HINT = (): string => 'solidAsk:' + plan().id;
+  const tiny = (r: Room): boolean =>
+    !!r && !r.solid && Math.abs(area(r.polygon)) < SMALL && plan().rooms.length > 1;
+  function offerSolid(ids: Set<string>): void {
     if (hintRoom || ed.hints.count(HINT()) >= HINT_TIMES) return;
     const r = plan().rooms.find(q => ids.has(q.id) && tiny(q));
     if (!r) return;
@@ -689,7 +966,7 @@ export function roomsMode(ed) {
     cut = null;
     ed.guides = [];
     stopHover();
-    const tick = () => {
+    const tick = (): void => {
       if (!hintRoom || ed.mode !== m) return;
       ed.draw();
       if (!ed.reducedMotion?.()) requestAnimationFrame(tick);
@@ -705,7 +982,7 @@ export function roomsMode(ed) {
     }
     return closeHint();
   };
-  function closeHint() {
+  function closeHint(): boolean {
     if (!hintRoom) return false;
     hintRoom = null;
     ctxPanel();
@@ -715,13 +992,13 @@ export function roomsMode(ed) {
   // Showing — after 150 ms, moving to another room — after 200 ms (the owner: faster), hiding (the pointer outside rooms or
   // left the plan) — after 350 ms.
   // While the pointer is over the panel or a name is being typed in it, it does not disappear.
-  const ctxEl = document.getElementById('ctx'),
-    planCv = document.getElementById('plan');
-  const stopHover = () => {
+  const ctxEl = $('ctx');
+  const planCv = $('plan');
+  const stopHover = (): void => {
     clearTimeout(xTimer);
     xPend = undefined;
   };
-  function hoverRoom(id) {
+  function hoverRoom(id: string | null): void {
     if (id === xRoom || hintRoom) {
       stopHover();
       return;
@@ -747,7 +1024,7 @@ export function roomsMode(ed) {
     if (tool === 'split' && e.relatedTarget !== planCv) hoverRoom(null);
   });
   planCv.addEventListener('mouseleave', e => {
-    if (tool === 'split' && !ctxEl.contains(e.relatedTarget)) hoverRoom(null);
+    if (tool === 'split' && !ctxEl.contains(e.relatedTarget as Node | null)) hoverRoom(null);
     if (nameHover) {
       nameHover = null;
       ed.draw();
@@ -769,8 +1046,8 @@ export function roomsMode(ed) {
       if (d) {
         const r = roomById(plan(), d.room);
         if (r) {
-          const a = r.polygon[d.i],
-            b = r.polygon[(d.i + 1) % r.polygon.length];
+          const a = r.polygon[d.i];
+          const b = r.polygon[(d.i + 1) % r.polygon.length];
           ed.ask(d.X, d.Y, t('Length, cm'), Math.round(len(a, b) * 100), {
             type: 'len',
             ok: m => {
@@ -799,8 +1076,8 @@ export function roomsMode(ed) {
         const c = cutAt(p, free);
         if (!c) return true; // outside rooms or right at a wall — the click simply places nothing, without hints
         if (c.narrow) return true; // the line right at a wall is already red — the click simply places nothing
-        const before = new Set(plan().rooms.map(r => r.id)),
-          res = splitRoom(plan(), c.room, ...c.ch);
+        const before = new Set(plan().rooms.map(r => r.id));
+        const res = splitRoom(plan(), c.room, ...c.ch);
         cut = null;
         ed.guides = [];
         if (res) {
@@ -830,9 +1107,10 @@ export function roomsMode(ed) {
     }
     if (tool === 'poly') {
       const q = snapPoint(p, null, free);
+      // in "Outline" the draft is an outline
       if (!draft) draft = {kind: 'poly', points: [q]};
-      else if (draft.points.length >= 3 && dist2(q, draft.points[0]) < v().tol() ** 2) finishPoly();
-      else draft.points.push(q);
+      else if (draft.points!.length >= 3 && dist2(q, draft.points![0]) < v().tol() ** 2) finishPoly();
+      else draft.points!.push(q);
       ed.draw();
       return true;
     }
@@ -859,7 +1137,7 @@ export function roomsMode(ed) {
       return true;
     }
     if (h.kind === 'zoneline') {
-      drag = {kind: 'zoneline', room: h.room, start: p, z0: {...h.room.zone}, n: h.zp.n};
+      drag = {kind: 'zoneline', room: h.room, start: p, z0: {...h.room.zone!}, n: h.zp.n}; // a border: the room has a zone
       ed.drag = drag;
       return true;
     }
@@ -870,8 +1148,8 @@ export function roomsMode(ed) {
     }
     sel().opening = null;
     if (h.kind === 'thick') {
-      const W = h.W,
-        m0 = [(W.a[0] + W.b[0]) / 2, (W.a[1] + W.b[1]) / 2];
+      const W = h.W;
+      const m0: Point = [(W.a[0] + W.b[0]) / 2, (W.a[1] + W.b[1]) / 2];
       drag = {
         kind: 'thick',
         W,
@@ -888,10 +1166,10 @@ export function roomsMode(ed) {
       const orig = snapshot(plan());
       if (h.kind === 'vertex') drag = {kind: 'vertex', room: h.room, i: h.i};
       else if (h.kind === 'edge') {
-        const pp = h.room.polygon,
-          a = pp[h.i],
-          b = pp[(h.i + 1) % pp.length],
-          l = Math.hypot(b[0] - a[0], b[1] - a[1]);
+        const pp = h.room.polygon;
+        const a = pp[h.i];
+        const b = pp[(h.i + 1) % pp.length];
+        const l = Math.hypot(b[0] - a[0], b[1] - a[1]);
         drag = {
           kind: 'edge',
           room: h.room,
@@ -926,10 +1204,10 @@ export function roomsMode(ed) {
     const orig = snapshot(plan());
     if (h.kind === 'vertex') drag = {kind: 'vertex', room: h.room, i: h.i};
     else if (h.kind === 'edge') {
-      const pp = h.room.polygon,
-        a = pp[h.i],
-        b = pp[(h.i + 1) % pp.length],
-        l = Math.hypot(b[0] - a[0], b[1] - a[1]);
+      const pp = h.room.polygon;
+      const a = pp[h.i];
+      const b = pp[(h.i + 1) % pp.length];
+      const l = Math.hypot(b[0] - a[0], b[1] - a[1]);
       drag = {
         kind: 'edge',
         room: h.room,
@@ -973,8 +1251,8 @@ export function roomsMode(ed) {
         cut = null;
         ed.guides = [];
         if (h.kind === 'edge') {
-          const a = h.room.polygon[h.i],
-            b = h.room.polygon[(h.i + 1) % h.room.polygon.length];
+          const a = h.room.polygon[h.i];
+          const b = h.room.polygon[(h.i + 1) % h.room.polygon.length];
           v().cv.style.cursor = axisCursor([a[1] - b[1], b[0] - a[0]]);
         } else v().cv.style.cursor = h.kind === 'opening' ? ops.cursor(h) : 'move';
         ops.hover(h.kind === 'opening' ? h.o.id : null);
@@ -997,14 +1275,14 @@ export function roomsMode(ed) {
     }
     if (!drag) {
       if (tool === 'select') {
-        const h = hit(p),
-          hw = h?.kind === 'edge' ? {room: h.room.id, i: h.i, t: +h.t.toFixed(3)} : null;
+        const h = hit(p);
+        const hw = h?.kind === 'edge' ? {room: h.room.id, i: h.i, t: +h.t.toFixed(3)} : null;
         if (dimHits.some(d => Math.abs(d.X - e.offsetX) < 18 && Math.abs(d.Y - e.offsetY) < 10)) {
           v().cv.style.cursor = 'text';
           return;
         }
-        const naming = wiz?.at === 'names',
-          nh = naming && h?.kind === 'room' ? h.room.id : null;
+        const naming = wiz?.at === 'names';
+        const nh = naming && h?.kind === 'room' ? h.room.id : null;
         if (nh !== nameHover) {
           nameHover = nh;
           ed.draw();
@@ -1026,8 +1304,8 @@ export function roomsMode(ed) {
                     : h.kind === 'thick'
                       ? axisCursor(h.W.n)
                       : 'pointer';
-        const am = aimOn() ? openAim(p, h) : null,
-          ak = am && am.room.id + ':' + am.i + ':' + am.t.toFixed(3);
+        const am = aimOn() ? openAim(p, h) : null;
+        const ak = am && am.room.id + ':' + am.i + ':' + am.t.toFixed(3);
         if (am) v().cv.style.cursor = 'pointer';
         if (ak !== aimKey) {
           aim = am && {room: am.room.id, i: am.i, t: am.t};
@@ -1062,8 +1340,8 @@ export function roomsMode(ed) {
     }
     if (drag.kind === 'thick') {
       // the thickness is dragged by the handle; snaps to typical ones, otherwise by 1 cm
-      const W = drag.W,
-        pr = (p[0] - drag.m0[0]) * W.n[0] + (p[1] - drag.m0[1]) * W.n[1];
+      const W = drag.W;
+      const pr = (p[0] - drag.m0[0]) * W.n[0] + (p[1] - drag.m0[1]) * W.n[1];
       let t = drag.t0 + (pr - drag.p0) * (W.interior ? 2 : 1);
       if (!free) {
         const near = PRESETS[W.interior ? 'in' : 'out'].find(x => Math.abs(x - t) < 0.015);
@@ -1073,23 +1351,32 @@ export function roomsMode(ed) {
       ed.update();
       return;
     }
+    // the callbacks below run at once, while the drag is the kind checked here
     if (drag.kind === 'vertex')
-      drag.room.polygon[drag.i] = snapPoint(p, (r, i) => r === drag.room && i === drag.i, free);
+      drag.room.polygon[drag.i] = snapPoint(
+        p,
+        (r, i) => r === (drag as VertexDrag).room && i === (drag as VertexDrag).i,
+        free,
+      );
     else if (drag.kind === 'edge') {
-      const n = drag.n,
-        a0 = drag.orig.get(drag.room.id)[drag.i];
+      const n = drag.n;
+      const a0 = drag.orig.get(drag.room.id)![drag.i]; // the snapshot has every room
       let d = (p[0] - drag.start[0]) * n[0] + (p[1] - drag.start[1]) * n[1];
       ed.guides = [];
       if (!free) {
         // the wall lands at the corners of other rooms or on the grid
-        const axis = Math.abs(n[0]) > 0.999 ? 0 : Math.abs(n[1]) > 0.999 ? 1 : -1,
-          tol = v().tol();
+        const axis: number = Math.abs(n[0]) > 0.999 ? 0 : Math.abs(n[1]) > 0.999 ? 1 : -1; // -1: neither
+        const tol = v().tol();
         if (axis >= 0) {
           const pos = a0[axis] + d * n[axis];
-          let best = null;
+          let best = null as Point | null; // set inside the callback
           for (const r of plan().rooms)
             r.polygon.forEach((q, i) => {
-              if (drag.edges.some(([er, j]) => er === r && (i === j || i === (j + 1) % r.polygon.length)))
+              if (
+                (drag as EdgeDrag).edges.some(
+                  ([er, j]) => er === r && (i === j || i === (j + 1) % r.polygon.length),
+                )
+              )
                 return;
               if (
                 Math.abs(q[axis] - pos) < tol &&
@@ -1104,14 +1391,14 @@ export function roomsMode(ed) {
       }
       moveEdges(drag.edges, drag.orig, n, d);
     } else {
-      let dx = p[0] - drag.start[0],
-        dy = p[1] - drag.start[1];
+      let dx = p[0] - drag.start[0];
+      let dy = p[1] - drag.start[1];
       if (!free && ed.grid) {
         dx = Math.round(dx / GRID) * GRID;
         dy = Math.round(dy / GRID) * GRID;
       }
-      const shift = q => [+(q[0] + dx).toFixed(4), +(q[1] + dy).toFixed(4)];
-      drag.room.polygon = drag.orig.get(drag.room.id).map(shift);
+      const shift = (q: Point): Point => [+(q[0] + dx).toFixed(4), +(q[1] + dy).toFixed(4)];
+      drag.room.polygon = drag.orig.get(drag.room.id)!.map(shift); // the snapshot has every room
       if (drag.floorPieces) {
         drag.room.fp = structuredClone(drag.floorPieces);
         mapFloorPieces(drag.room, shift);
@@ -1129,8 +1416,8 @@ export function roomsMode(ed) {
       }
     }
     if (drag) {
-      const d = drag,
-        moved = d.moved;
+      const d = drag;
+      const moved = d.moved;
       drag = null;
       ed.drag = null;
       // a strip was cut off — next we ask about the remaining area, then about the strip
@@ -1155,9 +1442,9 @@ export function roomsMode(ed) {
     const h = hit(p);
     if (!h) return;
     if (h.kind === 'edge') {
-      const pp = h.room.polygon,
-        a = pp[h.i],
-        b = pp[(h.i + 1) % pp.length];
+      const pp = h.room.polygon;
+      const a = pp[h.i];
+      const b = pp[(h.i + 1) % pp.length];
       ed.ask(e.offsetX, e.offsetY, t('Length, cm'), Math.round(Math.hypot(b[0] - a[0], b[1] - a[1]) * 100), {
         type: 'len',
         ok: m => {
@@ -1209,14 +1496,14 @@ export function roomsMode(ed) {
       ed.draw();
       return;
     }
-    const r = roomById(plan(), sel().room);
+    const r = roomById(plan(), sel().room as string); // no room selected: none found
     if ((e.key === 'Delete' || e.key === 'Backspace') && sel().wall) {
       const W = selWall();
       if (W && W.interior) removeInnerWall(W);
       return;
     }
     if ((e.key === 'Delete' || e.key === 'Backspace') && r) {
-      if (sel().vertex != null && removeVertex(plan(), r, sel().vertex)) sel().vertex = null;
+      if (sel().vertex != null && removeVertex(plan(), r, sel().vertex!)) sel().vertex = null;
       else {
         sel().vertex = null;
         deleteRoom(r);
@@ -1225,7 +1512,7 @@ export function roomsMode(ed) {
       ed.commit();
       return;
     }
-    const keys = {
+    const keys: Record<string, RoomTool> = {
       v: 'select',
       м: 'select',
       r: 'rect',
@@ -1237,10 +1524,10 @@ export function roomsMode(ed) {
     };
     if (!e.metaKey && !e.ctrlKey && keys[e.key.toLowerCase()]) ed.setTool(keys[e.key.toLowerCase()]); // allow-cyrillic: the same shortcuts on the Russian keyboard layout
   };
-  function newRoom(polygon) {
-    const first = !plan().rooms.length,
-      r = addRoom(plan(), polygon),
-      adj = settleRoom(plan(), r);
+  function newRoom(polygon: Outline): void {
+    const first = !plan().rooms.length;
+    const r = addRoom(plan(), polygon);
+    const adj = settleRoom(plan(), r);
     sel().room = r.id;
     // the first rectangle is usually the whole apartment: offer to split it into rooms right away
     if (first && !wiz) {
@@ -1256,12 +1543,12 @@ export function roomsMode(ed) {
         [
           t('Undo'),
           () => {
-            const p = r.polygon,
-              s = area(p) > 0 ? 1 : -1;
+            const p = r.polygon;
+            const s = area(p) > 0 ? 1 : -1;
             for (const x of al) {
-              const a = p[x.i],
-                b = p[(x.i + 1) % p.length],
-                l = Math.hypot(b[0] - a[0], b[1] - a[1]);
+              const a = p[x.i];
+              const b = p[(x.i + 1) % p.length];
+              const l = Math.hypot(b[0] - a[0], b[1] - a[1]);
               moveEdges(
                 [[r, x.i]],
                 snapshot(plan()),
@@ -1282,10 +1569,14 @@ export function roomsMode(ed) {
     ed.view.select(r.id);
     m.onRoomAdded?.(r);
   }
-  const bigRect = () => Math.abs(draft.a[0] - draft.b[0]) > 0.3 && Math.abs(draft.a[1] - draft.b[1]) > 0.3;
-  function finishRect() {
+  // both only while a rectangle is drawn
+  const bigRect = (): boolean => {
+    const rect = draft as RectDraft;
+    return Math.abs(rect.a[0] - rect.b[0]) > 0.3 && Math.abs(rect.a[1] - rect.b[1]) > 0.3;
+  };
+  function finishRect(): void {
     if (!bigRect()) return;
-    const {a, b} = draft;
+    const {a, b} = draft as RectDraft;
     draft = null;
     newRoom([
       [a[0], a[1]],
@@ -1294,18 +1585,18 @@ export function roomsMode(ed) {
       [a[0], b[1]],
     ]);
   }
-  function finishPoly() {
-    const pts = draft.points;
+  function finishPoly(): void {
+    const pts = (draft as PolyDraft).points; // only while an outline is drawn
     draft = null;
     if (pts.length >= 3) newRoom(pts);
     else ed.draw();
   }
 
   // Delete a room. One surrounded by others (an extra strip after a failed split) — not a hole with walls, but area for the neighbour.
-  function deleteRoom(r) {
+  function deleteRoom(r: Room): void {
     ed.versions.mark('before', 'removeRoom');
-    const name = r.name,
-      to = absorbRoom(plan(), r);
+    const name = r.name;
+    const to = absorbRoom(plan(), r);
     if (to) {
       sel().room = null;
       sel().wall = null;
@@ -1321,7 +1612,7 @@ export function roomsMode(ed) {
     ed.commit();
   }
   // Remove the wall between rooms — merge them into one (zones are a separate mechanism on top of rooms, later)
-  function removeInnerWall(w) {
+  function removeInnerWall(w: WallInfo): void {
     ed.versions.mark('before', 'merge');
     const r = mergeRooms(plan(), w);
     // in “Split” the merged room is not selected: the panel follows the pointer, like for the others
@@ -1340,12 +1631,12 @@ export function roomsMode(ed) {
   }
 
   // ---------- drawing the selection and the draft ----------
-  function band(W) {
-    const {ctx} = v(),
-      d = span(W),
-      e = WALL.inner,
-      a = W.a,
-      b = W.b;
+  function band(W: WallInfo): void {
+    const {ctx} = v();
+    const d = span(W);
+    const e = WALL.inner;
+    const a = W.a;
+    const b = W.b;
     v().path([
       [a[0] - W.n[0] * e, a[1] - W.n[1] * e],
       [b[0] - W.n[0] * e, b[1] - W.n[1] * e],
@@ -1356,9 +1647,9 @@ export function roomsMode(ed) {
     ctx.stroke();
   }
   m.draw = () => {
-    const {ctx} = v(),
-      W = selWall(),
-      r = W ? null : roomById(plan(), sel().room);
+    const {ctx} = v();
+    const W = selWall();
+    const r = W ? null : roomById(plan(), sel().room as string); // no room selected: none found
     const hp =
       (hintRoom && roomById(plan(), hintRoom)?.polygon) ||
       (tool === 'select' && !sel().room ? curCell()?.poly : null);
@@ -1383,7 +1674,7 @@ export function roomsMode(ed) {
         : !W || (hoverWall && (hoverWall.room !== sel().wall?.room || hoverWall.i !== sel().wall?.i))
           ? wallOf(hoverWall)
           : null;
-    const wlabel = w =>
+    const wlabel = (w: SelectedWall): string =>
       w.open ? t('boundary, no wall') : each() ? t('{0} cm', cm(w.t)) : t('{0} cm', cm(len(w.a, w.b)));
     if (H && !drag && (tool === 'select' || tool === 'split')) {
       ctx.fillStyle = pal.acc2;
@@ -1404,8 +1695,8 @@ export function roomsMode(ed) {
       if (each() && !W.open) v().dot(faceMid(W), 6, '#fff', pal.acc, 2);
     }
     if (aimOn()) {
-      const A = W ? sel().wall : aim,
-        GW = A && (W || wallOf(A));
+      const A = W ? sel().wall : aim;
+      const GW = A && (W || wallOf(A));
       if (GW && !GW.open) {
         const still = ed.reducedMotion?.();
         ops.ghost(GW, A.t ?? 0.5, still ? null : (performance.now() % 1400) / 1400);
@@ -1438,10 +1729,13 @@ export function roomsMode(ed) {
       ctx.stroke();
       ctx.setLineDash([]);
       // the area of a part is not over the room label: the one that fell on the label goes below it
-      const R = roomById(plan(), cutRoom),
-        [LX, LY] = R ? v().S(labelAt(plan(), R.polygon)) : [NaN, NaN];
+      const R = roomById(plan(), cutRoom as string); // none: no room found
+      const [LX, LY] = R ? v().S(labelAt(plan(), R.polygon)) : [NaN, NaN];
       for (const [k, x] of cut.parts.entries()) {
-        const c = x.pts.reduce((s, q) => [s[0] + q[0] / x.pts.length, s[1] + q[1] / x.pts.length], [0, 0]);
+        const c = x.pts.reduce<Point>(
+          (s, q) => [s[0] + q[0] / x.pts.length, s[1] + q[1] / x.pts.length],
+          [0, 0],
+        );
         let [X, Y] = v().S(c);
         if (Math.abs(X - LX) < 70 && Math.abs(Y - LY) < 26) Y = LY + 36;
         dimLabel(v(), X, Y, fmtArea(cut.areas[k]));
@@ -1451,12 +1745,12 @@ export function roomsMode(ed) {
     if (r) {
       const s = area(r.polygon) > 0 ? 1 : -1;
       r.polygon.forEach((a, i) => {
-        const b = r.polygon[(i + 1) % r.polygon.length],
-          l = Math.hypot(b[0] - a[0], b[1] - a[1]);
+        const b = r.polygon[(i + 1) % r.polygon.length];
+        const l = Math.hypot(b[0] - a[0], b[1] - a[1]);
         if (l * v().sc < 36 || drag) return;
-        const mid = [(a[0] + b[0]) / 2, (a[1] + b[1]) / 2],
-          n = [(-(b[1] - a[1]) / l) * s, ((b[0] - a[0]) / l) * s],
-          [MX, MY] = v().S([mid[0] + (n[0] * 14) / v().sc, mid[1] + (n[1] * 14) / v().sc]);
+        const mid = [(a[0] + b[0]) / 2, (a[1] + b[1]) / 2];
+        const n = [(-(b[1] - a[1]) / l) * s, ((b[0] - a[0]) / l) * s];
+        const [MX, MY] = v().S([mid[0] + (n[0] * 14) / v().sc, mid[1] + (n[1] * 14) / v().sc]);
         ctx.save();
         ctx.translate(MX, MY);
         let ang = -Math.atan2(b[1] - a[1], b[0] - a[0]);
@@ -1466,7 +1760,7 @@ export function roomsMode(ed) {
         ctx.fillStyle = pal.acc;
         ctx.font = `600 11px ${FONT}`;
         ctx.textAlign = 'center';
-        ctx.fillText(Math.round(l * 100), 0, 4);
+        ctx.fillText(String(Math.round(l * 100)), 0, 4);
         ctx.restore();
         dimHits.push({X: MX, Y: MY, room: r.id, i});
       });
@@ -1478,10 +1772,10 @@ export function roomsMode(ed) {
       ctx.strokeStyle = pal.acc;
       ctx.lineWidth = 2;
       ctx.fillStyle = pal.acc2;
-      const pts =
+      const pts: Point[] =
         draft.kind === 'rect'
           ? [draft.a, [draft.b[0], draft.a[1]], draft.b, [draft.a[0], draft.b[1]]]
-          : [...draft.points, hover && snapPoint(hover)].filter(Boolean);
+          : ([...draft.points, hover && snapPoint(hover)].filter(Boolean) as Point[]); // without the pointer when it is off the plan
       v().path(pts, draft.kind === 'rect');
       ctx.fill();
       ctx.stroke();
@@ -1510,14 +1804,14 @@ export function roomsMode(ed) {
     tools.innerHTML = '';
     tools.append(ed.selectButton());
     // The main action is labeled; a separate room is in the menu, without two similar squares on the panel.
-    const hasRooms = !!plan().rooms.length,
-      buildId = hasRooms && ed.tool !== 'rect' ? 'split' : 'rect';
-    const choices = [
+    const hasRooms = !!plan().rooms.length;
+    const buildId = hasRooms && ed.tool !== 'rect' ? 'split' : 'rect';
+    const choices: Array<[tool: RoomTool, icon: string, label: string, key: string, description: string]> = [
       ['split', 'wall', t('Wall'), 'S', t('Split into rooms · Tab rotates the line')],
       ['rect', 'rectangle', hasRooms ? t('Room') : t('Outline'), 'R', t('Draw a rectangle')],
     ];
-    const [id, ic, label, key, description] = choices.find(c => c[0] === buildId),
-      active = ed.tool === id;
+    const [id, ic, label, key, description] = choices.find(c => c[0] === buildId)!; // buildId is one of them
+    const active = ed.tool === id;
     const group = el('<div class="build-tool"></div>');
     const primary = el(
       `<button class="build-main ${active ? 'on' : ''}" data-tool="${id}" title="${description} (${key})" aria-label="${label} (${key})" aria-pressed="${active}">${icon(ic)}<span>${label}</span></button>`,
@@ -1550,8 +1844,8 @@ export function roomsMode(ed) {
         }
         buildPop = panelPop(menu, content, 'build-pop');
         content.onkeydown = e => {
-          const options = [...content.querySelectorAll('button')],
-            i = options.indexOf(document.activeElement);
+          const options = [...content.querySelectorAll('button')];
+          const i = options.indexOf(document.activeElement as HTMLButtonElement); // -1: the focus is elsewhere
           if (e.key === 'Escape') {
             e.preventDefault();
             e.stopPropagation();
@@ -1562,13 +1856,13 @@ export function roomsMode(ed) {
             options[(i + (e.key === 'ArrowDown' ? 1 : options.length - 1)) % options.length].focus();
           }
         };
-        content.querySelector('button').focus({preventScroll: true});
+        content.querySelector('button')!.focus({preventScroll: true}); // the options above
       };
     }
     const side = $('side-body');
     side.innerHTML = '';
-    const rooms = plan().rooms,
-      total = rooms.filter(r => !r.solid).reduce((t, r) => t + Math.abs(area(r.polygon)), 0);
+    const rooms = plan().rooms;
+    const total = rooms.filter(r => !r.solid).reduce((t, r) => t + Math.abs(area(r.polygon)), 0);
     ed.sideHead(t('Rooms'), rooms.length ? `${rooms.length} · ${fmtArea(total)}` : '');
     // The list: a dot in the floor color (as in 3D), name, area, how many lamps, what is wrong. On hover — rename and delete.
     const list = el(`<div class="sec-body list"></div>`);
@@ -1594,7 +1888,7 @@ export function roomsMode(ed) {
         <span class="acts"><button class="ib" data-a="rename" title="${t('Rename')}">${icon('pencil', 14)}</button><button class="ib" data-a="del" title="${t('Delete')}">${icon('x', 14)}</button></span></div>`);
       // the first click redraws the list, so the double click is caught by timing, not by the dblclick event
       row.onclick = e => {
-        if (e.target.closest('button,input')) return;
+        if ((e.target as Element).closest('button,input')) return;
         const t = performance.now();
         if (lastClick.id === r.id && t - lastClick.t < 400) {
           lastClick = {};
@@ -1612,19 +1906,20 @@ export function roomsMode(ed) {
         ed.hover = null;
         ed.draw();
       };
-      row.querySelector('[data-a=del]').onclick = e => {
+      // the row's own buttons and name, in the markup above
+      row.querySelector<HTMLElement>('[data-a=del]')!.onclick = e => {
         e.stopPropagation();
         deleteRoom(r);
       };
-      row.querySelector('[data-a=rename]').onclick = e => {
+      row.querySelector<HTMLElement>('[data-a=rename]')!.onclick = e => {
         e.stopPropagation();
-        const nm = row.querySelector('.name'),
-          inp = el(`<input class="rename" value="${esc(r.name)}">`);
+        const nm = row.querySelector('.name')!;
+        const inp = el<HTMLInputElement>(`<input class="rename" value="${esc(r.name)}">`);
         nm.replaceWith(inp);
         inp.focus();
         inp.select();
         row.classList.add('editing');
-        const done = ok => {
+        const done = (ok: boolean): void => {
           if (ok && inp.value.trim() && inp.value.trim() !== r.name) {
             r.name = inp.value.trim();
             ed.commit();
@@ -1648,25 +1943,25 @@ export function roomsMode(ed) {
     add.onclick = () => ed.setTool('rect');
     list.appendChild(add);
     // The plan photo (underlay) is one row: a thumbnail, opacity (drag on the number), show / hide, rare actions — under “⋯”.
-    const ul = ed.underlay,
-      ub = el(`<div class="ul-row"></div>`);
+    const ul = ed.underlay;
+    const ub = el(`<div class="ul-row"></div>`);
     side.appendChild(ub);
     if (!ul.ready) {
       const b = el(
         `<button class="add-row" title="${t('A plan photo to trace rooms over')}">${icon('image', 15)}<span>${t('Plan photo as background')}</span></button>`,
       );
-      b.onclick = () => ed.flows.pickUnderlay();
+      b.onclick = () => ed.flows!.pickUnderlay(); // boot.ts sets the flows before any mode runs
       ub.appendChild(b);
     } else {
       ub.append(
         el(`<img class="ul-thumb" src="${ul.thumb()}" alt="">`),
         el(`<span class="ul-name">${t('Background')}</span>`),
       );
-      const pct = () => Math.round(ul.opacity * 100) + '%',
-        sc = el(
-          `<button class="scrub ${ul.visible ? '' : 'off'}" title="${t('Opacity: drag or scroll')}">${pct()}</button>`,
-        );
-      const setOp = o => {
+      const pct = (): string => Math.round(ul.opacity * 100) + '%';
+      const sc = el(
+        `<button class="scrub ${ul.visible ? '' : 'off'}" title="${t('Opacity: drag or scroll')}">${pct()}</button>`,
+      );
+      const setOp = (o: number): void => {
         ul.opacity = Math.max(0.05, Math.min(1, o));
         ul.visible = true;
         sc.textContent = pct();
@@ -1677,8 +1972,8 @@ export function roomsMode(ed) {
       sc.onpointerdown = e => {
         e.preventDefault();
         sc.setPointerCapture(e.pointerId);
-        const x0 = e.clientX,
-          o0 = ul.opacity;
+        const x0 = e.clientX;
+        const o0 = ul.opacity;
         sc.onpointermove = ev => setOp(o0 + (ev.clientX - x0) / 160);
         sc.onpointerup = () => {
           sc.onpointermove = sc.onpointerup = null;
@@ -1703,12 +1998,12 @@ export function roomsMode(ed) {
       const rot = el(
         `<button class="ib" title="${t('Rotate and move photo')}">${icon('rotate', 15)}</button>`,
       );
-      rot.onclick = () => ed.flows.moveUnderlay();
+      rot.onclick = () => ed.flows!.moveUnderlay();
       const more = el(`<button class="ib" title="${t('More')}">${icon('more', 15)}</button>`);
       more.onclick = () =>
         popover(more, [
-          ['ruler', t('Set scale from a wall'), () => ed.flows.calibrate()],
-          ['upload', t('Replace…'), () => ed.flows.pickUnderlay()],
+          ['ruler', t('Set scale from a wall'), () => ed.flows!.calibrate()],
+          ['upload', t('Replace…'), () => ed.flows!.pickUnderlay()],
           ['trash', t('Remove'), () => ul.clear(), 'bad'],
         ]);
       ub.append(sc, eye, rot, more);
@@ -1716,7 +2011,7 @@ export function roomsMode(ed) {
     ctxPanel();
     wizard();
   };
-  function ctxPanel() {
+  function ctxPanel(): void {
     if (ed.mode !== m) return;
     const ol = ops.ctx();
     if (ol) {
@@ -1728,9 +2023,9 @@ export function roomsMode(ed) {
     const W = selWall();
     if (W) {
       const line = el(
-          `<div class="line"><b title="${W.open ? t('No wall, separate rooms') : ''}">${W.open ? t('Room boundary') : W.interior ? t('Wall') : W.rail ? t('Railing') : t('Exterior wall')}</b></div>`,
-        ),
-        lines = [line];
+        `<div class="line"><b title="${W.open ? t('No wall, separate rooms') : ''}">${W.open ? t('Room boundary') : W.interior ? t('Wall') : W.rail ? t('Railing') : t('Exterior wall')}</b></div>`,
+      );
+      const lines = [line];
       const whole = Math.abs(len(W.a, W.b) - len(W.ea, W.eb)) < 0.01;
       const L = whole
         ? el(`<button class="soft" title="${t('Enter length')}">${t('{0} cm', cm(len(W.a, W.b)))}</button>`)
@@ -1783,21 +2078,23 @@ export function roomsMode(ed) {
       const glass = el(
         `<label class="tg" title="${t('Glass panes on a low kerb instead of a parapet')}"><span>${t('Glass|railing')}</span><input type="checkbox" ${W.room.railGlass ? 'checked' : ''}><i></i></label>`,
       );
-      glass.querySelector('input').onchange = e => {
+      glass.querySelector('input')!.onchange = e => {
         const w = selWall();
         if (!w) return;
-        if (e.target.checked) w.room.railGlass = true;
+        if ((e.target as HTMLInputElement).checked) w.room.railGlass = true;
         else delete w.room.railGlass;
         ed.commit();
       };
       // place a window or a door at the click point; no room (a corner, a neighbouring opening) — the button is disabled
-      const put = k => {
-        const b = el(`<button class="soft">${k === 'door' ? t('Door') : t('Window')}</button>`);
+      const put = (k: OpeningKind): HTMLElement => {
+        const b = el<HTMLButtonElement>(
+          `<button class="soft">${k === 'door' ? t('Door') : t('Window')}</button>`,
+        );
         if (!ops.can(W, k)) {
           b.disabled = true;
           b.title = t("Doesn't fit here");
         } else if (wiz?.at === 'open') b.classList.add('opening-action');
-        b.onclick = () => ops.add(selWall(), k);
+        b.onclick = () => ops.add(selWall()!, k); // the button is on the selected wall's panel
         return b;
       };
       const guided = wiz?.at === 'open';
@@ -1834,9 +2131,9 @@ export function roomsMode(ed) {
         line.append(mb);
         if (thickMore) {
           const ml = el(
-              `<div class="line more"><label>${t('Thickness')}<input type="number" step="1" min="${W.interior ? 10 : 8}" max="${W.interior ? 54 : 100}" value="${cm(W.t)}"></label><small>${t('cm')}</small></div>`,
-            ),
-            x = ml.querySelector('input');
+            `<div class="line more"><label>${t('Thickness')}<input type="number" step="1" min="${W.interior ? 10 : 8}" max="${W.interior ? 54 : 100}" value="${cm(W.t)}"></label><small>${t('cm')}</small></div>`,
+          );
+          const x = ml.querySelector('input')!; // in the markup above
           x.onkeydown = e => {
             e.stopPropagation();
             if (e.key === 'Enter') x.blur();
@@ -1853,10 +2150,10 @@ export function roomsMode(ed) {
       }
       // the side finish: for an outer wall — from inside, for a wall between rooms — each side has its own (an accent wall); a railing has none
       if (!W.open && !W.rail) {
-        const owner = 'wallsel:' + W.room.id + ':' + W.i,
-          others = [...new Set((W.B || []).map(([rb]) => rb))].filter(rb => !rb.solid);
-        const finishes = [],
-          states = [];
+        const owner = 'wallsel:' + W.room.id + ':' + W.i;
+        const others = [...new Set((W.B || []).map(([rb]) => rb))].filter(rb => !rb.solid);
+        const finishes: HTMLElement[] = [];
+        const states: FinishState[] = [];
         if (!W.room.solid) {
           const get = () =>
             sideState(W.room, [W.i], others.length ? t('“{0}” side', W.room.name) : t('Wall finish'));
@@ -1864,8 +2161,8 @@ export function roomsMode(ed) {
           finishes.push(...finRow(get, owner));
         }
         for (const rb of others) {
-          const js = W.B.filter(([x]) => x === rb).map(([, j]) => j),
-            get = () => sideState(rb, js, t('“{0}” side', rb.name));
+          const js = W.B.filter(([x]) => x === rb).map(([, j]) => j);
+          const get = () => sideState(rb, js, t('“{0}” side', rb.name));
           states.push(get());
           finishes.push(...finRow(get, owner));
         }
@@ -1882,32 +2179,33 @@ export function roomsMode(ed) {
     }
     // the panel above the selected room (in “Split” — above the room under the pointer)
     if (hintRoom && !roomById(plan(), hintRoom)) hintRoom = null;
-    const r = roomById(plan(), ctxRoom());
+    const r = roomById(plan(), ctxRoom() as string); // none: no room found
     if (!r) {
       ed.showCtx(null);
       syncFin(null);
       return;
     }
     if (roomMore !== r.id) roomMore = null;
-    const q = hintRoom === r.id,
-      open = q || roomMore === r.id;
+    const q = hintRoom === r.id;
+    const open = q || roomMore === r.id;
     // on the step — the “Which room is this?” question and the HA areas; otherwise — the regular panel, a linked room has its name from HA
-    const cc = curCell(),
-      asking = wiz?.at === 'names' && cc?.r.id === r.id && !sel().room;
+    const cc = curCell();
+    const asking = wiz?.at === 'names' && cc?.r.id === r.id && !sel().room;
     if (asking) {
       ed.showCtx(areaLines(r, true, cc.z));
       syncFin('room:' + r.id);
       return;
     }
-    const line = el(`<div class="line"></div>`),
-      name = r.area
-        ? el(`<b class="title" title="${t('Name from Home Assistant')}">${esc(r.name)}</b>`)
-        : el(`<input class="title" value="${esc(r.name)}" title="${t('Name')}">`);
+    const line = el(`<div class="line"></div>`);
+    const name = r.area
+      ? el(`<b class="title" title="${t('Name from Home Assistant')}">${esc(r.name)}</b>`)
+      : el(`<input class="title" value="${esc(r.name)}" title="${t('Name')}">`);
     if (!r.area) {
+      // without an area the name is an input
       name.onchange = () => {
-        const v = name.value.trim();
+        const v = (name as HTMLInputElement).value.trim();
         if (v) r.name = v;
-        else name.value = r.name;
+        else (name as HTMLInputElement).value = r.name as string; // a room from an older file may have no name
         ed.commit();
       };
       name.onkeydown = e => {
@@ -1963,11 +2261,12 @@ export function roomsMode(ed) {
       const ml = el(
         `<div class="line more q"><span class="qt">${t('Shaft or column?')}</span><button class="soft" data-a="no">${t('No')}</button><button class="soft pri pulse" data-a="yes">${t('Yes')}</button></div>`,
       );
-      ml.querySelector('[data-a=no]').onclick = () => {
+      // both buttons are in the markup above
+      ml.querySelector<HTMLElement>('[data-a=no]')!.onclick = () => {
         keep();
         closeHint();
       };
-      ml.querySelector('[data-a=yes]').onclick = () => {
+      ml.querySelector<HTMLElement>('[data-a=yes]')!.onclick = () => {
         keep();
         hintRoom = null;
         r.solid = true;
@@ -1978,10 +2277,10 @@ export function roomsMode(ed) {
       const ml = el(
         `<div class="line more"><label class="tg"><span>${t('Shaft or column')}</span><input type="checkbox" ${r.solid ? 'checked' : ''}><i></i></label></div>`,
       );
-      ml.querySelector('input').onchange = e => {
+      ml.querySelector('input')!.onchange = e => {
         keep();
         ed.hints.done(HINT(), HINT_TIMES);
-        if (e.target.checked) r.solid = true;
+        if ((e.target as HTMLInputElement).checked) r.solid = true;
         else delete r.solid;
         ed.commit();
       };
@@ -1996,26 +2295,28 @@ export function roomsMode(ed) {
   // HA areas as chips: free ones first, then the ones taken by other rooms — disabled (one area —
   // one room). No manual input: the name comes from HA. At the bottom — “not listed” with a link to HA.
   // ask — the wizard question: the “Which room is this?” title and “Skip”; otherwise — at the selected room, with “Unlink”.
-  let roomLink = null;
+  let roomLink: string | null = null;
   // a row of chips for a cell (a room or its part z): the ones taken by other cells — disabled
-  function chipsRow(r, z) {
-    const owner = new Map(),
-      mine = z ? r.zone?.area : r.area;
+  function chipsRow(r: Room, z: boolean): HTMLElement {
+    const owner = new Map<string, string | undefined>();
+    const mine = z ? r.zone?.area : r.area;
     for (const o of plan().rooms) {
       if (o.area && !(o === r && !z)) owner.set(o.area, o.name);
-      if (zoneParts(o) && o.zone.area && !(o === r && z)) owner.set(o.zone.area, ed.areaName(o.zone.area));
+      // zoneParts: the room has a zone
+      if (zoneParts(o) && o.zone!.area && !(o === r && z)) owner.set(o.zone!.area, ed.areaName(o.zone!.area));
     }
-    const list = [...ed.ha.areas()].sort((a, b) => owner.has(a.area_id) - owner.has(b.area_id)),
-      row = el(`<div class="line names"></div>`);
+    const list = [...ed.ha.areas()].sort((a, b) => +owner.has(a.area_id) - +owner.has(b.area_id));
+    const row = el(`<div class="line names"></div>`);
     for (const a of list) {
       const used = owner.has(a.area_id) && a.area_id !== mine;
       const b = el(
         `<button class="chip ${mine === a.area_id ? 'on' : ''}" ${used ? 'disabled' : ''} title="${used ? t('Already used by “{0}”', esc(owner.get(a.area_id))) : t('Home Assistant area')}">${esc(a.name)}</button>`,
       );
       b.onclick = () => {
+        // z: the cell is the zone's part, so the room has a zone
         if (z) {
-          r.zone.area = a.area_id;
-          delete r.zone.noArea;
+          r.zone!.area = a.area_id;
+          delete r.zone!.noArea;
         } else {
           setRoomArea(plan(), r, a.area_id, a.name);
           delete r.noArea;
@@ -2031,9 +2332,9 @@ export function roomsMode(ed) {
   // HA areas as chips. ask — the wizard question about a cell (a room or its part z): “Skip”, “Two areas here”;
   // otherwise — at the selected room (the button with the house): both parts if the room is divided, and “Unlink”.
   // No manual input: the name comes from HA. At the bottom — “not listed” with a link to HA.
-  function areaLines(r, ask, z) {
-    const zp = zoneParts(r),
-      poly = zp ? (z ? zp.zone : zp.main) : r.polygon;
+  function areaLines(r: Room, ask: boolean, z: boolean): HTMLElement[] {
+    const zp = zoneParts(r);
+    const poly = zp ? (z ? zp.zone : zp.main) : r.polygon;
     const head = el(
       `<div class="line"><b>${zp ? t('Which part of the room is this?') : t('Which room is this in Home Assistant?')}</b><small>${fmtArea(area(poly))}</small></div>`,
     );
@@ -2057,16 +2358,17 @@ export function roomsMode(ed) {
     if (ask) {
       const sk = el(`<button class="soft">${t('This room later')}</button>`);
       sk.onclick = () => {
-        if (z) r.zone.noArea = true;
+        // the question is asked only during the step, about a zone's part only when the room has a zone
+        if (z) r.zone!.noArea = true;
         else r.noArea = true;
-        wiz.cur = null;
+        wiz!.cur = null;
         ed.commit();
       };
       foot.append(sk);
     } else if (r.area) {
       const un = el(`<button class="soft">${t('Unlink')}</button>`);
       un.onclick = () => {
-        setRoomArea(plan(), r, null, r.name);
+        setRoomArea(plan(), r, null, r.name as string); // a room from an older file may have no name
         roomLink = null;
         ed.commit();
       };
@@ -2095,24 +2397,31 @@ export function roomsMode(ed) {
   // Finishes — the floor and walls of the room, a separate wall side — as one row of swatches: the selected one outlined; not chosen —
   // guessed (the hint says how). The row has the frequent ones; the palette button opens a popup with all options and a custom color.
   // The floor — also on the “Link rooms” step: fix it while naming the room, without a separate step (the owner).
-  const FIN = {
+  // surfaces.ts is not typed yet: its tables are read by key, and its groups are [name, kinds] pairs
+  const FIN: Record<FinishState['type'], FinishCatalog> = {
     floor: {
-      kinds: FLOOR_KINDS,
+      kinds: FLOOR_KINDS as Record<string, FinishKind>,
       quick: FLOOR_QUICK,
-      groups: FLOOR_GROUPS,
+      groups: FLOOR_GROUPS as FinishCatalog['groups'],
       swatch: floorSwatch,
       base: floorBase,
     },
-    wall: {kinds: WALL_KINDS, quick: WALL_QUICK, groups: WALL_GROUPS, swatch: wallSwatch, base: wallBase},
+    wall: {
+      kinds: WALL_KINDS as Record<string, FinishKind>,
+      quick: WALL_QUICK,
+      groups: WALL_GROUPS as FinishCatalog['groups'],
+      swatch: wallSwatch,
+      base: wallBase,
+    },
   };
-  const setWf = (r, i, v) => {
+  const setWf = (r: Room, i: number, v: EdgeFinish | null): void => {
     r.wf ||= r.polygon.map(() => null);
     while (r.wf.length < r.polygon.length) r.wf.push(null);
     r.wf[i] = v;
     if (r.wf.every(x => !x)) delete r.wf;
   };
   // A pick by hand covers the whole floor or wall: the pieces of finish the AI build put there (pieces.js, D-084) go; ai — there are some.
-  const floorState = r => {
+  const floorState = (r: Room): FinishState => {
     const done = () => {
       clearFloorPieces(r);
       ed.commit();
@@ -2123,7 +2432,7 @@ export function roomsMode(ed) {
       title: t('Floor'),
       cur: floorKind(r),
       tint: r.floorTint || null,
-      auto: !FLOOR_KINDS[r.floor],
+      auto: !FIN.floor.kinds[r.floor as string], // none: undefined, no such kind
       autoTip: t('from room name'),
       ai: hasFloorPieces(r),
       pick: k => {
@@ -2143,20 +2452,20 @@ export function roomsMode(ed) {
     };
   };
   // the room's walls: the sides without a finish of their own
-  const roomSides = r => r.polygon.map((_, i) => i).filter(i => !sideWall(r, i).own);
-  const wallState = r => {
-    const w = roomWall(r),
-      done = () => {
-        clearWallPieces(r, roomSides(r));
-        ed.commit();
-      };
+  const roomSides = (r: Room): number[] => r.polygon.map((_, i) => i).filter(i => !sideWall(r, i).own);
+  const wallState = (r: Room): FinishState => {
+    const w = roomWall(r);
+    const done = () => {
+      clearWallPieces(r, roomSides(r));
+      ed.commit();
+    };
     return {
       type: 'wall',
       key: 'wall:' + r.id,
       title: t('Walls'),
       cur: w.k,
       tint: w.tint || null,
-      auto: !WALL_KINDS[r.wall],
+      auto: !FIN.wall.kinds[r.wall as string], // none: undefined, no such kind
       autoTip: t('from room name'),
       ai: hasWallPieces(r, roomSides(r)),
       pick: k => {
@@ -2176,13 +2485,13 @@ export function roomsMode(ed) {
     };
   };
   // a wall side: for room r — sides js (a wall shared with a neighbour may consist of several pieces); “same as room” — remove its own
-  const sideState = (r, js, title) => {
-    const w = sideWall(r, js[0]),
-      set = v => {
-        for (const j of js) setWf(r, j, v);
-        clearWallPieces(r, js);
-        ed.commit();
-      };
+  const sideState = (r: Room, js: number[], title: string): FinishState => {
+    const w = sideWall(r, js[0]);
+    const set = (v: EdgeFinish | null): void => {
+      for (const j of js) setWf(r, j, v);
+      clearWallPieces(r, js);
+      ed.commit();
+    };
     return {
       type: 'wall',
       key: 'side:' + r.id + ':' + js.join(','),
@@ -2198,24 +2507,24 @@ export function roomsMode(ed) {
       same: w.own ? () => set(null) : null,
     };
   };
-  let finPop = null; // the open popup: {key, owner — whose panel, get — fresh state}
-  const finBtn = (F, st, k) => {
-    const K = F.kinds[k],
-      on = k === st.cur,
-      b = el(
-        `<button class="floor ${on ? 'on' : ''}" title="${esc(K.label)}${on && st.auto ? ' — ' + st.autoTip : ''}" style="background-image:url(${F.swatch(k, on ? st.tint : null)})"></button>`,
-      );
+  let finPop: FinishPopup | null = null; // the open popup: {key, owner — whose panel, get — fresh state}
+  const finBtn = (F: FinishCatalog, st: FinishState, k: string): HTMLElement => {
+    const K = F.kinds[k];
+    const on = k === st.cur;
+    const b = el(
+      `<button class="floor ${on ? 'on' : ''}" title="${esc(K.label)}${on && st.auto ? ' — ' + st.autoTip : ''}" style="background-image:url(${F.swatch(k, on ? st.tint : null)})"></button>`,
+    );
     b.onclick = () => {
       if (on && !st.tint && !st.auto) return;
       st.pick(k);
     };
     return b;
   };
-  function finRow(get, owner) {
-    const st = get(),
-      F = FIN[st.type],
-      side = st.key.startsWith('side:'),
-      row = el(`<div class="line floors">${side ? '' : `<small>${esc(st.title)}</small>`}</div>`);
+  function finRow(get: () => FinishState, owner: string): HTMLElement[] {
+    const st = get();
+    const F = FIN[st.type];
+    const side = st.key.startsWith('side:');
+    const row = el(`<div class="line floors">${side ? '' : `<small>${esc(st.title)}</small>`}</div>`);
     for (const k of F.quick) row.append(finBtn(F, st, k));
     if (!F.quick.includes(st.cur)) row.append(finBtn(F, st, st.cur)); // chosen in the popup — also in the row
     if (st.same) {
@@ -2240,7 +2549,7 @@ export function roomsMode(ed) {
     return side ? [el(`<div class="line sub"><small>${esc(st.title)}</small></div>`), row] : [row];
   } // for a wall side — a label on the line above
   // one line under a panel's finishes when a pick there would replace pieces the AI build put (pieces.js, D-084)
-  const aiPiecesLine = states =>
+  const aiPiecesLine = (states: FinishState[]): HTMLElement[] =>
     states.some(st => st.ai)
       ? [
           el(
@@ -2248,9 +2557,9 @@ export function roomsMode(ed) {
           ),
         ]
       : [];
-  function finBox(st) {
-    const F = FIN[st.type],
-      box = el(`<div class="fpop"></div>`);
+  function finBox(st: FinishState): HTMLElement {
+    const F = FIN[st.type];
+    const box = el(`<div class="fpop"></div>`);
     for (const [g, keys] of F.groups) {
       box.append(el(`<div class="grp">${esc(g)}</div>`));
       const sw = el(`<div class="fgrid"></div>`);
@@ -2258,9 +2567,9 @@ export function roomsMode(ed) {
       box.append(sw);
     }
     const own = el(
-        `<label class="own" title="${t('Custom color for the selected option')}"><input type="color" value="${F.base(st.cur, st.tint)}"><span>${t('Custom color')}</span></label>`,
-      ),
-      inp = own.querySelector('input');
+      `<label class="own" title="${t('Custom color for the selected option')}"><input type="color" value="${F.base(st.cur, st.tint)}"><span>${t('Custom color')}</span></label>`,
+    );
+    const inp = own.querySelector('input')!; // in the markup above
     inp.onchange = () => st.setTint(inp.value);
     if (st.tint) {
       const rs = el(`<button class="soft" title="${t('Restore original color')}">${t('Reset')}</button>`);
@@ -2273,9 +2582,9 @@ export function roomsMode(ed) {
     box.append(own);
     return box;
   }
-  function openFin(get, owner, anchor) {
-    const st = get(),
-      p = panelPop(anchor, finBox(st), 'fp');
+  function openFin(get: () => FinishState, owner: string, anchor: HTMLElement): void {
+    const st = get();
+    const p = panelPop(anchor, finBox(st), 'fp');
     finPop = {key: st.key, owner, get};
     const watch = new MutationObserver(() => {
       if (!document.body.contains(p)) {
@@ -2286,7 +2595,7 @@ export function roomsMode(ed) {
     watch.observe(document.body, {childList: true});
   }
   // after an edit — the popup with the new choice; a panel about something else (another room or wall) — the popup closes
-  function syncFin(owner) {
+  function syncFin(owner: string | null): void {
     if (!finPop) return;
     const m = document.querySelector('.menu.pop.panel.fp');
     if (!m || finPop.owner !== owner) {
@@ -2298,27 +2607,27 @@ export function roomsMode(ed) {
     finPop.key = st.key;
     m.replaceChildren(finBox(st));
   }
-  const floorLines = r => finRow(() => floorState(r), 'room:' + r.id);
+  const floorLines = (r: Room): HTMLElement[] => finRow(() => floorState(r), 'room:' + r.id);
   m.anchor = () => {
     const oa = ops.anchor();
     if (oa) return oa;
     const W = selWall();
     if (W) {
-      const d = span(W),
-        q = [
-          W.a,
-          W.b,
-          [W.a[0] + W.n[0] * d, W.a[1] + W.n[1] * d],
-          [W.b[0] + W.n[0] * d, W.b[1] + W.n[1] * d],
-        ],
-        xs = q.map(p => p[0]),
-        ys = q.map(p => p[1]);
+      const d = span(W);
+      const q = [
+        W.a,
+        W.b,
+        [W.a[0] + W.n[0] * d, W.a[1] + W.n[1] * d],
+        [W.b[0] + W.n[0] * d, W.b[1] + W.n[1] * d],
+      ];
+      const xs = q.map(p => p[0]);
+      const ys = q.map(p => p[1]);
       return [Math.min(...xs), Math.min(...ys), Math.max(...xs), Math.max(...ys)];
     }
-    const r = roomById(plan(), ctxRoom());
+    const r = roomById(plan(), ctxRoom() as string); // none: no room found
     if (!r) return null;
-    const cc = curCell(),
-      poly = cc && cc.r === r && !sel().room ? cc.poly : r.polygon;
+    const cc = curCell();
+    const poly = cc && cc.r === r && !sel().room ? cc.poly : r.polygon;
     // The frame includes the walls: the panel gap is measured from their outer face.
     const shell = offsetVar(
       r.polygon,
@@ -2328,8 +2637,8 @@ export function roomsMode(ed) {
       }),
     );
     const points = poly === r.polygon ? shell : poly;
-    const xs = points.map(q => q[0]),
-      ys = points.map(q => q[1]);
+    const xs = points.map(q => q[0]);
+    const ys = points.map(q => q[1]);
     return [Math.min(...xs), Math.min(...ys), Math.max(...xs), Math.max(...ys)];
   };
   m.ctxKey = () => ctxRoom() || '';

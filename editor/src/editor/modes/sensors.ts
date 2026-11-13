@@ -1,4 +1,3 @@
-// @ts-nocheck
 // The “Sensors” mode (D-033): which Home Assistant sensors to show on the walls and where — like with lights, each has its own place.
 // On the left — sensors by area: climate (temperature, humidity, CO₂, PM2.5) right away, the other numeric ones — under “All sensors”.
 // A click on a row puts it on a wall (in the room of its area, the place is automatic — next to the room's other sensors) or removes it.
@@ -21,48 +20,159 @@ import {
   SIZES,
   INKS,
 } from '../../core/sensors.ts';
-import {$, el, esc, section} from '../ui.ts';
+import {$, el, esc} from '../ui.ts';
 import {icon} from '../icons.ts';
-import {pal, FONT} from '../draw.ts';
+import {FONT} from '../draw.ts';
 import {separatePlates} from '../sensor-plates.ts';
+import {pal, section} from './typed-helpers.ts';
+import type {
+  HaLayer,
+  HaSensor,
+  Plan,
+  PlanSensor,
+  Point,
+  Room,
+  SensorContext,
+  Vector,
+} from '../../core/types.ts';
+import type {
+  CanvasPoint,
+  Editor,
+  PlanPointer,
+  PlanView2d,
+  Selection,
+  SensorSpot,
+  SensorsMode,
+} from '../editor-types.ts';
 
-export function sensorsMode(ed) {
-  const m = {id: 'sensors'};
-  let drag = null,
-    placing = null,
-    hits = [],
-    all = false,
-    stepKey = null,
-    askFor = null,
-    lastMoved = null;
-  const plan = () => ed.plan,
-    sel = () => ed.sel,
-    v = () => ed.v,
-    ctx = () => ed.sensorCtx();
-  const find = id => (id ? plan().sensors.find(S => S.id === id) : null);
-  const shown = e => plan().sensors.find(S => S.entity === e);
-  const newId = () => 's' + Date.now().toString(36) + Math.random().toString(36).slice(2, 5);
-  const info = S => ctx().sensors.find(s => s.entity === S?.entity);
-  const val = s => {
+/** The nearest wall point (wallAt): the distance to it, its room, the wall's direction and the point, metres. */
+interface SensorWall {
+  d: number;
+  room: Room;
+  u: Vector;
+  q: Point;
+}
+
+/** Where a plan sensor is placed: kept when a drag starts, put back when it comes off another one's column. */
+type SensorPlace = Pick<PlanSensor, 'room' | 'at' | 'under'>;
+
+/**
+ * A sensor dragged on the plan: where the press was and where the pointer is (canvas pixels), its place before the drag, the
+ * pointer's offset from its badge, the wall point under the pointer; stacked: it hangs below another one since the pointer was at
+ * stackAt; skip: the one it just came off.
+ */
+interface SensorDrag {
+  S: PlanSensor;
+  start: CanvasPoint;
+  orig: SensorPlace;
+  stacked: boolean;
+  grab: CanvasPoint;
+  moved?: boolean;
+  cur?: CanvasPoint;
+  wall?: SensorWall | null;
+  stackAt?: CanvasPoint;
+  skip?: string | null;
+}
+
+/** A marker on the wall under the pointer: the sensor and its ends on the canvas (x0, y0, x1, y1). */
+interface MarkerHit {
+  id: string;
+  seg: [number, number, number, number];
+}
+
+/** A badge under the pointer: the sensor, its centre and angle, half its length and height, and its box (canvas pixels). */
+interface PlateHit {
+  id: string;
+  seg?: undefined;
+  X: number;
+  Y: number;
+  ang: number;
+  hw: number;
+  hh: number;
+  X0: number;
+  Y0: number;
+  X1: number;
+  Y1: number;
+}
+
+type SensorHit = MarkerHit | PlateHit;
+
+/** A box on the canvas: [x0, y0, x1, y1]. */
+type CanvasBox = [number, number, number, number];
+
+/** A badge laid out on the canvas: its spot, its length and angle, and its centre. */
+interface PlateItem {
+  sp: SensorSpot;
+  L: number;
+  ang: number;
+  X: number;
+  Y: number;
+}
+
+/**
+ * A column of badges at one marker, as sensor-plates.ts moves it: the wall's normal on screen, whether the wall is horizontal,
+ * the two layouts (flat: text horizontal, turn: across the wall) and the one used (items), the widest badge, the wall's ends and
+ * its x range on screen, and the offset the badges are moved by.
+ */
+interface PlateBlock {
+  n: Vector;
+  horiz: boolean;
+  flat: PlateItem[];
+  turn: PlateItem[];
+  W: number;
+  wall: [CanvasPoint, CanvasPoint];
+  wx: [number, number];
+  items: PlateItem[];
+  o: [number, number];
+  box(): CanvasBox;
+}
+
+/** Neighbouring columns on a horizontal wall that stand together: their total width and their left edge (x). */
+interface PlateStack {
+  bs: PlateBlock[];
+  W: number;
+  l: number;
+}
+
+export function sensorsMode(ed: Editor): SensorsMode {
+  const m = {id: 'sensors'} as SensorsMode; // its members are set below, before app.ts calls any
+  let drag: SensorDrag | null = null;
+  let placing = null;
+  let hits: SensorHit[] = [];
+  let all = false;
+  let stepKey: string | null = null;
+  let askFor: HaSensor | null = null;
+  let lastMoved: string | null = null;
+  const plan = (): Plan => ed.plan;
+  const sel = (): Selection => ed.sel;
+  const v = (): PlanView2d => ed.v;
+  const ctx = (): SensorContext => ed.sensorCtx();
+  const find = (id: string | null | undefined): PlanSensor | null | undefined =>
+    id ? plan().sensors.find(S => S.id === id) : null;
+  const shown = (e: string): PlanSensor | undefined => plan().sensors.find(S => S.entity === e);
+  const newId = (): string => 's' + Date.now().toString(36) + Math.random().toString(36).slice(2, 5);
+  const info = (S: PlanSensor | null | undefined): HaSensor | undefined =>
+    ctx().sensors.find(s => s.entity === S?.entity);
+  const val = (s: HaSensor): string => {
     const x = ctx().state(s.entity);
     return x == null ? '—' : metricOf(s).text(x, s.unit);
   };
-  const order = s => {
+  const order = (s: HaSensor): number => {
     const i = METRICS.findIndex(m => m.cls === s.cls);
     return i < 0 ? 99 : i;
   };
 
   // the nearest wall point: in the room under the pointer, otherwise of the nearest room
-  function wallAt(p) {
-    const rooms = plan().rooms.filter(r => !r.solid),
-      inR = rooms.find(r => pointIn(p, r.polygon));
-    let best = null;
+  function wallAt(p: Point): SensorWall | null {
+    const rooms = plan().rooms.filter(r => !r.solid);
+    const inR = rooms.find(r => pointIn(p, r.polygon));
+    let best: SensorWall | null = null;
     for (const r of inR ? [inR] : rooms) {
       const P = r.polygon;
       for (let i = 0; i < P.length; i++) {
-        const a = P[i],
-          b = P[(i + 1) % P.length],
-          [d, t] = segDist(p, a, b);
+        const a = P[i];
+        const b = P[(i + 1) % P.length];
+        const [d, t] = segDist(p, a, b);
         if (!best || d < best.d) {
           const l = Math.hypot(b[0] - a[0], b[1] - a[1]) || 1;
           best = {
@@ -76,30 +186,31 @@ export function sensorsMode(ed) {
     }
     return best;
   }
-  function put(s, room, at, also = []) {
-    let first = null;
+  function put(s: HaSensor, room: Room, at?: Point | null, also: HaSensor[] = []): void {
+    let first: PlanSensor | null = null;
     for (const x of [s, ...also]) {
-      const S = {id: newId(), entity: x.entity, room: room.id, ...(at && x === s ? {at} : {})};
+      const S: PlanSensor = {id: newId(), entity: x.entity, room: room.id, ...(at && x === s ? {at} : {})};
       plan().sensors.push(S);
       first ??= S;
       plan().sensorSkip = plan().sensorSkip.filter(e => e !== x.entity);
       if (!x.area && room.area && ed.ha.setArea) ed.ha.setArea(x.entity, room.area);
     } // like for a lamp: there was no area — write it to HA too
-    sel().sensor = first.id;
+    sel().sensor = first!.id; // the loop ran for s at least
     placing = null;
     askFor = null;
     ed.commit();
   }
   // the other readings of the same device without a room (a thermometer with humidity) — ask about the device once
-  const kin = s => (s.device ? orphans(plan(), ctx()).filter(x => x !== s && x.device === s.device) : []);
+  const kin = (s: HaSensor): HaSensor[] =>
+    s.device ? orphans(plan(), ctx()).filter((x: HaSensor) => x !== s && x.device === s.device) : [];
   // A sensor without a room is asked about on selection from the list. First the suggested readings can be calmly reviewed in 3D.
-  const asking = () => {
+  const asking = (): HaSensor | null => {
     if (sel().sensor) return null;
     if (askFor && !shown(askFor.entity)) return askFor;
     askFor = null;
     return null;
   };
-  function remove(S) {
+  function remove(S: PlanSensor): void {
     for (const x of plan().sensors)
       if (x.under === S.id) {
         if (S.under) x.under = S.under;
@@ -112,7 +223,7 @@ export function sensorsMode(ed) {
     if (sel().sensor === S.id) sel().sensor = null;
     ed.commit();
   }
-  function toggle(s) {
+  function toggle(s: HaSensor): void {
     const S = shown(s.entity);
     if (S) {
       remove(S);
@@ -136,12 +247,20 @@ export function sensorsMode(ed) {
   // all at once, so the wall is not a mix. The lower ones in a column are farther from the wall, following the top one.
   // A sensor is dragged — it follows the pointer with its lower ones, a dashed line on the wall shows where it will land. It overlaps another one's badge — it immediately
   // lands below it; the pointer moved away — separate again. If they still overlap (small zoom) — the one just moved gives way.
-  const PH = 20,
-    VG = 3;
-  const pw = (g, sp) => g.measureText(sp.items[0].text).width + 10;
-  function plateAt(g, sp, X, Y, ang, L) {
-    const on = sp.id === sel().sensor,
-      it = sp.items[0];
+  const PH = 20;
+  const VG = 3;
+  const pw = (g: CanvasRenderingContext2D, sp: SensorSpot): number =>
+    g.measureText(sp.items[0].text).width + 10;
+  function plateAt(
+    g: CanvasRenderingContext2D,
+    sp: SensorSpot,
+    X: number,
+    Y: number,
+    ang: number,
+    L: number,
+  ): void {
+    const on = sp.id === sel().sensor;
+    const it = sp.items[0];
     g.save();
     g.translate(X, Y);
     g.rotate(ang);
@@ -155,10 +274,10 @@ export function sensorsMode(ed) {
     g.fillStyle = it.lvl === 2 ? pal.bad : it.lvl === 1 ? pal.warn : on ? pal.acc : pal.label;
     g.fillText(it.text, 0, 4);
     g.restore();
-    const c = Math.abs(Math.cos(ang)),
-      s = Math.abs(Math.sin(ang)),
-      hx = (L / 2) * c + (PH / 2) * s,
-      hy = (L / 2) * s + (PH / 2) * c;
+    const c = Math.abs(Math.cos(ang));
+    const s = Math.abs(Math.sin(ang));
+    const hx = (L / 2) * c + (PH / 2) * s;
+    const hy = (L / 2) * s + (PH / 2) * c;
     hits.unshift({
       id: sp.id,
       X: X,
@@ -172,21 +291,21 @@ export function sensorsMode(ed) {
       Y1: Y + hy,
     });
   }
-  function column(g, ss, X, Y, st) {
+  function column(g: CanvasRenderingContext2D, ss: SensorSpot[], X: number, Y: number, st: Vector): void {
     ss.forEach((sp, j) => plateAt(g, sp, X + st[0] * j, Y + st[1] * j, 0, pw(g, sp)));
   } // horizontal: dragging
-  const floating = () => drag?.moved && !drag.stacked && drag.cur;
+  const floating = (): CanvasPoint | false | undefined => drag?.moved && !drag.stacked && drag.cur;
   m.draw = () => {
-    const g = v().ctx,
-      spots = ed.spots || [],
-      fl = floating() ? below(drag.S) : null;
+    const g = v().ctx;
+    const spots = ed.spots || [];
+    const fl = floating() ? below(drag!.S) : null; // floating() holds only while a sensor is dragged
     hits = [];
     for (const sp of spots) {
       if (fl?.has(sp.id)) continue;
-      const a = [sp.c[0] - (sp.u[0] * sp.w) / 2, sp.c[1] - (sp.u[1] * sp.w) / 2],
-        b = [sp.c[0] + (sp.u[0] * sp.w) / 2, sp.c[1] + (sp.u[1] * sp.w) / 2],
-        [AX, AY] = v().S(a),
-        [BX, BY] = v().S(b);
+      const a: Point = [sp.c[0] - (sp.u[0] * sp.w) / 2, sp.c[1] - (sp.u[1] * sp.w) / 2];
+      const b: Point = [sp.c[0] + (sp.u[0] * sp.w) / 2, sp.c[1] + (sp.u[1] * sp.w) / 2];
+      const [AX, AY] = v().S(a);
+      const [BX, BY] = v().S(b);
       g.strokeStyle = pal.acc;
       g.globalAlpha = sp.id === sel().sensor ? 0.95 : 0.6;
       g.lineWidth = 3;
@@ -201,24 +320,23 @@ export function sensorsMode(ed) {
     }
     g.font = `600 10.5px ${FONT}`;
     g.textAlign = 'center';
-    const cols = new Map();
+    const cols = new Map<string, SensorSpot[]>();
     for (const sp of spots) {
       if (fl?.has(sp.id)) continue;
       if (!cols.has(sp.col)) cols.set(sp.col, []);
-      cols.get(sp.col).push(sp);
+      cols.get(sp.col)!.push(sp); // set just above
     }
     // overlap — the one just moved gives way (the neighbours stay put), the rest — in plan order
-    const order = id =>
-        plan().sensors.findIndex(S => S.id === id) +
-        (cols.get(id)?.some(sp => sp.id === lastMoved) ? 1e6 : 0),
-      blocks = [];
+    const order = (id: string): number =>
+      plan().sensors.findIndex(S => S.id === id) + (cols.get(id)?.some(sp => sp.id === lastMoved) ? 1e6 : 0);
+    const blocks: PlateBlock[] = [];
     // each column has two layouts: flat — text horizontal at the marker (the lower ones farther from the wall), turn — across the wall
-    const boxOf = its => {
+    const boxOf = (its: PlateItem[]): CanvasBox => {
       const ps = its.flatMap(it => {
-        const c = Math.abs(Math.cos(it.ang)),
-          s = Math.abs(Math.sin(it.ang)),
-          hx = (it.L / 2) * c + (PH / 2) * s,
-          hy = (it.L / 2) * s + (PH / 2) * c;
+        const c = Math.abs(Math.cos(it.ang));
+        const s = Math.abs(Math.sin(it.ang));
+        const hx = (it.L / 2) * c + (PH / 2) * s;
+        const hy = (it.L / 2) * s + (PH / 2) * c;
         return [
           [it.X - hx, it.Y - hy],
           [it.X + hx, it.Y + hy],
@@ -233,16 +351,16 @@ export function sensorsMode(ed) {
     };
     for (const [id, ss] of [...cols].sort((x, y) => order(x[0]) - order(y[0]))) {
       ss.sort((x, y) => y.y - x.y);
-      const r = ss[0],
-        [CX, CY] = v().S(r.c),
-        [NX, NY] = v().S([r.c[0] + r.n[0], r.c[1] + r.n[1]]);
-      const nl = Math.hypot(NX - CX, NY - CY) || 1,
-        n = [(NX - CX) / nl, (NY - CY) / nl],
-        Ls = ss.map(sp => pw(g, sp)),
-        W = Math.max(...Ls),
-        horiz = Math.abs(n[1]) >= Math.abs(n[0]);
-      const e = (Math.abs(n[0]) * W) / 2 + (Math.abs(n[1]) * PH) / 2 + 5,
-        st = horiz ? [0, Math.sign(n[1]) * (PH + VG)] : [0, PH + VG];
+      const r = ss[0];
+      const [CX, CY] = v().S(r.c);
+      const [NX, NY] = v().S([r.c[0] + r.n[0], r.c[1] + r.n[1]]);
+      const nl = Math.hypot(NX - CX, NY - CY) || 1;
+      const n: Vector = [(NX - CX) / nl, (NY - CY) / nl];
+      const Ls = ss.map(sp => pw(g, sp));
+      const W = Math.max(...Ls);
+      const horiz = Math.abs(n[1]) >= Math.abs(n[0]);
+      const e = (Math.abs(n[0]) * W) / 2 + (Math.abs(n[1]) * PH) / 2 + 5;
+      const st = horiz ? [0, Math.sign(n[1]) * (PH + VG)] : [0, PH + VG];
       const flat = ss.map((sp, j) => ({
         sp,
         L: Ls[j],
@@ -260,8 +378,8 @@ export function sensorsMode(ed) {
         return it;
       });
       // the wall side on screen (along x) — badges on a horizontal wall can be spread within its bounds
-      const wa = v().S([r.c[0] - r.u[0] * r.t, r.c[1] - r.u[1] * r.t]),
-        wb = v().S([r.c[0] + r.u[0] * (r.L - r.t), r.c[1] + r.u[1] * (r.L - r.t)]);
+      const wa = v().S([r.c[0] - r.u[0] * r.t, r.c[1] - r.u[1] * r.t]);
+      const wb = v().S([r.c[0] + r.u[0] * (r.L - r.t), r.c[1] + r.u[1] * (r.L - r.t)]);
       blocks.push({
         n,
         horiz,
@@ -278,11 +396,12 @@ export function sensorsMode(ed) {
         },
       });
     }
-    const ov = (a, b) => a[0] < b[2] + 1 && b[0] < a[2] + 1 && a[1] < b[3] + 1 && b[1] < a[3] + 1;
+    const ov = (a: CanvasBox, b: CanvasBox): boolean =>
+      a[0] < b[2] + 1 && b[0] < a[2] + 1 && a[1] < b[3] + 1 && b[1] < a[3] + 1;
     // On a horizontal wall neighbouring badges overlap each other — first spread them along the wall (as close as possible to their
     // markers, within the wall); if they still do not fit — the whole group goes across the wall.
-    const grp = blocks.map((_, i) => i),
-      root = i => (grp[i] === i ? i : (grp[i] = root(grp[i])));
+    const grp = blocks.map((_, i) => i);
+    const root = (i: number): number => (grp[i] === i ? i : (grp[i] = root(grp[i])));
     blocks.forEach((A, i) => {
       if (!A.horiz) return;
       blocks.forEach((B, j) => {
@@ -290,27 +409,27 @@ export function sensorsMode(ed) {
         if (ov(boxOf(A.flat), boxOf(B.flat))) grp[root(j)] = root(i);
       });
     });
-    const groups = new Map();
+    const groups = new Map<number, PlateBlock[]>();
     blocks.forEach((B, i) => {
       if (!B.horiz) return;
       const k = root(i);
       if (!groups.has(k)) groups.set(k, []);
-      groups.get(k).push(B);
+      groups.get(k)!.push(B); // set just above
     });
     const GAP = 4;
     for (const G of groups.values()) {
       if (G.length < 2) continue;
       G.sort((a, b) => a.flat[0].X - b.flat[0].X);
-      const lo = Math.min(...G.map(B => B.wx[0])) + 2,
-        hi = Math.max(...G.map(B => B.wx[1])) - 2,
-        need = G.reduce((a, B) => a + B.W, 0) + GAP * (G.length - 1);
+      const lo = Math.min(...G.map(B => B.wx[0])) + 2;
+      const hi = Math.max(...G.map(B => B.wx[1])) - 2;
+      const need = G.reduce((a, B) => a + B.W, 0) + GAP * (G.length - 1);
       if (need > hi - lo) {
         for (const B of G) B.items = B.turn;
         continue;
       }
       // 1D layout: stacks merge while they overlap; a stack lands at the mean of the desired places, then within the wall bounds
-      let cl = G.map(B => ({bs: [B]}));
-      const place = c => {
+      let cl = G.map(B => ({bs: [B]}) as PlateStack); // place() sets W and l right below, before they are read
+      const place = (c: PlateStack): void => {
         let off = 0;
         const ls = c.bs.map(B => {
           const l = B.flat[0].X - B.W / 2 - off;
@@ -341,18 +460,18 @@ export function sensorsMode(ed) {
     for (const B of blocks)
       for (const it of B.items) plateAt(g, it.sp, it.X + B.o[0], it.Y + B.o[1], it.ang, it.L);
     if (fl) {
-      const mine = spots.filter(sp => fl.has(sp.id)).sort((x, y) => y.y - x.y),
-        j = Math.max(
-          0,
-          mine.findIndex(sp => sp.id === drag.S.id),
-        );
+      const mine = spots.filter(sp => fl.has(sp.id)).sort((x, y) => y.y - x.y);
+      const j = Math.max(
+        0,
+        mine.findIndex(sp => sp.id === drag!.S.id),
+      );
       if (mine.length) {
-        const w = drag.wall,
-          sp0 = mine[j];
+        const w = drag!.wall;
+        const sp0 = mine[j];
         if (w) {
-          const hw = sp0.w / 2,
-            a = [w.q[0] - w.u[0] * hw, w.q[1] - w.u[1] * hw],
-            b = [w.q[0] + w.u[0] * hw, w.q[1] + w.u[1] * hw]; // where it will land
+          const hw = sp0.w / 2;
+          const a: Point = [w.q[0] - w.u[0] * hw, w.q[1] - w.u[1] * hw];
+          const b: Point = [w.q[0] + w.u[0] * hw, w.q[1] + w.u[1] * hw]; // where it will land
           g.strokeStyle = pal.acc;
           g.lineWidth = 3;
           g.setLineDash([5, 4]);
@@ -363,27 +482,31 @@ export function sensorsMode(ed) {
           g.setLineDash([]);
         }
         g.globalAlpha = 0.92;
-        column(g, mine, drag.cur[0] - drag.grab[0], drag.cur[1] - drag.grab[1] - j * (PH + VG), [0, PH + VG]);
+        // floating(): drag and its pointer are there
+        column(g, mine, drag!.cur![0] - drag!.grab[0], drag!.cur![1] - drag!.grab[1] - j * (PH + VG), [
+          0,
+          PH + VG,
+        ]);
         g.globalAlpha = 1;
       }
     }
   };
-  const inPlate = (h, x, y) => {
-    const dx = x - h.X,
-      dy = y - h.Y,
-      c = Math.cos(h.ang),
-      s = Math.sin(h.ang);
+  const inPlate = (h: PlateHit, x: number, y: number): boolean => {
+    const dx = x - h.X;
+    const dy = y - h.Y;
+    const c = Math.cos(h.ang);
+    const s = Math.sin(h.ang);
     return Math.abs(dx * c + dy * s) <= h.hw && Math.abs(-dx * s + dy * c) <= h.hh;
   };
-  const hitAt = e =>
+  const hitAt = (e: Pick<PlanPointer, 'offsetX' | 'offsetY'>): SensorHit | undefined =>
     hits.find(h =>
       h.seg
         ? segDist([e.offsetX, e.offsetY], [h.seg[0], h.seg[1]], [h.seg[2], h.seg[3]])[0] < 7
         : inPlate(h, e.offsetX, e.offsetY),
     );
   m.down = (e, p) => {
-    const h = hitAt(e),
-      S = h && find(h.id);
+    const h = hitAt(e);
+    const S = h && find(h.id);
     if (!S) return false;
     const was = sel().sensor;
     sel().sensor = S.id;
@@ -401,8 +524,8 @@ export function sensorsMode(ed) {
   };
   // One is moved — the others do not shift: the room's sensors that stand automatically (in a row, without at) are pinned where they are now
   // (at — the point of their place on the wall). Otherwise the row without the moved one would rebuild and land anew.
-  const S0 = d => d.S;
-  function pin(roomId) {
+  const S0 = (d: SensorDrag): PlanSensor => d.S;
+  function pin(roomId: string): void {
     let ch = false;
     for (const x of plan().sensors) {
       if (x === drag?.S || x.room !== roomId || x.at || x.under) continue;
@@ -414,7 +537,7 @@ export function sensorsMode(ed) {
     }
     if (ch) ed.update();
   }
-  const restore = (S, o) => {
+  const restore = (S: PlanSensor, o: SensorPlace): void => {
     S.room = o.room;
     if (o.at) S.at = o.at;
     else delete S.at;
@@ -432,28 +555,29 @@ export function sensorsMode(ed) {
       pin(S0(drag).room);
     } // while dragging there is no panel; the room neighbours are pinned where they stand
     drag.moved = true;
-    const S = drag.S,
-      X = e.offsetX,
-      Y = e.offsetY;
+    const S = drag.S;
+    const X = e.offsetX;
+    const Y = e.offsetY;
     drag.cur = [X, Y];
     drag.wall = wallAt(p);
     // it stands below another one — until the pointer moves 36 px away from where it landed; moved away — floats again, the data as before the drag
     if (drag.stacked) {
-      if (Math.hypot(X - drag.stackAt[0], Y - drag.stackAt[1]) < 36) return;
+      // set when it was stacked
+      if (Math.hypot(X - drag.stackAt![0], Y - drag.stackAt![1]) < 36) return;
       drag.skip = S.under;
       drag.stacked = false;
       restore(S, drag.orig);
       ed.update();
     } else ed.draw();
-    const me = rectOf(S.id),
-      sub = below(S);
+    const me = rectOf(S.id);
+    const sub = below(S);
     if (!me) return;
     if (drag.skip) {
       const k = rectOf(drag.skip);
       if (!k || !overlap(me, k)) drag.skip = null;
     } // just detached — it does not stick to the same one until they separate
-    const tg = hits.find(h => !h.seg && h.id !== drag.skip && !sub.has(h.id) && overlap(me, h)),
-      T = tg && find(tg.id);
+    const tg = hits.find(h => !h.seg && h.id !== drag!.skip && !sub.has(h.id) && overlap(me, h));
+    const T = tg && find(tg.id);
     if (T) {
       pin(T.room);
       S.under = T.id;
@@ -495,11 +619,11 @@ export function sensorsMode(ed) {
       ed.draw();
     }
   };
-  const rectOf = id => hits.find(h => !h.seg && h.id === id);
-  const overlap = (a, b) =>
+  const rectOf = (id: string): PlateHit | undefined => hits.find((h): h is PlateHit => !h.seg && h.id === id);
+  const overlap = (a: PlateHit, b: PlateHit): boolean =>
     Math.min(a.X1, b.X1) - Math.max(a.X0, b.X0) > Math.min(a.X1 - a.X0, b.X1 - b.X0) * 0.4 &&
     Math.min(a.Y1, b.Y1) - Math.max(a.Y0, b.Y0) > Math.min(a.Y1 - a.Y0, b.Y1 - b.Y0) * 0.4;
-  function below(S) {
+  function below(S: PlanSensor): Set<string> {
     const out = new Set([S.id]);
     let grow = true;
     while (grow) {
@@ -530,15 +654,15 @@ export function sensorsMode(ed) {
     const sp = (ed.spots || []).find(x => x.id === sel().sensor);
     if (!sp) {
       if (!asking()) return null;
-      const ps = plan().rooms.flatMap(r => r.polygon),
-        xs = ps.map(q => q[0]),
-        ys = ps.map(q => q[1]);
+      const ps = plan().rooms.flatMap(r => r.polygon);
+      const xs = ps.map(q => q[0]);
+      const ys = ps.map(q => q[1]);
       return [Math.min(...xs), Math.min(...ys), Math.max(...xs), Math.max(...ys)];
     }
     // the panel is above the sensor's whole room: it does not cover its badges (they are dragged onto neighbours)
-    const P = plan().rooms.find(r => r.id === sp.room)?.polygon || [sp.c],
-      xs = P.map(q => q[0]),
-      ys = P.map(q => q[1]);
+    const P = plan().rooms.find(r => r.id === sp.room)?.polygon || [sp.c];
+    const xs = P.map(q => q[0]);
+    const ys = P.map(q => q[1]);
     return [Math.min(...xs), Math.min(...ys), Math.max(...xs), Math.max(...ys)];
   };
   m.status = () => '';
@@ -554,16 +678,17 @@ export function sensorsMode(ed) {
   };
 
   // ---------- panel above the selection ----------
-  function askLines(s) {
-    const ks = kin(s),
-      lines = [
-        el(
-          `<div class="line"><b>${esc(s.name)}</b><small>${esc([s, ...ks].map(val).join(' · '))}</small></div>`,
-        ),
-      ];
+  function askLines(s: HaSensor): HTMLElement[] {
+    const ks = kin(s);
+    const lines = [
+      el(
+        `<div class="line"><b>${esc(s.name)}</b><small>${esc([s, ...ks].map(val).join(' · '))}</small></div>`,
+      ),
+    ];
+    // types.ts has setArea on every HA layer; the check stays as it was
     lines.push(
       el(
-        `<div class="line sub"><small>${t('Sensor has no room. Which room is it in?')}${!s.area && ed.ha.setArea ? ' ' + t("We'll save the area to Home Assistant too.") : ''}</small></div>`,
+        `<div class="line sub"><small>${t('Sensor has no room. Which room is it in?')}${!s.area && (ed.ha as Partial<HaLayer>).setArea ? ' ' + t("We'll save the area to Home Assistant too.") : ''}</small></div>`,
       ),
     );
     const row = el(`<div class="line names"></div>`);
@@ -575,9 +700,9 @@ export function sensorsMode(ed) {
     }
     lines.push(row);
     const foot = el(
-        `<div class="line foot"><span class="hint">${t('Not in your home, or not needed on a wall?')}</span></div>`,
-      ),
-      no = el(`<button class="soft">${t("Don't show")}</button>`);
+      `<div class="line foot"><span class="hint">${t('Not in your home, or not needed on a wall?')}</span></div>`,
+    );
+    const no = el(`<button class="soft">${t("Don't show")}</button>`);
     no.onclick = () => {
       plan().sensorSkip.push(s.entity, ...ks.map(x => x.entity));
       askFor = null;
@@ -588,27 +713,27 @@ export function sensorsMode(ed) {
     return lines;
   }
   // The sensor panel is one row: name and number, number size (− 150% +, each has its own), “Auto position”, remove; below — label and number color.
-  function ctxPanel() {
-    const S = find(sel().sensor),
-      s = info(S);
+  function ctxPanel(): void {
+    const S = find(sel().sensor);
+    const s = info(S);
     if (!S || !s) {
       const a = asking();
       ed.showCtx(a ? askLines(a) : null);
       return;
     }
-    const mt = metricOf(s),
-      line = el(`<div class="line"><b>${esc(s.name)}</b><small>${esc(val(s))}</small></div>`);
-    const k = S.k || 1,
-      i = SIZES.indexOf(k),
-      setK = x => {
-        if (x === 1) delete S.k;
-        else S.k = x;
-        ed.commit();
-      };
+    const mt = metricOf(s);
+    const line = el(`<div class="line"><b>${esc(s.name)}</b><small>${esc(val(s))}</small></div>`);
+    const k = S.k || 1;
+    const i = SIZES.indexOf(k);
+    const setK = (x: number): void => {
+      if (x === 1) delete S.k;
+      else S.k = x;
+      ed.commit();
+    };
     const step = el(
-        `<span class="step" title="${t('Number size')}"><button title="${t('Smaller')}" ${i <= 0 ? 'disabled' : ''}>−</button><small>${Math.round(k * 100)}%</small><button title="${t('Larger')}" ${i >= SIZES.length - 1 ? 'disabled' : ''}>+</button></span>`,
-      ),
-      [dn, up] = step.querySelectorAll('button');
+      `<span class="step" title="${t('Number size')}"><button title="${t('Smaller')}" ${i <= 0 ? 'disabled' : ''}>−</button><small>${Math.round(k * 100)}%</small><button title="${t('Larger')}" ${i >= SIZES.length - 1 ? 'disabled' : ''}>+</button></span>`,
+    );
+    const [dn, up] = step.querySelectorAll('button');
     dn.onclick = () => setK(SIZES[Math.max(0, i - 1)]);
     up.onclick = () => setK(SIZES[Math.min(SIZES.length - 1, i + 1)]);
     line.append(el('<span class="sep"></span>'), step);
@@ -630,7 +755,7 @@ export function sensorsMode(ed) {
     );
     del.onclick = () => remove(S);
     line.append(del);
-    const nm = el(
+    const nm = el<HTMLInputElement>(
       `<input class="nm" value="${esc(S.label || '')}" placeholder="${esc((mt.label || s.name).toUpperCase())}" title="${t('Label above the number')}">`,
     );
     nm.onkeydown = e => {
@@ -646,12 +771,12 @@ export function sensorsMode(ed) {
     const line2 = el(`<div class="line"><small>${t('Label')}</small></div>`);
     line2.append(nm);
     // number color: “Match the wall” (automatic), presets, custom
-    const setC = c => {
-        if (c) S.c = c;
-        else delete S.c;
-        ed.commit();
-      },
-      own = !!S.c && !INKS.includes(S.c);
+    const setC = (c: string | null): void => {
+      if (c) S.c = c;
+      else delete S.c;
+      ed.commit();
+    };
+    const own = !!S.c && !INKS.includes(S.c);
     const ink = el(
       `<span class="ink" title="${t('Number color. Alert values stay yellow and red')}"></span>`,
     );
@@ -666,7 +791,8 @@ export function sensorsMode(ed) {
     const pk = el(
       `<label class="sw own ${own ? 'on' : ''}" title="${t('Custom color')}"${own ? ` style="background:${S.c}"` : ''}><input type="color" value="${S.c || INKS[2]}"></label>`,
     );
-    pk.querySelector('input').onchange = e => setC(e.target.value);
+    // the input is in the markup above
+    pk.querySelector('input')!.onchange = e => setC((e.target as HTMLInputElement).value);
     ink.append(pk);
     line2.append(el('<span class="sep"></span>'), ink);
     ed.showCtx([line, line2]);
@@ -678,8 +804,8 @@ export function sensorsMode(ed) {
     const tools = $('tools');
     tools.innerHTML = '';
     tools.appendChild(ed.selectButton());
-    const C = ctx(),
-      list = C.sensors.filter(s => !s.cat && !s.hidden && (all || isClimate(s)));
+    const C = ctx();
+    const list = C.sensors.filter(s => !s.cat && !s.hidden && (all || isClimate(s)));
     if (!plan().sensors.length) {
       const rec = recommend(plan(), C);
       if (rec.length) {
@@ -705,14 +831,14 @@ export function sensorsMode(ed) {
     }
     for (const ar of ed.sortAreas(new Set(list.map(s => s.area || '')))) {
       const ss = list
-          .filter(s => (s.area || '') === ar)
-          .sort((a, b) => order(a) - order(b) || a.name.localeCompare(b.name)),
-        on = ss.filter(s => shown(s.entity)).length;
-      const room = roomOfArea(plan(), ar),
-        body = section(side, 'sens:' + ar, ar ? ed.areaName(ar) : t('No area'), {
-          count: `${on}/${ss.length}`,
-          open: !!room || !ar,
-        });
+        .filter(s => (s.area || '') === ar)
+        .sort((a, b) => order(a) - order(b) || a.name.localeCompare(b.name));
+      const on = ss.filter(s => shown(s.entity)).length;
+      const room = roomOfArea(plan(), ar);
+      const body = section(side, 'sens:' + ar, ar ? ed.areaName(ar) : t('No area'), {
+        count: `${on}/${ss.length}`,
+        open: !!room || !ar,
+      });
       if (!room)
         body.appendChild(
           el(
@@ -720,8 +846,8 @@ export function sensorsMode(ed) {
           ),
         );
       for (const s of ss) {
-        const S = shown(s.entity),
-          why = isClimate(s) ? whyNot(s) : '';
+        const S = shown(s.entity);
+        const why = isClimate(s) ? whyNot(s) : '';
         const row = el(
           `<div class="row sensor ${S ? 'on' : ''} ${S && S.id === sel().sensor ? 'sel' : ''} ${asking() === s ? 'sel' : ''}" title="${S ? t('On a wall · click to remove') : t('Click to show on a wall')}${why ? ' · ' + why : ''}"><span class="ck">${S ? icon('check', 13) : ''}</span><span class="name">${esc(s.name)}</span><small>${esc(val(s))}</small></div>`,
         );
@@ -745,15 +871,15 @@ export function sensorsMode(ed) {
   };
 
   // ---------- wizard step ----------
-  const wizOn = () => !!ed.wizard?.get(plan().id)?.sens;
+  const wizOn = (): boolean => !!ed.wizard?.get(plan().id)?.sens;
   m.wizardOn = wizOn;
   m.needView = () => wizOn() && !plan().view && !ed.wizard.get(plan().id)?.viewSkip; // the step asks to pick the 3D view first
   // First — the home 3D view (D-035): labels land on the walls visible from it; this is how the home will be seen on the card.
   // In the wizard step — as the first tile (“Skip” — straight to the sensors); outside the step — once per project, if there is no view.
-  const UNDER = `<small>${t('Wall readings will be placed for this view.')}</small>`,
-    viewTip = () => ed.viewTip().full + UNDER;
+  const UNDER = `<small>${t('Wall readings will be placed for this view.')}</small>`;
+  const viewTip = (): string => ed.viewTip().full + UNDER;
   const VIEW_AIM = ed.aim.el('pane-3d'); // the view hint is at the 3D window (3D full screen — at the bottom)
-  function stepBanner() {
+  function stepBanner(): void {
     if (!wizOn()) {
       if (stepKey) {
         stepKey = null;
@@ -784,9 +910,9 @@ export function sensorsMode(ed) {
         );
       return;
     }
-    const w = ed.wizard.get(plan().id),
-      needView = !plan().view && !w?.viewSkip,
-      key = needView ? 'view' : 'on:' + plan().sensors.length;
+    const w = ed.wizard.get(plan().id);
+    const needView = !plan().view && !w?.viewSkip;
+    const key = needView ? 'view' : 'on:' + plan().sensors.length;
     if (stepKey === key && ed.stepNow()?.mode === m) return;
     stepKey = key;
     if (needView) {

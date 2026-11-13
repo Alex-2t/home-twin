@@ -1,4 +1,3 @@
-// @ts-nocheck
 // The “Lights” mode: lamps from Home Assistant land on the plan. Which lamp it is — chandelier, pendant, spots, line, strip, wall light,
 // floor lamp — the user says with one click (the one guessed by name is highlighted); the default place comes from fixtures.js,
 // then — drag on the plan. The “Lights” wizard step: room by room is highlighted and asked about its lamp without a place.
@@ -41,36 +40,164 @@ import {
   furnOpts,
   furnGuess,
 } from '../../core/fixtures.ts';
-import {$, el, esc, section, parseLen, tip, tipHide} from '../ui.ts';
+import {$, el, esc, parseLen, tip, tipHide} from '../ui.ts';
 import {icon} from '../icons.ts';
-import {pal, FONT, alpha, dimLabel, shiftSegs, shiftPoint} from '../draw.ts';
+import {FONT, alpha, dimLabel, shiftSegs, shiftPoint} from '../draw.ts';
+import {pal, section} from './typed-helpers.ts';
+import type {
+  HaLayer,
+  LightForm,
+  Outline,
+  Plan,
+  PlanLight,
+  Point,
+  Room,
+  Segment,
+  WallStrip,
+} from '../../core/types.ts';
+import type {Editor, LightsMode, PlanView2d, Selection} from '../editor-types.ts';
 
-const BODY = {ceiling: 0.2, pendant: 0.17, spots: 0.05, lamp: 0.17}; // body radius in the plan, m
-const names = o => Object.fromEntries(Object.entries(o).map(([k, x]) => [k, x.name || x]));
-const formName = id => FORMS.find(f => f.id === id)?.name || '';
-export function lightsMode(ed) {
-  const m = {id: 'lights'};
-  let drag = null,
-    placing = null,
-    cur = null,
-    near = null,
-    go = false,
-    hoverStrip = null,
-    merging = false,
-    stepKey = null,
-    flash = null,
-    sess,
-    leaving = null,
-    held = {light: null, cur: null};
-  const plan = () => ed.plan,
-    sel = () => ed.sel,
-    v = () => ed.v;
-  const find = id => (id ? plan().lights.find(l => l.id === id) : null);
-  const host = L => (L.with ? find(L.with) : null);
+/** A light's cell (fixtures.ts lampCell): its room, or the part of it with the light's area; ch: the chord between the parts. */
+interface LampCell {
+  room: Room;
+  poly: Outline;
+  ch: Segment | null;
+}
+
+/**
+ * A strip's path round its cell (fixtures.ts stripContour): the cell's corners (P), the line the strip runs on (C), the distance
+ * along it to each corner (S), how many corners (n), the length round (per), and where it breaks at doors and open walls (gaps:
+ * [from, to] along it).
+ */
+interface StripContour {
+  P: Outline;
+  C: Outline;
+  S: number[];
+  n: number;
+  per: number;
+  gaps: number[][];
+}
+
+/** A strip's sections as stretches [from, to] along its path (fixtures.ts stripRuns); closed: one line all the way round. */
+interface StripRuns {
+  runs: Array<[number, number]>;
+  closed: boolean;
+}
+
+/** The selected strip of a lamp, on its path (stripOf). */
+interface StripOn {
+  K: StripContour;
+  st: StripRuns;
+}
+
+/** A lamp's point, or its line or strip piece, under the pointer (hit): piece i of lamp L; on a line, the end (0, 1). */
+interface LampHit {
+  L: PlanLight;
+  i: number;
+  end?: 0 | 1;
+}
+
+/** The pointer at the end of section i of the selected strip (stripHere): it is dragged; now: the sections while dragging. */
+interface StripEnd extends StripOn {
+  L: PlanLight;
+  kind: 'end';
+  i: number;
+  /** 0: the section's start, 1: its end. */
+  end: number;
+  s?: undefined;
+  now?: StripRuns;
+}
+
+/** The pointer at s along the selected strip: on a section (a click cuts a gap), in a gap (a click fills it), at a door (nothing). */
+interface StripPlace extends StripOn {
+  L: PlanLight;
+  kind: 'cut' | 'fill' | 'door';
+  s: number;
+  i?: undefined;
+  end?: undefined;
+  now?: undefined;
+}
+
+/** Where the pointer is on the selected strip. */
+type StripSpot = StripEnd | StripPlace;
+
+/** The spot on the strip under the pointer, with its key (the plan is redrawn when the key changes). */
+type StripHover = StripSpot & {hk: string | null};
+
+/** A lamp being dragged by a point (i), a line's end (end) or a whole line piece; orig: its pieces before the drag. */
+interface LampDrag {
+  strip?: undefined;
+  L: PlanLight;
+  i: number;
+  end?: 0 | 1;
+  start: Point;
+  orig: Segment[];
+  moved?: boolean;
+}
+
+/** A press on the selected strip: one of its section ends is dragged, or it is a click on the strip or a gap. */
+interface StripDrag {
+  strip: StripSpot;
+  L: PlanLight;
+  start: Point;
+  moved?: boolean;
+}
+
+/** Where a lamp dragged from the list would land: a point, or a strip's wall piece (layout.ts stripOnWall). */
+type LightPreview = {p: Point; seg?: undefined} | (WallStrip & {p?: undefined});
+
+/** A lamp row dragged from the list onto the plan; preview: where it lands now (null: the pointer is off the plan). */
+interface Placing {
+  L: PlanLight;
+  preview?: LightPreview | null;
+}
+
+/**
+ * The question "Save this room's lights?" is on; after the answer: an action (another mode, another step), finishing the step,
+ * or going to a lamp (the one selected and the one asked about).
+ */
+type Leaving =
+  | {action: () => void; finish?: undefined}
+  | {finish: true; action?: undefined}
+  | {light: string | null | undefined; cur: string | null; action?: undefined; finish?: undefined};
+
+/** The chips' choices (fixtures.ts option tables): by key, a name, or an object with its name and tip. */
+type Choices = Record<string, string | {name: string; tip?: string}>;
+
+/** A lamp read by field name: its snapshot in the step (L.was.s) is all of its fields but OWN. */
+type LightFields = PlanLight & Record<string, unknown>;
+
+const BODY: Record<string, number> = {ceiling: 0.2, pendant: 0.17, spots: 0.05, lamp: 0.17}; // body radius in the plan, m
+// a choice is its name, or an object with its name
+const names = (o: Choices): Record<string, string> =>
+  Object.fromEntries(Object.entries(o).map(([k, x]) => [k, (x as {name?: string}).name || (x as string)]));
+const formName = (id: string): string => FORMS.find(f => f.id === id)?.name || '';
+export function lightsMode(ed: Editor): LightsMode {
+  const m = {id: 'lights'} as LightsMode; // its members are set below, before app.ts calls any
+  let drag: LampDrag | StripDrag | null = null;
+  let placing: Placing | null = null;
+  let cur: string | null = null;
+  let near: string | null = null;
+  // 'room': "Confirm room" was pressed, on to the next room; true: on to the next lamp
+  let go: boolean | 'room' = false;
+  let hoverStrip: StripHover | null = null;
+  let merging = false;
+  let stepKey: string | null = null;
+  let flash: string | null = null;
+  // the room (cellKey) the step is on; null: none; undefined: not known yet (after a reset or a reload)
+  let sess: string | null | undefined;
+  let leaving: Leaving | null = null;
+  let held: {light: string | null | undefined; cur: string | null} = {light: null, cur: null};
+  const plan = (): Plan => ed.plan;
+  const sel = (): Selection => ed.sel;
+  const v = (): PlanView2d => ed.v;
+  const find = (id: string | null | undefined): PlanLight | null | undefined =>
+    id ? plan().lights.find(l => l.id === id) : null;
+  const host = (L: PlanLight): PlanLight | null | undefined => (L.with ? find(L.with) : null);
 
   // ---------- wizard ----------
   // The “Lights” step follows the plan: we ask about lamps without a place that are not skipped. When on — the project has ui.wiz[id] = {lights:true}.
-  const wizOn = () => !!ed.wizard?.get(plan().id)?.lights;
+  const wizOn = (): boolean => !!ed.wizard?.get(plan().id)?.lights;
   m.wizardOn = wizOn;
   m.reset = () => {
     cur = null;
@@ -88,15 +215,15 @@ export function lightsMode(ed) {
     ed.view?.setSolo?.(null);
   };
   // a draft (L.draft) — the lamp landed in the room until its lights were saved with “Next”: it is not yet in the “placed” count
-  const todo = L => (!L.placed || L.draft) && !L.skip;
-  const open = L => !L.placed && !L.skip; // the wizard goes to lamps without a place; a draft already stands — it is not placed again
+  const todo = (L: PlanLight): boolean | undefined => (!L.placed || L.draft) && !L.skip;
+  const open = (L: PlanLight): boolean => !L.placed && !L.skip; // the wizard goes to lamps without a place; a draft already stands — it is not placed again
   // all lamps in order: rooms top to bottom, left to right; in a room — the main light first; lamps without a room — at the end
-  function order() {
-    const key = L => {
-      const c = lampCell(plan(), L);
+  function order(): PlanLight[] {
+    const key = (L: PlanLight): number[] => {
+      const c: LampCell | null = lampCell(plan(), L);
       if (!c) return [1e9, 0, 9];
-      const ys = c.poly.map(q => q[1]),
-        xs = c.poly.map(q => q[0]);
+      const ys = c.poly.map(q => q[1]);
+      const xs = c.poly.map(q => q[0]);
       return [-Math.round(Math.max(...ys) * 2), Math.min(...xs), FORM_ORDER[guessForm(L).form]];
     };
     return plan()
@@ -104,25 +231,25 @@ export function lightsMode(ed) {
       .sort((a, b) => a.k[0] - b.k[0] || a.k[1] - b.k[1] || a.k[2] - b.k[2] || a.i - b.i)
       .map(x => x.L);
   }
-  const queue = () => order().filter(todo);
+  const queue = (): PlanLight[] => order().filter(todo);
   // the lamp being asked about: the one selected in the list (cur) or — while the wizard runs — the next one without a place, counting from the one
   // the user is on now (near). Moved to a far room — the wizard goes forward from it instead of jumping to the start of the plan;
   // reached the end — back to the ones skipped along the way.
-  const asking = () => {
+  const asking = (): PlanLight | null => {
     if (sel().light) return null;
     const c = find(cur);
     if (c && !c.placed) return c;
     cur = null;
     if (!wizOn()) return null;
-    const o = order(),
-      i = o.findIndex(L => L.id === near),
-      has = x => open(x) && cellKey(x) != null;
+    const o = order();
+    const i = o.findIndex(L => L.id === near);
+    const has = (x: PlanLight): boolean => open(x) && cellKey(x) != null;
     return (i >= 0 && o.slice(i).find(has)) || o.find(has) || o.find(open) || null;
   }; // lamps without a room — at the very end, when the rooms are done
   m.asking = asking;
   m.ctxKey = () => asking()?.id || ''; // a panel about another lamp — back at its own place
   m.ctxPin = () => (wizOn() && sess != null ? 'room:' + sess : null); // in the step the panel is about the room: a dragged one stays while it is in it
-  function stepBanner() {
+  function stepBanner(): void {
     if (!wizOn()) {
       if (stepKey) {
         stepKey = null;
@@ -130,10 +257,10 @@ export function lightsMode(ed) {
       }
       return;
     }
-    const all = plan().lights.filter(L => !ed.lampWaits(L)),
-      n = all.filter(L => L.placed && !L.draft).length,
-      k = all.filter(L => !L.placed && L.skip).length,
-      left = all.length - n - k;
+    const all = plan().lights.filter(L => !ed.lampWaits(L));
+    const n = all.filter(L => L.placed && !L.draft).length;
+    const k = all.filter(L => !L.placed && L.skip).length;
+    const left = all.length - n - k;
     const key = [n, k, all.length].join('/');
     if (stepKey === key && ed.stepNow()?.mode === m) return;
     stepKey = key;
@@ -155,7 +282,7 @@ export function lightsMode(ed) {
   }
   // “Finish later” — without a question: the room's unsaved lights stay a draft (it is in the plan), to be returned to;
   // “Finish placing lights” — ask whether to save the room's edits
-  function finish(later = false) {
+  function finish(later = false): void {
     if (!later && dirty(sess)) {
       leaving = {finish: true};
       ctxPanel();
@@ -163,7 +290,7 @@ export function lightsMode(ed) {
     }
     close();
   }
-  function close() {
+  function close(): void {
     ed.wizard.set(plan().id, null);
     leaving = null;
     stepKey = null;
@@ -187,7 +314,7 @@ export function lightsMode(ed) {
     ed.draw();
   };
   // which lamp the wizard is on — also remembered in the project: after a reload it is on the same one
-  const keep = id => {
+  const keep = (id: string): void => {
     if (near === id) return;
     near = id;
     if (!wizOn()) return;
@@ -195,7 +322,7 @@ export function lightsMode(ed) {
     // another lamp was selected — it flashes: at home (HA) and in 3D, this shows which one it is (two lights in a room)
     const L = find(id);
     if (L?.placed) {
-      ed.ha.identify?.(L.entity);
+      ed.ha.identify?.(L.entity!); // a lamp from HA has its entity (ha.ts mergePlanLights)
       blink(L.id);
     }
   };
@@ -205,21 +332,23 @@ export function lightsMode(ed) {
   // lights?”: “Yes” — like “Next”, “No” — the room as it was before entering. As it was — the L.was snapshot on each lamp of the room
   // ({k — room, s — lamp}), it is in the plan itself: survives a reload and “Undo”. Placing and removing happen without their own step in
   // the history. Left the step (“Done”) — whatever is not saved is without a place again. Reached the end — to the lamps left behind.
-  const cellKey = L => {
-    const H = L && (host(L) || L),
-      c = H && lampCell(plan(), H);
+  const cellKey = (L: PlanLight | null | undefined): string | null => {
+    const H = L && (host(L) || L);
+    const c = H && lampCell(plan(), H);
     return c ? c.room.id + '|' + c.poly[0] : null;
   };
   const OWN = new Set(['was', 'auto', 'on']); // not a room edit: snapshot, “by guess”, whether it is on
-  const snap = L =>
+  const snap = (L: PlanLight): string =>
     JSON.stringify(
       Object.keys(L)
         .filter(k => !OWN.has(k))
         .sort()
-        .map(k => [k, L[k]]),
+        .map(k => [k, (L as LightFields)[k]]),
     );
-  const mine = k => plan().lights.filter(L => L.was && L.was.k === k);
-  const dirty = k => k != null && mine(k).some(L => snap(L) !== L.was.s);
+  const mine = (k: string | null | undefined): PlanLight[] =>
+    plan().lights.filter(L => L.was && L.was.k === k);
+  const dirty = (k: string | null | undefined): boolean =>
+    k != null && mine(k).some(L => snap(L) !== L.was!.s); // mine() keeps the lamps with a snapshot
   m.hasUnconfirmedEdits = () => dirty(sess);
   m.guardLeave = action => {
     if (!wizOn() || !dirty(sess)) return false;
@@ -227,7 +356,7 @@ export function lightsMode(ed) {
     ctxPanel();
     return true;
   };
-  const save = k => {
+  const save = (k: string | null | undefined): void => {
     for (const L of mine(k)) {
       toHA(L);
       delete L.was;
@@ -236,24 +365,25 @@ export function lightsMode(ed) {
   };
   // A lamp has no area in HA but was placed in a room with an area — write it to HA (the owner: the link is stored
   // there — voice assistants, “kitchen lights” automations, other dashboards). A lamp with an area is not touched: in HA it has its own.
-  function toHA(L) {
+  function toHA(L: PlanLight): void {
     if (L.area || !L.placed || !L.room || !ed.ha.setArea) return;
     const a = roomById(plan(), L.room)?.area;
     if (!a) return;
-    ed.ha.setArea(L.entity, a);
+    ed.ha.setArea(L.entity!, a); // a lamp from HA has its entity
     L.area = a;
   }
-  const revert = L => {
-    const o = Object.fromEntries(JSON.parse(L.was.s)),
-      on = L.on;
-    for (const x of Object.keys(L)) delete L[x];
+  // every caller hands a lamp with its snapshot
+  const revert = (L: PlanLight): void => {
+    const o = Object.fromEntries(JSON.parse(L.was!.s));
+    const on = L.on;
+    for (const x of Object.keys(L)) delete (L as LightFields)[x];
     Object.assign(L, o);
     L.on = on;
   };
-  const discard = k => {
+  const discard = (k: string | null | undefined): void => {
     for (const L of mine(k)) revert(L);
   };
-  function hold(k) {
+  function hold(k: string | null | undefined): boolean {
     if (k == null) return false;
     let ch = false;
     for (const L of plan().lights)
@@ -264,7 +394,7 @@ export function lightsMode(ed) {
     return ch;
   }
   // snapshots not of this room (after “Undo”): a draft — without a place again, the rest — as is
-  function clean(k) {
+  function clean(k: string | null | undefined): boolean {
     let ch = false;
     for (const L of plan().lights)
       if (L.was && L.was.k !== k) {
@@ -275,18 +405,18 @@ export function lightsMode(ed) {
     return ch;
   }
   // a lamp of another room, while this one is not saved — ask first
-  const away = L => wizOn() && cellKey(L) !== sess && dirty(sess);
-  function nextInRoom() {
+  const away = (L: PlanLight): boolean => wizOn() && cellKey(L) !== sess && dirty(sess);
+  function nextInRoom(): PlanLight | null {
     return sess != null ? order().find(x => open(x) && x.id !== near && cellKey(x) === sess) || null : null;
   }
-  function nextRoom() {
-    const o = order(),
-      i = o.findIndex(L => L.id === near),
-      ring = i < 0 ? o : [...o.slice(i + 1), ...o.slice(0, i + 1)];
-    const has = x => open(x) && cellKey(x) != null;
+  function nextRoom(): PlanLight | null {
+    const o = order();
+    const i = o.findIndex(L => L.id === near);
+    const ring = i < 0 ? o : [...o.slice(i + 1), ...o.slice(0, i + 1)];
+    const has = (x: PlanLight): boolean => open(x) && cellKey(x) != null;
     return ring.find(x => has(x) && cellKey(x) !== sess) || ring.find(has) || ring.find(open) || null;
   }
-  function wizPlace() {
+  function wizPlace(): void {
     // Import and undo can also bring back a draft when the wizard is closed. Keep it until the user explicitly decides.
     if (!wizOn()) {
       sess = undefined;
@@ -309,7 +439,7 @@ export function lightsMode(ed) {
     } // already stands (a draft) — just select it
     near ??= ed.wizard.get(plan().id)?.at ?? null;
     const n = find(near);
-    if (sess === undefined) sess = plan().lights.find(L => L.was)?.was.k ?? cellKey(n) ?? null; // after a reload — the same room
+    if (sess === undefined) sess = plan().lights.find(L => L.was)?.was!.k ?? cellKey(n) ?? null; // after a reload — the same room
     // nothing selected, but we did not move on either (a miss click, “Undo”, a reload) — stay: on our lamp or in the room
     // that has drafts (“Next” was undone — back in the previous room)
     if (!sel().light && !go && !find(cur)) {
@@ -328,8 +458,8 @@ export function lightsMode(ed) {
         const nx = nextRoom();
         if (nx) cur = nx.id;
       } else {
-        const nx = nextInRoom(),
-          pl = !nx && order().find(x => x.placed && !x.with && cellKey(x) === sess);
+        const nx = nextInRoom();
+        const pl = !nx && order().find(x => x.placed && !x.with && cellKey(x) === sess);
         if (nx) cur = nx.id;
         else if (pl) sel().light = pl.id;
         else {
@@ -341,8 +471,8 @@ export function lightsMode(ed) {
       }
     }
     go = false;
-    const T = find(sel().light) || asking(),
-      tk = T ? cellKey(T) : sess;
+    const T = find(sel().light) || asking();
+    const tk = T ? cellKey(T) : sess;
     if (T && tk !== sess) {
       if (dirty(sess)) {
         leaving = {light: sel().light, cur};
@@ -358,36 +488,37 @@ export function lightsMode(ed) {
     if (clean(sess)) ch = true;
     if (hold(sess)) ch = true;
     if (!sel().light) {
-      const a = asking(),
-        c = a && lampCell(plan(), a),
-        g = a && guessForm(a);
-      if (c && placeForm(plan(), a, g.form, g.opt, c)) {
-        delete a.skip;
-        a.auto = true;
-        a.draft = true;
+      const a = asking();
+      const c = a && lampCell(plan(), a);
+      const g = a && guessForm(a);
+      // c is there only with a, and g with it
+      if (c && placeForm(plan(), a, g!.form, g!.opt, c)) {
+        delete a!.skip;
+        a!.auto = true;
+        a!.draft = true;
         cur = null;
         merging = false;
-        sel().light = a.id;
-        keep(a.id);
+        sel().light = a!.id;
+        keep(a!.id);
         ch = true;
-        blink(a.id);
+        blink(a!.id);
       }
     }
     held = {light: sel().light, cur};
     if (ch) ed.amend();
   }
   // the question “Save this room's lights?” — “Yes” and “No”, then where we were going; Escape or a click on our own room — stay
-  function leaveLines() {
-    const L = find(held.light) || find(held.cur) || find(near),
-      c = L && lampCell(plan(), host(L) || L);
+  function leaveLines(): HTMLElement[] {
+    const L = find(held.light) || find(held.cur) || find(near);
+    const c = L && lampCell(plan(), host(L) || L);
     const head = el(
       `<div class="line"><b>${c ? t('Save lights in “{0}”?', esc(roomName(c, L))) : t("Save this room's lights?")}</b></div>`,
     );
-    const ln = el(`<div class="line next"><span class="sp"></span></div>`),
-      no = el(`<button class="soft">${t('Discard room changes')}</button>`),
-      yes = el(`<button class="soft pri">${t('Save placement')}</button>`);
-    const done = keepIt => {
-      const p = leaving;
+    const ln = el(`<div class="line next"><span class="sp"></span></div>`);
+    const no = el(`<button class="soft">${t('Discard room changes')}</button>`);
+    const yes = el(`<button class="soft pri">${t('Save placement')}</button>`);
+    const done = (keepIt: boolean): void => {
+      const p = leaving!; // its buttons are shown only while the question is on
       leaving = null;
       if (keepIt) save(sess);
       else discard(sess);
@@ -419,27 +550,27 @@ export function lightsMode(ed) {
     ln.append(stay, no, yes);
     return [head, ln];
   }
-  const advance = () => {
+  const advance = (): void => {
     sel().light = null;
     cur = null;
     merging = false;
     go = true;
   };
   // the room whose lamp it is about: in the wizard — the selected lamp's (as in the previous steps the selected room is highlighted), otherwise — the asked one's
-  const curCell = () => {
-    const L = find(sel().light),
-      H = L && (host(L) || L),
-      a = wizOn() && H?.placed ? H : asking();
+  const curCell = (): LampCell | null => {
+    const L = find(sel().light);
+    const H = L && (host(L) || L);
+    const a = wizOn() && H?.placed ? H : asking();
     return a ? lampCell(plan(), a) : null;
   };
-  function pulse() {
+  function pulse(): void {
     ed.draw();
   }
 
   // A lamp was selected, added or changed (shape, count, layout, height, a strip piece, dragged, a point deleted, color) — in 3D
   // it shines (scene.shine): smoothly lights up in warm gold with a halo and a ring on the floor, a strip gets a running wave; then —
   // as it was. This shows which one it is and how it lights. The parts of its fixture — together with it. The plan does not flash.
-  function blink(...ids) {
+  function blink(...ids: string[]): void {
     if (ed.reducedMotion?.()) return;
     for (const id of ids)
       for (const x of [find(id), ...plan().lights.filter(l => l.with === id)]) if (x) ed.view.shine?.(x.id);
@@ -448,12 +579,12 @@ export function lightsMode(ed) {
   // ---------- hit testing ----------
   // Points first (chandelier, wall light, spots) — they are small, strips and lines are long: a lamp on a strip at a wall is picked by its point,
   // the strip can be picked anywhere else. Then line ends, then the lines and strips themselves. In each pass the selected one goes first.
-  function hit(p) {
-    const t2 = v().tol() ** 2 * 1.5,
-      sl = find(sel().light),
-      order = (sl ? [sl, ...plan().lights.filter(l => l !== sl)] : plan().lights).filter(
-        L => L.placed && !L.with,
-      );
+  function hit(p: Point): LampHit | null {
+    const t2 = v().tol() ** 2 * 1.5;
+    const sl = find(sel().light);
+    const order = (sl ? [sl, ...plan().lights.filter(l => l !== sl)] : plan().lights).filter(
+      L => L.placed && !L.with,
+    );
     for (const L of order)
       if (!lineForm(formFor(L))) {
         const i = L.points.findIndex(q => dist2(q, p) < t2);
@@ -478,14 +609,15 @@ export function lightsMode(ed) {
   }
   // Strip (fixtures.js): a solid line along the cell outline. The cell is its own part of the room if the strip is in the room of its
   // area, otherwise the whole room it stands in.
-  function stripCell(L) {
+  function stripCell(L: PlanLight): LampCell | null {
     const c = lampCell(plan(), L);
     if (c && c.room.id === L.room) return c;
-    const r = roomById(plan(), L.room);
+    const r = roomById(plan(), L.room as string); // no room (null or none): roomById finds none
     return r ? {room: r, poly: r.polygon, ch: null} : c;
   }
-  function stripOf(L) {
-    if (FURN_STRIP[L.opt]) return null; // on furniture — it follows the furniture, the ends are not dragged
+  function stripOf(L: PlanLight): StripOn | null {
+    // fixtures.ts is not typed yet: FURN_STRIP reads as its three keys; another opt (or none) finds nothing
+    if (FURN_STRIP[L.opt as keyof typeof FURN_STRIP]) return null; // on furniture — it follows the furniture, the ends are not dragged
     const cell = stripCell(L);
     if (!cell) return null;
     const K = stripContour(plan(), cell, L.opt);
@@ -493,21 +625,21 @@ export function lightsMode(ed) {
   }
   // Where the pointer is on the selected strip: the end of a section — drag; the strip itself — a click splits it (a 50 cm gap); a gap — a click closes it;
   // a door at a floor strip — nothing.
-  function stripHere(p) {
+  function stripHere(p: Point): StripSpot | null {
     const L = find(sel().light);
     if (!L?.placed || L.with || formFor(L) !== 'strip') return null;
     const o = stripOf(L);
     if (!o) return null;
-    const {K, st} = o,
-      t2 = v().tol() ** 2 * 1.5;
+    const {K, st} = o;
+    const t2 = v().tol() ** 2 * 1.5;
     if (!st.closed)
       for (let i = 0; i < st.runs.length; i++)
         for (const end of [0, 1])
           if (dist2(shiftPoint(plan(), L, stripAt(K, st.runs[i][end])), p) < t2)
             return {L, K, st, kind: 'end', i, end};
-    const pr = stripProject(K, p);
+    const pr = stripProject(K, p)!; // fixtures.ts gives null only for a path with no corners
     if (pr.d > Math.max(v().tol() * 1.2, 0.35)) return null;
-    const s = pr.s;
+    const s: number = pr.s;
     const on = st.closed || st.runs.some(([a, b]) => [s, s + K.per].some(x => x >= a && x <= b));
     return {
       L,
@@ -521,22 +653,23 @@ export function lightsMode(ed) {
   // of another lamp (a wall light at the wall) — select it
   // for tests: strip sections and where their ends are
   m.stripInfo = id => {
-    const L = find(id),
-      o = L && stripOf(L);
+    const L = find(id);
+    const o = L && stripOf(L);
     return (
       o && {
         runs: o.st.runs,
         closed: o.st.closed,
         per: o.K.per,
         ends: o.st.runs.flatMap(r => [stripAt(o.K, r[0]), stripAt(o.K, r[1])]),
-        at: s => stripAt(o.K, s),
+        at: (s: number) => stripAt(o.K, s),
       }
     );
   };
-  const stripFirst = (h, sh) => sh && (!h || h.L === sh.L || lineForm(formFor(h.L)));
+  const stripFirst = (h: LampHit | null, sh: StripSpot | null): boolean | null =>
+    sh && (!h || h.L === sh.L || lineForm(formFor(h.L)));
   // a click on a room in the wizard — its lamp: first without a place, then a skipped one, then one already standing (select it); if the room
   // has everything placed or skipped — a click still leads there
-  const lampIn = p => {
+  const lampIn = (p: Point): PlanLight | null => {
     const here = order().filter(L => {
       const c = lampCell(plan(), host(L) || L);
       return c && pointIn(p, c.poly);
@@ -548,9 +681,9 @@ export function lightsMode(ed) {
 
   // ---------- mouse ----------
   m.down = (e, p) => {
-    const h = hit(p),
-      sh = stripHere(p);
-    const there = L => {
+    const h = hit(p);
+    const sh = stripHere(p);
+    const there = (L: PlanLight): boolean => {
       sel().light = L.id;
       cur = null;
       merging = false;
@@ -559,13 +692,14 @@ export function lightsMode(ed) {
       return true;
     };
     if (stripFirst(h, sh)) {
-      if (away(sh.L)) return there(sh.L);
-      drag = {strip: sh, L: sh.L, start: p};
+      // stripFirst holds only with a strip spot
+      if (away(sh!.L)) return there(sh!.L);
+      drag = {strip: sh!, L: sh!.L, start: p};
       ed.drag = drag;
       // Delete then removes the section that was clicked
-      let best = -1,
-        bd = Infinity;
-      sh.L.segments.forEach(([a, b], i) => {
+      let best = -1;
+      let bd = Infinity;
+      sh!.L.segments.forEach(([a, b], i) => {
         const d = segDist(p, a, b)[0];
         if (d < bd) {
           bd = d;
@@ -590,8 +724,8 @@ export function lightsMode(ed) {
     }
     // a click on another room — its lamp; on the current lamp's room — nothing (a miss does not take us off it)
     if (wizOn() || cur) {
-      const now = find(sel().light) || find(cur),
-        nc = now && lampCell(plan(), host(now) || now);
+      const now = find(sel().light) || find(cur);
+      const nc = now && lampCell(plan(), host(now) || now);
       if (nc && pointIn(p, nc.poly)) {
         if (!leaving) return false;
         leaving = null;
@@ -618,10 +752,12 @@ export function lightsMode(ed) {
   };
   m.move = (e, p) => {
     if (!drag) {
-      const h = hit(p),
-        sh = stripHere(p),
-        use = stripFirst(h, sh) ? sh : null,
-        hk = use ? use.kind + (use.kind === 'end' ? use.i + '/' + use.end : Math.round(use.s * 20)) : null;
+      const h = hit(p);
+      const sh = stripHere(p);
+      const use = stripFirst(h, sh) ? sh : null;
+      const hk = use
+        ? use.kind + (use.kind === 'end' ? use.i + '/' + use.end : Math.round(use.s * 20))
+        : null;
       if (hk !== hoverStrip?.hk) {
         hoverStrip = use ? {...use, hk} : null;
         ed.draw();
@@ -645,9 +781,9 @@ export function lightsMode(ed) {
       drag.moved = true;
       if (sh.kind !== 'end') return;
       // the section end slides along the outline and goes around corners; snaps to corners and door edges (Shift — no snapping)
-      const {K, st, i, end, L} = sh,
-        was = st.runs[i][end];
-      let x = stripProject(K, p).s;
+      const {K, st, i, end, L} = sh;
+      const was = st.runs[i][end];
+      let x: number = stripProject(K, p)!.s; // the strip's path has corners
       x += Math.round((was - x) / K.per) * K.per;
       if (!e.shiftKey) {
         const tol = Math.min(0.25, v().tol(12)); // to corners and ends — 12 px on screen, no farther than 25 cm (it used to be at least 12 cm at any zoom)
@@ -658,27 +794,27 @@ export function lightsMode(ed) {
         if (best != null) x = best;
       }
       sh.now = stripMove(K, st, i, end, x);
-      L.segments = stripSegs(K, sh.now);
+      L.segments = stripSegs(K, sh.now) as Segment[]; // fixtures.ts is not typed yet: it gives the [a, b] pieces
       delete L.auto;
       ed.update();
       return;
     }
     if (!drag.moved && dist2(p, drag.start) * v().sc ** 2 < 9) return;
     drag.moved = true;
-    const L = drag.L,
-      free = e.shiftKey,
-      f = formFor(L);
+    const L = drag.L;
+    const free = e.shiftKey;
+    const f = formFor(L);
     delete L.auto; // the lamp was moved by hand — changing the room's area will not remove it
     if (!lineForm(f)) {
       if (f === 'wall') {
-        const r = roomAt(plan(), p) || roomById(plan(), L.room);
-        L.points[drag.i] = r ? snapWall(r.polygon, p) : p;
+        const r = roomAt(plan(), p) || roomById(plan(), L.room as string);
+        L.points[drag.i] = r ? (snapWall(r.polygon, p) as Point) : p; // fixtures.ts is not typed yet: it gives [x, y]
         ed.guides = [];
       } else {
-        const s = snapLightPoint(plan(), L, p, {free, tol: v().tol(), skip: drag.i}),
-          r = roomAt(plan(), s.p) || roomById(plan(), L.room);
+        const s = snapLightPoint(plan(), L, p, {free, tol: v().tol(), skip: drag.i});
+        const r = roomAt(plan(), s.p) || roomById(plan(), L.room as string);
         // the body does not go into the wall: from its axis — the wall thickness and the body radius
-        L.points[drag.i] = r ? keepIn(r.polygon, s.p, WALL.inner + BODY[f]) : s.p;
+        L.points[drag.i] = r ? (keepIn(r.polygon, s.p, WALL.inner + BODY[f]) as Point) : s.p;
         ed.guides = s.guides || [];
         if (f === 'spots') L.opt = 'free';
       }
@@ -692,9 +828,9 @@ export function lightsMode(ed) {
       const seg = L.segments[drag.i];
       // the line does not pass through a wall: an end — up to the first wall from the other end, the whole piece — only inside one room
       if (drag.end != null) {
-        const o = seg[1 - drag.end],
-          r = roomAt(plan(), o) || roomById(plan(), L.room);
-        let q = free ? p : [Math.round(p[0] / GRID) * GRID, Math.round(p[1] / GRID) * GRID];
+        const o = seg[1 - drag.end];
+        const r = roomAt(plan(), o) || roomById(plan(), L.room as string);
+        let q: Point = free ? p : [Math.round(p[0] / GRID) * GRID, Math.round(p[1] / GRID) * GRID];
         if (!free) {
           const tol = v().tol();
           if (Math.abs(q[0] - o[0]) < tol) q = [o[0], q[1]];
@@ -703,14 +839,17 @@ export function lightsMode(ed) {
         if (r) q = clampRay(r.polygon, o, q);
         if (Math.hypot(q[0] - o[0], q[1] - o[1]) > 0.2) seg[drag.end] = [+q[0].toFixed(3), +q[1].toFixed(3)];
       } else {
-        let dx = p[0] - drag.start[0],
-          dy = p[1] - drag.start[1];
+        let dx = p[0] - drag.start[0];
+        let dy = p[1] - drag.start[1];
         if (!free) {
           dx = Math.round(dx / GRID) * GRID;
           dy = Math.round(dy / GRID) * GRID;
         }
-        const [a, b] = drag.orig[drag.i].map(q => [+(q[0] + dx).toFixed(3), +(q[1] + dy).toFixed(3)]),
-          r = roomAt(plan(), a);
+        const [a, b] = drag.orig[drag.i].map((q): Point => [
+          +(q[0] + dx).toFixed(3),
+          +(q[1] + dy).toFixed(3),
+        ]);
+        const r = roomAt(plan(), a);
         if (r && pointIn(b, r.polygon) && clampRay(r.polygon, a, b, 0) === b) {
           L.segments[drag.i] = [a, b];
           if (L.segments.length === 1) L.room = r.id;
@@ -738,8 +877,8 @@ export function lightsMode(ed) {
     ed.drag = null;
     ed.guides = [];
     if (d.strip) {
-      const sh = d.strip,
-        L = sh.L;
+      const sh = d.strip;
+      const L = sh.L;
       if (sh.kind === 'end') {
         if (d.moved) {
           ed.commit();
@@ -754,7 +893,7 @@ export function lightsMode(ed) {
       const segs = stripSegs(
         sh.K,
         sh.kind === 'cut' ? stripCut(sh.K, sh.st, sh.s) : stripFill(sh.K, sh.st, sh.s),
-      );
+      ) as Segment[]; // fixtures.ts is not typed yet: it gives the [a, b] pieces
       if (!segs.length) {
         ed.draw();
         return;
@@ -779,7 +918,7 @@ export function lightsMode(ed) {
       m.refresh();
     }
   };
-  const lift = L => {
+  const lift = (L: PlanLight): void => {
     L.points = [];
     L.segments = [];
     L.placed = false;
@@ -793,20 +932,20 @@ export function lightsMode(ed) {
         x.room = null;
       }
   };
-  const skip = L => {
+  const skip = (L: PlanLight): void => {
     lift(L);
     L.skip = true;
     advance();
     ed.commit();
   };
-  const unplace = L => {
+  const unplace = (L: PlanLight): void => {
     if (wizOn()) return skip(L); // in the wizard remove = skip: otherwise the lamp would land again right away
     lift(L);
     sel().light = null;
     ed.commit();
   };
   // Delete — remove the selected point or piece; the last one — the lamp leaves the plan
-  const remove = () => {
+  const remove = (): void => {
     const L = find(sel().light);
     if (!L) return;
     if (L.with) {
@@ -817,22 +956,22 @@ export function lightsMode(ed) {
       ed.commit();
       return;
     }
-    const f = formFor(L),
-      list = lineForm(f) ? L.segments : L.points;
+    const f = formFor(L);
+    const list = lineForm(f) ? L.segments : L.points;
     if (f === 'strip') {
       const o = stripOf(L);
       if (!o || o.st.closed || o.st.runs.length <= 1) {
         unplace(L);
         return;
       } // for a strip — the whole section
-      const {K, st} = o,
-        sg = L.segments[sel().part ?? 0] || L.segments[0],
-        x = stripProject(K, [(sg[0][0] + sg[1][0]) / 2, (sg[0][1] + sg[1][1]) / 2]).s,
-        j = Math.max(
-          0,
-          st.runs.findIndex(([a, b]) => [x, x + K.per].some(y => y >= a && y <= b)),
-        );
-      L.segments = stripSegs(K, {runs: st.runs.filter((_, k) => k !== j), closed: false});
+      const {K, st} = o;
+      const sg = L.segments[sel().part ?? 0] || L.segments[0];
+      const x: number = stripProject(K, [(sg[0][0] + sg[1][0]) / 2, (sg[0][1] + sg[1][1]) / 2])!.s; // the path has corners
+      const j = Math.max(
+        0,
+        st.runs.findIndex(([a, b]) => [x, x + K.per].some(y => y >= a && y <= b)),
+      );
+      L.segments = stripSegs(K, {runs: st.runs.filter((_, k) => k !== j), closed: false}) as Segment[]; // [a, b] pieces
       sel().part = null;
       ed.commit();
       blink(L.id);
@@ -867,32 +1006,33 @@ export function lightsMode(ed) {
   // ---------- drawing ----------
   // Dragging a lamp point or a line end shows right away how far the walls are: horizontally and vertically to the nearest one
   // (to the wall surface, like on a drawing). Closer than 15 cm (a wall light on a wall) — not shown along that axis.
-  const dragPoint = () => {
+  const dragPoint = (): Point | null | undefined => {
     if (!drag || drag.strip || !drag.L?.placed) return null;
-    const L = drag.L,
-      f = formFor(L);
+    const L = drag.L;
+    const f = formFor(L);
     return !lineForm(f)
       ? L.points[drag.i]
       : f === 'line' && drag.end != null
         ? L.segments[drag.i]?.[drag.end]
         : null;
   };
-  function wallDistances(p) {
-    const r = roomAt(plan(), p) || roomById(plan(), drag.L.room);
+  // while a lamp's point or a line's end is dragged (dragPoint)
+  function wallDistances(p: Point): void {
+    const r = roomAt(plan(), p) || roomById(plan(), drag!.L.room as string);
     if (!r) return;
-    const P = r.polygon,
-      {ctx} = v();
-    const hit = d => {
+    const P = r.polygon;
+    const {ctx} = v();
+    const hit = (d: number[]): number => {
       let best = Infinity;
       for (let i = 0; i < P.length; i++) {
-        const a = P[i],
-          b = P[(i + 1) % P.length],
-          e = [b[0] - a[0], b[1] - a[1]],
-          den = d[0] * e[1] - d[1] * e[0];
+        const a = P[i];
+        const b = P[(i + 1) % P.length];
+        const e = [b[0] - a[0], b[1] - a[1]];
+        const den = d[0] * e[1] - d[1] * e[0];
         if (Math.abs(den) < 1e-9) continue;
-        const w = [a[0] - p[0], a[1] - p[1]],
-          t = (w[0] * e[1] - w[1] * e[0]) / den,
-          u = (w[0] * d[1] - w[1] * d[0]) / den;
+        const w = [a[0] - p[0], a[1] - p[1]];
+        const t = (w[0] * e[1] - w[1] * e[0]) / den;
+        const u = (w[0] * d[1] - w[1] * d[0]) / den;
         if (t > 1e-6 && u >= -1e-6 && u <= 1 + 1e-6 && t < best) best = t;
       }
       return best;
@@ -907,10 +1047,12 @@ export function lightsMode(ed) {
         [0, -1],
       ],
     ]) {
-      const [d, hd] = dirs.map(d => [d, hit(d)]).reduce((x, y) => (y[1] < x[1] ? y : x)),
-        len = hd - WALL.inner;
+      const [d, hd] = dirs
+        .map((d): [number[], number] => [d, hit(d)])
+        .reduce((x, y) => (y[1] < x[1] ? y : x));
+      const len = hd - WALL.inner;
       if (!isFinite(hd) || len < 0.15) continue;
-      const q = [p[0] + d[0] * len, p[1] + d[1] * len];
+      const q: Point = [p[0] + d[0] * len, p[1] + d[1] * len];
       ctx.strokeStyle = pal.acc;
       ctx.lineWidth = 1.2;
       ctx.setLineDash([4, 3]);
@@ -925,9 +1067,9 @@ export function lightsMode(ed) {
     }
   }
   m.draw = () => {
-    const {ctx} = v(),
-      L = find(sel().light),
-      a = asking();
+    const {ctx} = v();
+    const L = find(sel().light);
+    const a = asking();
     // the current lamp's room pulses — in the wizard all the time while it is current
     {
       const c = curCell();
@@ -948,32 +1090,32 @@ export function lightsMode(ed) {
     const H = L && (host(L) || L);
     // a strip is selected: gaps (except doors) — dashed, a click closes them; hovering the strip — red where the gap will be;
     // section ends — circles, they are dragged
-    if (H?.placed && formFor(H) === 'strip' && !L.with) {
+    if (H?.placed && formFor(H) === 'strip' && !L!.with) {
       const o = stripOf(H);
       if (o) {
-        const {K, st} = o,
-          hv = hoverStrip,
-          stroke = (segs, col, w, dash) => {
-            ctx.save();
-            ctx.strokeStyle = col;
-            ctx.lineWidth = w;
-            ctx.lineCap = 'round';
-            ctx.setLineDash(dash || []);
-            ctx.beginPath();
-            for (const [p, q] of shiftSegs(plan(), H, segs)) {
-              ctx.moveTo(...v().S(p));
-              ctx.lineTo(...v().S(q));
-            }
-            ctx.stroke();
-            ctx.restore();
-          };
+        const {K, st} = o;
+        const hv = hoverStrip;
+        const stroke = (segs: Segment[], col: string, w: number, dash?: number[]): void => {
+          ctx.save();
+          ctx.strokeStyle = col;
+          ctx.lineWidth = w;
+          ctx.lineCap = 'round';
+          ctx.setLineDash(dash || []);
+          ctx.beginPath();
+          for (const [p, q] of shiftSegs(plan(), H, segs)) {
+            ctx.moveTo(...v().S(p));
+            ctx.lineTo(...v().S(q));
+          }
+          ctx.stroke();
+          ctx.restore();
+        };
         if (!st.closed)
           st.runs.forEach(([, e], i) => {
             const nx = i < st.runs.length - 1 ? st.runs[i + 1][0] : st.runs[0][0] + K.per;
             if (nx - e < 0.05) return;
             const on = hv?.kind === 'fill' && [hv.s, hv.s + K.per, hv.s - K.per].some(x => x >= e && x <= nx);
             stroke(
-              stripSegs(K, {runs: [[e, nx]], closed: false}),
+              stripSegs(K, {runs: [[e, nx]], closed: false}) as Segment[], // fixtures.ts: [a, b] pieces
               alpha(pal.acc, on ? 0.9 : 0.35),
               on ? 4 : 2.5,
               [6, 5],
@@ -981,7 +1123,7 @@ export function lightsMode(ed) {
           });
         if (hv?.kind === 'cut' && hv.L === H)
           stroke(
-            stripSegs({...K, gaps: []}, {runs: [[hv.s - 0.25, hv.s + 0.25]], closed: false}),
+            stripSegs({...K, gaps: []}, {runs: [[hv.s - 0.25, hv.s + 0.25]], closed: false}) as Segment[],
             alpha(pal.bad, 0.85),
             7,
           );
@@ -995,9 +1137,10 @@ export function lightsMode(ed) {
         // dragging an end — the section length
         const dn = drag?.strip?.now;
         if (dn) {
-          const r = dn.runs[drag.strip.i],
-            q = shiftPoint(plan(), H, stripAt(K, r[drag.strip.end])),
-            [X, Y] = v().S(q);
+          // dn is there only while a section's end is dragged
+          const r = dn.runs[(drag!.strip as StripEnd).i];
+          const q = shiftPoint(plan(), H, stripAt(K, r[(drag!.strip as StripEnd).end]));
+          const [X, Y] = v().S(q);
           dimLabel(v(), X, Y - 18, t('{0} m', num(r[1] - r[0], 2)));
         }
       }
@@ -1011,12 +1154,12 @@ export function lightsMode(ed) {
         ctx.fillStyle = pal.label;
         ctx.font = `600 11.5px ${FONT}`;
         ctx.textAlign = 'left';
-        ctx.fillText(L.name, X + 10, Y - 9);
+        ctx.fillText(L!.name!, X + 10, Y - 9); // H is L or its host, so L is there; its name comes from HA
       }
     }
     // “Flash” — rings around the lamp
-    const F = find(flash),
-      FH = F && (host(F) || F);
+    const F = find(flash);
+    const FH = F && (host(F) || F);
     if (FH?.placed) {
       const k = ed.reducedMotion?.() ? 0 : (performance.now() % 500) / 500;
       ctx.strokeStyle = pal.acc;
@@ -1024,7 +1167,7 @@ export function lightsMode(ed) {
       ctx.lineWidth = 2;
       for (const q of [
         ...FH.points,
-        ...FH.segments.map(([p, r]) => [(p[0] + r[0]) / 2, (p[1] + r[1]) / 2]),
+        ...FH.segments.map(([p, r]): Point => [(p[0] + r[0]) / 2, (p[1] + r[1]) / 2]),
       ]) {
         const [X, Y] = v().S(q);
         ctx.beginPath();
@@ -1052,25 +1195,25 @@ export function lightsMode(ed) {
 
   // ---------- lamp from the list onto the plan ----------
   // A row of a lamp without a place is dragged: it lands with the shape that was chosen or guessed, in the room where it was released.
-  const formOfL = L => L.form || guessForm(L).form;
+  const formOfL = (L: PlanLight): LightForm => L.form || guessForm(L).form;
   addEventListener('pointermove', e => {
     if (!placing) return;
-    const r = v().cv.getBoundingClientRect(),
-      X = e.clientX - r.left,
-      Y = e.clientY - r.top;
+    const r = v().cv.getBoundingClientRect();
+    const X = e.clientX - r.left;
+    const Y = e.clientY - r.top;
     if (X < 0 || Y < 0 || X > r.width || Y > r.height) {
       placing.preview = null;
       ed.guides = [];
       ed.draw();
       return;
     }
-    const p = v().W([X, Y]),
-      L = placing.L,
-      f = formOfL(L);
+    const p = v().W([X, Y]);
+    const L = placing.L;
+    const f = formOfL(L);
     if (f === 'strip') placing.preview = stripOnWall(plan(), p);
     else if (f === 'wall') {
       const rm = roomAt(plan(), p);
-      placing.preview = rm ? {p: snapWall(rm.polygon, p)} : null;
+      placing.preview = rm ? {p: snapWall(rm.polygon, p) as Point} : null; // fixtures.ts is not typed yet: [x, y]
     } else {
       const s = snapLightPoint(plan(), L, p, {free: e.shiftKey, tol: v().tol()});
       placing.preview = {p: s.p};
@@ -1087,21 +1230,22 @@ export function lightsMode(ed) {
       ed.draw();
       return;
     }
-    const p = pv.p || [(pv.seg[0][0] + pv.seg[1][0]) / 2, (pv.seg[0][1] + pv.seg[1][1]) / 2],
-      r = roomAt(plan(), p);
+    const p: Point = pv.p || [(pv.seg[0][0] + pv.seg[1][0]) / 2, (pv.seg[0][1] + pv.seg[1][1]) / 2];
+    const r = roomAt(plan(), p);
     if (!r) {
       ed.draw();
       return;
     }
     // in its own room — its part (two areas), in another one — the whole room
-    const own = lampCell(plan(), L),
-      cell = own && own.room === r && pointIn(p, own.poly) ? own : {room: r, poly: r.polygon, ch: null},
-      g = guessForm(L),
-      f = formOfL(L),
-      s0 = snap(L);
+    const own = lampCell(plan(), L);
+    const cell = own && own.room === r && pointIn(p, own.poly) ? own : {room: r, poly: r.polygon, ch: null};
+    const g = guessForm(L);
+    const f = formOfL(L);
+    const s0 = snap(L);
     placeForm(plan(), L, f, L.opt && L.form === f ? L.opt : f === g.form ? g.opt : undefined, cell);
-    if (pv.seg && f === 'strip') L.segments = stripOnEdge(plan(), cell, L.opt, p);
-    else if (L.points.length === 1) L.points = [pv.p];
+    if (pv.seg && f === 'strip')
+      L.segments = stripOnEdge(plan(), cell, L.opt, p) as Segment[]; // fixtures.ts: [a, b] pieces
+    else if (L.points.length === 1) L.points = [pv.p!]; // a wall piece is a strip's preview: the line above
     delete L.auto;
     if (wizOn()) {
       L.draft = true;
@@ -1114,23 +1258,23 @@ export function lightsMode(ed) {
   });
 
   // ---------- panels ----------
-  const roomName = (cell, L) => {
+  const roomName = (cell: LampCell, L: PlanLight | null | undefined): string | null | undefined => {
     const zp = zoneParts(cell.room);
-    return zp && cell.poly === zp.zone ? ed.areaName(cell.room.zone.area) : cell.room.name;
+    return zp && cell.poly === zp.zone ? ed.areaName(cell.room.zone!.area) : cell.room.name; // zp: the room has its zone
   };
   // “Flash”: the real lamp flashes at home (HA), in the editor — in 3D and with rings on the plan
-  function flashBtn(L) {
+  function flashBtn(L: PlanLight): HTMLElement[] {
     if (!ed.ha.identify) return [];
     const b = el(
       `<button class="ib ${flash === L.id ? 'on' : ''}" title="${t('Flash this light at home to see which one it is')}">${icon('zap', 15)}</button>`,
     );
     b.onclick = () => {
-      ed.ha.identify(L.entity);
+      ed.ha.identify(L.entity!); // a lamp from HA has its entity
       flash = L.id;
       b.classList.add('on');
       const t0 = performance.now();
       blink(L.id); // in 3D — the same shine
-      const tick = () => {
+      const tick = (): void => {
         const t = performance.now() - t0;
         if (t > 2600 || flash !== L.id) {
           if (flash === L.id) flash = null;
@@ -1147,10 +1291,10 @@ export function lightsMode(ed) {
   }
   // Shape tiles are the same before and after the choice (the owner: do not change the look on the fly): while the lamp is not on the plan, the guessed one
   // is outlined; for a placed one — the current one is selected.
-  function formTiles(L) {
-    const g = guessForm(L),
-      now = L.placed ? formFor(L) : null,
-      row = el(`<div class="line forms"></div>`);
+  function formTiles(L: PlanLight): HTMLElement {
+    const g = guessForm(L);
+    const now = L.placed ? formFor(L) : null;
+    const row = el(`<div class="line forms"></div>`);
     for (const f of FORMS) {
       const guess = !now && g.form === f.id;
       const b = el(
@@ -1164,7 +1308,7 @@ export function lightsMode(ed) {
     }
     return row;
   }
-  function choose(L, form, opt) {
+  function choose(L: PlanLight, form: string, opt: string | undefined): void {
     const cell = lampCell(plan(), L);
     if (!cell) return;
     placeForm(plan(), L, form, opt, cell);
@@ -1178,18 +1322,19 @@ export function lightsMode(ed) {
     blink(L.id);
   }
   // A lamp without a place: what it is — or where it is (the area is not on the plan), skip, part of another fixture.
-  function askLines(L) {
-    const cell = lampCell(plan(), L),
-      lines = [];
+  function askLines(L: PlanLight): HTMLElement[] {
+    const cell = lampCell(plan(), L);
+    const lines: HTMLElement[] = [];
     const head = el(
       `<div class="line"><b>${esc(L.name)}</b>${cell ? `<small>${esc(roomName(cell, L))}</small>` : ''}</div>`,
     );
     head.append(...flashBtn(L));
     lines.push(head);
     if (!cell) {
+      // types.ts gives every HA layer setArea; this checks for it all the same
       lines.push(
         el(
-          `<div class="line sub"><small>${t('Where is this light?')}${ed.ha.setArea ? ' ' + t("We'll save its area to Home Assistant too.") : ''}</small></div>`,
+          `<div class="line sub"><small>${t('Where is this light?')}${(ed.ha as Partial<HaLayer>).setArea ? ' ' + t("We'll save its area to Home Assistant too.") : ''}</small></div>`,
         ),
       );
       const row = el(`<div class="line names"></div>`);
@@ -1223,9 +1368,9 @@ export function lightsMode(ed) {
     return lines;
   }
   // a chandelier with three smart bulbs, a ceiling light with main and ambient light — several HA lamps in one fixture
-  const hosts = (L, cell) =>
+  const hosts = (L: PlanLight, cell: LampCell): PlanLight[] =>
     plan().lights.filter(x => x !== L && x.placed && !x.with && x.room === cell.room.id); // drafts — only of its own room
-  function mergeBtn(L, cell) {
+  function mergeBtn(L: PlanLight, cell: LampCell): HTMLElement | null {
     if (!hosts(L, cell).length || plan().lights.some(x => x.with === L.id)) return null;
     // a small “?” in the button itself (the owner: not a separate big button), the hint — on hovering it; with a finger — a tap
     const b = el(
@@ -1243,7 +1388,7 @@ export function lightsMode(ed) {
   const MERGE_HELP = t(
     "For one fixture with several Home Assistant lights — a chandelier with smart bulbs, a main and a night light. This light won't be placed on its own; it will shine from the selected fixture.",
   );
-  function mergeLines(L, cell) {
+  function mergeLines(L: PlanLight, cell: LampCell): HTMLElement[] {
     const row = el(`<div class="line names"></div>`);
     for (const H of hosts(L, cell)) {
       const b = el(`<button class="chip">${esc(H.name)}</button>`);
@@ -1270,7 +1415,7 @@ export function lightsMode(ed) {
     row.append(back);
     return [el(`<div class="line sub"><small>${t('Part of which fixture?')}</small></div>`), row];
   }
-  function skipBtn(L) {
+  function skipBtn(L: PlanLight): HTMLElement {
     const b = el(
       `<button class="soft" title="${t('Not on the plan or not a light — you can come back later')}">${t('Skip')}</button>`,
     );
@@ -1279,30 +1424,34 @@ export function lightsMode(ed) {
   }
   // In the wizard, a room with several lamps gets a list: all of the room's lamps from HA, which one stands, for a strip — at the floor or at the ceiling;
   // a click goes to it (without a place — it lands as a draft). It shows right away how many lamps there are and what is left.
-  function roomList(L) {
+  function roomList(L: PlanLight): HTMLElement | null {
     const k = cellKey(L);
     if (!wizOn() || !k) return null;
     const ls = order().filter(x => cellKey(x) === k);
     if (ls.length < 2) return null;
     const box = el(`<div class="line rlist"></div>`);
-    const gOpt = x => {
-      const g = guessForm(x).opt,
-        c = lampCell(plan(), x);
+    const gOpt = (x: PlanLight): string | undefined => {
+      const g = guessForm(x).opt;
+      const c = lampCell(plan(), x);
       return (c && furnGuess(plan(), c, x, g)) || g;
     }; // not placed yet — where it will land
     for (const x of ls) {
-      const H = host(x),
-        f = x.placed ? formFor(H || x) : guessForm(x).form,
-        opt = x.placed ? (H || x).opt : gOpt(x),
-        where =
-          f === 'strip' ? FURN_STRIP[opt]?.where || (opt === 'floor' ? t('at floor') : t('at ceiling')) : '',
-        st = H
-          ? t('part of “{0}”', esc(H.name))
-          : x.skip && !x.placed
-            ? t('skipped')
-            : x.placed && !x.draft
-              ? icon('check', 14)
-              : '';
+      const H = host(x);
+      const f = x.placed ? formFor(H || x) : guessForm(x).form;
+      const opt = x.placed ? (H || x).opt : gOpt(x);
+      // fixtures.ts is not typed yet: FURN_STRIP reads as its three keys; another opt (or none) finds nothing
+      const where =
+        f === 'strip'
+          ? FURN_STRIP[opt as keyof typeof FURN_STRIP]?.where ||
+            (opt === 'floor' ? t('at floor') : t('at ceiling'))
+          : '';
+      const st = H
+        ? t('part of “{0}”', esc(H.name))
+        : x.skip && !x.placed
+          ? t('skipped')
+          : x.placed && !x.draft
+            ? icon('check', 14)
+            : '';
       const b = el(
         `<button class="lrow ${x === L ? 'on' : ''} ${x.placed && !x.draft ? 'done' : ''} ${!x.placed ? 'todo' : ''}">${icon('f_' + f, 15)}<span class="nm">${esc(x.name)}</span>${where ? `<small>${where}</small>` : ''}<span class="st">${st}</span></button>`,
       );
@@ -1323,15 +1472,15 @@ export function lightsMode(ed) {
     }
     return box;
   }
-  function editLines(L) {
-    const hl = host(L),
-      cell = lampCell(plan(), hl || L),
-      list = roomList(L),
-      line = el(
-        list
-          ? `<div class="line"><b>${esc(roomName(cell, L))}</b></div>`
-          : `<div class="line"><b>${esc(L.name)}</b>${cell && wizOn() ? `<small>${esc(roomName(cell, L))}</small>` : ''}</div>`,
-      );
+  function editLines(L: PlanLight): HTMLElement[] {
+    const hl = host(L);
+    const cell = lampCell(plan(), hl || L);
+    const list = roomList(L);
+    const line = el(
+      list
+        ? `<div class="line"><b>${esc(roomName(cell!, L))}</b></div>` // a room's list: the lamp has its cell
+        : `<div class="line"><b>${esc(L.name)}</b>${cell && wizOn() ? `<small>${esc(roomName(cell, L))}</small>` : ''}</div>`,
+    );
     line.append(...flashBtn(L));
     if (hl) {
       line.append(el(`<small>${t('part of “{0}”', esc(hl.name))}</small>`));
@@ -1349,7 +1498,9 @@ export function lightsMode(ed) {
       line.append(un);
       return [line, ...(list ? [list] : []), ...nextLine(L)];
     }
-    const c = el(`<input type="color" value="${L.color || '#ffce87'}" title="${t('Light color')}">`);
+    const c = el<HTMLInputElement>(
+      `<input type="color" value="${L.color || '#ffce87'}" title="${t('Light color')}">`,
+    );
     c.onchange = () => {
       L.color = c.value;
       ed.commit();
@@ -1360,13 +1511,14 @@ export function lightsMode(ed) {
     line.append(c);
     if (!wizOn()) line.append(d);
     if (merging && cell && wizOn()) return [line, ...mergeLines(L, cell)];
-    const lines = [line, ...(list ? [list] : []), formTiles(L)],
-      f = formFor(L),
-      opts = el(`<div class="line opts"></div>`);
-    const chips = (map, val) =>
+    const lines = [line, ...(list ? [list] : []), formTiles(L)];
+    const f = formFor(L);
+    const opts = el(`<div class="line opts"></div>`);
+    const chips = (map: Choices, val: string | undefined): HTMLElement[] =>
       Object.entries(names(map)).map(([k, name]) => {
+        // a choice given as a plain name has no tip
         const b = el(
-          `<button class="chip ${val === k ? 'on' : ''}" ${map[k].tip ? `title="${esc(map[k].tip)}"` : ''}>${esc(name)}</button>`,
+          `<button class="chip ${val === k ? 'on' : ''}" ${(map[k] as {tip?: string}).tip ? `title="${esc((map[k] as {tip?: string}).tip)}"` : ''}>${esc(name)}</button>`,
         );
         b.onclick = () => {
           if (val === k) return;
@@ -1378,14 +1530,14 @@ export function lightsMode(ed) {
         };
         return b;
       });
-    const count = (n, max) => {
+    const count = (n: number, max: number): HTMLElement => {
       const s = el(
-          `<span class="stepper" title="${t('Count')}"><button class="ib">${icon('minus', 14)}</button><b>${n}</b><button class="ib">${icon('plus', 14)}</button></span>`,
-        ),
-        [a, b] = s.querySelectorAll('button');
-      const set = k => {
+        `<span class="stepper" title="${t('Count')}"><button class="ib">${icon('minus', 14)}</button><b>${n}</b><button class="ib">${icon('plus', 14)}</button></span>`,
+      );
+      const [a, b] = s.querySelectorAll('button');
+      const set = (k: number): void => {
         L.count = k;
-        if (cell) relayout(plan(), L, cell);
+        if (cell) relayout(plan(), L, cell, undefined); // fixtures.ts is not typed yet: was (the option before) is optional
         delete L.auto;
         ed.commit();
         blink(L.id);
@@ -1402,37 +1554,39 @@ export function lightsMode(ed) {
       opts.append(el(`<small>${t('Count')}</small>`), count(L.points.length, 40), ...chips(SPOTS, L.opt));
     else if (f === 'pendant') {
       // how many, and the shade: it changes only the look, the points stay
-      const cur = shadeOf(L),
-        shade = Object.entries(SHADES).map(([k, name]) => {
-          const b = el(`<button class="chip ${cur === k ? 'on' : ''}">${esc(name)}</button>`);
-          b.onclick = () => {
-            if (cur === k) return;
-            L.shade = k;
-            ed.commit();
-            blink(L.id);
-          };
-          return b;
-        });
+      const cur = shadeOf(L);
+      const shade = Object.entries(SHADES).map(([k, name]) => {
+        const b = el(`<button class="chip ${cur === k ? 'on' : ''}">${esc(name)}</button>`);
+        b.onclick = () => {
+          if (cur === k) return;
+          L.shade = k;
+          ed.commit();
+          blink(L.id);
+        };
+        return b;
+      });
       opts.append(el(`<small>${t('Count')}</small>`), count(L.points.length, 8), ...shade);
     } else if (f === 'line') {
-      const cur = housingOf(L),
-        body = Object.entries(HOUSINGS).map(([k, name]) => {
-          const b = el(`<button class="chip ${cur === k ? 'on' : ''}">${esc(name)}</button>`);
-          b.onclick = () => {
-            if (cur === k) return;
-            L.shade = k;
-            ed.commit();
-            blink(L.id);
-          };
-          return b;
-        }); // the body color: only the look
+      const cur = housingOf(L);
+      const body = Object.entries(HOUSINGS).map(([k, name]) => {
+        const b = el(`<button class="chip ${cur === k ? 'on' : ''}">${esc(name)}</button>`);
+        b.onclick = () => {
+          if (cur === k) return;
+          L.shade = k;
+          ed.commit();
+          blink(L.id);
+        };
+        return b;
+      }); // the body color: only the look
       opts.append(...chips(LINES, L.opt), el('<span class="sep"></span>'), ...body);
     } else if (f === 'strip')
       opts.append(
         ...chips(
           {
             ...STRIP,
-            ...Object.fromEntries((cell ? furnOpts(plan(), cell) : []).map(k => [k, FURN_STRIP[k]])),
+            ...Object.fromEntries(
+              (cell ? furnOpts(plan(), cell) : []).map(k => [k, FURN_STRIP[k as keyof typeof FURN_STRIP]]),
+            ), // furnOpts gives FURN_STRIP's keys
           },
           L.opt,
         ),
@@ -1440,22 +1594,23 @@ export function lightsMode(ed) {
     else if (f === 'wall') {
       // wall light — how many and at what height from the floor (in cm)
       const hi = el(
-          `<label class="num" title="${t('Height above floor')}">${t('Height')}<input inputmode="decimal" value="${Math.round(L.h * 100)}"><small>${t('cm')}</small></label>`,
-        ),
-        inp = hi.querySelector('input');
+        // a wall light has its height (placeForm sets it)
+        `<label class="num" title="${t('Height above floor')}">${t('Height')}<input inputmode="decimal" value="${Math.round(L.h! * 100)}"><small>${t('cm')}</small></label>`,
+      );
+      const inp = hi.querySelector('input')!; // in the markup above
       inp.onfocus = () => inp.select(); // a click selects the number, typing replaces it right away
       inp.onkeydown = e => {
         e.stopPropagation();
         if (e.key === 'Enter') inp.blur();
         if (e.key === 'Escape') {
-          inp.value = Math.round(L.h * 100);
+          inp.value = String(Math.round(L.h! * 100));
           inp.blur();
         }
       };
       inp.onchange = () => {
         const h = parseLen(inp.value);
         if (h == null) {
-          inp.value = Math.round(L.h * 100);
+          inp.value = String(Math.round(L.h! * 100));
           return;
         }
         L.h = +Math.max(0.1, Math.min(WALL.height - 0.1, h)).toFixed(2);
@@ -1471,28 +1626,28 @@ export function lightsMode(ed) {
   }
   // “Missing a light?” — in the step, above “Confirm room”: a fixture comes only from HA (the owner)
   // the cell's area: the second part of a room — its area, otherwise — the room's; without an area — just “add it in HA”
-  const cellArea = cell => {
+  const cellArea = (cell: LampCell | null): string | null | undefined => {
     if (!cell) return null;
     const zp = zoneParts(cell.room);
-    return zp && cell.poly === zp.zone ? cell.room.zone.area : cell.room.area;
+    return zp && cell.poly === zp.zone ? cell.room.zone!.area : cell.room.area; // zp: the room has its zone
   };
-  function missingLine(cell) {
+  function missingLine(cell: LampCell | null): HTMLElement[] {
     if (!wizOn() || !ed.ha.devicesUrl) return [];
-    const area = cellArea(cell),
-      name = area && ed.areaName(area);
+    const area = cellArea(cell);
+    const name = area && ed.areaName(area);
     const ln = el(
       `<div class="line foot"><span class="hint">${name ? t('Missing a light? Add it in Home Assistant to the “{0}” area.', esc(name)) : t('Missing a light? Add it in Home Assistant first.')}</span></div>`,
     );
     ln.append(haLink());
     return [ln];
   }
-  const haLink = () =>
+  const haLink = (): HTMLElement =>
     el(
       `<a class="soft btn" href="${esc(ed.ha.devicesUrl)}" target="_blank" rel="noopener" title="${t('Open devices in Home Assistant')}">${t('Open HA')} ↗</a>`,
     );
   // the bottom of the panel in the wizard: “part of another” — on the left, “Next” — on the right: the room's lights are saved, on to the next room.
   // There is no “Skip” here (the owner: not needed); to finish — “Done”
-  function nextLine(L, cell) {
+  function nextLine(L: PlanLight, cell?: LampCell | null): HTMLElement[] {
     if (!wizOn()) return [];
     const ln = el(`<div class="line next"></div>`);
     const mb = cell && mergeBtn(L, cell);
@@ -1511,7 +1666,7 @@ export function lightsMode(ed) {
     }
     return ln.childNodes.length ? [ln] : [];
   }
-  function ctxPanel() {
+  function ctxPanel(): void {
     if (ed.mode !== m) return;
     if (leaving && wizOn()) {
       ed.showCtx(leaveLines());
@@ -1539,9 +1694,9 @@ export function lightsMode(ed) {
     ed.showCtx(null);
   }
   m.anchor = () => {
-    const L = find(sel().light),
-      H = L && (host(L) || L);
-    let pts;
+    const L = find(sel().light);
+    const H = L && (host(L) || L);
+    let pts: Point[];
     // the panel is above the lamp's room (like the question before the choice): it does not jump after the choice and does not cover the room; a lamp dragged
     // out of the room — above both of them
     if (H?.placed) {
@@ -1554,31 +1709,32 @@ export function lightsMode(ed) {
       pts = c ? c.poly : plan().rooms.flatMap(r => r.polygon);
     }
     if (!pts.length) return null;
-    const xs = pts.map(q => q[0]),
-      ys = pts.map(q => q[1]);
+    const xs = pts.map(q => q[0]);
+    const ys = pts.map(q => q[1]);
     return [Math.min(...xs), Math.min(...ys), Math.max(...xs), Math.max(...ys)];
   };
 
   // ---------- bottom bar and the list of lamps by area ----------
-  const status = L => {
+  const status = (L: PlanLight): string => {
     const hl = host(L);
     if (hl) return t('part of “{0}”', hl.name);
     if (L.skip && !L.placed) return t('skipped');
     if (!L.placed) return ed.lampWaits(L) ? t('no room') : t('not on the plan');
-    const f = formFor(L),
-      n = lineForm(f) ? L.segments.length : L.points.length;
+    const f = formFor(L);
+    const n = lineForm(f) ? L.segments.length : L.points.length;
     return formName(f) + (n > 1 ? ` · ${n}` : '');
   };
   // strips from old plans (in pieces along walls, with gaps at corners) — once as a solid line along the outline
   // and any strip running where it has nothing to hold on to (the wall between rooms was removed, a zone border) — without that piece
-  const total = segs => segs.reduce((t, [a, b]) => t + Math.hypot(b[0] - a[0], b[1] - a[1]), 0);
-  function healStrips() {
+  const total = (segs: Segment[]): number =>
+    segs.reduce((t, [a, b]) => t + Math.hypot(b[0] - a[0], b[1] - a[1]), 0);
+  function healStrips(): void {
     let ch = false;
     for (const L of plan().lights) {
       if (!L.placed || L.with || formFor(L) !== 'strip') continue;
       const o = stripOf(L);
       if (!o) continue;
-      const segs = stripSegs(o.K, o.st);
+      const segs = stripSegs(o.K, o.st) as Segment[]; // fixtures.ts is not typed yet: [a, b] pieces
       if (!L.loop) {
         if (segs.length) {
           L.segments = segs;
@@ -1590,7 +1746,11 @@ export function lightsMode(ed) {
       if (total(segs) < total(L.segments) - 0.02) {
         // only when there is something to cut off — the user's own short gaps are not touched
         const c = stripCell(L);
-        L.segments = segs.length ? segs : c ? stripLayout(plan(), c, L.opt, L.name) : L.segments;
+        L.segments = segs.length
+          ? segs
+          : c
+            ? (stripLayout(plan(), c, L.opt, L.name) as Segment[])
+            : L.segments;
         ch = true;
       }
     }
@@ -1600,10 +1760,10 @@ export function lightsMode(ed) {
     if (ed.mode !== m) return;
     healStrips();
     wizPlace();
-    const L0 = plan().lights,
-      Lc = L0.filter(L => !ed.lampWaits(L)),
-      left = Lc.filter(todo).length,
-      tools = $('tools');
+    const L0 = plan().lights;
+    const Lc = L0.filter(L => !ed.lampWaits(L));
+    const left = Lc.filter(todo).length;
+    const tools = $('tools');
     tools.innerHTML = '';
     tools.appendChild(ed.selectButton());
     if (left && !wizOn()) {
@@ -1613,11 +1773,11 @@ export function lightsMode(ed) {
       b.onclick = () => {
         ed.versions.mark('before', 'autoLights');
         const was = new Set(
-            plan()
-              .lights.filter(l => l.placed)
-              .map(l => l.id),
-          ),
-          n = autoPlace(plan());
+          plan()
+            .lights.filter(l => l.placed)
+            .map(l => l.id),
+        );
+        const n = autoPlace(plan());
         ed.commit();
         blink(
           ...plan()
@@ -1642,9 +1802,9 @@ export function lightsMode(ed) {
     for (const ar of ed.sortAreas(
       new Set([...L0.map(l => l.area || ''), ...relays.map(w => w.area || '')]),
     )) {
-      const lamps = L0.filter(l => (l.area || '') === ar),
-        done = lamps.filter(l => !todo(l)).length,
-        away = !!ar && !ed.areaOnPlan(ar);
+      const lamps = L0.filter(l => (l.area || '') === ar);
+      const done = lamps.filter(l => !todo(l)).length;
+      const away = !!ar && !ed.areaOnPlan(ar);
       const body = section(side, 'zone:' + ar, ar ? ed.areaName(ar) : t('No area'), {
         count: `${done}/${lamps.length}`,
         open: done < lamps.length && !away,
@@ -1658,7 +1818,8 @@ export function lightsMode(ed) {
         const row = el(
           `<div class="row lamp ${todo(L) ? 'todo' : ''} ${L.id === sel().light || L === a ? 'sel' : ''}" data-id="${L.id}" title="${L.placed ? '' : t('Click to identify this light, or drag it onto the plan')}"><button class="bulb ib ${L.on ? 'on' : ''}" title="${t('Turn on / off')}">${icon(f ? 'f_' + f : 'bulb', 16)}</button><span class="name">${esc(L.name)}</span><small>${esc(status(L))}</small></div>`,
         );
-        row.querySelector('.bulb').onclick = e => {
+        // the row's markup has its bulb button
+        row.querySelector<HTMLElement>('.bulb')!.onclick = e => {
           e.stopPropagation();
           L.on = !L.on;
           ed.view.setLightOn(L.id, L.on);
@@ -1666,13 +1827,14 @@ export function lightsMode(ed) {
           m.refresh();
           ed.draw();
         };
+        // a press or a click is on the row or inside it
         row.onpointerdown = e => {
-          if (e.target.closest('.bulb') || L.placed) return;
+          if ((e.target as Element).closest('.bulb') || L.placed) return;
           e.preventDefault();
           placing = {L};
         };
         row.onclick = e => {
-          if (e.target.closest('.bulb')) return;
+          if ((e.target as Element).closest('.bulb')) return;
           if (L.placed) ed.select('light', L.id);
           else {
             sel().light = null;
@@ -1688,7 +1850,8 @@ export function lightsMode(ed) {
         const row = el(
           `<div class="row relay" title="${t('A light on this switch? Add it as a light')}"><span class="name">${esc(w.name)}</span><small>${t('switch')}</small><button class="soft">${t("It's a light")}</button></div>`,
         );
-        row.querySelector('button').onclick = () => {
+        // the row's markup has its button
+        row.querySelector('button')!.onclick = () => {
           L0.push({
             id: 'relay_' + w.entity,
             entity: w.entity,
@@ -1723,16 +1886,16 @@ export function lightsMode(ed) {
   // In the wizard step 3D itself shows a close-up of the room whose lamp it is about, and the light is on only there — in the others
   // it smoothly fades (the owner asked: this way you see how exactly this room is lit). A lamp is selected — only it is on, the scene
   // darkens (the owner: “it glows like a lighthouse, can't tell what's what”). Outside the step — all lights as they are.
-  let focused = null;
-  function focus3d() {
+  let focused: string | null = null;
+  function focus3d(): void {
     if (!wizOn()) {
       ed.view.setSolo?.(null);
       return;
     }
-    const L = find(sel().light),
-      H = L && (host(L) || L),
-      a = H?.placed ? H : asking(),
-      c = a && lampCell(plan(), a);
+    const L = find(sel().light);
+    const H = L && (host(L) || L);
+    const a = H?.placed ? H : asking();
+    const c = a && lampCell(plan(), a);
     if (!c) {
       ed.view.setSolo?.(null);
       return;
