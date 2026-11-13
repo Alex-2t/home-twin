@@ -1,30 +1,36 @@
-// @ts-nocheck
 // The Home Twin panel in Home Assistant (custom_components/home_twin, panel_custom with embed_iframe): HA creates
 // <home-twin-panel> in its iframe and sets hass on it (plus narrow, route, panel). The iframe has its own document — we insert
 // the styles and the editor shell there and start it (ha-app.js) once the HA registries arrive. Language, number and time formats and theme follow HA.
 import {SHELL, BODY, STYLES} from './gen/shell.gen.js';
+import type {PanelApp, PanelHost, PanelRoute} from './ha-app.ts';
+import type {Hass, UiState} from './core/types.ts';
 
-class HomeTwinPanel extends HTMLElement {
-  set hass(h) {
+class HomeTwinPanel extends HTMLElement implements PanelHost {
+  // the panel's own state; declared only, so nothing extra is set up on the element
+  declare _hass: Hass | undefined;
+  declare _app: PanelApp | undefined;
+  declare _starting: boolean | undefined;
+  declare _route: PanelRoute | undefined;
+  set hass(h: Hass) {
     this._hass = h;
     if (this._app) this._app.update(h);
     else if (!this._starting && h?.areas && h?.entities) this._start();
   }
-  get hass() {
+  get hass(): Hass | undefined {
     return this._hass;
   }
-  set narrow(v) {}
-  set panel(v) {}
-  set route(v) {
+  set narrow(v: boolean) {}
+  set panel(v: unknown) {}
+  set route(v: PanelRoute) {
     this._route = v;
     this._app?.route?.(v);
   } // the panel's path: the page that is open (editor/route.js, D-066)
-  get route() {
+  get route(): PanelRoute | undefined {
     return this._route;
   }
-  async _start() {
+  async _start(): Promise<void> {
     this._starting = true;
-    const h = this._hass;
+    const h = this._hass!; // the hass setter starts the panel once it has set it
     globalThis.HOME_TWIN_LANG = h.language;
     globalThis.HOME_TWIN_LOCALE = h.locale;
     globalThis.HOME_TWIN_DARK = !!h.themes?.darkMode;
@@ -36,7 +42,10 @@ class HomeTwinPanel extends HTMLElement {
     {
       let th = 'auto';
       try {
-        th = JSON.parse(localStorage.getItem('home-twin-editor:ui') || '{}').theme || 'auto';
+        // the editor's saved screen settings
+        th =
+          (JSON.parse(localStorage.getItem('home-twin-editor:ui') || '{}') as Partial<UiState>).theme ||
+          'auto';
       } catch {}
       document.documentElement.dataset.theme =
         th === 'dark' || (th === 'auto' && globalThis.HOME_TWIN_DARK) ? 'dark' : 'light';
@@ -44,7 +53,7 @@ class HomeTwinPanel extends HTMLElement {
     document.body.insertAdjacentHTML('beforeend', SHELL);
     const {start} = await import('./ha-app.ts');
     this._app = await start(this);
-    this._app.update(this._hass);
+    this._app.update(this._hass!); // set before the start
   }
 }
 if (!customElements.get('home-twin-panel')) customElements.define('home-twin-panel', HomeTwinPanel);

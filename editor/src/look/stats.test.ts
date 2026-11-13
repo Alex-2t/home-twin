@@ -1,4 +1,3 @@
-// @ts-nocheck
 // “Statistics”: only what HA keeps on its own for any user — climate (mean / min / max), energy (change) and connectivity
 // (raw history). Rows are in the HA format; the demo layer answers the same way, so it is tested too.
 import test from 'node:test';
@@ -22,15 +21,26 @@ import {
 } from './stats.ts';
 import {demoStatistics, demoStateHistory} from '../editor/ha-demo.ts';
 import {mockHA} from '../editor/ha.ts';
+import type {
+  ClimateStats,
+  EnergyDevice,
+  EnergyStats,
+  HealthEntity,
+  HealthRow,
+  HealthStats,
+  SectionData,
+  StatsRow,
+  StatsWindow,
+} from './stats.ts';
 
 const NOW = new Date(2026, 10, 8, 15, 30);
 const H = 36e5;
-const day = (w, i) => w.starts[i];
+const day = (w: StatsWindow, i: number): number => w.starts[i];
 
 test('period windows: 7 and 30 days from midnight, a year — 12 months from the first of the month', () => {
-  const w = periodWindow('week', NOW),
-    m = periodWindow('month', NOW),
-    y = periodWindow('year', NOW);
+  const w = periodWindow('week', NOW);
+  const m = periodWindow('month', NOW);
+  const y = periodWindow('year', NOW);
   assert.equal(w.starts.length, 7);
   assert.equal(w.bucket, 'day');
   assert.equal(w.starts[6], new Date(2026, 10, 8).getTime());
@@ -43,11 +53,11 @@ test('period windows: 7 and 30 days from midnight, a year — 12 months from the
 });
 
 test('increments: bars by day, the series start (negative) is skipped, before the first row — “no data yet”', () => {
-  const w = periodWindow('week', NOW),
-    items = [
-      {id: 'a', statistic: 's.a', room: 'r1'},
-      {id: 'b', statistic: 's.b', room: 'r2'},
-    ];
+  const w = periodWindow('week', NOW);
+  const items = [
+    {id: 'a', statistic: 's.a', room: 'r1'},
+    {id: 'b', statistic: 's.b', room: 'r2'},
+  ];
   const rows = {
     's.a': [
       {start: day(w, 2), change: -50},
@@ -69,19 +79,19 @@ test('increments: bars by day, the series start (negative) is skipped, before th
   ]);
   assert.equal(s.items[0].id, 'a');
   assert.ok(
-    Math.abs(s.days - (NOW - day(w, 3)) / DAY) < 1e-9,
+    Math.abs(s.days - (+NOW - day(w, 3)) / DAY) < 1e-9,
     'days with data — from the first row, today — by the elapsed fraction',
   );
   assert.equal(buildSeries(items, w, {}, null).empty, true);
 });
 
 test('climate: mean, range and comfort — by hourly averages; a year — without comfort', () => {
-  const w = periodWindow('week', NOW),
-    src = [
-      {room: 'r1', temperature: 't1', humidity: 'h1'},
-      {room: 'r2', co2: 'c2'},
-      {room: 'r3', temperature: 'none'},
-    ];
+  const w = periodWindow('week', NOW);
+  const src = [
+    {room: 'r1', temperature: 't1', humidity: 'h1'},
+    {room: 'r2', co2: 'c2'},
+    {room: 'r3', temperature: 'none'},
+  ];
   const rows = {
     t1: w.starts.map(start => ({start, mean: 22, min: 11, max: 23})),
     h1: [{start: day(w, 6), mean: 50, min: 40, max: 60}],
@@ -110,7 +120,7 @@ test('climate: mean, range and comfort — by hourly averages; a year — withou
     {mean: 22, min: 19, max: 25, comfort: 0.5},
     'a one-second 11° glitch does not get into the statistics min',
   );
-  assert.equal(c.rooms[1].co2.over, 1);
+  assert.equal(c.rooms[1].co2!.over, 1);
   assert.equal(c.mean, 22);
   assert.equal(c.comfort, 0.5);
   assert.equal(c.buckets[0].rooms.r1, 22);
@@ -120,7 +130,7 @@ test('climate: mean, range and comfort — by hourly averages; a year — withou
     {t1: [{start: periodWindow('year', NOW).start, mean: 21, min: 20, max: 22}]},
     null,
   );
-  assert.equal(y.rooms[0].temperature.comfort, undefined);
+  assert.equal(y.rooms[0].temperature!.comfort, undefined);
   assert.equal(buildClimate(src, w, {}, null).empty, true);
 });
 
@@ -138,12 +148,13 @@ test('energy: sources — the “Energy” dashboard; a nested device is not add
     },
     {
       room: s => (s === 'sensor.fridge_energy' ? {id: 'kitchen'} : null),
-      name: s => ({'sensor.fridge_energy': 'Refrigerator Energy'})[s] || s,
+      name: s =>
+        (({'sensor.fridge_energy': 'Refrigerator Energy'}) as Partial<Record<string, string>>)[s] || s,
     },
   );
-  assert.deepEqual(src.grid, [{id: 'grid0', statistic: 'sensor.meter'}]);
+  assert.deepEqual(src!.grid, [{id: 'grid0', statistic: 'sensor.meter'}]);
   assert.deepEqual(
-    src.devices.map(d => [d.name, d.room]),
+    src!.devices.map(d => [d.name, d.room]),
     [
       ['Refrigerator', 'kitchen'],
       ['PC', null],
@@ -155,14 +166,14 @@ test('energy: sources — the “Energy” dashboard; a nested device is not add
 });
 
 test('energy: the bar is from the grid, parts are device rooms, “Other” is the remainder; no grid — the sum of devices', () => {
-  const w = periodWindow('week', NOW),
-    src = {
-      grid: [{id: 'grid0', statistic: 'm'}],
-      devices: [
-        {id: 'f', statistic: 'f', name: 'Refrigerator', room: 'kitchen'},
-        {id: 'x', statistic: 'x', name: 'Water heater', room: null},
-      ],
-    };
+  const w = periodWindow('week', NOW);
+  const src = {
+    grid: [{id: 'grid0', statistic: 'm'}],
+    devices: [
+      {id: 'f', statistic: 'f', name: 'Refrigerator', room: 'kitchen'},
+      {id: 'x', statistic: 'x', name: 'Water heater', room: null},
+    ],
+  };
   const rows = {
     m: [
       {start: day(w, 5), change: 10},
@@ -200,17 +211,17 @@ test('energy: the bar is from the grid, parts are device rooms, “Other” is t
 });
 
 test('connectivity: hours and occurrences offline; an HA restart does not count; entities of one device — one row', () => {
-  const span = {start: 0, end: 10 * DAY},
-    s = x => x / 1e3,
-    ents = [];
+  const span = {start: 0, end: 10 * DAY};
+  const s = (x: number): number => x / 1e3;
+  const ents: HealthEntity[] = [];
   for (let i = 0; i < 10; i++) ents.push({entity: 'light.l' + i, name: 'Lamp ' + i});
   ents.push(
     {entity: 'sensor.th_t', name: 'Bathroom sensor Temperature', room: 'bath', device: 'th'},
     {entity: 'sensor.th_h', name: 'Bathroom sensor Humidity', room: 'bath', device: 'th'},
     {entity: 'climate.ac', name: 'Air conditioner', room: 'kitchen'},
   );
-  const restart = 3 * DAY,
-    hist = {};
+  const restart = 3 * DAY;
+  const hist: Record<string, HealthRow[]> = {};
   for (const e of ents)
     hist[e.entity] = [
       {s: 'on', lu: 0},
@@ -253,17 +264,25 @@ test('connectivity: hours and occurrences offline; an HA restart does not count;
 
 test('sections: sources present — the section exists; overview tiles', () => {
   assert.deepEqual(availableSections({climate: [{room: 'r'}], energy: null, health: []}), ['climate']);
-  assert.deepEqual(availableSections({climate: [], energy: {grid: [], devices: [{}]}, health: [{}]}), [
-    'energy',
-    'health',
-  ]);
-  assert.deepEqual(sectionTile('climate', {mean: 21.46, comfort: 0.8}), {value: '21.5°', sub: 'comfort 80%'});
-  assert.deepEqual(sectionTile('health', {items: [{offline: 3}, {offline: 0.1}]}), {
+  // only the lists' lengths are read
+  assert.deepEqual(
+    availableSections({
+      climate: [],
+      energy: {grid: [], devices: [{} as EnergyDevice]},
+      health: [{} as HealthEntity],
+    }),
+    ['energy', 'health'],
+  );
+  // the tiles read only these fields of a section's data
+  const tileOf = (id: string, data: object): ReturnType<typeof sectionTile> =>
+    sectionTile(id, data as unknown as SectionData);
+  assert.deepEqual(tileOf('climate', {mean: 21.46, comfort: 0.8}), {value: '21.5°', sub: 'comfort 80%'});
+  assert.deepEqual(tileOf('health', {items: [{offline: 3}, {offline: 0.1}]}), {
     value: '1',
     sub: 'device dropped out',
   });
-  assert.deepEqual(sectionTile('health', {items: []}), {value: '✓', sub: 'all online'});
-  assert.equal(sectionTile('energy', {empty: true}), null);
+  assert.deepEqual(tileOf('health', {items: []}), {value: '✓', sub: 'all online'});
+  assert.equal(tileOf('energy', {empty: true}), null);
 });
 
 test('demo layer: statistics as in HA — sensor means, meter increments, the current hour not compiled', async () => {
@@ -272,31 +291,36 @@ test('demo layer: statistics as in HA — sensor means, meter increments, the cu
     {entity: 'sensor.e', cls: 'energy', daily: 12, shape: 'flat'},
     {entity: 'sensor.x', cls: 'temperature'},
   ];
-  const state = e => ({'sensor.t': 22, 'sensor.e': 100})[e] ?? null,
-    now = NOW.getTime();
+  const state = (e: string): number | null =>
+    (({'sensor.t': 22, 'sensor.e': 100}) as Partial<Record<string, number>>)[e] ?? null;
+  const now = NOW.getTime();
   const w = periodWindow('week', NOW);
+  // ha-demo.ts is still untyped: its answers are typed here as HA's
   const r = demoStatistics(
     sensors,
     state,
     ['sensor.t', 'sensor.e', 'sensor.x', 'sensor.none'],
     {start: w.start, end: w.end, period: 'day', types: ['mean', 'min', 'max', 'change']},
     {now},
-  );
+  ) as Record<string, StatsRow[]>;
   assert.deepEqual(Object.keys(r), ['sensor.t', 'sensor.e'], 'no reading or meter — no rows');
   assert.equal(r['sensor.t'].length, 7);
-  assert.ok(r['sensor.t'].every(x => x.min <= x.mean && x.mean <= x.max && Math.abs(x.mean - 22) < 3));
-  const today = r['sensor.e'].at(-1),
-    full = r['sensor.e'][0];
-  assert.ok(full.change > 6 && full.change < 24);
-  assert.ok(today.change < full.change, 'today — only the elapsed hours');
-  const hours = demoStatistics(
-    sensors,
-    state,
-    ['sensor.e'],
-    {start: now - 5 * H, end: now, period: 'hour', types: ['change']},
-    {now},
+  // the demo's rows have these values
+  assert.ok(r['sensor.t'].every(x => x.min! <= x.mean! && x.mean! <= x.max! && Math.abs(x.mean! - 22) < 3));
+  const today = r['sensor.e'].at(-1)!;
+  const full = r['sensor.e'][0];
+  assert.ok(full.change! > 6 && full.change! < 24);
+  assert.ok(today.change! < full.change!, 'today — only the elapsed hours');
+  const hours = (
+    demoStatistics(
+      sensors,
+      state,
+      ['sensor.e'],
+      {start: now - 5 * H, end: now, period: 'hour', types: ['change']},
+      {now},
+    ) as Record<string, StatsRow[]>
   )['sensor.e'];
-  assert.equal(hours.at(-1).start, Math.floor(now / H) * H - H, 'the last row is the previous hour');
+  assert.equal(hours.at(-1)!.start, Math.floor(now / H) * H - H, 'the last row is the previous hour');
   assert.deepEqual(
     demoStatistics(
       sensors,
@@ -308,11 +332,14 @@ test('demo layer: statistics as in HA — sensor means, meter increments, the cu
     {},
     'before the data starts — empty',
   );
-  const hist = demoStateHistory(
-    ['a', 'b'],
-    {start: 0, end: 10 * DAY},
-    {outages: {a: {hours: 4, drops: 2}}, restart: 5 * DAY},
-  );
+  // its options are inferred from the defaults (restart: null)
+  const demoOptions = {outages: {a: {hours: 4, drops: 2}}, restart: 5 * DAY} as unknown as Parameters<
+    typeof demoStateHistory
+  >[2];
+  const hist = demoStateHistory(['a', 'b'], {start: 0, end: 10 * DAY}, demoOptions) as Record<
+    string,
+    HealthRow[]
+  >;
   assert.equal(hist.a.filter(x => x.s === 'unavailable').length, 3);
   assert.equal(hist.b.filter(x => x.s === 'unavailable').length, 1);
   const b = buildHealth(
@@ -321,11 +348,10 @@ test('demo layer: statistics as in HA — sensor means, meter increments, the cu
       {entity: 'b', name: 'B'},
       ...'cdef'.split('').map(e => ({entity: e, name: e})),
     ],
-    demoStateHistory(
-      ['a', 'b', ...'cdef'],
-      {start: 0, end: 10 * DAY},
-      {outages: {a: {hours: 4, drops: 2}}, restart: 5 * DAY},
-    ),
+    demoStateHistory(['a', 'b', ...'cdef'], {start: 0, end: 10 * DAY}, demoOptions) as Record<
+      string,
+      HealthRow[]
+    >,
     {start: 0, end: 10 * DAY},
   );
   assert.equal(b.restarts, 1);
@@ -336,6 +362,7 @@ test('demo layer: statistics as in HA — sensor means, meter increments, the cu
 });
 
 test('a whole section through the HA demo layer: climate, energy, connectivity', async () => {
+  // ha.ts is still untyped: mockHA infers its data from the defaults; these leave out what the test does not read
   const ha = mockHA({
     areas: {k: 'Kitchen'},
     lights: [],
@@ -346,19 +373,20 @@ test('a whole section through the HA demo layer: climate, energy, connectivity',
     states: {'sensor.k_t': 22, 'sensor.m': 5},
     entities: {'climate.ac': {state: 'cool', attributes: {}}},
     stats: {energy: {grid: ['sensor.m'], devices: []}, outages: {'climate.ac': {hours: 5, drops: 2}}},
-  });
+  } as unknown as Parameters<typeof mockHA>[0]);
   const src = {
     climate: [{room: 'k', temperature: 'sensor.k_t'}],
     energy: energySources(await ha.energy()),
     health: [{entity: 'climate.ac', name: 'Air conditioner', room: 'k'}],
   };
-  const c = await loadSection('climate', ha, src, 'month', NOW),
-    e = await loadSection('energy', ha, src, 'week', NOW),
-    h = await loadSection('health', ha, src, 'year', NOW);
+  // each section gives its own data
+  const c = (await loadSection('climate', ha, src, 'month', NOW)) as ClimateStats;
+  const e = (await loadSection('energy', ha, src, 'week', NOW)) as EnergyStats;
+  const h = (await loadSection('health', ha, src, 'year', NOW)) as HealthStats;
   assert.equal(c.rooms.length, 1);
-  assert.ok(c.comfort >= 0 && c.comfort <= 1);
+  assert.ok(c.comfort! >= 0 && c.comfort! <= 1);
   assert.equal(e.grid, true);
-  assert.ok(e.profile.length === 24 && e.profile.some(v => v > 0), 'a week — with the daily profile');
+  assert.ok(e.profile!.length === 24 && e.profile!.some(v => v > 0), 'a week — with the daily profile');
   assert.equal(Math.round(h.days), HEALTH_DAYS, 'a year is selected — connectivity is still over 10 days');
   assert.equal(Math.round(h.items[0].offline), 5);
   await assert.rejects(loadSection('light', ha, src, 'month', NOW));

@@ -1,4 +1,3 @@
-// @ts-nocheck
 // “Statistics” markup — like 3d_floor/apartment/smart-home/web/src/stats-view.js (D-049): tiles in the overview and a section screen
 // built from shared blocks (total, legend, bars, lines, hours of the day, list). Data comes from stats.js. The room color is categorical,
 // in the fixed order of plan rooms (colour(id) — from look.js); the name always sits next to it. Each chart is registered
@@ -19,31 +18,105 @@ import {
   bucketTitle,
   periodCaption,
 } from './stats.ts';
+import type {
+  ClimateBucket,
+  ClimateStat,
+  ClimateStats,
+  EnergyStats,
+  HealthStats,
+  RoomClimateStats,
+  SectionData,
+  SectionId,
+  SeriesBucket,
+} from './stats.ts';
 import {icon} from './icons.ts';
 import {t} from '../i18n/i18n.ts';
 
-const escape = s =>
-  String(s ?? '').replace(
-    /[&<>"']/g,
-    c => ({'&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'})[c],
-  );
-const times = n => t('{0, plural, one {# time} other {# times}}', Math.round(n));
+/** A line or a part of the bars: its id (a room, "No room", "Other"), name and colour; room: the room to highlight. */
+export interface ChartSeries {
+  id: string;
+  name: string;
+  colour: string;
+  room?: string;
+}
+
+/** A chart of the screen, kept so the tooltip (statsTip) is built from the data, not from the markup. */
+export type Chart =
+  | {kind: 'bars'; stats: EnergyStats; series: ChartSeries[]; format: (value: number) => string}
+  | {
+      kind: 'lines';
+      stats: ClimateStats;
+      series: ChartSeries[];
+      values: (bucket: ClimateBucket) => Record<string, number>;
+      format: (value: number) => string;
+    }
+  | {kind: 'profile'; values: number[]; max: number; tip: (value: number) => string};
+
+/** The charts of the screen by their data-chart id. */
+export type Charts = Record<string, Chart>;
+
+/** What the section screen shows: the section and period, the room picked (energy), the rooms in plan order and their colours. */
+export interface StatsViewOptions {
+  section: SectionId;
+  sections: SectionId[];
+  period: string;
+  room: string | null;
+  rooms: Array<{id: string; short: string}>;
+  colour: (room: string) => string;
+  demo: boolean;
+  loading: boolean;
+}
+
+/** A legend entry; value: its total, already written out. */
+interface LegendEntry extends ChartSeries {
+  value?: string;
+}
+
+/** A row of a list with a bar: name and sub, colour, the bar's length (value), the main and side figures; room: to highlight. */
+interface RankRow {
+  name: string;
+  sub?: string;
+  colour: string;
+  room?: string | null;
+  value: number;
+  main: string;
+  side?: string;
+}
+
+/** A fact under the big number: [value, caption]; false or 0: left out. */
+type Fact = [string, string] | false | 0;
+
+const escape = (s: unknown): string => {
+  const entities: Record<string, string> = {
+    '&': '&amp;',
+    '<': '&lt;',
+    '>': '&gt;',
+    '"': '&quot;',
+    "'": '&#39;',
+  };
+  return String(s ?? '').replace(/[&<>"']/g, c => entities[c]);
+};
+const times = (n: number): string => t('{0, plural, one {# time} other {# times}}', Math.round(n));
 // grid step: 1, 2, 2.5, 5 × 10ⁿ — so there are three or four divisions
-export function niceStep(max, lines = 3) {
+export function niceStep(max: number, lines = 3): number {
   if (!(max > 0)) return 1;
-  const raw = max / lines,
-    pow = 10 ** Math.floor(Math.log10(raw));
-  return [1, 2, 2.5, 5, 10].map(k => k * pow).find(s => s >= raw);
+  const raw = max / lines;
+  const pow = 10 ** Math.floor(Math.log10(raw));
+  // raw is below 10 × pow, so a step is always found
+  return [1, 2, 2.5, 5, 10].map(k => k * pow).find(s => s >= raw)!;
 }
 
 // ---------- overview ----------
 // The energy tile is large, like the light tile in 3d_floor: the 30-day total, bars by day and the room that uses the most
-export function energyTileMarkup(s, roomName) {
+export function energyTileMarkup(
+  s: EnergyStats | null | undefined,
+  roomName: (room: string) => string,
+): string {
   if (!s)
     return `<button class="stats-tile" data-action="stats-open" data-section="energy" aria-label="${escape(t('Energy statistics'))}"><span class="stats-tile-top">
     <span class="mini-chip">${icon('bolt')}</span><span class="stats-tile-head"><strong>${escape(t('Energy'))}</strong><small>${escape(t('Calculating…'))}</small></span></span></button>`;
-  const max = Math.max(...s.buckets.map(b => b.total), 1e-6),
-    top = s.groups.filter(g => g.id !== REST && g.id !== NOROOM).sort((a, b) => b.value - a.value)[0];
+  const max = Math.max(...s.buckets.map(b => b.total), 1e-6);
+  const top = s.groups.filter(g => g.id !== REST && g.id !== NOROOM).sort((a, b) => b.value - a.value)[0];
   const bars = s.buckets
     .map(
       b =>
@@ -57,11 +130,15 @@ export function energyTileMarkup(s, roomName) {
     <small class="stats-tile-sub">≈ ${escape(formatEnergy(s.perDay))} ${escape(t('per day'))}${top?.value > 0 ? ` · ${escape(t('most: {0}', roomName(top.id)))}` : ''}</small></button>`;
 }
 // Small tiles of the other sections: one number and a caption
-export function sectionTilesMarkup(ids, data) {
+export function sectionTilesMarkup(
+  ids: SectionId[],
+  data: Partial<Record<string, SectionData | null>>,
+): string {
   return ids
     .map(id => {
-      const s = SECTIONS.find(x => x.id === id),
-        tile = sectionTile(id, data[id]);
+      // ids are section ids
+      const s = SECTIONS.find(x => x.id === id)!;
+      const tile = sectionTile(id, data[id]);
       return `<button class="mini-tile stats-mini-tile" data-action="stats-open" data-section="${id}" aria-label="${escape(t('Statistics'))}: ${escape(t(s.label))}">
       <span class="mini-chip">${icon(s.icon)}</span><span class="mini-text"><strong>${escape(t(s.label))}${tile ? ` <b>${escape(tile.value)}</b>` : ''}</strong>
       <small>${escape(tile?.sub || (data[id] === undefined ? t('Calculating…') : t('No data yet')))}</small></span></button>`;
@@ -70,14 +147,17 @@ export function sectionTilesMarkup(ids, data) {
 }
 
 // ---------- shared blocks ----------
-function summary(big, caption, facts) {
+function summary(big: string, caption: string, facts: Fact[]): string {
   return `<div class="stats-summary"><div class="stats-total"><b>${escape(big)}</b><span>${escape(caption)}</span></div>
     <div class="stats-facts">${facts
-      .filter(Boolean)
+      .filter((fact): fact is [string, string] => Boolean(fact))
       .map(([v, label]) => `<span><b>${escape(v)}</b>${escape(label)}</span>`)
       .join('')}</div></div>`;
 }
-function legend(series, {filter = false, selected = null} = {}) {
+function legend(
+  series: LegendEntry[],
+  {filter = false, selected = null}: {filter?: boolean; selected?: string | null} = {},
+): string {
   return `<div class="stats-rooms" role="group" aria-label="${escape(filter ? t('Rooms: tap to keep one') : t('Legend'))}">${series
     .map(s =>
       filter
@@ -86,26 +166,32 @@ function legend(series, {filter = false, selected = null} = {}) {
     )
     .join('')}</div>`;
 }
-function grid(top, format) {
-  const step = niceStep(top),
-    max = Math.max(step, Math.ceil(top / step) * step),
-    ticks = [];
+function grid(top: number, format: (value: number) => string): {max: number; html: string} {
+  const step = niceStep(top);
+  const max = Math.max(step, Math.ceil(top / step) * step);
+  const ticks: number[] = [];
   for (let v = 0; v <= max + 1e-9; v += step) ticks.push(v);
   return {
     max,
     html: `<div class="stats-grid">${ticks.map(v => `<span style="bottom:${((v / max) * 100).toFixed(2)}%"><em>${v ? escape(format(v)) : ''}</em></span>`).join('')}</div>`,
   };
 }
-function xLabel(s, b, i, n) {
+function xLabel(s: {bucket: string; period: string}, b: {start: number}, i: number, n: number): string {
   const every = s.bucket === 'month' || s.period === 'week' ? 1 : 5;
   return every === 1 || i % every === 0 || i === n - 1
     ? escape(bucketLabel(b.start, s.bucket, s.period))
     : '';
 }
 // bars with stacked parts; series — [{id, name, colour}] bottom to top in a fixed order
-function bars(id, s, series, charts, {format, label}) {
-  const max = Math.max(...s.buckets.map(b => series.reduce((a, x) => a + (b.parts[x.id] || 0), 0)), 0),
-    g = grid(max, format);
+function bars(
+  id: string,
+  s: EnergyStats,
+  series: ChartSeries[],
+  charts: Charts,
+  {format, label}: {format: (value: number) => string; label: string},
+): string {
+  const max = Math.max(...s.buckets.map(b => series.reduce((a, x) => a + (b.parts[x.id] || 0), 0)), 0);
+  const g = grid(max, format);
   const cols = s.buckets
     .map((b, i) => {
       const total = series.reduce((a, x) => a + (b.parts[x.id] || 0), 0);
@@ -121,23 +207,37 @@ function bars(id, s, series, charts, {format, label}) {
   return `<div class="stats-chart" data-chart="${id}" role="img" aria-label="${escape(label)}">${g.html}<div class="stats-cols">${cols}</div></div>`;
 }
 // lines over the bars (average temperature by room); values(b) — {id: value}
-function lines(id, s, series, charts, {values, format, label}) {
+function lines(
+  id: string,
+  s: ClimateStats,
+  series: ChartSeries[],
+  charts: Charts,
+  {
+    values,
+    format,
+    label,
+  }: {
+    values: (bucket: ClimateBucket) => Record<string, number>;
+    format: (value: number) => string;
+    label: string;
+  },
+): string {
   const all = s.buckets.flatMap(b => series.map(x => values(b)[x.id]).filter(Number.isFinite));
   if (!all.length) return '';
-  let lo = Math.floor(Math.min(...all) - 0.5),
-    hi = Math.ceil(Math.max(...all) + 0.5);
+  let lo = Math.floor(Math.min(...all) - 0.5);
+  let hi = Math.ceil(Math.max(...all) + 0.5);
   if (hi - lo < 3) {
     const pad = (3 - (hi - lo)) / 2;
     lo = Math.floor(lo - pad);
     hi = Math.ceil(hi + pad);
   }
-  const n = s.buckets.length,
-    x = i => ((i + 0.5) / n) * 100,
-    y = v => 100 - ((v - lo) / (hi - lo)) * 100;
+  const n = s.buckets.length;
+  const x = (i: number): number => ((i + 0.5) / n) * 100;
+  const y = (v: number): number => 100 - ((v - lo) / (hi - lo)) * 100;
   const paths = series
     .map(z => {
-      let d = '',
-        pen = false;
+      let d = '';
+      let pen = false;
       s.buckets.forEach((b, i) => {
         const v = values(b)[z.id];
         if (!Number.isFinite(v)) {
@@ -150,8 +250,8 @@ function lines(id, s, series, charts, {values, format, label}) {
       return d ? `<path d="${d}" style="stroke:${z.colour}"/>` : '';
     })
     .join('');
-  const step = niceStep(hi - lo, 3),
-    ticks = [];
+  const step = niceStep(hi - lo, 3);
+  const ticks: number[] = [];
   for (let v = Math.ceil(lo / step) * step; v <= hi + 1e-9; v += step) ticks.push(v);
   const cols = s.buckets
     .map(
@@ -165,10 +265,15 @@ function lines(id, s, series, charts, {values, format, label}) {
     <svg viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true" focusable="false">${paths}</svg><div class="stats-cols">${cols}</div></div>`;
 }
 // hours of the day: area and line; labels and crosshair — as markup on top
-function profile(id, values, charts, {title, hint, tip}) {
-  const max = Math.max(...values, 1e-6) * 1.12,
-    x = h => ((h / 23) * 240).toFixed(2),
-    y = v => (60 - (v / max) * 56).toFixed(2);
+function profile(
+  id: string,
+  values: number[],
+  charts: Charts,
+  {title, hint, tip}: {title: string; hint?: string; tip: (value: number) => string},
+): string {
+  const max = Math.max(...values, 1e-6) * 1.12;
+  const x = (h: number): string => ((h / 23) * 240).toFixed(2);
+  const y = (v: number): string => (60 - (v / max) * 56).toFixed(2);
   const line = values.map((v, h) => `${h ? 'L' : 'M'}${x(h)},${y(v)}`).join('');
   charts[id] = {kind: 'profile', values, max, tip};
   return `<div class="section-label">${escape(title)}</div>
@@ -177,9 +282,9 @@ function profile(id, values, charts, {title, hint, tip}) {
       <div class="stats-hours-x"><span>0:00</span><span>6:00</span><span>12:00</span><span>18:00</span><span>24:00</span></div><i class="stats-cross" hidden></i><i class="stats-dot" hidden></i>
     </div>${hint ? `<p class="stats-hint">${escape(hint)}</p>` : ''}`;
 }
-const peakHour = v => v.reduce((best, x, h) => (x > v[best] ? h : best), 0);
+const peakHour = (v: number[]): number => v.reduce((best, x, h) => (x > v[best] ? h : best), 0);
 // list with a bar: name, sub, colour, value (bar length), main, side, room (highlight)
-function rank(rows, {idle = 0.05, wide = false} = {}) {
+function rank(rows: RankRow[], {idle = 0.05, wide = false}: {idle?: number; wide?: boolean} = {}): string {
   const max = Math.max(...rows.map(r => r.value), 1e-6);
   return `<div class="stats-lamps${wide ? ' wide' : ''}">${rows
     .map(
@@ -190,13 +295,16 @@ function rank(rows, {idle = 0.05, wide = false} = {}) {
     )
     .join('')}</div>`;
 }
-const note = text => `<p class="metrics-note">${escape(text)}</p>`;
+const note = (text: string): string => `<p class="metrics-note">${escape(text)}</p>`;
 
 // ---------- screen ----------
 // → {html, charts}. o: {section, sections, period, room, rooms:[{id, short}], colour(id), demo, loading}
-export function statsViewMarkup(data, o) {
-  const charts = {},
-    shown = SECTIONS.filter(s => o.sections.includes(s.id));
+export function statsViewMarkup(
+  data: SectionData | null | undefined,
+  o: StatsViewOptions,
+): {html: string; charts: Charts} {
+  const charts: Charts = {};
+  const shown = SECTIONS.filter(s => o.sections.includes(s.id));
   const tabs = `<div class="stats-sections" role="tablist" aria-label="${escape(t('Section'))}" style="--n:${shown.length}">${shown
     .map(
       s =>
@@ -210,24 +318,37 @@ export function statsViewMarkup(data, o) {
   const body =
     !data || data.empty
       ? `<p class="stats-empty">${escape(o.loading ? t('Calculating…') : t('No data yet'))}</p>`
-      : {climate: climateBody, energy: energyBody, health: healthBody}[o.section](data, o, charts);
+      : // each section's body takes its own data, which data is (loadSection)
+        ({climate: climateBody, energy: energyBody, health: healthBody}[o.section] as SectionBody)(
+          data,
+          o,
+          charts,
+        );
   return {html: `${tabs}${periods}${body}<div class="stats-tip" role="tooltip" hidden></div>`, charts};
 }
-const nameOf = o => id => o.rooms.find(r => r.id === id)?.short || '';
+// a section's body: its data, the screen's options, the charts it adds to
+type SectionBody = (data: SectionData, o: StatsViewOptions, charts: Charts) => string;
+const nameOf =
+  (o: StatsViewOptions) =>
+  (id: string | null | undefined): string =>
+    o.rooms.find(r => r.id === id)?.short || '';
 
-function climateBody(c, o, charts) {
-  const roomName = nameOf(o),
-    order = o.rooms.filter(r => c.rooms.some(x => x.room === r.id && x.temperature));
-  const temps = c.rooms.filter(r => r.temperature);
+function climateBody(c: ClimateStats, o: StatsViewOptions, charts: Charts): string {
+  const roomName = nameOf(o);
+  const order = o.rooms.filter(r => c.rooms.some(x => x.room === r.id && x.temperature));
+  const temps = c.rooms.filter((r): r is RoomClimateStats & {temperature: ClimateStat} =>
+    Boolean(r.temperature),
+  );
   // a shared range scale: from the coldest to the warmest room
-  const lo = Math.floor(Math.min(...temps.map(r => r.temperature.min), COMFORT.temperature[0])),
-    hi = Math.ceil(Math.max(...temps.map(r => r.temperature.max), COMFORT.temperature[1]));
-  const pos = v => (((v - lo) / Math.max(1, hi - lo)) * 100).toFixed(1);
+  const lo = Math.floor(Math.min(...temps.map(r => r.temperature.min), COMFORT.temperature[0]));
+  const hi = Math.ceil(Math.max(...temps.map(r => r.temperature.max), COMFORT.temperature[1]));
+  // a position on the scale, percent, written with one decimal (the subtractions below read it back as a number)
+  const pos = (v: number): string => (((v - lo) / Math.max(1, hi - lo)) * 100).toFixed(1);
   const rows = c.rooms
     .map(r => {
-      const tm = r.temperature,
-        hm = r.humidity,
-        co2 = r.co2;
+      const tm = r.temperature;
+      const hm = r.humidity;
+      const co2 = r.co2;
       // humidity “normal” is shown only when it is noticeable: the rest of the time it is simply there
       const facts = [
         hm &&
@@ -239,19 +360,24 @@ function climateBody(c, o, charts) {
       <span class="stats-lamp-name"><strong>${escape(roomName(r.room))}</strong>${tm?.comfort != null ? `<small>${escape(t('comfort {0}%', Math.round(tm.comfort * 100)))}</small>` : ''}</span>
       ${
         tm
-          ? `<span class="stats-range" aria-label="${escape(t('from {0} to {1}°', formatNumber(tm.min), formatNumber(tm.max)))}"><i class="band" style="left:${pos(tm.min)}%;right:${(100 - pos(tm.max)).toFixed(1)}%"></i><i class="mark" style="left:${pos(tm.mean)}%"></i></span>
+          ? `<span class="stats-range" aria-label="${escape(t('from {0} to {1}°', formatNumber(tm.min), formatNumber(tm.max)))}"><i class="band" style="left:${pos(tm.min)}%;right:${(100 - Number(pos(tm.max))).toFixed(1)}%"></i><i class="mark" style="left:${pos(tm.mean)}%"></i></span>
       <span class="stats-lamp-value"><b>${escape(formatNumber(tm.mean))}°</b><small>${escape(formatNumber(tm.min))}…${escape(formatNumber(tm.max))}°</small></span>`
           : '<span></span><span></span>'
       }
       ${facts.length ? `<small class="stats-climate-facts">${escape(facts.join(' · '))}</small>` : ''}</div>`;
     })
     .join('');
-  const series = order.map(r => ({id: r.id, name: r.short, colour: o.colour(r.id), room: r.id}));
+  const series = order.map((r): ChartSeries => ({
+    id: r.id,
+    name: r.short,
+    colour: o.colour(r.id),
+    room: r.id,
+  }));
   return `${summary(c.mean != null ? formatNumber(c.mean) + '°' : '—', t('average, {0}', periodCaption(c)), [c.comfort != null && [`${Math.round(c.comfort * 100)}%`, t('in comfort')]])}
     ${
       temps.length
         ? `<div class="stats-climate-row scale" aria-hidden="true"><span></span><span class="stats-climate-scale"><span>${lo}°</span><span>${hi}°</span>
-      <i style="left:${pos(COMFORT.temperature[0])}%;right:${(100 - pos(COMFORT.temperature[1])).toFixed(1)}%"><em>${COMFORT.temperature[0]}–${COMFORT.temperature[1]}°</em></i></span><span></span></div>`
+      <i style="left:${pos(COMFORT.temperature[0])}%;right:${(100 - Number(pos(COMFORT.temperature[1]))).toFixed(1)}%"><em>${COMFORT.temperature[0]}–${COMFORT.temperature[1]}°</em></i></span><span></span></div>`
         : ''
     }
     <div class="stats-climate">${rows}</div>
@@ -264,9 +390,10 @@ function climateBody(c, o, charts) {
     ${note(t('Comfort means {0}–{1}° and {2}–{3}% humidity by hourly averages. Room sensors, Home Assistant long-term statistics.', COMFORT.temperature[0], COMFORT.temperature[1], COMFORT.humidity[0], COMFORT.humidity[1]) + (o.demo ? ' ' + t('Demo: values are made up.') : ''))}`;
 }
 
-function energyBody(s, o, charts) {
-  const roomName = id => (id === REST ? t('Other|rest') : id === NOROOM ? t('No room') : nameOf(o)(id));
-  const colour = id =>
+function energyBody(s: EnergyStats, o: StatsViewOptions, charts: Charts): string {
+  const roomName = (id: string): string =>
+    id === REST ? t('Other|rest') : id === NOROOM ? t('No room') : nameOf(o)(id);
+  const colour = (id: string): string =>
     id === REST
       ? 'color-mix(in srgb,var(--muted) 40%,var(--card))'
       : id === NOROOM
@@ -277,17 +404,17 @@ function energyBody(s, o, charts) {
     ...o.rooms.map(r => r.id).filter(id => s.groups.some(g => g.id === id)),
     ...[NOROOM, REST].filter(id => s.groups.some(g => g.id === id)),
   ];
-  const pick = o.room && ids.includes(o.room) ? o.room : null,
-    series = ids
-      .filter(id => !pick || id === pick)
-      .map(id => ({
-        id,
-        name: roomName(id),
-        colour: colour(id),
-        room: id === REST || id === NOROOM ? '' : id,
-      }));
-  const items = pick ? s.items.filter(i => (i.room || NOROOM) === pick) : s.items,
-    shown = pick ? s.groups.find(g => g.id === pick)?.value || 0 : s.total;
+  const pick = o.room && ids.includes(o.room) ? o.room : null;
+  const series = ids
+    .filter(id => !pick || id === pick)
+    .map((id): ChartSeries => ({
+      id,
+      name: roomName(id),
+      colour: colour(id),
+      room: id === REST || id === NOROOM ? '' : id,
+    }));
+  const items = pick ? s.items.filter(i => (i.room || NOROOM) === pick) : s.items;
+  const shown = pick ? s.groups.find(g => g.id === pick)?.value || 0 : s.total;
   const peak = s.profile && peakHour(s.profile);
   return `${summary(formatEnergy(shown), `${pick ? roomName(pick) + ', ' : ''}${periodCaption(s)}`, [
     [`≈ ${formatEnergy(shown / s.days)}`, t('per day')],
@@ -301,7 +428,8 @@ function energyBody(s, o, charts) {
         name: roomName(id),
         colour: colour(id),
         room: id === REST || id === NOROOM ? '' : id,
-        value: formatEnergy(s.groups.find(g => g.id === id).value),
+        // ids are the groups' own
+        value: formatEnergy(s.groups.find(g => g.id === id)!.value),
       })),
       {filter: true, selected: pick},
     )}
@@ -312,9 +440,10 @@ function energyBody(s, o, charts) {
             title: t('When energy is used'),
             hint: t(
               'Average power at this hour. Peak: {0}–{1}, ≈ {2}.',
+              // there is a profile here, so there is its peak
               `${peak}:00`,
-              `${peak + 1}:00`,
-              formatPower(s.profile[peak]),
+              `${peak! + 1}:00`,
+              formatPower(s.profile[peak!]),
             ),
             tip: v => t('average {0}', formatPower(v)),
           })
@@ -329,13 +458,13 @@ function energyBody(s, o, charts) {
     ${note((s.grid ? t('From the grid: the meter from the Home Assistant Energy dashboard; “Other” is what no device accounts for.') : t('Devices from the Home Assistant Energy dashboard.')) + (o.demo ? ' ' + t('Demo: values are made up.') : ''))}`;
 }
 
-function healthBody(d, o) {
-  const roomName = nameOf(o),
-    bad = d.items.filter(i => i.offline >= 0.5);
+function healthBody(d: HealthStats, o: StatsViewOptions): string {
+  const roomName = nameOf(o);
+  const bad = d.items.filter(i => i.offline >= 0.5);
   // the list gets what dropped out noticeably; minute-long dropouts — one line below
-  const major = d.items.filter(i => i.offline >= 0.05),
-    minor = d.items.filter(i => i.offline < 0.05),
-    days = Math.round(d.days);
+  const major = d.items.filter(i => i.offline >= 0.05);
+  const minor = d.items.filter(i => i.offline < 0.05);
+  const days = Math.round(d.days);
   const span = t('{0, plural, one {# day} other {# days}}', days);
   return `${summary(
     bad.length ? String(bad.length) : t('All'),
@@ -350,7 +479,7 @@ function healthBody(d, o) {
     ${
       major.length
         ? rank(
-            major.map(i => ({
+            major.map((i): RankRow => ({
               name: i.name,
               sub: [roomName(i.room), i.now === false ? t('offline now') : ''].filter(Boolean).join(' · '),
               colour: i.now === false ? 'var(--tone-alert)' : i.room ? o.colour(i.room) : 'var(--muted)',
@@ -369,15 +498,16 @@ function healthBody(d, o) {
 
 // ---------- tooltips ----------
 // tooltip text for a chart: bar / point i or hour of the day
-export function statsTip(chart, i) {
+export function statsTip(chart: Chart, i: number): string {
   if (chart.kind === 'profile')
     return `<b>${i}:00–${i + 1}:00</b><span>${escape(chart.tip(chart.values[i]))}</span>`;
-  const b = chart.stats.buckets[i];
+  const b: SeriesBucket | ClimateBucket | undefined = chart.stats.buckets[i];
   if (!b) return '';
   const title = bucketTitle(b.start, chart.stats.bucket);
   if (!b.covered) return `<b>${escape(title)}</b><span class="tip-muted">${escape(t('No data yet'))}</span>`;
   if (chart.kind === 'lines') {
-    const v = chart.values(b);
+    // a lines chart's bucket
+    const v = chart.values(b as ClimateBucket);
     return (
       `<b>${escape(title)}</b>` +
       chart.series
@@ -389,11 +519,13 @@ export function statsTip(chart, i) {
         .join('')
     );
   }
+  // a bars chart's bucket
+  const bar = b as SeriesBucket;
   const parts = chart.series
-      .map(s => [s, b.parts[s.id] || 0])
-      .filter(([, v]) => v >= 0.05)
-      .sort((a, c) => c[1] - a[1]),
-    total = parts.reduce((s, [, v]) => s + v, 0);
+    .map((s): [ChartSeries, number] => [s, bar.parts[s.id] || 0])
+    .filter(([, v]) => v >= 0.05)
+    .sort((a, c) => c[1] - a[1]);
+  const total = parts.reduce((s, [, v]) => s + v, 0);
   return (
     `<b>${escape(title)} · ${escape(chart.format(total))}</b>` +
     parts

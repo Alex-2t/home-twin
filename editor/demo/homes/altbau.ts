@@ -1,4 +1,3 @@
-// @ts-nocheck
 // Typical home 7 (docs/research/typical-homes.md, D-030): an apartment in an older building (Altbau, Stalin-era), about 103 m² —
 // a large living room with a bay window, bedroom, an irregular corner dining room (L-shaped with a cut corner and one window, the “Berliner Zimmer”),
 // kitchen with a gas stove and a gas boiler, a long bathroom, hallway. Made up: nobody's apartment. The real ceilings would be 3–3.5 m;
@@ -10,16 +9,18 @@
 // fronts, a marble backsplash and a black and white checkerboard floor; the bathroom is marble with a freestanding tub under the window.
 // The wall face is 5 cm inside a room's outline, so items stand with their backs 5 cm in.
 import {door, win, F, haLight, sensorKit, deviceKit, stats, WEATHER, worktop} from '../kit.ts';
+import type {DemoHomeSource, DemoLight, DemoPlan, DemoPlanLight, DemoRoom, Style} from '../kit.ts';
+import type {DemoHaData, EdgeFinish, FurnitureItem, LooseOpening, Point} from '../../src/core/types.ts';
 
-const FV = (v, ...a) => ({...F(...a), v}); // an item in a catalog variant
-const Z = (z, f) => ({...f, z}); // an item at its own height above the floor: on furniture or on a wall
-const tall = (a, b) => win(a, b, 0.7, 2.45); // tall old windows
+const FV = (v: string, ...a: Parameters<typeof F>): FurnitureItem => ({...F(...a), v}); // an item in a catalog variant
+const Z = (z: number, f: FurnitureItem): FurnitureItem => ({...f, z}); // an item at its own height above the floor: on furniture or on a wall
+const tall = (a: Point, b: Point): LooseOpening => win(a, b, 0.7, 2.45); // tall old windows
 
 // finishes: warm white boiserie everywhere, navy panels behind the bed, honey herringbone, marble (dress() in kit.ts fills what a room
 // does not set itself); the dining room is panelled in dark olive (set on the room below)
-const PANEL = t => ({k: 'panelsClassic', tint: t}),
-  WHITE = '#d8d2c7';
-const STYLE = {
+const PANEL = (t: string): EdgeFinish => ({k: 'panelsClassic', tint: t});
+const WHITE = '#d8d2c7';
+const STYLE: Style = {
   wall: {
     living: PANEL(WHITE),
     bed: PANEL('#d0cac0'),
@@ -45,7 +46,7 @@ const STYLE = {
   },
 };
 
-const ROOMS = [
+const ROOMS: DemoRoom[] = [
   {
     id: 'living',
     short: 'Living room',
@@ -116,7 +117,7 @@ const ROOMS = [
   },
 ];
 
-const OPENINGS = [
+const OPENINGS: LooseOpening[] = [
   door([0, 6.3], [0, 7.3]), // front door, from the staircase
   door([3.9, 6.05], [4.8, 6.05]), // hallway ↔ living room
   door([6, 6.05], [6.8, 6.05]), // hallway ↔ bedroom
@@ -134,7 +135,7 @@ const OPENINGS = [
   win([4, 11.2], [4.9, 11.2], 1.2, 2.3), // bathroom
 ];
 
-const FURNITURE = [
+const FURNITURE: FurnitureItem[] = [
   // living room, seating group: a navy velvet sofa against the west wall under a salon gallery of five gilt and black frames, a walnut coffee
   // table with books and flowers on a terracotta rug, two olive velvet armchairs turned towards the sofa, a side table with a lamp and
   // a floor lamp at the sofa's ends
@@ -290,7 +291,7 @@ const FURNITURE = [
 
 worktop(FURNITURE, 'white'); // the kitchen's worktop: white quartz
 
-const LIGHTS = [
+const LIGHTS: DemoLight[] = [
   {id: 'hall_pendants', name: 'Hall pendants', room: 'hall', kind: 'ceiling'},
   {id: 'hall_console', name: 'Console table lamp', room: 'hall', kind: 'accent', color: '#ffd9a0'},
   {id: 'living_main', name: 'Chandelier', room: 'living', kind: 'ceiling'},
@@ -317,7 +318,7 @@ const LIGHTS = [
 ];
 // every lamp placed: floor and table lamps on their furniture (a table lamp's point is its bulb, 42 cm above the top it stands on),
 // sconces and picture lights 13 cm off the wall line, pendants over the tables, the worktop strip under the wall cabinet and the shelves
-const PLACED = [
+const PLACED: DemoPlanLight[] = [
   {
     id: 'hall_pendants',
     placed: true,
@@ -481,12 +482,15 @@ const PLACED = [
   {id: 'bathroom_mirror', placed: true, room: 'bathroom', form: 'wall', h: 2.25, points: [[3.63, 9.35]]},
 ];
 
-export default async function () {
-  const HA = {areas: Object.fromEntries(ROOMS.map(r => [r.id, r.short])), lights: LIGHTS.map(haLight)};
+export default async function (): Promise<DemoHomeSource> {
+  const HA: DemoHaData = {
+    areas: Object.fromEntries(ROOMS.map(r => [r.id, r.short])),
+    lights: LIGHTS.map(haLight),
+  };
   // Sensors: climate in every room (CO2 in the bedroom and the gas kitchen), a carbon monoxide detector in the kitchen; the boiler's flow
   // temperature and water pressure and the outdoor sensor are not room air; a gas meter and the electricity meter
-  const S = sensorKit(),
-    add = S.add;
+  const S = sensorKit();
+  const add = S.add;
   add('living', 'living_th', 'Living room sensor Temperature', 'temperature', '°C', 21.4);
   add('living', 'living_th', 'Living room sensor Humidity', 'humidity', '%', 48);
   add('bedroom', 'bedroom_air', 'Bedroom air Temperature', 'temperature', '°C', 19.8);
@@ -540,7 +544,7 @@ export default async function () {
     'binary_sensor.kitchen_window': {hours: 0.2, drops: 1},
   });
   HA.weather = WEATHER;
-  const DEMO = {
+  const DEMO: DemoPlan = {
     version: 1,
     units: 'm',
     rooms: ROOMS.map(r => ({

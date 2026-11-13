@@ -1,13 +1,23 @@
-// @ts-nocheck
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {vacuumDevices, vacuumStatus, vacuumButton, vacuumHomeEnabled, vacuumCommand} from './vacuum.ts';
 import {activeChips} from './overview.ts';
+import type {VacuumDevice, VacuumHa} from './vacuum.ts';
+import type {HaDevice, HassEntityState} from '../core/types.ts';
 
-const ha = (devices, entities = {}) => ({devices: () => devices, entity: e => entities[e] || null});
+/** A device as the tests give it: the rules read no more than this. */
+type TestDevice = Pick<HaDevice, 'entity' | 'domain'> & Partial<HaDevice>;
+/** An entity's state as the tests give it. */
+type TestState = Pick<HassEntityState, 'state'> & Partial<HassEntityState>;
+
+const ha = (devices: TestDevice[], entities: Partial<Record<string, TestState>> = {}): VacuumHa => ({
+  // the tests leave out the names, areas and attributes the rules do not need
+  devices: () => devices as HaDevice[],
+  entity: e => (entities[e] as HassEntityState | undefined) || null,
+});
 const hall = {id: 'r1', short: 'Hallway'};
 const ALL = 4 | 16 | 32 | 8192;
-const one = (state, features = ALL, area = 'hall') =>
+const one = (state: string | null, features = ALL, area: string | null = 'hall'): VacuumDevice =>
   vacuumDevices(
     ha(
       [{entity: 'vacuum.r', name: 'Robot', area, domain: 'vacuum'}],

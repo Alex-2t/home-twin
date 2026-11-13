@@ -1,4 +1,3 @@
-// @ts-nocheck
 // Example home 12: a minimalist apartment, about 106 m², one floor. Calm and spare, white, oak, light grey and a few black accents.
 // Along the south facade one long kitchen-living room (one room, two HA areas: the kitchen zone in the west, up to x = 3.75): a kitchen
 // run on the west wall with an oak tall-unit block, a white island with three stools, a dining table for six, a low sofa facing a wall-hung
@@ -7,11 +6,13 @@
 // Metres, x east, y north, 10 cm interior walls; the editor adds the exterior walls. Interior doors sit 1 cm off the wall middle towards
 // the room their leaf swings into. Walls and floors are finished by the style (homes.ts: 'minimal').
 import {door, win, F, haLight, sensorKit, deviceKit, stats, WEATHER, worktop} from '../kit.ts';
+import type {DemoHomeSource, DemoLight, DemoPlan, DemoPlanLight, DemoRoom} from '../kit.ts';
+import type {DemoHaData, FurnitureItem, LooseOpening} from '../../src/core/types.ts';
 
-const FV = (v, ...a) => ({...F(...a), v}); // an item in a catalog variant
-const Z = (z, f) => ({...f, z}); // an item at its own height (wall-hung)
+const FV = (v: string, ...a: Parameters<typeof F>): FurnitureItem => ({...F(...a), v}); // an item in a catalog variant
+const Z = (z: number, f: FurnitureItem): FurnitureItem => ({...f, z}); // an item at its own height (wall-hung)
 
-const ROOMS = [
+const ROOMS: DemoRoom[] = [
   {
     id: 'living',
     short: 'Kitchen-living room',
@@ -84,7 +85,7 @@ const ROOMS = [
     ],
   },
 ];
-const HA_AREAS = {
+const HA_AREAS: Record<string, string> = {
   living: 'Living room',
   kitchen: 'Kitchen',
   study: 'Study',
@@ -95,7 +96,7 @@ const HA_AREAS = {
   bath: 'Bathroom',
 };
 
-const OPENINGS = [
+const OPENINGS: LooseOpening[] = [
   door([3.25, 9.7], [4.15, 9.7], 2.2), // front door
   {...door([3.3, 4.95], [4.6, 4.95], 2.4), leaf: false}, // entry hall ↔ kitchen-living room, a tall open doorway
   door([2.94, 5.35], [2.94, 6.15]), // entry hall ↔ study
@@ -112,7 +113,7 @@ const OPENINGS = [
   win([9.7, 9.7], [10.5, 9.7], 1.4, 2.2), // bathroom
 ];
 
-const FURNITURE = [
+const FURNITURE: FurnitureItem[] = [
   // kitchen zone: a handle-less run on the west wall — base, cooktop, base, sink, dishwasher in white, then a block of three oak tall units
   // (oven, integrated fridge, pantry) up to 2.4 m; a black chimney hood, one floating oak shelf, a coffee machine; a white island with
   // its overhang to the east, a bowl of fruit and three black counter stools
@@ -207,7 +208,7 @@ const FURNITURE = [
 
 worktop(FURNITURE, 'white'); // the kitchen's worktop: white quartz
 
-const LIGHTS = [
+const LIGHTS: DemoLight[] = [
   {id: 'kitchen_spots', name: 'Kitchen spots', room: 'kitchen', kind: 'ceiling'},
   {id: 'kitchen_island', name: 'Island pendants', room: 'kitchen', kind: 'ceiling', color: '#ffc773'},
   {id: 'kitchen_plinth', name: 'Kitchen plinth light', room: 'kitchen', kind: 'strip'},
@@ -229,7 +230,7 @@ const LIGHTS = [
   {id: 'bath_mirror', name: 'Mirror light', room: 'bath', kind: 'accent'},
 ];
 // where the lamps are: all of them, so every fixture shows in the example (homes.test.js runs “Auto-place” on them from scratch too)
-const PLACED = [
+const PLACED: DemoPlanLight[] = [
   {
     id: 'kitchen_spots',
     placed: true,
@@ -419,12 +420,12 @@ const PLACED = [
   },
 ];
 
-export default async function () {
-  const HA = {areas: HA_AREAS, lights: LIGHTS.map(haLight)};
+export default async function (): Promise<DemoHomeSource> {
+  const HA: DemoHaData = {areas: HA_AREAS, lights: LIGHTS.map(haLight)};
   // Sensors: room air in the living room (CO₂ too), the kitchen zone, the bedroom (CO₂ high after the night), the study and the bathroom;
   // a light level sensor by the sofa; the fridge is not room air; diagnostic ones (battery, the router's CPU); energy meters
-  const S = sensorKit(),
-    add = S.add;
+  const S = sensorKit();
+  const add = S.add;
   add('living', 'living_air', 'Living room air Temperature', 'temperature', '°C', 21.8);
   add('living', 'living_air', 'Living room air Humidity', 'humidity', '%', 42);
   add('living', 'living_air', 'Living room air CO2', 'carbon_dioxide', 'ppm', 640);
@@ -484,7 +485,7 @@ export default async function () {
     'binary_sensor.leak_washer': {hours: 0.5, drops: 1},
   });
   HA.weather = WEATHER;
-  const DEMO = {
+  const DEMO: DemoPlan = {
     version: 1,
     units: 'm',
     rooms: ROOMS.map(r => ({id: r.id, name: r.short, polygon: r.polygon, ...(r.zone ? {zone: r.zone} : {})})),

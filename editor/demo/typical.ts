@@ -1,4 +1,3 @@
-// @ts-nocheck
 // The repository's demo apartment: a typical three-room apartment, about 78 m² (type 5 from docs/research/typical-homes.md, D-030) —
 // hallway with a corridor, living room with a balcony, bedroom, kids' room, kitchen, combined bathroom. Made up: nobody's apartment.
 // Design concept: a warm family home. Honey oak, linen and sand for the big pieces, terracotta and sage as the accents that repeat
@@ -19,11 +18,13 @@ import {
   STYLES,
   worktop,
 } from './kit.ts';
+import type {DemoHomeSource, DemoLight, DemoPlan, DemoPlanLight, DemoRoom, RoomFinish, Style} from './kit.ts';
+import type {DemoHaData, FurnitureItem, LooseOpening} from '../src/core/types.ts';
 
-const FV = (v, ...a) => ({...F(...a), v}); // an item in a catalog variant
-const Z = (z, f) => ({...f, z}); // an item at its own height above the floor
+const FV = (v: string, ...a: Parameters<typeof F>): FurnitureItem => ({...F(...a), v}); // an item in a catalog variant
+const Z = (z: number, f: FurnitureItem): FurnitureItem => ({...f, z}); // an item at its own height above the floor
 
-const ROOMS = [
+const ROOMS: DemoRoom[] = [
   {
     id: 'hall',
     short: 'Hallway',
@@ -103,13 +104,13 @@ const ROOMS = [
 ];
 // The `warm` style with an oak media wall (the home's wood) and a quiet warm white in the kids' room instead of blush; the kids' room's
 // north wall, behind the bed and the toy shelf, is sage; the balcony has a grey wooden deck
-const STYLE = {...STYLES.warm, media: {k: 'flutedOak'}, wall: {...STYLES.warm.wall, kids: '#cdc6b5'}};
-const FINISH = {
+const STYLE: Style = {...STYLES.warm, media: {k: 'flutedOak'}, wall: {...STYLES.warm.wall, kids: '#cdc6b5'}};
+const FINISH: Partial<Record<string, RoomFinish>> = {
   kids: {wf: [null, null, {k: 'paintSage', tint: '#8f9c86'}, null]},
   balcony: {floor: 'woodGrey'},
 };
 
-const OPENINGS = [
+const OPENINGS: LooseOpening[] = [
   door([5.75, 0], [6.65, 0]), // front door
   door([4.15, 1.95], [4.85, 1.95]), // hallway ↔ bathroom
   door([3.45, 2.4], [3.45, 3.2]), // hallway ↔ kids' room
@@ -127,7 +128,7 @@ const OPENINGS = [
   win([5.5, 7.95], [5.5, 8.85], 0.9, 2.45),
 ];
 
-const FURNITURE = [
+const FURNITURE: FurnitureItem[] = [
   // living room, sitting area: an oak TV bench on the fluted oak media wall (the west wall of the alcove) with the TV, a soundbar,
   // books and candles; a linen sofa facing it on a big sand rug, a round oak coffee table, a terracotta armchair turned to the TV,
   // a side table at the sofa's arm, a fiddle-leaf fig by the alcove window, a picture between the window and the balcony door
@@ -271,7 +272,7 @@ const FURNITURE = [
 
 worktop(FURNITURE, 'oak'); // the kitchen's worktop: oak
 
-const LIGHTS = [
+const LIGHTS: DemoLight[] = [
   {id: 'hall_spots', name: 'Hall spots', room: 'hall', kind: 'ceiling'},
   {id: 'living_main', name: 'Living room pendant', room: 'living', kind: 'ceiling', color: '#ffc773'},
   {id: 'living_cove', name: 'Ceiling cove light', room: 'living', kind: 'cove'},
@@ -294,7 +295,7 @@ const LIGHTS = [
 ];
 // every lamp is placed (the plug-in floor lamp with no area is not: the wizard asks where it is). Table lamps stand on their
 // furniture: the point is the bulb, 42 cm above the top
-const PLACED = [
+const PLACED: DemoPlanLight[] = [
   {
     id: 'hall_spots',
     placed: true,
@@ -436,12 +437,15 @@ const PLACED = [
   {id: 'balcony_main', placed: true, room: 'balcony', points: [[7.25, 8.4]]},
 ];
 
-export default async function () {
-  const HA = {areas: Object.fromEntries(ROOMS.map(r => [r.id, r.short])), lights: LIGHTS.map(haLight)};
+export default async function (): Promise<DemoHomeSource> {
+  const HA: DemoHaData = {
+    areas: Object.fromEntries(ROOMS.map(r => [r.id, r.short])),
+    lights: LIGHTS.map(haLight),
+  };
   // Sensors: climate in the bedroom, kids' room, living room, bathroom and kitchen; diagnostic ones (battery, plug temperature); energy meters.
   // The kitchen has its own temperature sensor set on the area, as in HA. A thermometer with no area — the wizard will ask where it is.
-  const S = sensorKit(),
-    add = S.add;
+  const S = sensorKit();
+  const add = S.add;
   add('bedroom', 'bedroom_th', 'Bedroom sensor Temperature', 'temperature', '°C', 21.6);
   add('bedroom', 'bedroom_th', 'Bedroom sensor Humidity', 'humidity', '%', 44);
   add('bedroom', 'bedroom_th', 'Bedroom sensor Battery', 'battery', '%', 87, {cat: 'diagnostic'});
@@ -518,7 +522,7 @@ export default async function () {
   );
   HA.weather = WEATHER;
   HA.lights.push(NO_AREA_LAMP);
-  const DEMO = {
+  const DEMO: DemoPlan = {
     version: 1,
     units: 'm',
     rooms: ROOMS.map(r => ({

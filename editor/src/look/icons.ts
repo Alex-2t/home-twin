@@ -1,6 +1,5 @@
-// @ts-nocheck
 // Apartment card icons: a copy of 3d_floor/apartment/smart-home/web/src/icons.js (D-049). Do not edit: our own go in look.js.
-const shapes = {
+const shapes: Record<string, string> = {
   surveillance:
     '<path d="m4 5 13 2-3 8L2 10z"/><path d="m17 8 4 1-2 5-4-1M8 13v5h8m0-3v6"/><path d="m5 8 7 1"/>',
   droplet: '<path d="M12 3C10 6 5 11 5 15a7 7 0 0 0 14 0c0-4-5-9-7-12Z"/>',
@@ -91,9 +90,9 @@ const shapes = {
   close: '<path d="M6 6l12 12M18 6 6 18"/>',
   menu: '<path d="M4 7h16M4 12h16M4 17h16"/>',
 };
-export const icon = name =>
+export const icon = (name: string): string =>
   `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${shapes[name] || shapes.bulb}</svg>`;
-export const roomIcon = {
+export const roomIcon: Record<string, string> = {
   bedroom: 'bed',
   kitchen: 'kitchen',
   living: 'sofa',

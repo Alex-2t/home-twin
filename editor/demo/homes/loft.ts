@@ -1,18 +1,19 @@
-// @ts-nocheck
 // Example home 11 (D-062): a loft in a converted industrial building, about 117 m² on one floor. A long kitchen-living-dining room
 // (one room, two HA areas: the kitchen and dining part, the living part) with tall steel-framed windows along the south and east walls,
 // a cast-iron column, a walnut island, a long dining table for eight and a U-shaped sofa facing the media wall; a bedroom with
 // a walk-in closet that leads to the bathroom (freestanding tub, walk-in shower, double vanity); a study, an entry hall, a guest WC.
 // Made up: nobody's home. Metres, x east, y north, 10 cm interior walls; the editor adds the exterior walls.
 import {door, win, F, haLight, sensorKit, deviceKit, stats, WEATHER} from '../kit.ts';
+import type {DemoHomeSource, DemoLight, DemoPlan, DemoPlanLight, DemoRoom} from '../kit.ts';
+import type {DemoHaData, FurnitureItem, LooseOpening} from '../../src/core/types.ts';
 
-const FV = (v, ...a) => ({...F(...a), v}); // an item in a catalog variant
-const Z = (z, f) => ({...f, z}); // an item at its own height above the floor
+const FV = (v: string, ...a: Parameters<typeof F>): FurnitureItem => ({...F(...a), v}); // an item in a catalog variant
+const Z = (z: number, f: FurnitureItem): FurnitureItem => ({...f, z}); // an item at its own height above the floor
 
 // The great room is one room; its west part, up to x = 12.5, is the kitchen and dining area (room.zone: left of a→b). The extra corners
 // on the north wall (x = 12.5) and the west wall (y = 3.3) split those walls in two, so the style's media wall stays behind the TV
 // and the kitchen backsplash stays behind the kitchen.
-const ROOMS = [
+const ROOMS: DemoRoom[] = [
   {
     id: 'living',
     short: 'Kitchen-living room',
@@ -89,7 +90,7 @@ const ROOMS = [
     ],
   },
 ];
-const HA_AREAS = {
+const HA_AREAS: Record<string, string> = {
   ...Object.fromEntries(ROOMS.map(r => [r.id, r.short])),
   living: 'Living room',
   kitchen: 'Kitchen',
@@ -97,7 +98,7 @@ const HA_AREAS = {
 
 // Steel loft windows: from 50 cm above the floor to 2.5 m. Interior doors sit 1 cm towards the room they open into.
 const LOFT = [0.5, 2.5];
-const OPENINGS = [
+const OPENINGS: LooseOpening[] = [
   door([6.45, 6.8], [7.4, 6.8], 2.2), // front door
   door([7.95, 3.55], [7.95, 5.15], 2.4), // hall ↔ great room, a wide opening
   door([4.84, 3], [4.84, 3.8]), // hall ↔ bedroom
@@ -119,7 +120,7 @@ const OPENINGS = [
   win([5.2, 6.8], [5.9, 6.8], 1.5, 2.2), // guest WC
 ];
 
-const FURNITURE = [
+const FURNITURE: FurnitureItem[] = [
   // living part: a U-shaped sofa facing the media wall (TV bench, TV, soundbar, speakers, shelving), coffee table and rug,
   // a console behind the sofa with books and a vase, candles on the coffee table, a reading corner by the corner windows with two leather armchairs, the bike on display in the corner,
   // a cast-iron column, a palm, a dog bed, the air conditioner above the shelving
@@ -251,7 +252,7 @@ const FURNITURE = [
   FV('snake', 'w4', 'pottedPlant', 5.95, 6.5, 0, 0.35, 0.35, 0.85, 'black'),
 ];
 
-const LIGHTS = [
+const LIGHTS: DemoLight[] = [
   {id: 'hall_spots', name: 'Hall spots', room: 'hall', kind: 'ceiling'},
   {id: 'living_track', name: 'Living room track', room: 'living', kind: 'ceiling'},
   {id: 'living_floor', name: 'Floor lamp', room: 'living', kind: 'accent'},
@@ -274,7 +275,7 @@ const LIGHTS = [
   {id: 'study_desk', name: 'Desk lamp', room: 'study', kind: 'accent'},
 ];
 // where the lamps are: all of them, so every fixture shows in the example (homes.test.js runs “Auto-place” on them from scratch too)
-const PLACED = [
+const PLACED: DemoPlanLight[] = [
   {
     id: 'hall_spots',
     placed: true,
@@ -444,12 +445,12 @@ const PLACED = [
   {id: 'study_main', placed: true, room: 'study', points: [[6.4, 1.35]]},
 ];
 
-export default async function () {
-  const HA = {areas: HA_AREAS, lights: LIGHTS.map(haLight)};
+export default async function (): Promise<DemoHomeSource> {
+  const HA: DemoHaData = {areas: HA_AREAS, lights: LIGHTS.map(haLight)};
   // Sensors: room air in the living part, the kitchen part, the bedroom (CO₂ is high after the night) and the study; the bathroom and the hall;
   // diagnostic ones (a battery, the NAS and router CPUs); the fridge is not room air; energy meters
-  const S = sensorKit(),
-    add = S.add;
+  const S = sensorKit();
+  const add = S.add;
   add('living', 'living_air', 'Living room air Temperature', 'temperature', '°C', 21.6);
   add('living', 'living_air', 'Living room air Humidity', 'humidity', '%', 41);
   add('living', 'living_air', 'Living room air CO2', 'carbon_dioxide', 'ppm', 640);
@@ -518,7 +519,7 @@ export default async function () {
     {'climate.study_ac': {hours: 4, drops: 3}, 'binary_sensor.leak_bathroom': {hours: 1, drops: 1}},
   );
   HA.weather = WEATHER;
-  const DEMO = {
+  const DEMO: DemoPlan = {
     version: 1,
     units: 'm',
     rooms: ROOMS.map(r => ({id: r.id, name: r.short, polygon: r.polygon, ...(r.zone ? {zone: r.zone} : {})})),

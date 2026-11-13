@@ -1,4 +1,3 @@
-// @ts-nocheck
 // Typical home 10 (docs/research/typical-homes.md, D-030): a German two-story detached house with a basement, ground floor only —
 // the editor is single-floor. Street to the north: hallway with the staircase, guest WC, study, kitchen and the utility room next to the
 // attached garage; the living and dining rooms face the garden to the south. About 97 m² indoors.
@@ -10,16 +9,29 @@
 // A door between two rooms sits 1 cm off the wall middle towards the room its leaf swings into. The wall face is 5 cm inside a room's
 // outline, so items stand with their backs 5 cm in.
 import {door, win, F, haLight, sensorKit, deviceKit, stats, WEATHER, worktop} from '../kit.ts';
+import type {DemoHomeSource, DemoLight, DemoPlan, DemoPlanLight, DemoRoom, RoomFinish} from '../kit.ts';
+import type {DemoHaData, FurnitureItem, LooseOpening} from '../../src/core/types.ts';
 
-const FV = (v, ...a) => ({...F(...a), v}); // an item in a catalog variant
-const Z = (z, f) => ({...f, z}); // an item at its own height above the floor
-const custom = (id, name, x, y, rot, w, d, h, color, extra = {}) => ({
+const FV = (v: string, ...a: Parameters<typeof F>): FurnitureItem => ({...F(...a), v}); // an item in a catalog variant
+const Z = (z: number, f: FurnitureItem): FurnitureItem => ({...f, z}); // an item at its own height above the floor
+const custom = (
+  id: string,
+  name: string,
+  x: number,
+  y: number,
+  rot: number,
+  w: number,
+  d: number,
+  h: number,
+  color: string,
+  extra: Partial<FurnitureItem> = {},
+): FurnitureItem => ({
   ...F(id, 'custom', x, y, rot, w, d, h, color),
   name,
   ...extra,
 });
 
-const ROOMS = [
+const ROOMS: DemoRoom[] = [
   {
     id: 'living',
     short: 'Living room',
@@ -107,14 +119,14 @@ const ROOMS = [
 // behind the desk), the dining room's north wall behind the sideboard is deep green plaster (edge 2), the kitchen keeps its zellige
 // behind the cabinet runs but not on the tall-unit wall with the hall door (edge 3), the utility room is tiled to 1.2 m.
 const GREEN = '#4f5c4a';
-const FINISH = {
+const FINISH: Partial<Record<string, RoomFinish>> = {
   study: {wall: 'plaster', wallTint: GREEN},
   dining: {wf: [null, null, {k: 'plaster', tint: GREEN}, null]},
   kitchen: {wf: [null, null, null, {k: 'paintWarm', tint: '#cdc8ba'}]},
   utility: {wall: 'tilePanel', floor: 'stone'},
 };
 
-const OPENINGS = [
+const OPENINGS: LooseOpening[] = [
   door([4.45, 9.6], [5.45, 9.6], 2.2), // front door
   door([3.94, 8], [3.94, 8.7]), // hallway ↔ guest WC
   win([3.05, 9.6], [3.55, 9.6], 1.4, 2), // guest WC
@@ -137,7 +149,7 @@ const OPENINGS = [
   win([9.2, 9.6], [9.9, 9.6], 1.3, 2), // utility room
 ];
 
-const FURNITURE = [
+const FURNITURE: FurnitureItem[] = [
   // living room, lounge: a sand sofa facing the art deco media wall (a walnut TV bench between two walnut bookcases, the TV, a soundbar,
   // books and candles), a walnut coffee table with books and candles on a big linen rug, two terracotta armchairs facing each other,
   // a walnut side table with a vase, a floor lamp behind the sofa, a monstera, olive curtains on the terrace door and the windows
@@ -284,7 +296,7 @@ const FURNITURE = [
 
 worktop(FURNITURE, 'black'); // the kitchen's worktop: black stone
 
-const LIGHTS = [
+const LIGHTS: DemoLight[] = [
   {id: 'hall_spots', name: 'Hallway spots', room: 'hall', kind: 'ceiling'},
   {id: 'hall_stairs', name: 'Stair LED strip', room: 'hall', kind: 'strip'},
   {id: 'entrance', name: 'Entrance light', room: null, kind: 'accent', h: 2},
@@ -308,7 +320,7 @@ const LIGHTS = [
 // every lamp with an area is placed; the entrance light has none. Table lamps stand 42 cm above the top they stand on (a 75 cm sideboard
 // or desk: 1.17 m), floor lamps sit in their lampshades; the stair strip runs along the foot of the steps, the worktop strip under the
 // wall cabinets
-const PLACED = [
+const PLACED: DemoPlanLight[] = [
   {
     id: 'hall_spots',
     placed: true,
@@ -456,12 +468,15 @@ const PLACED = [
   },
 ];
 
-export default async function () {
-  const HA = {areas: Object.fromEntries(ROOMS.map(r => [r.id, r.short])), lights: LIGHTS.map(haLight)};
+export default async function (): Promise<DemoHomeSource> {
+  const HA: DemoHaData = {
+    areas: Object.fromEntries(ROOMS.map(r => [r.id, r.short])),
+    lights: LIGHTS.map(haLight),
+  };
   // Sensors: wall thermostats of the underfloor heating (temperature, humidity) in the living, dining room and kitchen; a CO2 monitor
   // in the study; boiler flow and outdoor temperature are “not room air”; the smart meter, PV inverter and wallbox; a NAS in the network cabinet
-  const S = sensorKit(),
-    add = S.add;
+  const S = sensorKit();
+  const add = S.add;
   add('living', 'living_thermostat', 'Living room thermostat Temperature', 'temperature', '°C', 21.3);
   add('living', 'living_thermostat', 'Living room thermostat Humidity', 'humidity', '%', 46);
   add('dining', 'dining_thermostat', 'Dining room thermostat Temperature', 'temperature', '°C', 20.8);
@@ -536,7 +551,7 @@ export default async function () {
     'camera.driveway': {hours: 4, drops: 5},
   });
   HA.weather = WEATHER;
-  const DEMO = {
+  const DEMO: DemoPlan = {
     version: 1,
     units: 'm',
     rooms: ROOMS.map(r => ({id: r.id, name: r.short, polygon: r.polygon, ...FINISH[r.id]})),

@@ -1,17 +1,31 @@
-// @ts-nocheck
 // The ten typical homes (D-030, docs/research/typical-homes.md): the reference set the editor is checked on; and three designer
 // interiors (D-062: loft, minimalist, Japandi) that open the start screen's examples.
 // src/core/homes.test.js runs the plan checks on every home; the standalone editor shows them on the start screen as examples (D-062).
 // Each module is like typical.ts: export default async () => ({HA, DEMO, DEMO_UNDERLAY}). Made up: nobody's home.
 // Houses are the ground floor for now: the editor is single-floor (typical-homes.md, “What the editor needs”).
 import {dress, daylight} from './kit.ts';
+import type {DemoHomeModule, StyleName} from './kit.ts';
+import type {DemoHome} from '../src/core/types.ts';
+
+/** A home of the reference set: its id, its title and what is in it, and how to load it. */
+export interface TypicalHome {
+  id: string;
+  title: string;
+  what: string;
+  load: () => Promise<DemoHome>;
+}
+
 // style — how the home is finished (kit.ts: STYLES): each its own, so the examples do not all look the same; a module may return its own
 // STYLE (an object of the same shape) and finish rooms itself (room.wall, room.floor, room.wf); by day its ceiling lights are off
-const load = (name, style) => async () => {
-  const {STYLE, ...d} = await (await import(`./${name}.ts`)).default();
-  return {...d, DEMO: daylight(d.HA, dress(d.DEMO, STYLE || style))};
-};
-export const HOMES = [
+const load =
+  (name: string, style: StyleName): TypicalHome['load'] =>
+  async () => {
+    // one of the modules next to this one (kit.ts says what each gives)
+    const homeModule: DemoHomeModule = await import(`./${name}.ts`);
+    const {STYLE, ...d} = await homeModule.default();
+    return {...d, DEMO: daylight(d.HA, dress(d.DEMO, STYLE || style))};
+  };
+export const HOMES: TypicalHome[] = [
   {
     id: 'studio',
     title: '1. Studio',

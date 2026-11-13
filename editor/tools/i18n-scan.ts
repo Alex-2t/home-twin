@@ -1,4 +1,3 @@
-// @ts-nocheck
 // Translation scanner (D-036). Collects UI keys — the first argument of t() and N(), and the text of the static markup
 // (shell.html) — and finds Cyrillic in code: the repository is English-only, Russian lives in src/i18n/ru.json.
 //   node tools/i18n-scan.ts [--keys]  — --keys writes src/i18n/keys.json (key → where it is used), translators work from it.
@@ -9,13 +8,39 @@ import path from 'node:path';
 import * as acorn from 'acorn';
 import * as walk from 'acorn-walk';
 import {stripTypeScriptTypes} from 'node:module';
+import type {Comment, Node, Program} from 'acorn';
+
+/** Something to fix: where it is and what it is. */
+export interface Finding {
+  file: string;
+  line: number | undefined;
+  text: string;
+}
+
+// Node says on stderr that stripTypeScriptTypes is experimental, the first time it is called. That line is not something the scan
+// found, so it is left out: only that one warning, and only while the types are stripped.
+function stripTypes(source: string): string {
+  const emitWarning = process.emitWarning;
+  process.emitWarning = (warning: string | Error, ...rest: unknown[]): void => {
+    const aboutStripping =
+      rest[0] === 'ExperimentalWarning' &&
+      typeof warning === 'string' &&
+      warning.startsWith('stripTypeScriptTypes ');
+    if (!aboutStripping) Reflect.apply(emitWarning, process, [warning, ...rest]);
+  };
+  try {
+    return stripTypeScriptTypes(source, {mode: 'strip'});
+  } finally {
+    process.emitWarning = emitWarning;
+  }
+}
 
 const ROOT = new URL('..', import.meta.url).pathname;
 const CYR = /[\u0400-\u04FF]/;
 // keys are not collected from tests, generated code, the dev panel and the copied card lighting
 const NO_KEYS = /\.test\.(js|ts)$|\/gen\/|devpanel\.(js|ts)$|\/card\//;
 
-const files = dir =>
+const files = (dir: string): string[] =>
   fs
     .readdirSync(path.join(ROOT, dir), {withFileTypes: true})
     .flatMap(e =>
@@ -28,21 +53,23 @@ const files = dir =>
           : [],
     );
 
-export function scan() {
-  const keys = new Map(),
-    bad = [],
-    add = (k, where) => {
-      if (!keys.has(k)) keys.set(k, new Set());
-      keys.get(k).add(where);
-    };
+export function scan(): {keys: Map<string, Set<string>>; bad: Finding[]} {
+  const keys = new Map<string, Set<string>>();
+  const bad: Finding[] = [];
+  const add = (k: string, where: string): void => {
+    if (!keys.has(k)) keys.set(k, new Set());
+    keys.get(k)!.add(where); // set just above when it was missing
+  };
+  // The parse keeps locations (locations: true), so every node and comment below has its loc.
+  const lineOf = (n: Node | Comment): number => n.loc!.start.line;
   for (const f of files('src')) {
-    const src = fs.readFileSync(path.join(ROOT, f), 'utf8'),
-      lines = src.split('\n'),
-      allowed = n => /allow-cyrillic/.test(lines[n - 1] || '');
-    const comments = [];
-    let ast;
+    const src = fs.readFileSync(path.join(ROOT, f), 'utf8');
+    const lines = src.split('\n');
+    const allowed = (n: number): boolean => /allow-cyrillic/.test(lines[n - 1] || '');
+    const comments: Comment[] = [];
+    let ast: Program;
     // TypeScript: the types become spaces, so every line and column stays where it was
-    const code = f.endsWith('.ts') ? stripTypeScriptTypes(src, {mode: 'strip'}) : src;
+    const code = f.endsWith('.ts') ? stripTypes(src) : src;
     try {
       ast = acorn.parse(code, {
         ecmaVersion: 'latest',
@@ -51,14 +78,16 @@ export function scan() {
         onComment: comments,
       });
     } catch (e) {
-      bad.push({file: f, line: e.loc?.line, text: 'cannot parse: ' + e.message});
+      // acorn throws a SyntaxError that also says where (loc); anything else thrown has a message too
+      const error = e as {loc?: {line: number}; message: string};
+      bad.push({file: f, line: error.loc?.line, text: 'cannot parse: ' + error.message});
       continue;
     }
     for (const c of comments)
-      if (CYR.test(c.value) && !allowed(c.loc.start.line))
-        bad.push({file: f, line: c.loc.start.line, text: 'comment: ' + c.value.trim().slice(0, 60)});
-    const keysHere = !NO_KEYS.test(f),
-      where = n => f + ':' + n.loc.start.line;
+      if (CYR.test(c.value) && !allowed(lineOf(c)))
+        bad.push({file: f, line: lineOf(c), text: 'comment: ' + c.value.trim().slice(0, 60)});
+    const keysHere = !NO_KEYS.test(f);
+    const where = (n: Node): string => f + ':' + lineOf(n);
     walk.fullAncestor(ast, (node, _s, anc) => {
       const parent = anc[anc.length - 2];
       const inCall =
@@ -68,23 +97,24 @@ export function scan() {
         ['t', 'N'].includes(parent.callee.name);
       if (node.type === 'Literal' && typeof node.value === 'string' && inCall && keysHere)
         add(node.value, where(node));
+      // a template without a tag always has its cooked text
       if (node.type === 'TemplateLiteral' && inCall && keysHere && !node.expressions.length)
-        add(node.quasis[0].value.cooked, where(node));
+        add(node.quasis[0].value.cooked!, where(node));
       // patterns for names from HA (re('floor lamp|…'), new RegExp, /kid|…/) hold words in every language
       const pattern =
-        node.regex ||
+        (node.type === 'Literal' && node.regex) ||
         anc.some(
           a =>
             (a.type === 'CallExpression' && a.callee.type === 'Identifier' && a.callee.name === 're') ||
-            (a.type === 'NewExpression' && a.callee.name === 'RegExp'),
+            (a.type === 'NewExpression' && a.callee.type === 'Identifier' && a.callee.name === 'RegExp'),
         );
-      if (pattern || allowed(node.loc.start.line)) return;
+      if (pattern || allowed(lineOf(node))) return;
       if (node.type === 'Literal' && typeof node.value === 'string' && CYR.test(node.value))
-        bad.push({file: f, line: node.loc.start.line, text: node.value.slice(0, 60)});
+        bad.push({file: f, line: lineOf(node), text: node.value.slice(0, 60)});
       else if (node.type === 'TemplateLiteral' && node.quasis.some(q => CYR.test(q.value.cooked ?? '')))
         bad.push({
           file: f,
-          line: node.loc.start.line,
+          line: lineOf(node),
           text:
             '`' +
             node.quasis

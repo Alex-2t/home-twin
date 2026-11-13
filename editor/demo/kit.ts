@@ -1,28 +1,111 @@
-// @ts-nocheck
 // Kit for the standalone editor's demo apartments (start screen → “Demo home”; the HA panel has no demo).
 // An apartment is a module demo/<name>.ts: export default async () => ({HA, DEMO, DEMO_UNDERLAY}). HA is the HA layer data “as from HA”
 // (read by mockHA, editor/ha.js), DEMO is the plan, DEMO_UNDERLAY is the plan photo or null.
 // The repository has typical.ts (a typical three-room apartment, D-030). own.ts is the owner's apartment: local only (.gitignore),
 // the build uses it if the file exists.
+import type {
+  DemoHaData,
+  DemoHome,
+  DemoStats,
+  DemoWeatherProfile,
+  EdgeFinish,
+  FurnitureItem,
+  HaDevice,
+  HaEntityItem,
+  HaLamp,
+  HaSensor,
+  HassEntityState,
+  LooseOpening,
+  OpeningInput,
+  Outline,
+  PlanInput,
+  PlanLight,
+  Point,
+  Room,
+  RoomZone,
+} from '../src/core/types.ts';
+
+/** A room as a demo home lists it: its id (also its HA area), its name, its outline, and the HA zone of a kitchen-living room. */
+export interface DemoRoom {
+  id: string;
+  short: string;
+  polygon: Outline;
+  zone?: RoomZone;
+  /** What the room sets itself (other homes keep it in a FINISH map by room id). */
+  finish?: RoomFinish;
+}
+
+/** What a demo home sets on a room itself (dress() fills the rest from the style). */
+export type RoomFinish = Partial<Pick<Room, 'wall' | 'wallTint' | 'floor' | 'floorTint' | 'wf'>>;
+
+/** A lamp as a demo home lists it for HA (haLight): kind 'ceiling', 'accent', 'strip' or 'cove'; h — its own height, metres. */
+export interface DemoLight {
+  id: string;
+  name: string;
+  /** Its HA area; null: none. */
+  room: string | null;
+  kind?: string;
+  color?: string;
+  h?: number;
+}
+
+/** A lamp in a demo home's plan: only what the demo sets; a lamp keeps no points or segments it does not have. */
+export type DemoPlanLight = Omit<PlanLight, 'points' | 'segments'> &
+  Partial<Pick<PlanLight, 'points' | 'segments'>>;
+
+/** A demo home's plan: the lists dress() and daylight() go through are there, the lamps are DemoPlanLight. */
+export interface DemoPlan extends Omit<PlanInput, 'rooms' | 'openings' | 'furniture' | 'lights'> {
+  rooms: Room[];
+  openings: OpeningInput[];
+  furniture: FurnitureItem[];
+  lights: DemoPlanLight[];
+}
+
+/** What a demo home module's default export gives (homes.ts load and build.ts read it); STYLE: the home's own style. */
+export interface DemoHomeSource extends Omit<DemoHome, 'DEMO'> {
+  DEMO: DemoPlan;
+  STYLE?: Style;
+}
+
+/** A demo home module: demo/<name>.ts. */
+export interface DemoHomeModule {
+  default: () => Promise<DemoHomeSource>;
+}
 
 // Openings: a segment along the wall line (interior wall — along its middle, exterior wall — along the room edge), opening bottom and top.
 // The editor attaches them to walls on load.
-export const door = (a, b, top = 2.1) => ({a, b, bottom: 0, top, kind: 'door'});
-export const win = (a, b, bottom = 0.85, top = 2.4) => ({a, b, bottom, top, kind: 'window'});
+export const door = (a: Point, b: Point, top = 2.1): LooseOpening => ({a, b, bottom: 0, top, kind: 'door'});
+export const win = (a: Point, b: Point, bottom = 0.85, top = 2.4): LooseOpening => ({
+  a,
+  b,
+  bottom,
+  top,
+  kind: 'window',
+});
 // Furniture: catalog model, centre, rotation (0 — facing south, towards −y; 90 — east; 180 — north; 270 — west), size, colour.
-export const F = (id, model, x, y, rot, w, d, h, color) => ({id, model, x, y, rot, w, d, h, color});
+export const F = (
+  id: string,
+  model: string,
+  x: number,
+  y: number,
+  rot: number,
+  w: number,
+  d: number,
+  h: number,
+  color?: string,
+): FurnitureItem => ({id, model, x, y, rot, w, d, h, color});
 
 // The kitchen's worktop (catalog TOPS: stone, white, oak, walnut, black) on every unit that has one; returns the list
 const TOPPED = ['kitchenBase', 'kitchenSink', 'kitchenHob', 'dishwasher', 'kitchenCorner', 'kitchenIsland'];
-export const worktop = (furniture, top) => {
+export const worktop = (furniture: FurnitureItem[], top: string): FurnitureItem[] => {
   for (const f of furniture) if (TOPPED.includes(f.model)) f.top = top;
   return furniture;
 };
 
 // Lamp as from HA: an explicit h wins; otherwise a strip's height comes from its name (floor and skirting, worktop, else under the ceiling),
 // a point light is on the ceiling or at 1.6 m
-const isStrip = k => ['strip', 'cove'].includes(k);
-export const haLight = l => ({
+const isStrip = (kind: string | undefined): boolean => ['strip', 'cove'].includes(kind ?? '');
+export const haLight = (l: DemoLight): HaLamp => ({
   id: l.id,
   entity: 'light.' + l.id,
   name: l.name,
@@ -42,12 +125,38 @@ export const haLight = l => ({
         : 1.6),
 });
 
+/** What a demo sensor may say beyond the basics (HaSensor): housekeeping, and an energy meter's day. */
+export type SensorExtra = Pick<HaSensor, 'cat' | 'daily' | 'shape'>;
+
+/** The sensor list and the states a demo home builds up (sensorKit). */
+export interface SensorKit {
+  add(
+    room: string | null,
+    dev: string,
+    name: string,
+    cls: string,
+    unit: string,
+    v: number,
+    extra?: SensorExtra,
+  ): void;
+  sensors: HaSensor[];
+  states: Record<string, number>;
+}
+
 // Sensors (D-033): add(area, device, name, class, unit, value, extra) accumulates the list and states.
 // extra: cat — housekeeping, daily and shape — an energy meter for “Statistics” (how much per day and when it is used).
-export function sensorKit() {
-  const sensors = [],
-    states = {};
-  const add = (room, dev, name, cls, unit, v, extra = {}) => {
+export function sensorKit(): SensorKit {
+  const sensors: HaSensor[] = [];
+  const states: Record<string, number> = {};
+  const add = (
+    room: string | null,
+    dev: string,
+    name: string,
+    cls: string,
+    unit: string,
+    v: number,
+    extra: SensorExtra = {},
+  ): void => {
     const e = `sensor.${dev}_${cls === 'carbon_dioxide' ? 'co2' : cls}`;
     sensors.push({entity: e, name, area: room, device: dev, cls, unit, ...extra});
     states[e] = v;
@@ -55,14 +164,35 @@ export function sensorKit() {
   return {add, sensors, states};
 }
 
+/** A "Favorites" entry of a demo home: [entity, name, area, state]. */
+export type DemoFavorite = [entity: string, name: string, area: string | null, state: string];
+
+/** The device list, the entity states and "Favorites" a demo home builds up (deviceKit). */
+export interface DeviceKit {
+  devices: HaDevice[];
+  entities: Record<string, HassEntityState>;
+  extra: HaEntityItem[];
+  ac(id: string, name: string, area: string | null, mode: string, temp: number, cur: number): void;
+  thermostat(id: string, name: string, area: string | null, temp: number, cur: number): void;
+  /** kind 'blind': a roller blind; anything else: curtains. pos: 0 closed … 100 open. */
+  cover(id: string, name: string, area: string | null, kind: string, pos: number): void;
+  contact(id: string, name: string, area: string | null, cls: string, on: boolean): void;
+  camera(id: string, name: string, area: string | null): void;
+  valve(id: string, name: string, area: string | null): void;
+  /** charge: the battery's percentage. */
+  leak(id: string, name: string, area: string | null, charge: number): void;
+  vacuum(id: string, name: string, area: string | null): void;
+  favorites(list: DemoFavorite[]): void;
+}
+
 // Devices for the model and the dashboard (D-048): the list (devices) and entity states as in HA (entities: state + attributes),
 // “Favorites” (extra, D-049) — what the model doesn't have. The “since” time is three days ago.
-export function deviceKit() {
-  const devices = [],
-    entities = {},
-    extra = [],
-    since = new Date(Date.now() - 3 * 864e5).toISOString();
-  const put = (d, state) => {
+export function deviceKit(): DeviceKit {
+  const devices: HaDevice[] = [];
+  const entities: Record<string, HassEntityState> = {};
+  const extra: HaEntityItem[] = [];
+  const since = new Date(Date.now() - 3 * 864e5).toISOString();
+  const put = (d: HaDevice, state: HassEntityState): void => {
     devices.push(d);
     entities[d.entity] = state;
   };
@@ -166,7 +296,7 @@ export function deviceKit() {
 
 // “Statistics” (HA layer: statistics, stateHistory, energy): sensor statistics — 400 days; the “Energy” dashboard — grid input and plugs;
 // outages — what dropped out and how often (“Connectivity”); HA restarted 3.6 days ago (those minutes don't count)
-export const stats = (grid, plugs, outages) => ({
+export const stats = (grid: string[], plugs: string[], outages: DemoStats['outages']): DemoStats => ({
   since: 400,
   restart: 3.6,
   energy: {grid, devices: plugs.map(d => ({statistic: `sensor.${d}_energy`}))},
@@ -174,7 +304,7 @@ export const stats = (grid, plugs, outages) => ({
 });
 
 // Weather (HA layer: weather()): November, 3…11°, fog in the morning, sun in the afternoon, rain in the evening; hours are computed when shown.
-export const WEATHER = {
+export const WEATHER: DemoWeatherProfile = {
   low: 3,
   high: 11,
   sunrise: '07:05',
@@ -208,7 +338,7 @@ export const WEATHER = {
 };
 
 // A lamp with no HA area — to see how the wizard asks “Where is this light?”
-export const NO_AREA_LAMP = {
+export const NO_AREA_LAMP: HaLamp = {
   id: 'test_noarea',
   entity: 'light.test_noarea',
   name: 'Plug-in floor lamp',
@@ -225,7 +355,24 @@ export const NO_AREA_LAMP = {
 // (else behind the sofa), a tiled backsplash behind the kitchen cabinets, tiled bathrooms. Kinds are the editor's (core/surfaces.js:
 // WALL_KINDS, FLOOR_KINDS); room.wall and room.floor are the room's finish, room.wf[i] the finish of its edge i.
 // A wall entry: '#rrggbb' — warm white paint in that color; 'kind' — a finish as it is; {k, tint} — a finish in a color.
-export const STYLES = {
+export type StyleWall = string | EdgeFinish;
+
+/** A style: the walls by room kind (living: for any kind without its own), the accent walls, the bathroom, the floors by room kind. */
+export interface Style {
+  wall: {living: StyleWall; [kind: string]: StyleWall | undefined};
+  /** Behind a bed's headboard, the media wall behind the TV, behind the sofa (no TV), behind the kitchen units, behind a desk. */
+  bed: EdgeFinish;
+  media: EdgeFinish;
+  sofa: EdgeFinish;
+  splash: EdgeFinish;
+  office: EdgeFinish;
+  bath: StyleWall;
+  floor: Partial<Record<string, string>>;
+}
+
+export type StyleName = 'scandi' | 'warm' | 'classic' | 'modern' | 'green' | 'loft' | 'minimal' | 'japandi';
+
+export const STYLES: Record<StyleName, Style> = {
   // light oak, limewash, sage, white zellige
   scandi: {
     wall: {
@@ -435,7 +582,7 @@ export const STYLES = {
     },
   },
 };
-const KIND = [
+const KIND: Array<[string, RegExp]> = [
   ['bath', /bath|wc|toilet|shower/i],
   ['outdoor', /balcon|terrace|patio|garden|porch|loggia/i],
   ['utility', /garage|utility|laundry|shed|boiler|storage|pantry|closet/i],
@@ -446,36 +593,36 @@ const KIND = [
   ['kitchen', /kitchen/i],
   ['bed', /bed|guest room/i],
 ];
-const kindOf = r => KIND.find(([, re]) => re.test(r.name + ' ' + r.id))?.[0] || 'living';
-const BEDS = ['bed', 'bedDouble', 'bedSingle', 'sofaBed'],
-  MEDIA = ['tv', 'tvStand'],
-  SOFAS = ['loungeSofa', 'sofaCorner', 'sofaU'],
-  KITCHEN = ['kitchenBase', 'kitchenSink', 'kitchenHob', 'kitchenCorner', 'kitchenTall', 'dishwasher'];
-const inside = ([x, y], P) => {
-  let c = false;
-  for (let i = 0, j = P.length - 1; i < P.length; j = i++) {
-    const [a, b] = P[i],
-      [u, v] = P[j];
-    if (b > y !== v > y && x < ((u - a) * (y - b)) / (v - b) + a) c = !c;
+const kindOf = (r: Room): string => KIND.find(([, re]) => re.test(r.name + ' ' + r.id))?.[0] || 'living';
+const BEDS = ['bed', 'bedDouble', 'bedSingle', 'sofaBed'];
+const MEDIA = ['tv', 'tvStand'];
+const SOFAS = ['loungeSofa', 'sofaCorner', 'sofaU'];
+const KITCHEN = ['kitchenBase', 'kitchenSink', 'kitchenHob', 'kitchenCorner', 'kitchenTall', 'dishwasher'];
+const inside = ([x, y]: Point, outline: Outline): boolean => {
+  let isInside = false;
+  for (let i = 0, j = outline.length - 1; i < outline.length; j = i++) {
+    const [a, b] = outline[i];
+    const [u, v] = outline[j];
+    if (b > y !== v > y && x < ((u - a) * (y - b)) / (v - b) + a) isInside = !isInside;
   }
-  return c;
+  return isInside;
 };
 // the room edge an item stands with its back to (rot 0 faces south), within 45 cm; or -1
-function backEdge(r, f) {
-  const t = (f.rot * Math.PI) / 180,
-    b = [f.x - (Math.sin(t) * f.d) / 2, f.y + (Math.cos(t) * f.d) / 2],
-    P = r.polygon;
-  let best = -1,
-    bd = 0.45;
-  P.forEach((a, i) => {
-    const c = P[(i + 1) % P.length],
-      dx = c[0] - a[0],
-      dy = c[1] - a[1],
-      l2 = dx * dx + dy * dy || 1,
-      s = Math.max(0, Math.min(1, ((b[0] - a[0]) * dx + (b[1] - a[1]) * dy) / l2)),
-      d = Math.hypot(b[0] - a[0] - s * dx, b[1] - a[1] - s * dy);
-    if (d < bd) {
-      bd = d;
+function backEdge(room: Room, item: FurnitureItem): number {
+  const angle = (item.rot * Math.PI) / 180;
+  const back: Point = [item.x - (Math.sin(angle) * item.d) / 2, item.y + (Math.cos(angle) * item.d) / 2];
+  const outline = room.polygon;
+  let best = -1;
+  let bestDistance = 0.45;
+  outline.forEach((a, i) => {
+    const c = outline[(i + 1) % outline.length];
+    const dx = c[0] - a[0];
+    const dy = c[1] - a[1];
+    const lengthSquared = dx * dx + dy * dy || 1;
+    const along = Math.max(0, Math.min(1, ((back[0] - a[0]) * dx + (back[1] - a[1]) * dy) / lengthSquared));
+    const distance = Math.hypot(back[0] - a[0] - along * dx, back[1] - a[1] - along * dy);
+    if (distance < bestDistance) {
+      bestDistance = distance;
       best = i;
     }
   });
@@ -483,20 +630,20 @@ function backEdge(r, f) {
 }
 // A home can finish a room itself (room.wall, room.floor, room.wallTint, room.wf in its module): the style then fills only what is left.
 // name is a style from STYLES or a style object of the same shape.
-export function dress(plan, name) {
+export function dress(plan: DemoPlan, name: StyleName | Style): DemoPlan {
   const S = typeof name === 'object' ? name : STYLES[name];
   if (!S) return plan;
   for (const r of plan.rooms) {
-    const k = kindOf(r),
-      fs = plan.furniture.filter(f => inside([f.x, f.y], r.polygon)),
-      edge = (f, o) => {
-        const i = f ? backEdge(r, f) : -1;
-        if (i < 0 || r.wt?.[i] === 0) return;
-        r.wf ??= r.polygon.map(() => null);
-        if (!r.wf[i]) r.wf[i] = o;
-      };
+    const k = kindOf(r);
+    const fs = plan.furniture.filter(f => inside([f.x, f.y], r.polygon));
+    const edge = (f: FurnitureItem | undefined, o: EdgeFinish): void => {
+      const i = f ? backEdge(r, f) : -1;
+      if (i < 0 || r.wt?.[i] === 0) return;
+      r.wf ??= r.polygon.map(() => null);
+      if (!r.wf[i]) r.wf[i] = o;
+    };
     const own = {wall: r.wall != null, floor: r.floor != null};
-    const put = w => {
+    const put = (w: StyleWall): void => {
       if (own.wall) return;
       delete r.wallTint;
       if (typeof w === 'object') {
@@ -546,13 +693,15 @@ export function dress(plan, name) {
 // The lamps' state in an example: by day the ceiling lights are off — all of them on flooded every wall with the same warm light and the
 // finishes did not show (the owner: “walls too bright and all the same”); floor, table and desk lamps stay on, a little warmth here and there
 // and so do the strips (a cove, under the cabinets, behind the TV): a line of light that gives depth without flooding the walls
-const COSY = /floor lamp|table lamp|desk lamp|bedside lamp|reading/i,
-  OUT = /garden|patio|terrace|porch|string|outdoor|balcony/i;
-export function daylight(HA, plan) {
+const COSY = /floor lamp|table lamp|desk lamp|bedside lamp|reading/i;
+const OUT = /garden|patio|terrace|porch|string|outdoor|balcony/i;
+export function daylight(HA: DemoHaData, plan: DemoPlan): PlanInput {
   const saved = new Map(plan.lights.map(l => [l.id, l]));
   plan.lights = HA.lights.map(l => ({
     ...(saved.get(l.id) || {id: l.id}),
     on: COSY.test(l.name) || (l.kind === 'strip' && !OUT.test(l.name)),
   }));
-  return plan;
+  // A demo lamp keeps only the points or segments it has (none while it is not placed). Everything that reads plan lamps takes a
+  // missing list as empty, though PlanLight lists both as always there.
+  return plan as PlanInput;
 }

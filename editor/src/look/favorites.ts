@@ -1,4 +1,3 @@
-// @ts-nocheck
 // The “Favorites” card (D-049, “Customize panel”): any HA entities as tiles — what is not in the model: a kettle relay,
 // HA scenes and scripts, a lock, a sensor in the pantry. Only the HA standard, the same for everyone: the look is by domain and device_class,
 // a tap works like an HA tile: light, relay, fan, switch — toggle; scene and script — turn_on; button — press;
@@ -6,6 +5,22 @@
 // a lock and a valve are not toggled from a “Favorites” tile — they have physical consequences, and HA has its own confirmation. No DOM.
 import {t, N, num} from '../i18n/i18n.ts';
 import {MODE_NAMES} from './overview.ts';
+import type {HaEntityItem, HassAttributes, HassEntityState} from '../core/types.ts';
+
+/** A "Favorites" entity: its id, and its domain, class and unit when known (the domain is otherwise the id's). */
+export type FavItem = Pick<HaEntityItem, 'entity'> & Partial<Omit<HaEntityItem, 'entity'>>;
+
+/** What a tap does: toggle, run (scene, script), press (button), cover (open or close), info (the entity's card in HA). */
+export type FavAction = 'toggle' | 'run' | 'press' | 'cover' | 'info';
+
+/** A tile's look: its icon, on, off (unavailable), its text and what a tap does (null: nothing). */
+export interface FavView {
+  icon: string;
+  on: boolean;
+  off: boolean;
+  text: string;
+  action: FavAction | null;
+}
 
 // domains that can be put into “Favorites”
 export const FAV_DOMAINS = [
@@ -32,7 +47,7 @@ export const FAV_DOMAINS = [
   'siren',
 ];
 const TOGGLE = ['light', 'switch', 'fan', 'input_boolean', 'siren', 'humidifier'];
-const ICON = {
+const ICON: Record<string, string> = {
   light: 'bulb',
   switch: 'power',
   fan: 'fan',
@@ -53,7 +68,7 @@ const ICON = {
   water_heater: 'flame',
   siren: 'alert',
 };
-const SENSOR_IC = {
+const SENSOR_IC: Record<string, string> = {
   temperature: 'thermometer',
   humidity: 'droplet',
   carbon_dioxide: 'eye',
@@ -63,7 +78,7 @@ const SENSOR_IC = {
   illuminance: 'sun',
   battery: 'device',
 };
-const BINARY_IC = {
+const BINARY_IC: Record<string, string> = {
   door: 'door',
   garage_door: 'door',
   opening: 'door',
@@ -77,9 +92,9 @@ const BINARY_IC = {
   safety: 'alert',
   problem: 'alert',
 };
-const OPEN = ['door', 'garage_door', 'opening', 'window'],
-  MOTION = ['motion', 'occupancy', 'presence'];
-const VAC = {
+const OPEN = ['door', 'garage_door', 'opening', 'window'];
+const MOTION = ['motion', 'occupancy', 'presence'];
+const VAC: Record<string, string> = {
   cleaning: N('Cleaning'),
   returning: N('Returning to dock'),
   docked: N('Docked'),
@@ -90,11 +105,13 @@ const VAC = {
 
 // item — {entity, name, domain, cls?, unit?}; x — the state as in HA ({state, attributes}) or null
 // → {icon, on, off — unavailable, text, action: toggle | run | press | cover | info}
-export function favView(item, x) {
-  const d = item.domain || item.entity.split('.')[0],
-    A = x?.attributes || {},
-    s = x?.state,
-    cls = item.cls || A.device_class;
+export function favView(item: FavItem, x: HassEntityState | null | undefined): FavView {
+  const d = item.domain || item.entity.split('.')[0];
+  const A: HassAttributes = x?.attributes || {};
+  // no entity: the check below answers before the state is read
+  const s = x?.state ?? '';
+  // no class: none of the classes below
+  const cls = item.cls || A.device_class || '';
   const icon =
     d === 'sensor'
       ? SENSOR_IC[cls] || 'device'
@@ -103,7 +120,7 @@ export function favView(item, x) {
         : d === 'cover' && /blind|shade|shutter/.test(cls || '')
           ? 'blind'
           : ICON[d] || 'device';
-  const action = TOGGLE.includes(d)
+  const action: FavAction = TOGGLE.includes(d)
     ? 'toggle'
     : d === 'scene' || d === 'script'
       ? 'run'
@@ -114,8 +131,8 @@ export function favView(item, x) {
           : 'info';
   if (!x || s === 'unavailable' || s === 'unknown')
     return {icon, on: false, off: true, text: t('Unavailable'), action: action === 'info' ? 'info' : null};
-  let on = false,
-    text = s;
+  let on = false;
+  let text = s;
   if (TOGGLE.includes(d)) {
     on = s === 'on';
     text = on ? t('On|entity') : t('Off|entity');
@@ -154,8 +171,8 @@ export function favView(item, x) {
     text = t(MODE_NAMES[s] || N('On'));
     if (Number.isFinite(A.current_temperature)) text += ` · ${num(A.current_temperature, 1)}°`;
   } else if (d === 'sensor') {
-    const v = Number(s),
-      u = item.unit ?? A.unit_of_measurement;
+    const v = Number(s);
+    const u = item.unit ?? A.unit_of_measurement;
     text =
       Number.isFinite(v) && s !== ''
         ? `${num(Math.abs(v) < 10 && v % 1 ? Math.round(v * 10) / 10 : Math.round(v))}${u ? (u === '%' ? '' : ' ') + u : ''}`
@@ -189,7 +206,11 @@ export function favView(item, x) {
 }
 
 // command on tap → [domain, service] or null (more-info is not a command)
-export function favCommand(item, x, action) {
+export function favCommand(
+  item: FavItem,
+  x: HassEntityState | null | undefined,
+  action: FavAction | null,
+): [string, string] | null {
   const d = item.domain || item.entity.split('.')[0];
   if (action === 'toggle') return [d, 'toggle'];
   if (action === 'run') return [d, 'turn_on'];

@@ -1,4 +1,3 @@
-// @ts-nocheck
 // The dashboard card (D-059): the plan from HA in 3D with the home panel — the editor's “Preview” (editor/look.js, D-047) without
 // the editor. The plan comes from home_twin/plan/subscribe and follows every write; states, commands, history and statistics — the
 // HA layer (editor/ha-live.js). What goes into the 3D is what the editor sends there too (core/plan-scene.js). Out of sight —
@@ -21,13 +20,89 @@ import {haPlanLights, mergePlanLights} from './editor/ha.ts';
 import {createLook} from './editor/look.ts';
 import {t} from './i18n/i18n.ts';
 import {readMode, saveMode, nextMode, isNight, onModeChange} from './core/daynight.ts';
+import type {
+  DayNightMode,
+  HaLayer,
+  Hass,
+  HassMessage,
+  Plan,
+  PlanInput,
+  SensorContext,
+  WallPlan,
+} from './core/types.ts';
 
-let models = null; // furniture models: loaded once per page for every card
-const esc = s =>
-  String(s ?? '').replace(
-    /[&<>"']/g,
-    c => ({'&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'})[c],
-  );
+/** The card's settings in the dashboard's YAML: compact: false — never compact; height — px (a number) or any CSS length. */
+export interface CardConfig {
+  compact?: boolean;
+  height?: number | string;
+}
+
+/** The <home-twin-card> element (card.ts) as the card's 3D and panel use it. */
+export interface CardHost extends HTMLElement {
+  /** Compact: the 3D, the room strip and “Now” (card.ts decides). */
+  readonly compact: boolean;
+}
+
+/** The mounted card (createCard), as card.ts drives it. */
+export interface CardApp {
+  view: CardView;
+  update(hass: Hass): void;
+  config(config: CardConfig | null | undefined): void;
+  pause(): void;
+  resume(): void;
+  destroy(): void;
+}
+
+/** A plan from home_twin/plan/subscribe: the plan in HA (none yet: null) and its revision. */
+interface PlanMessage {
+  plan: PlanInput | null;
+  rev: number;
+}
+
+/** hass.connection.subscribeMessage for home_twin/plan/subscribe, whose messages are PlanMessage. */
+type SubscribePlan = (
+  onMessage: (message: PlanMessage) => void,
+  subscribe: HassMessage,
+) => Promise<() => void>;
+
+// The 3D view's calls that leave arguments out: scene.ts is still untyped, so its inferred signatures want every argument.
+interface ViewCalls {
+  set(plan2d: WallPlan | null, rooms?: Plan['rooms'], openings?: unknown, selected?: unknown): void;
+  setFurniture(items: unknown, selected?: unknown): void;
+}
+type CardView = ReturnType<typeof createView> & ViewCalls;
+
+/** What look.ts expects from the editor, as the card makes it. */
+interface CardEditor {
+  plan: Plan;
+  ha: HaLayer;
+  view: CardView;
+  areaName(id: string): string;
+  sensorCtx(): SensorContext;
+  history: {save(plan: Plan): void};
+  night(): boolean;
+  dayMode(): DayNightMode;
+  toggleNight(): void;
+  themeName(): 'dark' | 'light';
+}
+
+/** The live HA layer (ha-live.ts): the members the demo lacks are there. */
+type LiveHaLayer = HaLayer & Required<Pick<HaLayer, 'update' | 'close'>>;
+
+/** What a drawn part of the scene was last drawn from (JSON): the home view, the lights, the walls, the room mask. */
+type DrawnKeys = Partial<Record<'view' | 'lights' | 'walls' | 'mask', string>>;
+
+let models: Promise<void> | null = null; // furniture models: loaded once per page for every card
+const esc = (s: unknown): string => {
+  const entities: Record<string, string> = {
+    '&': '&amp;',
+    '<': '&lt;',
+    '>': '&gt;',
+    '"': '&quot;',
+    "'": '&#39;',
+  };
+  return String(s ?? '').replace(/[&<>"']/g, c => entities[c]);
+};
 const BOARD = 'home-twin-3d'; // the Home Twin dashboard (card.js, editor/ha-live.js)
 const CSS = `:host{display:block;height:var(--home-twin-height,600px)}:host([compact]){height:var(--home-twin-height,360px)}:host([panel]),:host([grid]){height:100%}
 ha-card{position:relative;display:block;height:100%;overflow:hidden;isolation:isolate}
@@ -41,8 +116,8 @@ ha-card{position:relative;display:block;height:100%;overflow:hidden;isolation:is
 const EXPAND =
   '<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 3h6v6M9 21H3v-6M21 3l-7 7M3 21l7-7"/></svg>';
 // inside the panel (look.js): it is as tall as the card, not as the browser window; settings buttons — administrators only
-const IN_CARD = ':host(.embedded) .shell{height:100%;min-height:0}',
-  NOT_ADMIN = '.layout-open,[data-action=scene-edit]{display:none!important}';
+const IN_CARD = ':host(.embedded) .shell{height:100%;min-height:0}';
+const NOT_ADMIN = '.layout-open,[data-action=scene-edit]{display:none!important}';
 // compact: the model fills the card, “Now” lies over its top, the room strip — over its bottom, nothing else of the panel
 const COMPACT = `:host(.compact) .main{padding:0!important}:host(.compact) .workspace{display:block!important;position:relative;height:100%}
 :host(.compact) .map-card{position:absolute!important;inset:0;height:auto!important;border:0;border-radius:0}
@@ -52,27 +127,30 @@ const COMPACT = `:host(.compact) .main{padding:0!important}:host(.compact) .work
 :host(.compact) .room-strip{display:grid!important;padding:28px 10px 10px!important}
 :host(.compact) .view-controls,:host(.compact) .workspace::before,:host(.compact) .workspace::after{display:none!important}`;
 
-export async function createCard(card, hass0, config0) {
-  let hass = hass0,
-    config = config0;
+export async function createCard(card: CardHost, hass0: Hass, config0: CardConfig): Promise<CardApp> {
+  let hass = hass0;
+  let config = config0;
   const root = card.shadowRoot || card.attachShadow({mode: 'open'});
   root.innerHTML = `<style>${CSS}</style><ha-card><div class="view"></div><div class="empty" hidden></div>
     <button class="open" type="button" title="${esc(t('Open|verb'))}" aria-label="${esc(t('Open|verb'))}">${EXPAND}</button></ha-card>`;
-  const box = root.querySelector('ha-card'),
-    emptyEl = root.querySelector('.empty'),
-    viewEl = root.querySelector('.view');
-  const ha = liveHA(hass);
+  // the markup just above has them all
+  const box = root.querySelector<HTMLElement>('ha-card')!;
+  const emptyEl = root.querySelector<HTMLElement>('.empty')!;
+  const viewEl = root.querySelector<HTMLElement>('.view')!;
+  // ha-live.ts is still untyped: liveHA makes the HA layer
+  const ha = liveHA(hass) as LiveHaLayer;
   models ??= loadKenney(MODELS);
   await models;
-  const view = createView(viewEl);
-  const dark = () => !!hass.themes?.darkMode,
-    sunDown = () => hass.states['sun.sun']?.state === 'below_horizon';
+  // scene.ts is still untyped: ViewCalls are the calls it takes with arguments left out
+  const view = createView(viewEl) as CardView;
+  const dark = (): boolean => !!hass.themes?.darkMode;
+  const sunDown = (): boolean => hass.states['sun.sun']?.state === 'below_horizon';
   // day / night (D-068): auto — by the sun (night after sunset, day after sunrise), or always day, always night; the mode is shared with the
   // editor (core/daynight.js), the button steps through them
-  let dayMode = readMode(),
-    night = isNight(dayMode, sunDown()),
-    themeDark = dark();
-  const showNight = () => {
+  let dayMode = readMode();
+  let night = isNight(dayMode, sunDown());
+  let themeDark = dark();
+  const showNight = (): boolean => {
     const n = isNight(dayMode, sunDown());
     if (n === night) return false;
     night = n;
@@ -83,7 +161,7 @@ export async function createCard(card, hass0, config0) {
   view.setNight(night);
 
   // what look.js expects from the editor
-  const ed = {
+  const ed: CardEditor = {
     plan: migrate({}),
     ha,
     view,
@@ -103,15 +181,15 @@ export async function createCard(card, hass0, config0) {
   const lookRoot = box.querySelector('#look')?.shadowRoot;
   const adminCss = document.createElement('style');
   lookRoot?.append(adminCss);
-  const roles = () => {
+  const roles = (): void => {
     adminCss.textContent = IN_CARD + COMPACT + (hass.user?.is_admin ? '' : NOT_ADMIN);
   };
   roles();
 
   // the model fits into what the panel leaves free; compact — above the room strip
-  const fit = () => {
+  const fit = (): void => {
     if (compact) {
-      const s = lookRoot?.querySelector('.room-strip');
+      const s = lookRoot?.querySelector<HTMLElement>('.room-strip');
       view.setInsets(0, 0, s?.offsetHeight ? s.offsetHeight - 28 : 0);
       return;
     }
@@ -121,11 +199,11 @@ export async function createCard(card, hass0, config0) {
 
   // ---------- compact, and the way to the whole home ----------
   let compact = false;
-  const go = room => {
+  const go = (room?: string): void => {
     history.pushState(null, '', `/${BOARD}/home` + (room ? '?room=' + encodeURIComponent(room) : ''));
     window.dispatchEvent(new CustomEvent('location-changed'));
   };
-  function setCompact(c) {
+  function setCompact(c: boolean): void {
     if (c === compact) return;
     compact = c;
     card.toggleAttribute('compact', c);
@@ -138,9 +216,9 @@ export async function createCard(card, hass0, config0) {
     }
     requestAnimationFrame(fit);
   }
-  root.querySelector('.open').addEventListener('click', () => go());
+  root.querySelector('.open')!.addEventListener('click', () => go()); // in the markup above
   // a tap (not a drag) on the model, a room chip — the whole home
-  let down = null;
+  let down: {x: number; y: number; at: number} | null = null;
   viewEl.addEventListener('pointerdown', e => {
     down = {x: e.clientX, y: e.clientY, at: performance.now()};
   });
@@ -154,7 +232,10 @@ export async function createCard(card, hass0, config0) {
     'click',
     e => {
       if (!compact) return;
-      const chip = e.composedPath().find(n => n.dataset?.action === 'room');
+      // the path also holds the shadow root, the document and the window, which have no dataset
+      const chip = e
+        .composedPath()
+        .find((n): n is HTMLElement => (n as HTMLElement).dataset?.action === 'room');
       if (chip) {
         e.stopImmediatePropagation();
         e.preventDefault();
@@ -164,10 +245,10 @@ export async function createCard(card, hass0, config0) {
     true,
   );
   // opened from a compact card with ?room= — that room's screen, and the address is cleaned
-  function deepLink() {
+  function deepLink(): void {
     if (compact || !framed || !card.isConnected) return;
-    const q = new URLSearchParams(location.search),
-      r = q.get('room');
+    const q = new URLSearchParams(location.search);
+    const r = q.get('room');
     if (!r) return;
     q.delete('room');
     const rest = q.toString();
@@ -177,14 +258,19 @@ export async function createCard(card, hass0, config0) {
   window.addEventListener('location-changed', deepLink);
 
   // ---------- the plan ----------
-  let keys = {},
-    rev = null,
-    mine = null,
-    framed = false;
+  let keys: DrawnKeys = {};
+  let rev: number | null = null;
+  let mine: number | null = null;
+  let framed = false;
   // as the editor loads it: HA lamps reconciled with the plan's (editor/app.js: setPlan)
-  function setPlan(p) {
+  function setPlan(p: PlanInput | null): void {
     ed.plan = migrate(p || {});
-    ed.plan.lights = mergePlanLights(ed.plan.lights, haPlanLights(ha), ha.switches?.() || []);
+    ed.plan.lights = mergePlanLights(
+      ed.plan.lights,
+      haPlanLights(ha),
+      // ha.ts is still untyped: its inferred switches parameter is never[]
+      (ha.switches?.() || []) as Parameters<typeof mergePlanLights>[2],
+    );
     keys = {};
     if (!framed) view.reframe();
     sync();
@@ -192,7 +278,7 @@ export async function createCard(card, hass0, config0) {
     fit();
     deepLink();
   }
-  function sync() {
+  function sync(): void {
     const plan = ed.plan;
     syncRuns(plan);
     syncFurnStrips(plan);
@@ -205,8 +291,8 @@ export async function createCard(card, hass0, config0) {
       view.setHome?.(plan.view);
     }
     live();
-    const placed = plan.lights.filter(l => l.placed),
-      lk = JSON.stringify([placed, plan.rooms]);
+    const placed = plan.lights.filter(l => l.placed);
+    const lk = JSON.stringify([placed, plan.rooms]);
     if (lk !== keys.lights) {
       keys.lights = lk;
       view.setLights(placed, plan.rooms);
@@ -225,16 +311,16 @@ export async function createCard(card, hass0, config0) {
     }
   }
   // what changes with HA states: curtains and doors open, air conditioners blow, readings on the walls
-  function live() {
-    const plan = ed.plan,
-      l = liveScene(plan, ha);
+  function live(): void {
+    const plan = ed.plan;
+    const l = liveScene(plan, ha);
     view.setFurniture(planFurniture(plan, l));
     view.setSensors(planSpots(plan, ed.sensorCtx(), {cam: view.homeCam?.()}));
     view.setClimate?.(l.climate);
     view.setContacts?.(l.contacts);
   }
   // no home yet: say so, and administrators get a way to the editor
-  function empty(on) {
+  function empty(on: boolean): void {
     emptyEl.hidden = !on;
     if (!on) return;
     const admin = !!hass.user?.is_admin;
@@ -247,22 +333,24 @@ export async function createCard(card, hass0, config0) {
     });
   }
   // the panel's own settings (scenes, layout) — into the plan in HA; our own write comes back through the subscription — not reloaded
-  let saveT = 0;
-  function save(p) {
+  let saveT: ReturnType<typeof setTimeout> | number = 0;
+  function save(p: Plan): void {
     if (!hass.user?.is_admin) return;
     clearTimeout(saveT);
     saveT = setTimeout(
       () =>
         hass.callWS({type: 'home_twin/plan/save', plan: p, rev}).then(
           r => {
-            rev = mine = r.rev;
+            // home_twin/plan/save answers with the plan's new revision
+            rev = mine = (r as {rev: number}).rev;
           },
           e => console.warn('Home Twin card:', e),
         ),
       700,
     );
   }
-  const unsubPlan = hass.connection.subscribeMessage(
+  // HA hands a card a hass with its connection; home_twin/plan/subscribe sends a PlanMessage
+  const unsubPlan = (hass.connection!.subscribeMessage as SubscribePlan)(
     m => {
       if (m.rev === mine && m.rev === rev) return;
       rev = m.rev;
@@ -293,20 +381,21 @@ export async function createCard(card, hass0, config0) {
   });
   ro.observe(box);
   // drawing only while it can be seen
-  let shown = true,
-    attached = true;
-  const run = () => (shown && attached ? view.resume() : view.pause());
+  let shown = true;
+  let attached = true;
+  const run = (): void => (shown && attached ? view.resume() : view.pause());
   const io = new IntersectionObserver(es => {
-    shown = es.at(-1).isIntersecting;
+    shown = es.at(-1)!.isIntersecting; // the observer always hands at least one entry
     run();
   });
   io.observe(box);
   applyConfig();
-  function applyConfig() {
+  function applyConfig(): void {
     if (config.height)
       card.style.setProperty(
         '--home-twin-height',
-        /^\d+$/.test(String(config.height)) ? config.height + 'px' : config.height,
+        // a number that is not all digits (12.5) goes in as its text
+        /^\d+$/.test(String(config.height)) ? config.height + 'px' : (config.height as string),
       );
     else card.style.removeProperty('--home-twin-height');
   }
