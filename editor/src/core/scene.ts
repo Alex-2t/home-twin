@@ -83,8 +83,9 @@ export interface ContactSpot {
   id: string;
   a: Point;
   b: Point;
-  bottom: number;
-  top: number;
+  /** The opening's sill and head, metres; older files may lack them (see setContacts). */
+  bottom?: number;
+  top?: number;
   n: Vector;
   open: boolean;
 }
@@ -2186,7 +2187,10 @@ export function createView(host: HTMLElement): SceneView {
       keep.add(c.id);
       let m: THREE.Mesh<THREE.PlaneGeometry, THREE.MeshBasicMaterial> | null | undefined = opens.get(c.id);
       const l = Math.hypot(c.b[0] - c.a[0], c.b[1] - c.a[1]);
-      const hgt = c.top - c.bottom;
+      // An opening without heights (older files) makes the numbers below NaN, as it always did.
+      const bottom = c.bottom as number;
+      const top = c.top as number;
+      const hgt = top - bottom;
       const key = [c.a, c.b, c.bottom, c.top].join();
       if (m && m.userData.key !== key) {
         doorGrp.remove(m);
@@ -2205,12 +2209,12 @@ export function createView(host: HTMLElement): SceneView {
         doorGrp.add(m);
         opens.set(c.id, m);
       }
-      m.position.set((c.a[0] + c.b[0]) / 2, (c.bottom + c.top) / 2, -(c.a[1] + c.b[1]) / 2);
+      m.position.set((c.a[0] + c.b[0]) / 2, (bottom + top) / 2, -(c.a[1] + c.b[1]) / 2);
       m.rotation.set(0, Math.atan2(c.b[1] - c.a[1], c.b[0] - c.a[0]), 0);
       m.userData.side = sideOfLabel({
         c: [(c.a[0] + c.b[0]) / 2, (c.a[1] + c.b[1]) / 2],
         n: c.n,
-        y: c.bottom > 0.3 ? c.bottom - 0.15 : c.top + 0.15,
+        y: bottom > 0.3 ? bottom - 0.15 : top + 0.15,
       });
     } // side comes from the wall under the window or above the door
     for (const [id, m] of opens)
