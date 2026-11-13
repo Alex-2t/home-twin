@@ -17,6 +17,13 @@ New decisions are appended at the top of their section, old ones are not rewritt
 
 ## Decisions
 
+### D-087. The editor is TypeScript, formatted by Prettier — **accepted** (2026-11-13)
+- The owner: “let's do it properly first: move everything to TS, and only then go on”. The editor had grown as plain JavaScript in a dense style, with no types at all, while the AI build that uses its core (the catalog, plan checks, rendering) was already TypeScript and had to describe the editor's modules by hand.
+- **Every hand-written file is `.ts`**: `src/`, the tests, the demo homes, `build.ts`, the tools. Strict `tsc`, no `any`; the shared data shapes (the plan file, Home Assistant's states, the UI's saved state) are in `src/core/types.ts`.
+- **No build step added.** esbuild already bundles the editor and understands TypeScript; Node runs the tests and `build.ts` straight from the `.ts` files. So only erasable syntax is used (no `enum`, `namespace`, parameter properties).
+- **Readable:** Prettier formats the code (`editor/.prettierrc.json`), one statement per line; the rules are in [code-style.md](code-style.md). `npm run check` runs the formatter's check, `tsc` and the tests; CI runs it on Node 24.
+- **Nothing a user sees changed:** the move was checked by the tests and by screenshots of the start screen, plans and 3D views in four languages and on a phone, compared pixel by pixel with the JavaScript version.
+
 ### D-086. A package is bought at the payment provider's checkout and counted only once the service has checked it — **accepted** (2026-11-13)
 - With D-085 the package came free for testing. Now, where the service takes payments, the package is bought: the upload page shows "Buy a package · $20" until this browser holds one, and "Top up · $20" when it is used up; the progress page of a build waiting for money offers the same top-up.
 - **The checkout is the provider's own page:** the browser goes there and comes back to the editor with the payment in the address. The editor never trusts the address: it asks the service, which checks the payment with the provider before it puts the package on, and counts each payment once, however often the page comes back.
