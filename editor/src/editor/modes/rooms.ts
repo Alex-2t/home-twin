@@ -78,12 +78,12 @@ import type {
   WizardProgress,
   ZoneParts,
 } from '../../core/types.ts';
+import type {PlanView2d} from '../view2d.ts';
 import type {
   Aim,
   BannerItem,
   Editor,
   PlanBox,
-  PlanView2d,
   RoomTool,
   RoomsMode,
   RoomsWizardPhase,
@@ -292,8 +292,8 @@ interface FinishCatalog {
   kinds: Record<string, FinishKind>;
   quick: string[];
   groups: Array<[group: string, kinds: string[]]>;
-  swatch(kind: string, tint: string | null): string;
-  base(kind: string, tint: string | null): string;
+  swatch(kind: string, tint?: string | null): string;
+  base(kind: string, tint?: string | null): string;
 }
 
 /**
@@ -305,7 +305,8 @@ interface FinishState {
   key: string;
   title: string;
   cur: string;
-  tint: string | null;
+  /** The custom colour; null or none: the finish's own. */
+  tint: string | null | undefined;
   auto: boolean;
   autoTip: string;
   ai: boolean;
@@ -1950,7 +1951,7 @@ export function roomsMode(ed: Editor): RoomsMode {
       const b = el(
         `<button class="add-row" title="${t('A plan photo to trace rooms over')}">${icon('image', 15)}<span>${t('Plan photo as background')}</span></button>`,
       );
-      b.onclick = () => ed.flows!.pickUnderlay(); // boot.ts sets the flows before any mode runs
+      b.onclick = () => ed.flows.pickUnderlay(); // boot.ts sets the flows before any mode runs
       ub.appendChild(b);
     } else {
       ub.append(
@@ -1998,12 +1999,12 @@ export function roomsMode(ed: Editor): RoomsMode {
       const rot = el(
         `<button class="ib" title="${t('Rotate and move photo')}">${icon('rotate', 15)}</button>`,
       );
-      rot.onclick = () => ed.flows!.moveUnderlay();
+      rot.onclick = () => ed.flows.moveUnderlay();
       const more = el(`<button class="ib" title="${t('More')}">${icon('more', 15)}</button>`);
       more.onclick = () =>
         popover(more, [
-          ['ruler', t('Set scale from a wall'), () => ed.flows!.calibrate()],
-          ['upload', t('Replace…'), () => ed.flows!.pickUnderlay()],
+          ['ruler', t('Set scale from a wall'), () => ed.flows.calibrate()],
+          ['upload', t('Replace…'), () => ed.flows.pickUnderlay()],
           ['trash', t('Remove'), () => ul.clear(), 'bad'],
         ]);
       ub.append(sc, eye, rot, more);
@@ -2400,16 +2401,16 @@ export function roomsMode(ed: Editor): RoomsMode {
   // surfaces.ts is not typed yet: its tables are read by key, and its groups are [name, kinds] pairs
   const FIN: Record<FinishState['type'], FinishCatalog> = {
     floor: {
-      kinds: FLOOR_KINDS as Record<string, FinishKind>,
+      kinds: FLOOR_KINDS,
       quick: FLOOR_QUICK,
-      groups: FLOOR_GROUPS as FinishCatalog['groups'],
+      groups: FLOOR_GROUPS,
       swatch: floorSwatch,
       base: floorBase,
     },
     wall: {
-      kinds: WALL_KINDS as Record<string, FinishKind>,
+      kinds: WALL_KINDS,
       quick: WALL_QUICK,
-      groups: WALL_GROUPS as FinishCatalog['groups'],
+      groups: WALL_GROUPS,
       swatch: wallSwatch,
       base: wallBase,
     },

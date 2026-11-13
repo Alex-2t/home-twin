@@ -35,15 +35,9 @@ import type {
   SensorContext,
   Vector,
 } from '../../core/types.ts';
-import type {
-  CanvasPoint,
-  Editor,
-  PlanPointer,
-  PlanView2d,
-  Selection,
-  SensorSpot,
-  SensorsMode,
-} from '../editor-types.ts';
+import type {PlanView2d} from '../view2d.ts';
+import type {PlacedSensor} from '../../core/sensors.ts';
+import type {CanvasPoint, Editor, PlanPointer, Selection, SensorsMode} from '../editor-types.ts';
 
 /** The nearest wall point (wallAt): the distance to it, its room, the wall's direction and the point, metres. */
 interface SensorWall {
@@ -102,7 +96,7 @@ type CanvasBox = [number, number, number, number];
 
 /** A badge laid out on the canvas: its spot, its length and angle, and its centre. */
 interface PlateItem {
-  sp: SensorSpot;
+  sp: PlacedSensor;
   L: number;
   ang: number;
   X: number;
@@ -249,11 +243,11 @@ export function sensorsMode(ed: Editor): SensorsMode {
   // lands below it; the pointer moved away — separate again. If they still overlap (small zoom) — the one just moved gives way.
   const PH = 20;
   const VG = 3;
-  const pw = (g: CanvasRenderingContext2D, sp: SensorSpot): number =>
+  const pw = (g: CanvasRenderingContext2D, sp: PlacedSensor): number =>
     g.measureText(sp.items[0].text).width + 10;
   function plateAt(
     g: CanvasRenderingContext2D,
-    sp: SensorSpot,
+    sp: PlacedSensor,
     X: number,
     Y: number,
     ang: number,
@@ -291,7 +285,7 @@ export function sensorsMode(ed: Editor): SensorsMode {
       Y1: Y + hy,
     });
   }
-  function column(g: CanvasRenderingContext2D, ss: SensorSpot[], X: number, Y: number, st: Vector): void {
+  function column(g: CanvasRenderingContext2D, ss: PlacedSensor[], X: number, Y: number, st: Vector): void {
     ss.forEach((sp, j) => plateAt(g, sp, X + st[0] * j, Y + st[1] * j, 0, pw(g, sp)));
   } // horizontal: dragging
   const floating = (): CanvasPoint | false | undefined => drag?.moved && !drag.stacked && drag.cur;
@@ -320,7 +314,7 @@ export function sensorsMode(ed: Editor): SensorsMode {
     }
     g.font = `600 10.5px ${FONT}`;
     g.textAlign = 'center';
-    const cols = new Map<string, SensorSpot[]>();
+    const cols = new Map<string, PlacedSensor[]>();
     for (const sp of spots) {
       if (fl?.has(sp.id)) continue;
       if (!cols.has(sp.col)) cols.set(sp.col, []);

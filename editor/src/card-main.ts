@@ -20,16 +20,9 @@ import {haPlanLights, mergePlanLights} from './editor/ha.ts';
 import {createLook} from './editor/look.ts';
 import {t} from './i18n/i18n.ts';
 import {readMode, saveMode, nextMode, isNight, onModeChange} from './core/daynight.ts';
-import type {
-  DayNightMode,
-  HaLayer,
-  Hass,
-  HassMessage,
-  Plan,
-  PlanInput,
-  SensorContext,
-  WallPlan,
-} from './core/types.ts';
+import type {SceneView} from './core/scene.ts';
+import type {Hass, HassMessage, Plan, PlanInput} from './core/types.ts';
+import type {LookEditor} from './editor/editor-types.ts';
 
 /** The card's settings in the dashboard's YAML: compact: false — never compact; height — px (a number) or any CSS length. */
 export interface CardConfig {
@@ -45,7 +38,7 @@ export interface CardHost extends HTMLElement {
 
 /** The mounted card (createCard), as card.ts drives it. */
 export interface CardApp {
-  view: CardView;
+  view: SceneView;
   update(hass: Hass): void;
   config(config: CardConfig | null | undefined): void;
   pause(): void;
@@ -64,30 +57,6 @@ type SubscribePlan = (
   onMessage: (message: PlanMessage) => void,
   subscribe: HassMessage,
 ) => Promise<() => void>;
-
-// The 3D view's calls that leave arguments out: scene.ts is still untyped, so its inferred signatures want every argument.
-interface ViewCalls {
-  set(plan2d: WallPlan | null, rooms?: Plan['rooms'], openings?: unknown, selected?: unknown): void;
-  setFurniture(items: unknown, selected?: unknown): void;
-}
-type CardView = ReturnType<typeof createView> & ViewCalls;
-
-/** What look.ts expects from the editor, as the card makes it. */
-interface CardEditor {
-  plan: Plan;
-  ha: HaLayer;
-  view: CardView;
-  areaName(id: string): string;
-  sensorCtx(): SensorContext;
-  history: {save(plan: Plan): void};
-  night(): boolean;
-  dayMode(): DayNightMode;
-  toggleNight(): void;
-  themeName(): 'dark' | 'light';
-}
-
-/** The live HA layer (ha-live.ts): the members the demo lacks are there. */
-type LiveHaLayer = HaLayer & Required<Pick<HaLayer, 'update' | 'close'>>;
 
 /** What a drawn part of the scene was last drawn from (JSON): the home view, the lights, the walls, the room mask. */
 type DrawnKeys = Partial<Record<'view' | 'lights' | 'walls' | 'mask', string>>;
@@ -137,12 +106,10 @@ export async function createCard(card: CardHost, hass0: Hass, config0: CardConfi
   const box = root.querySelector<HTMLElement>('ha-card')!;
   const emptyEl = root.querySelector<HTMLElement>('.empty')!;
   const viewEl = root.querySelector<HTMLElement>('.view')!;
-  // ha-live.ts is still untyped: liveHA makes the HA layer
-  const ha = liveHA(hass) as LiveHaLayer;
+  const ha = liveHA(hass);
   models ??= loadKenney(MODELS);
   await models;
-  // scene.ts is still untyped: ViewCalls are the calls it takes with arguments left out
-  const view = createView(viewEl) as CardView;
+  const view = createView(viewEl);
   const dark = (): boolean => !!hass.themes?.darkMode;
   const sunDown = (): boolean => hass.states['sun.sun']?.state === 'below_horizon';
   // day / night (D-068): auto — by the sun (night after sunset, day after sunrise), or always day, always night; the mode is shared with the
@@ -161,7 +128,7 @@ export async function createCard(card: CardHost, hass0: Hass, config0: CardConfi
   view.setNight(night);
 
   // what look.js expects from the editor
-  const ed: CardEditor = {
+  const ed: LookEditor = {
     plan: migrate({}),
     ha,
     view,
@@ -265,12 +232,7 @@ export async function createCard(card: CardHost, hass0: Hass, config0: CardConfi
   // as the editor loads it: HA lamps reconciled with the plan's (editor/app.js: setPlan)
   function setPlan(p: PlanInput | null): void {
     ed.plan = migrate(p || {});
-    ed.plan.lights = mergePlanLights(
-      ed.plan.lights,
-      haPlanLights(ha),
-      // ha.ts is still untyped: its inferred switches parameter is never[]
-      (ha.switches?.() || []) as Parameters<typeof mergePlanLights>[2],
-    );
+    ed.plan.lights = mergePlanLights(ed.plan.lights, haPlanLights(ha), ha.switches?.() || []);
     keys = {};
     if (!framed) view.reframe();
     sync();

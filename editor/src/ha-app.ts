@@ -6,14 +6,9 @@ import {liveHA, hassPlans, hassPhotos} from './editor/ha-live.ts';
 import {browserPhotos} from './editor/underlay.ts';
 import {t, setFormats} from './i18n/i18n.ts';
 import {haRouter} from './editor/route.ts';
-import type {Editor} from './boot.ts';
-import type {HaLayer, Hass} from './core/types.ts';
-
-/** The route HA sets on the panel: the panel's own path and the page's path after it (/home-twin, /lights). */
-export interface PanelRoute {
-  prefix?: string;
-  path?: string;
-}
+import type {Hass} from './core/types.ts';
+import type {Editor} from './editor/editor-types.ts';
+import type {PanelRoute, PanelRouter} from './editor/route.ts';
 
 /** The <home-twin-panel> element (ha-panel.ts) as the editor reads it. */
 export interface PanelHost {
@@ -23,20 +18,14 @@ export interface PanelHost {
 
 /** The editor in the panel, as ha-panel.ts drives it: a new route, a new hass. */
 export interface PanelApp {
-  route: ReturnType<typeof haRouter>['route'];
+  route: PanelRouter['route'];
   update(h: Hass): void;
 }
 
-// The options hassPlans and hassPhotos take, as ha-live.ts (still untyped) infers them.
-type PlansOptions = Parameters<typeof hassPlans>[1];
-type PhotosOptions = Parameters<typeof hassPhotos>[1];
-
-// The live HA layer (ha-live.ts): it has the update the demo lacks.
-type LiveHaLayer = HaLayer & Required<Pick<HaLayer, 'update'>>;
-
 export async function start(panel: PanelHost): Promise<PanelApp> {
-  // ha-live.ts is still untyped: liveHA makes the HA layer
-  const ha = liveHA(panel.hass) as LiveHaLayer;
+  // the panel starts the editor once HA has given it hass (ha-panel.ts), and HA never takes it back
+  const hass = (): Hass => panel.hass!;
+  const ha = liveHA(hass());
   let ed: Editor | null = null;
   let asked = false;
   // the plan was changed in another window (or edits that did not reach HA last time clash with it) — take that one or write ours over it;
@@ -65,9 +54,8 @@ export async function start(panel: PanelHost): Promise<PanelApp> {
     ]);
   };
   const status = (): void => ed?.syncSave?.();
-  // ha-live.ts is still untyped: hassPlans and hassPhotos infer their options from the one with a default
-  const plans = hassPlans(() => panel.hass, {onConflict: ask, onStatus: status} as PlansOptions);
-  const photos = hassPhotos(() => panel.hass, {local: browserPhotos, onStatus: status} as PhotosOptions);
+  const plans = hassPlans(hass, {onConflict: ask, onStatus: status});
+  const photos = hassPhotos(hass, {local: browserPhotos, onStatus: status});
   // the page in the panel's path (/home-twin/lights …, D-066): HA sets route on the panel, ha-panel.js passes it on
   const router = haRouter(panel);
   ed = await boot({ha, plans, photos, router});

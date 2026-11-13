@@ -21,7 +21,8 @@ import {el} from '../ui.ts';
 import {icon} from '../icons.ts';
 import {pal} from './typed-helpers.ts';
 import type {Opening, OpeningKind, Plan, Point, Room, Vector, WallStretch} from '../../core/types.ts';
-import type {Editor, PlanBox, PlanView2d, RoomTool, Selection} from '../editor-types.ts';
+import type {PlanView2d} from '../view2d.ts';
+import type {Editor, PlanBox, RoomTool, Selection} from '../editor-types.ts';
 
 /** What the pointer is over: an opening; on the selected one's ends, the end that stretches (0: its start, 1: its end). */
 export interface OpeningHit {

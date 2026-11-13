@@ -18,11 +18,14 @@ export interface BuiltinCard {
   about: string;
 }
 
+/** A built-in card of the overview: it always has its dashboard section. */
+export type OverviewCard = BuiltinCard & {sel: string};
+
 /** A "Favorites" card. */
 export type FavCard = Extract<PanelCard, {type: 'entities'}>;
 
 // built-in cards in default order: sel — the dashboard section, about — what is in it (one line in the settings)
-export const BUILTIN: BuiltinCard[] = [
+export const BUILTIN: OverviewCard[] = [
   {id: 'now', sel: '.now-panel', name: N('Now'), icon: 'eye', about: N('What’s on and open')},
   {id: 'scenes', sel: '.scenes-panel', name: N('Scenes'), icon: 'sparkle', about: N('Home, Away, Night')},
   {
@@ -72,7 +75,10 @@ export const ROOM_BUILTIN: BuiltinCard[] = [
 export const isFav = (c: PanelCard | null | undefined): c is FavCard => c?.type === 'entities';
 
 // saved layout → cards in order: [{id} | {id, type, title, entities}]; builtin — overview or room screen
-export function resolveLayout(saved: PanelLayout | null | undefined, builtin = BUILTIN): PanelCard[] {
+export function resolveLayout(
+  saved: PanelLayout | null | undefined,
+  builtin: BuiltinCard[] = BUILTIN,
+): PanelCard[] {
   const IDS = builtin.map(c => c.id);
   const seen = new Set<string>();
   const out: PanelCard[] = [];
@@ -107,7 +113,7 @@ export function resolveLayout(saved: PanelLayout | null | undefined, builtin = B
 }
 
 // cards → what to save into the plan; same as default — null (nothing in the plan, the dashboard follows the version)
-export function layoutToSave(cards: PanelCard[], builtin = BUILTIN): PanelLayout | null {
+export function layoutToSave(cards: PanelCard[], builtin: BuiltinCard[] = BUILTIN): PanelLayout | null {
   const IDS = builtin.map(c => c.id);
   const plain = cards.map((c): PanelCard =>
     isFav(c) ? {id: c.id, type: 'entities', title: c.title, entities: [...c.entities]} : {id: c.id},
@@ -118,7 +124,7 @@ export function layoutToSave(cards: PanelCard[], builtin = BUILTIN): PanelLayout
 }
 
 // what can be added: removed built-ins and a new “Favorites”
-export const addable = (cards: PanelCard[], builtin = BUILTIN): string[] => [
+export const addable = (cards: PanelCard[], builtin: BuiltinCard[] = BUILTIN): string[] => [
   ...builtin.filter(b => !cards.some(c => c.id === b.id)).map(b => b.id),
   'entities',
 ];
@@ -133,14 +139,19 @@ export function placeCard(cards: PanelCard[], item: PanelCard, index: number): P
   rest.splice(Math.max(0, Math.min(index, rest.length)), 0, item);
   return rest;
 }
-// remove an entity from the “Favorites” card from
-export const removeEntity = (cards: PanelCard[], entity: string, from: string | null): PanelCard[] =>
+// remove an entity from the “Favorites” card from (none: from no card)
+export const removeEntity = (
+  cards: PanelCard[],
+  entity: string,
+  from: string | null | undefined,
+): PanelCard[] =>
   cards.map(c => (c.id === from && isFav(c) ? {...c, entities: c.entities.filter(e => e !== entity)} : c));
-// an entity goes into the “Favorites” card at position index (among its other tiles); from another card — it moves over
+// an entity goes into the “Favorites” card at position index (among its other tiles); from another card — it moves over;
+// no card: none takes it
 export function placeEntity(
   cards: PanelCard[],
   entity: string,
-  card: string,
+  card: string | undefined,
   index: number,
   from: string | null = null,
 ): PanelCard[] {

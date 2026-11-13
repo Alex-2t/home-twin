@@ -14,10 +14,10 @@ import {devPanel} from './editor/devpanel.ts';
 import {translateDom} from './i18n/i18n.ts';
 import {loadKenney, thumbnails} from './core/furniture3d.ts';
 import {MODELS} from './gen/models.gen.js';
-import type {createUnderlay, browserPhotos} from './editor/underlay.ts';
-import type {hashRouter, haRouter} from './editor/route.ts';
-import type {hassPhotos} from './editor/ha-live.ts';
-import type {HaLayer, Plan, PlanInput, PlanLight, WizardProgress} from './core/types.ts';
+import type {PhotoStore} from './editor/underlay.ts';
+import type {Router} from './editor/route.ts';
+import type {HaLayer, Plan, PlanInput, PlanLight} from './core/types.ts';
+import type {Editor, EditorFlows} from './editor/editor-types.ts';
 
 /** A start screen example (D-062): its id, its plan and its plan photo (null: none). */
 export interface StartExample {
@@ -26,64 +26,23 @@ export interface StartExample {
   underlay: unknown;
 }
 
-/** Where else the plan is stored (ha-live.ts hassPlans): the plan there, given the browser's; and every save. */
+/**
+ * Where else the plan is stored (ha-live.ts hassPlans): the plan there, given the browser's; and every save. The plans it
+ * hands over are unchecked.
+ */
 export interface PlanStore {
-  load(local: PlanInput | null): Promise<{plan?: PlanInput | null} | null>;
+  load(local: unknown): Promise<{plan?: unknown} | null>;
   save(plan: Plan): void;
 }
-
-/** A banner button: its label, what it does, and whether it is the main one. */
-export type BannerButton = [label: string, run: () => void, primary?: boolean];
-
-/** The start screen and the steps (flows.ts createFlows), as boot and the entry points use them. */
-export interface BootFlows {
-  resume(): void;
-  showStart(options: {canContinue: boolean}): void;
-  /** Offers the AI build: setup fills in the start screen's card for it. */
-  offerAi(setup: (card: Element) => void): void;
-}
-
-// app.ts is still untyped: createApp adds these to the editor after making it, so its inferred type lacks them (and its banner wants
-// both arguments)
-interface BootEditorMembers {
-  flows: BootFlows;
-  thumbs: ReturnType<typeof thumbnails>;
-  history: {
-    load(): PlanInput | null;
-    save(plan: Plan): boolean;
-    ready: Promise<void>;
-    lastAt(): number | null;
-    flush(): void;
-  };
-  underlay: ReturnType<typeof createUnderlay>;
-  wizard: {set(planId: string | undefined, progress: WizardProgress | null): void};
-  setPlan(plan: PlanInput, options?: {fit?: boolean}): void;
-  versions: {
-    ready(): Promise<void>;
-    mark(kind: string, what?: string | null, options?: {at?: number | null}): Promise<unknown>;
-  };
-  banner(text?: string, buttons?: BannerButton[]): void;
-  /** Shows whether the plan is saved. */
-  syncSave(): void;
-  applyTheme(): void;
-  /** In HA: whether HA has everything ('saved', 'offline', 'conflict'…). */
-  remote?: () => string;
-}
-
-// what createFlows takes, as flows.ts (still untyped) infers it
-type FlowsOptions = Parameters<typeof createFlows>[1];
-
-/** The editor as boot makes it. */
-export type Editor = ReturnType<typeof createApp> & BootEditorMembers;
 
 /** What boot is given (the list at the top of this file). */
 export interface BootOptions {
   ha: HaLayer;
   examples?: StartExample[];
   example?: string | null;
-  router?: ReturnType<typeof hashRouter> | ReturnType<typeof haRouter> | null;
+  router?: Router | null;
   plans?: PlanStore | null;
-  photos?: typeof browserPhotos | ReturnType<typeof hassPhotos>;
+  photos?: PhotoStore;
   onApp?: ((ed: Editor) => void) | null;
   dev?: boolean;
 }
@@ -91,7 +50,7 @@ export interface BootOptions {
 declare global {
   interface Window {
     /** The editor and its steps, for checks in the browser's console. */
-    editor?: {ed: Editor; flows: BootFlows};
+    editor?: {ed: Editor; flows: EditorFlows};
   }
 }
 
@@ -107,20 +66,19 @@ export async function boot({
 }: BootOptions): Promise<Editor> {
   const haLights = (): PlanLight[] => haPlanLights(ha);
   translateDom(document.body); // static markup — in the user's language
-  // still untyped: see BootEditorMembers
-  const ed = createApp({haLights, ha, photos}) as Editor;
+  const ed = createApp({haLights, ha, photos});
   onApp?.(ed);
-  // flows.ts is still untyped: createFlows infers its options from their defaults and gives back {}
-  const flows = createFlows(ed, {examples, example, router} as FlowsOptions) as BootFlows;
+  const flows = createFlows(ed, {examples, example, router});
   ed.flows = flows;
   await loadKenney(MODELS);
   ed.thumbs = thumbnails();
   // plan: from HA (if available), otherwise the one saved in the browser; every browser save is sent there too
   // (plans.load gets the browser's plan: changes that did not reach HA last time — no connection — are not lost)
+  // the plans come unchecked: canContinue below asks for a list of rooms, and setPlan migrates the rest
   let saved: PlanInput | null = null;
   if (plans) {
     try {
-      saved = (await plans.load(ed.history.load()))?.plan || null;
+      saved = ((await plans.load(ed.history.load()))?.plan || null) as PlanInput | null;
     } catch {}
     const local = ed.history.save;
     ed.history.save = p => {
@@ -128,7 +86,7 @@ export async function boot({
       return local(p);
     };
   }
-  saved ??= ed.history.load();
+  saved ??= ed.history.load() as PlanInput | null;
   const canContinue = !!(saved && Array.isArray(saved.rooms));
   if (canContinue) {
     await ed.underlay.load();

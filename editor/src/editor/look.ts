@@ -25,79 +25,52 @@ import {overview} from '../core/overview.ts';
 import {acView, coverView} from '../core/devices.ts';
 import {metricOf, isClimate, fitsAuto} from '../core/sensors.ts';
 import {
-  activeChips as untypedActiveChips,
+  activeChips,
   climateTile,
-  lightTile as untypedLightTile,
+  lightTile,
   roomLine,
   dayLine,
   homeRange,
-  MODE_NAMES as UNTYPED_MODE_NAMES,
+  MODE_NAMES,
 } from '../look/overview.ts';
 import {renderAC} from '../look/ac-control.ts';
 import {sparkline, METRICS, metricColor} from '../look/history.ts';
 import {weatherNow, forecastSlots, degrees} from '../look/weather.ts';
-import {
-  SCENES,
-  sceneDevices as untypedSceneDevices,
-  scenePlan,
-  sceneDraft as untypedSceneDraft,
-  executeScene,
-} from '../look/scenes.ts';
-import {
-  securityDevices as untypedSecurityDevices,
-  securityAlerts,
-  leakView as untypedLeakView,
-  waterView as untypedWaterView,
-  valveCommand as untypedValveCommand,
-} from '../look/security.ts';
+import {SCENES, sceneDevices, scenePlan, sceneDraft, executeScene} from '../look/scenes.ts';
+import {securityDevices, securityAlerts, leakView, waterView, valveCommand} from '../look/security.ts';
 import {drawDemoFeed, openCameraPreview} from '../look/camera.ts';
-import {
-  vacuumDevices as untypedVacuumDevices,
-  vacuumStatus,
-  vacuumButton,
-  vacuumHomeEnabled,
-  vacuumCommand,
-} from '../look/vacuum.ts';
-import {roomOfArea as untypedRoomOfArea} from '../core/sensors.ts';
-import {
-  SECTIONS as STATS,
-  availableSections,
-  loadSection,
-  sectionMap as untypedSectionMap,
-  energySources as untypedEnergySources,
-} from '../look/stats.ts';
+import {vacuumDevices, vacuumStatus, vacuumButton, vacuumHomeEnabled, vacuumCommand} from '../look/vacuum.ts';
+import {roomOfArea} from '../core/sensors.ts';
+import {SECTIONS as STATS, availableSections, loadSection, sectionMap, energySources} from '../look/stats.ts';
 import {energyTileMarkup, sectionTilesMarkup, statsViewMarkup, statsTip} from '../look/stats-view.ts';
 import {labelPoint} from '../core/geometry.ts';
 import {
   BUILTIN,
   ROOM_BUILTIN,
-  isFav as untypedIsFav,
-  resolveLayout as untypedResolveLayout,
-  layoutToSave as untypedLayoutToSave,
-  addable as untypedAddable,
-  newFav as untypedNewFav,
+  isFav,
+  resolveLayout,
+  layoutToSave,
+  addable,
+  newFav,
   move,
   placeCard,
-  placeEntity as untypedPlaceEntity,
+  placeEntity,
   removeEntity,
-  entityCard as untypedEntityCard,
+  entityCard,
   addEntity,
 } from '../look/layout.ts';
 import {FAV_DOMAINS, favView, favCommand} from '../look/favorites.ts';
 import {tipWanted} from '../core/daynight.ts';
 import {dayNightTip} from './daynight-tip.ts';
 import type {
-  HaDevice,
   HaEnergyPrefs,
   HaEntityItem,
   HaSensor,
-  HaLayer,
   HassEntityState,
   HomeView,
   LightForm,
   OverviewRoom,
   PanelCard,
-  Plan,
   PlanLight,
   Point,
   Outline,
@@ -108,18 +81,17 @@ import type {
   RoomKind,
   SceneSetting,
 } from '../core/types.ts';
+import type {Chip, ClimateTile, LightTile, RoomReadings} from '../look/overview.ts';
+import type {SceneChoice, SceneDevice, SceneStep} from '../look/scenes.ts';
+import type {SecurityDevices} from '../look/security.ts';
+import type {VacuumAction, VacuumDevice} from '../look/vacuum.ts';
+import type {BuiltinCard, FavCard} from '../look/layout.ts';
+import type {EnergyStats, HealthEntity, SectionData, SectionId, StatsSources} from '../look/stats.ts';
+import type {Charts} from '../look/stats-view.ts';
+import {find} from './ui.ts';
 import type {LookEditor, LookPanel} from './editor-types.ts';
 
-// ---------- what Preview reads of the card's rules (look/*.ts) ----------
-// look/*.ts and core/sensors.ts are not typed yet: the shapes below are what Preview hands them and gets back, and the functions whose
-// parameters their defaults typed too narrowly are given their signatures here. Once those modules are typed, their own types replace these.
-
-/** A room's climate numbers for the card's rules (3d_floor): rounded; null where there is no sensor. */
-interface ClimateNumbers {
-  temperature: number | null;
-  humidity: number | null;
-  co2: number | null;
-}
+// ---------- what Preview makes of the card's rules (look/*.ts) ----------
 
 /** A lamp of a room as the card shows it: its kind for the power button, and its state from HA (or the plan). */
 interface LookLamp {
@@ -131,27 +103,16 @@ interface LookLamp {
   status: string;
 }
 
-/** The climate tile's look of an air conditioner or a heater (look/overview.ts climateTile). */
-type ClimateTileView = ReturnType<typeof climateTile>;
-
 /** An air conditioner or a heater of a room as the card shows it; a: what devices.ts says of it. */
 interface LookClimate {
   id: string;
   name: string;
   label: string;
   heater: boolean;
-  view: ClimateTileView;
+  view: ClimateTile;
   canPower: boolean;
   mode: string | undefined;
   a: RoomAc;
-}
-
-/** The room lights tile (look/overview.ts lightTile): its state and caption, how many are lit, and what its button does. */
-interface LightTileView {
-  state: string;
-  status: string;
-  lit: number;
-  power: {on: boolean; ids: string[]} | null;
 }
 
 /** A room of the card: the overview room with its short name, its sensors, lamps, lights tile, climate devices and covers. */
@@ -159,7 +120,7 @@ type LookRoom = Omit<OverviewRoom, 'climate' | 'lamps'> & {
   short: string;
   sens: RoomClimate;
   lamps: LookLamp[];
-  light: LightTileView | null;
+  light: LightTile | null;
   climate: LookClimate[];
   covers: RoomCover[];
 };
@@ -167,122 +128,14 @@ type LookRoom = Omit<OverviewRoom, 'climate' | 'lamps'> & {
 /** What the card shows: its rooms, and their climate numbers by room id. */
 interface LookModel {
   rooms: LookRoom[];
-  climate: Record<string, ClimateNumbers>;
-}
-
-/** A “Now” chip (look/overview.ts activeChips): one kind of running device, the rooms it is in, and the devices. */
-interface NowChip {
-  key: string;
-  kind: string;
-  icon: string;
-  label: string;
-  count: number | null;
-  rooms: string[];
-  devices: Array<{id: string; room?: string | null}>;
-  tone: string | null;
-}
-
-/** What activeChips is given: the devices that may be running, the alerts, the rooms and their climate. */
-interface ChipsInput {
-  lights: Array<{id: string; room: string; on: boolean}>;
-  acs: Array<{id: string; room: string; on: boolean; mode: string | undefined}>;
-  covers: Array<{id: string; room: string; open: boolean}>;
-  open: Array<{id: string; room: string; name: string; icon: string}>;
-  alerts?: unknown;
-  water?: unknown;
-  vacuum: Array<{id: string; room: string | null; cleaning: boolean}>;
-  rooms: LookRoom[];
-  climate: Record<string, ClimateNumbers>;
-}
-
-/** The camera of “Security”: its entity, name, room, whether it answers, and the frame's path. */
-interface SecurityCamera {
-  entity: string;
-  name: string;
-  room: string | null;
-  ok: boolean;
-  picture: string | null;
-}
-
-/** A water valve of “Security” (a valve or a cover): its state in HA. */
-interface WaterValve {
-  entity: string;
-  domain: string;
-  name: string;
-  room: string | null;
-  status: string;
-  value: string | null;
-}
-
-/** A leak sensor of “Security”: its room, caption, state, battery, “battery low” and since when it is silent. */
-interface LeakSensor {
-  entity: string;
-  room: string | null;
-  label: string;
-  state: string;
-  battery: number | null;
-  low: boolean;
-  since: number | null;
-}
-
-/** “Security” (look/security.ts securityDevices). */
-interface SecurityState {
-  camera: SecurityCamera | null;
-  water: WaterValve[];
-  leaks: LeakSensor[];
-}
-
-/** The valve tile: its state, caption, and what a tap does (null: nothing). */
-interface WaterTileView {
-  state: string;
-  text: string;
-  action: string | null;
-}
-
-/** A robot vacuum (look/vacuum.ts vacuumDevices): its room, whether it answers, what it is doing, what it allows. */
-interface VacuumDevice {
-  entity: string;
-  name: string;
-  room: string | null;
-  roomName?: string;
-  status: string;
-  activity: string;
-  allowed: string[];
-}
-
-/** A device a scene can set (look/scenes.ts sceneDevices): its settings key, kind, id, name and room. */
-interface SceneDevice {
-  key: string;
-  kind: string;
-  id: string;
-  name?: string;
-  room: string;
+  climate: Record<string, RoomReadings>;
 }
 
 /** A scene's draft in “Customize”: per device key, its action ('keep': no change). */
-type SceneDraft = Record<string, {action: SceneSetting['action'] | 'keep'}>;
+type SceneDraft = Record<string, SceneChoice>;
 
 /** The scenes' own settings (plan.scenes), read by a scene's id. */
 type SceneSettings = Partial<Record<string, Record<string, SceneSetting>>>;
-
-/** One command of a running scene (look/scenes.ts scenePlan). */
-interface SceneStep {
-  kind: string;
-  id: string;
-  action: string;
-}
-
-/** A built-in card of the dashboard or of a room screen (look/layout.ts BUILTIN, ROOM_BUILTIN); sel: the overview's section. */
-interface BuiltinCard {
-  id: string;
-  name: string;
-  icon: string;
-  about: string;
-  sel?: string;
-}
-
-/** A “Favorites” card: its title and entities. */
-type FavCard = Extract<PanelCard, {type: 'entities'}>;
 
 /** “Customize panel” open: the draft cards, what is empty now, the search in the shade, the room (null: the overview), its built-ins. */
 interface LayoutDraft {
@@ -319,39 +172,18 @@ interface DragState {
   target?: DropTarget | null;
 }
 
-/** An entity the connectivity statistics watch: a lamp, a device or a room sensor, with its room and device. */
-interface HealthSource {
-  entity: string;
-  name: string;
-  room: string | null;
-  device: string | null;
-}
-
 /** An entity a “Favorites” tile shows: from HA's list, or only its id (then its name is the id and it has no area). */
 type FavItem = Omit<HaEntityItem, 'area'> & {area?: string | null};
 
-/** A section's data for a period (look/stats.ts loadSection); null: it failed to load. */
-type StatsData = Awaited<ReturnType<typeof loadSection>>;
-
-/** A chart of the statistics screen, for its tooltips (look/stats-view.ts). */
-interface StatsChart {
-  kind: string;
-  values: number[];
-  max: number;
-}
-
-/** The statistics' sources by section id (look/stats.ts): climate sensors per room, energy meters, the model's entities. */
-type StatsSources = Record<string, unknown>;
-
 /** “Statistics”: data by “section:period:sources”, what loads, what is open, the charts, the markup shown, the room pins. */
 interface StatsState {
-  data: Map<string, {at: number; data: StatsData | null}>;
+  data: Map<string, {at: number; data: SectionData | null}>;
   loading: Set<string>;
-  section: string;
+  section: SectionId;
   period: string;
   room: string | null;
-  charts: Record<string, StatsChart>;
-  shown: StatsData | null;
+  charts: Charts;
+  shown: SectionData | null;
   html: string;
   tile: string;
   pinHtml: string;
@@ -361,67 +193,6 @@ interface StatsState {
   raf: number;
   pins: Map<string, {poly: Outline; at: Point}>;
 }
-
-const activeChips = untypedActiveChips as (input: ChipsInput) => NowChip[];
-const lightTile = untypedLightTile as (lamps: LookLamp[]) => LightTileView;
-const MODE_NAMES: Record<string, string> = UNTYPED_MODE_NAMES;
-const securityDevices = untypedSecurityDevices as unknown as (
-  ha: LookEditor['ha'],
-  room: (area: string | null) => LookRoom | null,
-) => SecurityState;
-const leakView = untypedLeakView as unknown as (sensors: LeakSensor[]) => ReturnType<typeof untypedLeakView>;
-const waterView = untypedWaterView as unknown as (
-  valve: WaterValve & {pending?: boolean; confirm?: boolean},
-) => WaterTileView;
-const valveCommand = untypedValveCommand as (valve: WaterValve, action: string) => [string, string];
-const vacuumDevices = untypedVacuumDevices as unknown as (
-  ha: LookEditor['ha'],
-  room: (area: string | null) => LookRoom | null,
-) => VacuumDevice[];
-const roomOfArea = untypedRoomOfArea as (
-  plan: Pick<Plan, 'rooms'>,
-  area: string | null | undefined,
-) => Room | null;
-const sceneDevices = untypedSceneDevices as unknown as (rooms: LookRoom[]) => SceneDevice[];
-const sceneDraft = untypedSceneDraft as (
-  id: string,
-  devices: SceneDevice[],
-  settings?: Record<string, SceneSetting>,
-) => SceneDraft;
-const sectionMap = untypedSectionMap as (id: string, data: StatsData) => Record<string, {label: string}>;
-const energySources = untypedEnergySources as unknown as (
-  prefs: HaEnergyPrefs | null | undefined,
-  o: {room: (statistic: string) => LookRoom | null; name: (statistic: string) => string},
-) => unknown;
-const isFav = untypedIsFav as (card: PanelCard | null | undefined) => card is FavCard;
-const resolveLayout = untypedResolveLayout as unknown as (
-  saved: unknown,
-  builtin?: BuiltinCard[],
-) => PanelCard[];
-const layoutToSave = untypedLayoutToSave as unknown as (
-  cards: PanelCard[],
-  builtin: BuiltinCard[],
-) => Plan['panel'] | null;
-const addable = untypedAddable as unknown as (cards: PanelCard[], builtin: BuiltinCard[]) => string[];
-const newFav = untypedNewFav as (cards: PanelCard[], title: string) => FavCard;
-const placeEntity = untypedPlaceEntity as (
-  cards: PanelCard[],
-  entity: string,
-  card: string | undefined,
-  index: number,
-  from: string | null,
-) => PanelCard[];
-const entityCard = untypedEntityCard as (
-  cards: PanelCard[],
-  entity: string,
-  index: number,
-  title: string,
-  from: string | null,
-) => PanelCard[];
-
-// One element of our own markup inside root, typed as present like ui.ts $ (a missing one fails at its first use)
-const find = <ElementType extends Element = HTMLElement>(root: ParentNode, selector: string): ElementType =>
-  root.querySelector(selector) as ElementType;
 
 // the characters escape replaces, and with what
 const HTML_ESCAPES: Record<string, string> = {
@@ -647,7 +418,7 @@ export function createLook(ed: LookEditor, host0: HTMLElement): LookPanel {
   const nav = new Navigation();
   let on = false;
   let unsub: (() => void) | null = null;
-  let chips: NowChip[] = [];
+  let chips: Chip[] = [];
   let flashT: ReturnType<typeof setTimeout> | 0 = 0;
   let wxT: ReturnType<typeof setInterval> | 0 = 0;
   // “Customize”: which scene is open, drafts per scene; a scene is running
@@ -659,7 +430,7 @@ export function createLook(ed: LookEditor, host0: HTMLElement): LookPanel {
   let lay: LayoutDraft | null = null;
   let dnd: DragState | null = null;
   // “Security”: devices; the valve asks {entity, action}; commands in flight
-  let sec: SecurityState = {camera: null, water: [], leaks: []};
+  let sec: SecurityDevices = {camera: null, water: [], leaks: []};
   let vac: VacuumDevice[] = [];
   let ask: {entity: string; action: string} | null = null;
   let askT: ReturnType<typeof setTimeout> | 0 = 0;
@@ -688,7 +459,7 @@ export function createLook(ed: LookEditor, host0: HTMLElement): LookPanel {
   // ---------- data: our plan and the HA layer → what the 3d_floor rules expect ----------
   function model(): LookModel {
     const R = overview(ed.plan, ed.sensorCtx(), ed.areaName, ed.ha);
-    const climate: Record<string, ClimateNumbers> = {};
+    const climate: Record<string, RoomReadings> = {};
     for (const r of R) {
       const c = r.climate;
       climate[r.id] = {
@@ -831,7 +602,8 @@ export function createLook(ed: LookEditor, host0: HTMLElement): LookPanel {
         for (const d of r.climate.filter(d => d.view.state === 'on'))
           on.push({
             kind: `climate mode-${d.view.tone}`,
-            icon: d.view.icon,
+            // a running device's tile has its icon (look/overview.ts climateTile)
+            icon: d.view.icon!,
             label: d.heater
               ? d.name.toLowerCase()
               : // a missing mode reads no name
@@ -879,8 +651,9 @@ export function createLook(ed: LookEditor, host0: HTMLElement): LookPanel {
     // air conditioner and boiler — the same round buttons, but at the edge; when running — the mode icon and color
     const power = (d: LookClimate): string => {
       const o = d.view.state === 'on';
+      // a running device's tile has its icon (look/overview.ts climateTile)
       return `<button class="ltile-lamp ac${o ? ' on mode-' + d.view.tone : ''}${d.heater ? ' heater' : ''}" data-action="ctile-power" data-id="${escape(d.id)}" aria-pressed="${o}"
-        aria-label="${escape(d.name)}: ${o ? t('turn off') : t('turn on')}" data-tip="${escape(d.name)}" ${d.canPower ? '' : 'disabled'}>${icon(o ? d.view.icon : d.heater ? 'flame' : 'wind')}</button>`;
+        aria-label="${escape(d.name)}: ${o ? t('turn off') : t('turn on')}" data-tip="${escape(d.name)}" ${d.canPower ? '' : 'disabled'}>${icon(o ? d.view.icon! : d.heater ? 'flame' : 'wind')}</button>`;
     };
     const step = (d: LookClimate, dir: number, label: string, text: string): string =>
       `<button class="ctile-step" data-action="ctile-step" data-id="${escape(d.id)}" data-step="${dir}" aria-label="${escape(d.name)}: ${label}" data-tip="${label[0].toUpperCase() + label.slice(1)}">${text}</button>`;
@@ -908,7 +681,7 @@ export function createLook(ed: LookEditor, host0: HTMLElement): LookPanel {
 
   // ---------- “Security” — as in 3d_floor/card.js (watchMarkup, updateLeaks, updateWatch, waterPress, refreshCamera) ----------
   // devices come from the HA layer by kind; a sensor's room comes from its area
-  function secOf(M: LookModel): SecurityState {
+  function secOf(M: LookModel): SecurityDevices {
     return securityDevices(ed.ha, a => {
       const r = roomOfArea(ed.plan, a);
       return r ? M.rooms.find(x => x.id === r.id) || null : null;
@@ -998,7 +771,8 @@ export function createLook(ed: LookEditor, host0: HTMLElement): LookPanel {
     const time = find(tile, '.cam-time');
     const stamp = (): string => clock(new Date(), {second: '2-digit'});
     if (ed.ha?.demo) {
-      drawDemoFeed(find<HTMLCanvasElement>(tile, 'canvas').getContext('2d'));
+      // the demo tile's own canvas has no other context, so it gives its 2D one
+      drawDemoFeed(find<HTMLCanvasElement>(tile, 'canvas').getContext('2d')!);
       time.textContent = stamp();
       tile.classList.remove('loading', 'empty');
       return;
@@ -1096,7 +870,7 @@ export function createLook(ed: LookEditor, host0: HTMLElement): LookPanel {
     render();
     $('.sidebar').scrollTop = 0;
   }
-  function vacuumPress(id: string, action: string): void {
+  function vacuumPress(id: string, action: VacuumAction): void {
     const v = vac.find(x => x.entity === id);
     const c = v && vacuumCommand(v, action);
     if (!c || pend.has(id)) return;
@@ -1129,7 +903,7 @@ export function createLook(ed: LookEditor, host0: HTMLElement): LookPanel {
       room: s => room(sensor(s)?.area),
       name: s => sensor(s)?.name || s,
     });
-    const H = new Map<string, HealthSource>();
+    const H = new Map<string, HealthEntity>();
     const add = (
       entity: string | undefined,
       name: string | undefined,
@@ -1142,8 +916,7 @@ export function createLook(ed: LookEditor, host0: HTMLElement): LookPanel {
     for (const L of ed.plan.lights)
       if (L.entity && L.placed && !L.draft && !L.skip) add(L.entity, L.name, L.room);
     // neither HA layer gives a device its device id: it stays undefined
-    for (const d of ed.ha?.devices?.() || [])
-      add(d.entity, d.name, room(d.area)?.id, (d as HaDevice & {device?: string}).device);
+    for (const d of ed.ha?.devices?.() || []) add(d.entity, d.name, room(d.area)?.id, d.device);
     for (const c of climate)
       for (const k of ['temperature', 'humidity', 'co2'] as const) {
         const x = sensor(c[k]);
@@ -1175,13 +948,13 @@ export function createLook(ed: LookEditor, host0: HTMLElement): LookPanel {
     for (let i = 0; i < s.length; i++) h = Math.imul(h ^ s.charCodeAt(i), 16777619);
     return (h >>> 0).toString(36);
   };
-  const keyOf = (id: string, period: string): string =>
+  const keyOf = (id: SectionId, period: string): string =>
     `${id}:${period}:${hash(JSON.stringify(st.src?.[id] ?? null))}`;
-  const statsFor = (id: string, period = 'month'): StatsData | null | undefined => {
+  const statsFor = (id: SectionId, period = 'month'): SectionData | null | undefined => {
     const e = st.data.get(keyOf(id, period));
     return e ? e.data : undefined;
   }; // undefined — still computing, null — failed to load
-  async function refreshStats(id: string, period: string): Promise<void> {
+  async function refreshStats(id: SectionId, period: string): Promise<void> {
     if (!st.src) return;
     const k = keyOf(id, period);
     const c = st.data.get(k);
@@ -1199,8 +972,9 @@ export function createLook(ed: LookEditor, host0: HTMLElement): LookPanel {
     if (on) render();
   }
   // sections: sources exist and data was found for the month (shown while computing); failed to load or empty — no section
-  const statsIds = (): string[] =>
-    availableSections(st.src).filter(id => {
+  // (render sets the sources before it draws a statistics tile or screen, and a tile's click comes after that)
+  const statsIds = (): SectionId[] =>
+    availableSections(st.src!).filter(id => {
       const d = statsFor(id);
       return d === undefined || (d && !d.empty);
     });
@@ -1210,13 +984,14 @@ export function createLook(ed: LookEditor, host0: HTMLElement): LookPanel {
   };
   // overview: energy as a large tile with bars, the rest as small ones
   function statsPanel(M: LookModel): void {
-    for (const id of availableSections(st.src)) refreshStats(id, 'month');
+    for (const id of availableSections(st.src!)) refreshStats(id, 'month'); // set by render, as in statsIds
     const ids = statsIds();
     const data = Object.fromEntries(ids.map(id => [id, statsFor(id)]));
     const rest = ids.filter(id => id !== 'energy');
     const name = (id: string): string => M.rooms.find(r => r.id === id)?.short || '';
     const html =
-      (ids.includes('energy') ? energyTileMarkup(data.energy, name) : '') +
+      // the energy section's data is the energy statistics (look/stats.ts loadSection)
+      (ids.includes('energy') ? energyTileMarkup(data.energy as EnergyStats | null | undefined, name) : '') +
       (rest.length ? `<div class="stats-tiles">${sectionTilesMarkup(rest, data)}</div>` : '');
     $('.stats-panel').classList.toggle('is-empty', !ids.length);
     if (html !== st.tile) {
@@ -1225,7 +1000,7 @@ export function createLook(ed: LookEditor, host0: HTMLElement): LookPanel {
     }
   }
   // the section screen replaces the overview; the model shows the whole home, with numbers above the rooms
-  function openStats(id: string): void {
+  function openStats(id: SectionId): void {
     editing = null;
     drafts = {};
     if (nav.current.level !== 'stats') nav.stats(ed.view.getView?.());
@@ -1726,7 +1501,8 @@ export function createLook(ed: LookEditor, host0: HTMLElement): LookPanel {
       if (d.kind === 'card')
         draft.cards = placeCard(
           draft.cards,
-          draft.cards.find(c => c.id === d.id),
+          // a dragged card is one of the draft's
+          draft.cards.find(c => c.id === d.id)!,
           tg.index,
         );
       else if (d.kind === 'new')
@@ -1803,7 +1579,8 @@ export function createLook(ed: LookEditor, host0: HTMLElement): LookPanel {
     const g = (e.target as Element).closest?.<HTMLElement>('[data-grip]');
     if (!lay || !g || !['ArrowUp', 'ArrowDown'].includes(e.key)) return;
     e.preventDefault();
-    lay.cards = move(lay.cards, g.dataset.grip, e.key === 'ArrowUp' ? -1 : 1);
+    // a grip has its card's id
+    lay.cards = move(lay.cards, g.dataset.grip as string, e.key === 'ArrowUp' ? -1 : 1);
     layoutEditor();
     // a grip has its card's id
     root.querySelector<HTMLElement>(`[data-grip="${CSS.escape(g.dataset.grip as string)}"]`)?.focus();
@@ -1975,7 +1752,7 @@ export function createLook(ed: LookEditor, host0: HTMLElement): LookPanel {
   function metrics(r: LookRoom, M: LookModel): string {
     const c = M.climate[r.id];
     const ent = {temperature: r.sens.t?.entity, humidity: r.sens.h?.entity, co2: r.sens.co2?.entity};
-    const card = (key: keyof ClimateNumbers): string => {
+    const card = (key: keyof RoomReadings): string => {
       const measurement = c[key];
       if (measurement == null) return '';
       const spec = METRICS[key];
@@ -2410,10 +2187,10 @@ export function createLook(ed: LookEditor, host0: HTMLElement): LookPanel {
     else if (a === 'water') waterPress(id);
     else if (a === 'vacuum-open') openVacuum(id);
     else if (a === 'stats-open')
-      openStats(b.dataset.section as string); // a statistics tile names its section
+      openStats(b.dataset.section as SectionId); // a statistics tile names its section
     else if (a === 'stats-section') {
       if (id !== st.section) {
-        st.section = id;
+        st.section = id as SectionId; // a section button's id is its section's
         st.room = null;
         render();
       }
@@ -2425,7 +2202,8 @@ export function createLook(ed: LookEditor, host0: HTMLElement): LookPanel {
     } else if (a === 'stats-room') {
       st.room = st.room === room ? null : room;
       render();
-    } else if (a === 'vacuum-start') vacuumPress(id, b.dataset.command || 'start');
+    } else if (a === 'vacuum-start')
+      vacuumPress(id, (b.dataset.command as VacuumAction | undefined) || 'start'); // the main button names its command (vacuumButton)
     else if (a === 'vacuum-home') vacuumPress(id, 'home');
     else if (a === 'leak') {
       if (!ed.ha?.demo && ed.ha?.moreInfo) ed.ha.moreInfo(id);
@@ -2484,8 +2262,7 @@ export function createLook(ed: LookEditor, host0: HTMLElement): LookPanel {
     const i = e.target as HTMLInputElement | HTMLSelectElement;
     if (i.matches?.('select[data-scene-device]')) {
       // a scene list names its device and offers only the actions
-      if (editing)
-        drafts[editing][i.dataset.sceneDevice as string] = {action: i.value as SceneDraft[string]['action']};
+      if (editing) drafts[editing][i.dataset.sceneDevice as string] = {action: i.value};
     } else if (i.matches?.('input[data-cover]')) {
       call('cover', 'set_cover_position', {entity_id: i.dataset.cover, position: +i.value});
       i.blur();

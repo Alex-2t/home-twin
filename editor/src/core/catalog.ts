@@ -17,18 +17,7 @@
 // At a window any item centers on it; fit: when placed, takes the window width + fit m (curtains); soft: conflicts with nothing (curtains hang in front of furniture).
 import {t, N} from '../i18n/i18n.ts';
 import {isHex, hexNum} from './color.ts';
-import type {CatalogEntry, FurnitureItem} from './types.ts';
-
-/** A variant's own sizes (the third element of vars), metres: any of them; z is its bottom above the floor (on the wall or not). */
-export type VariantSize = {w?: number; d?: number; h?: number; z?: number};
-/** A variant: its key (item.v), its name, and how far a sofa bed unfolds or the variant's own sizes. */
-export type Variant = [string, string, (number | VariantSize)?];
-/**
- * A catalog entry as this file holds it: the shared CatalogEntry with two differences the data has. color2 is a flag here (true:
- * the item takes a second colour, a rug's border), where CatalogEntry reads it as a colour key; and a variant's own sizes may be
- * any of w, d, h and z, where CatalogEntry has all of w, d and h.
- */
-export type CatalogItem = Omit<CatalogEntry, 'color2' | 'vars'> & {color2?: boolean; vars?: Variant[]};
+import type {CatalogEntry, FurnitureItem, VariantSize} from './types.ts';
 /** A named colour: its name in the UI and its value, 0xrrggbb. */
 export type Swatch = [string, number];
 /** A kitchen worktop: its name in the UI, its colour 0xrrggbb and its roughness. */
@@ -70,7 +59,7 @@ export const CAR_COLORS: Record<string, Swatch> = {
   graphite: [N('Graphite metallic'), 0x465363],
   black: [N('Obsidian black'), 0x171f2b],
 };
-export const colorOf = (c: Pick<CatalogItem, 'id'>, key: string): Swatch | undefined =>
+export const colorOf = (c: Pick<CatalogEntry, 'id'>, key: string): Swatch | undefined =>
   (c.id === 'car' ? CAR_COLORS[key] : null) || COLORS[key];
 // A color as a number for 3D: a named key or a custom #rrggbb; anything else — fallback.
 // (Past isHex, k reads as null or undefined, though a named key is a string: String(k) is the key JS looks up anyway.)
@@ -82,8 +71,8 @@ const FABRIC = ['linen', 'sand', 'grey', 'graphite', 'olive', 'sage', 'navy', 't
 const APPL = ['white', 'steel', 'black'];
 const SANITARY = ['white', 'beige', 'grey', 'graphite', 'black'];
 const SCREEN = ['black', 'white', 'steel'];
-export const colorsOf = (c: Pick<CatalogItem, 'colors'>): string[] => c.colors || WOOD;
-export const CATALOG: CatalogItem[] = [
+export const colorsOf = (c: Pick<CatalogEntry, 'colors'>): string[] => c.colors || WOOD;
+export const CATALOG: CatalogEntry[] = [
   // A custom item is anything not in the catalog (boxing, column, exercise machine, safe): a block or a cylinder, its own name (f.name), any size and color.
   {
     id: 'custom',
@@ -856,22 +845,22 @@ export const CATALOG: CatalogItem[] = [
   },
   // The kenney models of older plans are drawn from their model files at the files' own size, so they have no default size,
   // limits or colour, which a catalog entry has; they are hidden, never offered, and read as entries all the same.
-  {id: 'bedDouble', hidden: true, cat: N('Bedroom'), name: N('Bed'), kind: 'kenney'} as CatalogItem,
-  {id: 'bedSingle', hidden: true, cat: N('Bedroom'), name: N('Single bed'), kind: 'kenney'} as CatalogItem,
+  {id: 'bedDouble', hidden: true, cat: N('Bedroom'), name: N('Bed'), kind: 'kenney'} as CatalogEntry,
+  {id: 'bedSingle', hidden: true, cat: N('Bedroom'), name: N('Single bed'), kind: 'kenney'} as CatalogEntry,
   {
     id: 'cabinetBedDrawerTable',
     hidden: true,
     cat: N('Bedroom'),
     name: N('Nightstand'),
     kind: 'kenney',
-  } as CatalogItem,
+  } as CatalogEntry,
   {
     id: 'bookcaseOpen',
     hidden: true,
     cat: N('Storage'),
     name: N('Shelving unit'),
     kind: 'kenney',
-  } as CatalogItem,
+  } as CatalogEntry,
   {
     id: 'loungeSofa',
     cat: N('Living room'),
@@ -2239,7 +2228,7 @@ CATALOG.push({
   lift: 0,
   min: [0.01, 0.01, 0.01],
   max: [6, 6, 6],
-} as CatalogItem);
+} as CatalogEntry);
 export const CATEGORIES: string[] = [
   N('Bedroom'),
   N('Living room'),
@@ -2267,7 +2256,7 @@ CATEGORIES.forEach((c, i) => {
 });
 for (const v of [...Object.values(COLORS), ...Object.values(CAR_COLORS), ...Object.values(TOPS)])
   v[0] = t(v[0]);
-export const byId = (id: string | null | undefined): CatalogItem | undefined =>
+export const byId = (id: string | null | undefined): CatalogEntry | undefined =>
   CATALOG.find(c => c.id === id);
 export const nameOf = (f: Pick<FurnitureItem, 'name' | 'model'>): string =>
   (f.name || byId(f.model)?.name || f.model).replace(/\u00ad/g, ''); // a custom item uses its own name

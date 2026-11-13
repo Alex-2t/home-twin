@@ -182,10 +182,10 @@ function itemAt(
   };
 }
 
-// A binding is alive while its item or opening exists; otherwise the device is “not in the model”.
+// A binding is alive while its item or opening exists; otherwise the device is “not in the model”. No entity: none.
 export const recOf = (
   plan: Pick<DevicePlan, 'furniture' | 'openings' | 'devices'>,
-  entity: string,
+  entity: string | null | undefined,
 ): PlanDevice | null =>
   (plan.devices || []).find(
     x =>
@@ -368,7 +368,7 @@ function contactOpening(
 export function autoPlace(
   plan: DevicePlan,
   devs: HaDevice[],
-  ent: (entity: string) => EntityState | null = () => null,
+  ent: (entity: string) => EntityState | null | undefined = () => null,
 ): number {
   plan.devices ??= [];
   let n = 0;

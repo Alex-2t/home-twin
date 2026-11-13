@@ -3,7 +3,7 @@
 // takes hold of the model. The camera returns exactly: rotation via view.spin, the offset is computed here (off).
 // Pressing the window pauses the demo, the model stays put; releasing without rotating (a click swaps the windows) — again after 1.5 s.
 //   run(on) — show or not (app.js decides: view step, model not yet rotated, 3D window visible, no “reduced motion”)
-import type {PlanView3d} from './editor-types.ts';
+import type {SceneView} from '../core/scene.ts';
 
 const A = 0.45;
 const CYCLE = 3600;
@@ -15,7 +15,7 @@ export interface ViewDemo {
   run(v: unknown): void;
 }
 
-export function createViewDemo(pane: HTMLElement, view: Partial<Pick<PlanView3d, 'spin'>>): ViewDemo {
+export function createViewDemo(pane: HTMLElement, view: Partial<Pick<SceneView, 'spin'>>): ViewDemo {
   const el = document.createElement('div');
   el.className = 'drag-demo';
   el.hidden = true;

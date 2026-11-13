@@ -17,7 +17,8 @@ import type {
   HassDeviceEntry,
   HassMessage,
 } from '../core/types.ts';
-import type {PhotoStore, RemoteSaveState} from './editor-types.ts';
+import type {PhotoStore} from './underlay.ts';
+import type {RemoteSaveState} from './editor-types.ts';
 
 const HOUR = 3600e3;
 const BOARD = 'home-twin-3d'; // the Home Twin dashboard (D-059); card.js and card-main.js know it too

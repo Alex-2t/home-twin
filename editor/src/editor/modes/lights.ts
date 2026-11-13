@@ -40,6 +40,7 @@ import {
   furnOpts,
   furnGuess,
 } from '../../core/fixtures.ts';
+import type {Contour, LampCell, StripRuns} from '../../core/fixtures.ts';
 import {$, el, esc, parseLen, tip, tipHide} from '../ui.ts';
 import {icon} from '../icons.ts';
 import {FONT, alpha, dimLabel, shiftSegs, shiftPoint} from '../draw.ts';
@@ -55,38 +56,12 @@ import type {
   Segment,
   WallStrip,
 } from '../../core/types.ts';
-import type {Editor, LightsMode, PlanView2d, Selection} from '../editor-types.ts';
-
-/** A light's cell (fixtures.ts lampCell): its room, or the part of it with the light's area; ch: the chord between the parts. */
-interface LampCell {
-  room: Room;
-  poly: Outline;
-  ch: Segment | null;
-}
-
-/**
- * A strip's path round its cell (fixtures.ts stripContour): the cell's corners (P), the line the strip runs on (C), the distance
- * along it to each corner (S), how many corners (n), the length round (per), and where it breaks at doors and open walls (gaps:
- * [from, to] along it).
- */
-interface StripContour {
-  P: Outline;
-  C: Outline;
-  S: number[];
-  n: number;
-  per: number;
-  gaps: number[][];
-}
-
-/** A strip's sections as stretches [from, to] along its path (fixtures.ts stripRuns); closed: one line all the way round. */
-interface StripRuns {
-  runs: Array<[number, number]>;
-  closed: boolean;
-}
+import type {PlanView2d} from '../view2d.ts';
+import type {Editor, LightsMode, Selection} from '../editor-types.ts';
 
 /** The selected strip of a lamp, on its path (stripOf). */
 interface StripOn {
-  K: StripContour;
+  K: Contour;
   st: StripRuns;
 }
 
@@ -1308,7 +1283,7 @@ export function lightsMode(ed: Editor): LightsMode {
     }
     return row;
   }
-  function choose(L: PlanLight, form: string, opt: string | undefined): void {
+  function choose(L: PlanLight, form: LightForm, opt: string | undefined): void {
     const cell = lampCell(plan(), L);
     if (!cell) return;
     placeForm(plan(), L, form, opt, cell);
@@ -1381,7 +1356,7 @@ export function lightsMode(ed: Editor): LightsMode {
       merging = true;
       ctxPanel();
     };
-    const qi = b.querySelector('.qi');
+    const qi = b.querySelector<HTMLElement>('.qi')!; // the button's own markup has it
     tip(qi, MERGE_HELP, qi);
     return b;
   } // the hint is only on the “?” (the owner); a click on the “?” is not “part of another”

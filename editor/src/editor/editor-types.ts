@@ -1,24 +1,25 @@
 // The editor object `ed` (app.ts createApp) and the shapes the editor's screens hand to each other through it: the modes,
-// the step card and its buttons, the selection, the plan's 2D and 3D views, the plan photo, the undo history and versions,
-// the guided path, the start-screen flows, the step hint (coach) and Preview. Types only: nothing here runs.
+// the step card and its buttons, the selection, the versions, the guided path's steps, the start-screen flows, the step
+// hint's layout and Preview. Types only: nothing here runs.
 //
 // app.ts builds `ed` and hands it to every mode and panel; boot.ts, flows.ts and ha-app.ts add a few members after it is
-// built (optional here). A type marked "precise type: <module> after its typing" describes what that module returns today,
-// from how the editor uses it; once the module is typed, the member takes the module's own type.
-import type {DirectionalLight, HemisphereLight, OrthographicCamera, Scene, WebGLRenderer} from 'three';
-import type {OrbitControls} from 'three/addons/controls/OrbitControls.js';
+// built (optional here, but for the three boot.ts sets before any screen can use them). A member made by another module
+// (the 2D and 3D views, the plan photo, the history, the guided path) has that module's own type.
+import type {SceneView} from '../core/scene.ts';
+import type {PlacedSensor} from '../core/sensors.ts';
+import type {PlanView2d} from './view2d.ts';
+import type {Underlay, UnderlaySnapshot} from './underlay.ts';
+import type {PlanHistory} from './history.ts';
+import type {PlanVersion, VersionKind} from './versions.ts';
+import type {WizardPath} from './wizard-path.ts';
 import type {
   DayNightMode,
-  FurnitureItem,
   GlassRail,
   HaDevice,
   HaLayer,
-  HomeView,
   MultiPolygon,
   OnboardingStatus,
   OnboardingStepId,
-  Outline,
-  PlacedOpening,
   Plan,
   PlanInput,
   PlanLight,
@@ -29,10 +30,7 @@ import type {
   SensorContext,
   Segment,
   UiState,
-  UnderlayPlace,
-  Vector,
   WallBand,
-  WallPlan,
   WizardProgress,
 } from '../core/types.ts';
 
@@ -353,322 +351,15 @@ export interface SensorsMode extends EditorMode {
 
 /** The modes by id (ed.modes). */
 export interface EditorModes {
-  rooms: RoomsMode; // precise type: modes/rooms.ts after its typing
-  furniture: FurnitureMode; // precise type: modes/furniture.ts after its typing
-  lights: LightsMode; // precise type: modes/lights.ts after its typing
-  devices: DevicesMode; // precise type: modes/devices.ts after its typing
-  sensors: SensorsMode; // precise type: modes/sensors.ts after its typing
+  rooms: RoomsMode;
+  furniture: FurnitureMode;
+  lights: LightsMode;
+  devices: DevicesMode;
+  sensors: SensorsMode;
 }
 
-// ---------- the plan's 2D view (view2d.ts) ----------
+// ---------- versions (app.ts over versions.ts) ----------
 
-// precise type: view2d.ts after its typing
-/** The plan canvas: metres to pixels, pan and zoom. */
-export interface PlanView2d {
-  cv: HTMLCanvasElement;
-  ctx: CanvasRenderingContext2D;
-  /** Pixels per metre, and where the plan's origin is on the canvas. */
-  sc: number;
-  ox: number;
-  oy: number;
-  /** The device pixel ratio the canvas is drawn at (at most 2). */
-  dpr: number;
-  /** The canvas size in CSS pixels. */
-  w: number;
-  h: number;
-  /** Set by app.ts: the view shows the whole plan (fit), and the zoom it had then (100% on the zoom label). */
-  fitted?: boolean;
-  fitSc?: number;
-  /** Plan metres to canvas pixels, and back. */
-  S(p: Point): CanvasPoint;
-  W(px: CanvasPoint): Point;
-  /** A pointer tolerance in metres for this many pixels (none: 8). */
-  tol(px?: number): number;
-  resize(): void;
-  /** Fits the points with a margin, leaving the insets (px covered by panels) free; returns the new scale. */
-  fit(points: Point[], pad?: number, insets?: {l?: number; r?: number; t?: number; b?: number}): number;
-  zoomAt(X: number, Y: number, k: number): void;
-  /** Resets the canvas transform to CSS pixels. */
-  base(): void;
-  /** Starts a path through plan points (closed unless close is false). */
-  path(points: Point[], close?: boolean): void;
-  dot(p: Point, r: number, fill?: string | null, stroke?: string | null, lw?: number): void;
-}
-
-// ---------- the 3D view (core/scene.ts) ----------
-
-// precise type: core/sensors.ts after its typing
-/** A reading's text on a wall label (core/sensors.ts sensorItem). */
-export interface SensorLabelItem {
-  label: string;
-  text: string;
-  /** 0: normal, 1: attention, 2: bad. */
-  lvl: number;
-  /** The digits' size. */
-  k: number;
-  /** The digits' colour, '#rrggbb'. */
-  c?: string;
-}
-
-// precise type: core/sensors.ts after its typing
-/** A reading placed on a wall (core/sensors.ts layoutSensors, through plan-scene.ts planSpots). */
-export interface SensorSpot {
-  /** The plan sensor's id, and its room. */
-  id: string;
-  room: string;
-  items: SensorLabelItem[];
-  /** The label's size in metres before scaling. */
-  size: {w: number; h: number; ws: number[]};
-  group: string;
-  k: number;
-  /** The id of the top sensor of its column. */
-  col: string;
-  /** Placed by hand (sensor.at). */
-  own?: boolean;
-  /** The room edge it is on, the edge's direction and outward normal, where along it and how wide, and the edge's length. */
-  i: number;
-  u: Vector;
-  n: Vector;
-  t: number;
-  w: number;
-  L: number;
-  /** How much the label is squeezed to fit (1: not at all). */
-  scale: number;
-  /** The label's centre on the plan, and its height. */
-  c: Point;
-  y: number;
-  /** The wall's own colour under the label, '#rrggbb'. */
-  base?: string;
-}
-
-/** An item as the 3D view takes it (plan-scene.ts planFurniture): a run with its shape, curtains with how open. */
-export type SceneFurniture = FurnitureItem & {
-  /** A built-in run's shape (runs.ts runGeo). */
-  geo?: unknown; // precise type: core/runs.ts after its typing
-  /** Curtains: how open, 0–1. */
-  open?: number;
-};
-
-// precise type: core/devices.ts after its typing
-/** An air conditioner's airflow in 3D (devices.ts liveScene). */
-export interface SceneClimate {
-  /** The HA entity, and the item it is. */
-  id: string;
-  f: FurnitureItem;
-  on: boolean;
-  tone?: string;
-  fan?: string;
-}
-
-// precise type: core/devices.ts after its typing
-/** An open window or door that glows in 3D (devices.ts liveScene). */
-export interface SceneContact {
-  /** The HA entity, and the opening it is on. */
-  id: string;
-  opening: string;
-  open: boolean;
-  /** The opening on the plan, its bottom and top, and the wall's normal. */
-  a: Point;
-  b: Point;
-  bottom: number;
-  top: number;
-  n: Vector;
-}
-
-/** What is under a point of the 3D view (scene.ts pick): the spot and its height, a spot just in front of it, the item. */
-export interface ScenePick {
-  p: Point;
-  z: number;
-  inside: Point;
-  item: string | null;
-}
-
-// precise type: core/scene.ts after its typing
-/** The 3D view (core/scene.ts createView). Every call that changes it draws a frame. */
-export interface PlanView3d {
-  renderer: WebGLRenderer;
-  scene: Scene;
-  camera: OrthographicCamera;
-  controls: OrbitControls;
-  lights: {hemi: HemisphereLight; sun: DirectionalLight};
-  /** The ambient occlusion's shader uniforms. */
-  ao: unknown;
-  /** Out of sight: no frames until resume. */
-  pause(): void;
-  resume(): void;
-  /** Gone for good: the GPU context is let go. */
-  dispose(): void;
-  /** Compiles the scene's shaders in the background. */
-  warm(): Promise<unknown>;
-  redraw(): void;
-  /** Pixels covered by panels on the left, right and bottom: the model fits into the rest. */
-  setInsets(left: number, right?: number, bottom?: number): void;
-  setTheme(dark: boolean): void;
-  setNight(night: boolean): void;
-  setSensors(list: SensorSpot[]): void;
-  /** The home view's direction on the plan. */
-  homeCam(): Vector;
-  /** Flies to the home view (none: the whole model). */
-  home(): void;
-  getView(): HomeView;
-  setHome(view: HomeView | null | undefined): void;
-  /** Called when the user rotates or zooms the model, and when the view is back home. */
-  onMoved(listener: (moved: boolean) => void): void;
-  moved(): boolean;
-  /** Turns the model by this many radians; false: it is flying. */
-  spin(radians: number): boolean;
-  setClimate(list: SceneClimate[]): void;
-  setContacts(list: SceneContact[]): void;
-  /** Flies to a saved view (none: home). */
-  flyTo(view: HomeView | null | undefined): void;
-  /** Outlines a room on the floor; null: none. */
-  setOutline(roomId: string | null): void;
-  /** These rooms glow; pulse: three waves. */
-  setGlow(roomIds?: string[], o?: {pulse?: boolean}): void;
-  /** The next model is framed anew. */
-  reframe(): void;
-  /** Shows this outline in the middle (none: the whole model). */
-  focus(outline: Outline | null, o?: {pad?: number}): void;
-  /** The walls (null: no model), the rooms, the openings that fit a wall, the selected room. */
-  set(walls: WallPlan | null, rooms?: Room[], openings?: PlacedOpening[], selected?: string | null): void;
-  setFurniture(items: SceneFurniture[], selected?: string | null): void;
-  setLights(lights: PlanLight[], rooms: Room[]): void;
-  /** Light stays in its room: these rooms' outlines. */
-  applyMask(rooms: Room[]): void;
-  setLightOn(id: string, on: boolean): void;
-  setLightLevel(id: string, k: number): void;
-  /** A lamp's short shine (it was placed or picked). */
-  shine(id: string, t0?: number): void;
-  /** Light only in this room (null: everywhere), and with ids only these lamps. */
-  setSolo(roomId: string | null, ids?: string[] | null): void;
-  lightCount(): number;
-  /** How long the last ambient occlusion took, ms. */
-  aoMs(): number;
-  /** Highlights a room's floor; null: none. */
-  select(roomId: string | null | undefined): void;
-  pick(clientX: number, clientY: number): ScenePick | null;
-  /** A plan point at height z in pixels of the view. */
-  project(p: Point, z?: number): CanvasPoint;
-  /** The view drawn now, to be copied at once. */
-  snapshot(): HTMLCanvasElement;
-}
-
-// ---------- the plan photo (underlay.ts) ----------
-
-/** The photo's placement for undo and versions: whose photo it is (a fingerprint) and where it sits. */
-export interface UnderlaySnapshot {
-  ph: string;
-  a: Point;
-  b: Point;
-}
-
-/**
- * Where the plan photo is kept (underlay.ts browserPhotos: this browser; ha-live.ts hassPhotos: Home Assistant). The place
- * load gives comes from outside: underlay.ts load checks it.
- */
-export interface PhotoStore {
-  load(): Promise<{src: string; place: unknown} | null>;
-  put(src: string): Promise<unknown>;
-  place(place: UnderlayPlace): boolean;
-  clear(): Promise<unknown>;
-}
-
-// precise type: underlay.ts after its typing
-/** The plan photo under the rooms: world = a·z + b, where z = (u, −v) is an image pixel. */
-export interface Underlay {
-  img: HTMLImageElement | null;
-  /** The image as a data URL. */
-  src: string | null;
-  /** The similarity's a and b as complex numbers; null: no photo placed. */
-  a: Point | null;
-  b: Point | null;
-  opacity: number;
-  visible: boolean;
-  /** The photo's lines for a light ('l') and a dark ('d') theme, made once per image. */
-  ink: {l?: HTMLCanvasElement; d?: HTMLCanvasElement};
-  /** The thumbnail made for the panel. */
-  _thumb?: string | null;
-  /** There is a photo and it is placed. */
-  readonly ready: boolean;
-  snapshot(): UnderlaySnapshot | null;
-  /** Puts back a placement of the same photo (another photo: nothing). */
-  restore(s: UnderlaySnapshot | null | undefined): void;
-  thumb(): string;
-  inkFor(dark: boolean): HTMLCanvasElement | null;
-  /** An image pixel to plan metres, and back. */
-  toWorld(pixel: Point): Point;
-  toImage(p: Point): Point;
-  /** Places the photo from two "pixel → metres" pairs. */
-  match(z1: Point, w1: Point, z2: Point, w2: Point): void;
-  /** Scales it so the two pixels are this far apart; the first stays in place. */
-  calibrate(z1: Point, z2: Point, metres: number): void;
-  moveBy(dx: number, dy: number): void;
-  /** Rotates by th radians and scales by k round c (metres). */
-  turn(c: Point, th: number, k?: number): void;
-  angle(): number;
-  corners(): Point[];
-  center(): Point;
-  /** Levels the line between two pixels; returns the rotation. */
-  straighten(z1: Point, z2: Point): number;
-  set(src: string, o?: {place?: (img: HTMLImageElement) => void; save?: boolean}): Promise<void>;
-  clear(): Promise<void>;
-  /** Keeps the placement in the store. */
-  save(): boolean;
-  /** Loads the stored photo; false: none, or its placement is broken. */
-  load(): Promise<boolean>;
-  draw(v: PlanView2d, dark: boolean): void;
-}
-
-// ---------- the undo history and versions (history.ts, versions.ts) ----------
-
-// precise type: history.ts after its typing
-/** Undo steps and the plan saved in this browser (history.ts createHistory). */
-export interface EditorHistory {
-  /** What the last save in this browser failed with; null: it worked. */
-  error: unknown;
-  /** The photo placement goes into the current step. */
-  captureExtra(): void;
-  /** Another plan: its history starts (from storage, when it has one there). */
-  reset(plan: Plan): void;
-  commit(plan: Plan): void;
-  /** Changes the current step instead of adding one. */
-  amend(plan: Plan): void;
-  /** The plan one step back or forward; null: none. */
-  undo(): Plan | null;
-  redo(): Plan | null;
-  adopt(plan: Plan): Promise<void>;
-  /** The project's steps from storage are read. */
-  ready: Promise<void>;
-  /** Writes the steps not written yet. */
-  flush(): Promise<void>;
-  /** When the current step was made, ms; null: none. */
-  lastAt(): number | null;
-  size(): {steps: number; pos: number};
-  /** Saves the plan in this browser (boot.ts also sends it to HA); false: it failed. */
-  save(plan: Plan): boolean;
-  /** The plan saved in this browser, unchecked. */
-  load(): unknown;
-  clear(): void;
-}
-
-/** Why a version was kept: a guided step passed, before a big edit, or every 10 minutes. */
-export type VersionKind = 'step' | 'before' | 'auto';
-
-// precise type: versions.ts after its typing
-/** A kept version of the plan (versions.ts). */
-export interface PlanVersion {
-  id: string;
-  /** When, ms. */
-  at: number;
-  kind: VersionKind;
-  /** The step or the edit it was kept for ('split', 'merge', 'restore'…); null: none. */
-  what: string | null;
-  /** The plan as JSON. */
-  plan: string;
-  photo: UnderlaySnapshot | null;
-}
-
-// precise type: versions.ts after its typing
 /** The plan's versions (ed.versions: app.ts over versions.ts createVersions). */
 export interface EditorVersions {
   /** Newest first. */
@@ -691,34 +382,8 @@ export type PathStep = OnboardingStepId | 'fin';
 /** A step's state on the path strip; 'not_started' is never saved. */
 export type PathStepStatus = OnboardingStatus | 'not_started';
 
-// precise type: wizard-path.ts after its typing
-/** The guided path (D-041–D-043): which step is on, the path strip, going forward and back. */
-export interface WizardPath {
-  /** The step on now; null: the path is not running. */
-  cur(): PathStep | null;
-  status(step: OnboardingStepId): PathStepStatus;
-  done(step: OnboardingStepId): boolean;
-  /** Marks the step started (others: nothing). */
-  enter(step: PathStep): void;
-  /** "Run setup": the first step not passed, else the end. */
-  resume(): void;
-  /** The questions before the summary: show the devices, show the readings. */
-  askDevices(): void;
-  ask(): void;
-  /** The step is done (defer: for later): on to the next one. */
-  after(from: OnboardingStepId, o?: {defer?: boolean}): void;
-  canBack(): boolean;
-  back(): void;
-  go(step: OnboardingStepId): void;
-  /** The summary. */
-  finale(): void;
-  /** The path strip for the card; null: the path is not running. */
-  el(): HTMLElement | null;
-}
-
 // ---------- the start screen and the plan tools (flows.ts) ----------
 
-// precise type: flows.ts after its typing
 /** The start screen, the address, the photo and the plan tools (flows.ts createFlows). */
 export interface EditorFlows {
   showStart(o: {canContinue: boolean}): void;
@@ -759,24 +424,6 @@ export interface CoachEnv {
   home(w: number, h: number): {x: number; y: number};
   /** What the card must not cover; null: that one is not shown. */
   avoid(): Array<ScreenRect | null | undefined>;
-}
-
-// precise type: coach.ts after its typing
-/** The step hint by its area (D-037, coach.ts createCoach). */
-export interface Coach {
-  env: CoachEnv | null;
-  /** The hint has calmed down (its action done or Esc). */
-  onCalm?: () => void;
-  /** A plan edit: the step's action has started. */
-  acted(): void;
-  /** Puts the card and the frame round its area. */
-  place(): void;
-  /** The step's action was done already. */
-  done(key: string): boolean;
-  show(key: string, aim: Aim | null, o?: StepOptions): void;
-  hide(): void;
-  /** The card is at the bottom (not by an area). */
-  bottom(): boolean;
 }
 
 // ---------- the editor ----------
@@ -841,7 +488,7 @@ export interface Editor {
   rails2d?: WallBand[] | null;
   glass2d?: GlassRail[] | null;
   /** The readings on the walls; none before the first update. */
-  spots?: SensorSpot[];
+  spots?: PlacedSensor[];
   /** draw.ts draws these rooms dashed; nothing sets it. */
   ghost?: Room[];
 
@@ -856,15 +503,15 @@ export interface Editor {
   /** Area ids ('' : no area) in the order of the plan's rooms, then no area, then areas not on the plan. */
   sortAreas(areas: Iterable<string>): string[];
   sensorCtx(): SensorContext;
-  sensorSpots(): SensorSpot[];
+  sensorSpots(): PlacedSensor[];
   /** ha-app.ts: how the plan is saved in HA; none: in this browser. */
   remote?(): RemoteSaveState;
 
   // ---------- views and layout ----------
   /** The plan canvas. */
-  v: PlanView2d; // precise type: view2d.ts after its typing
+  v: PlanView2d;
   /** The 3D view. */
-  view: PlanView3d; // precise type: core/scene.ts after its typing
+  view: SceneView;
   /** How a view is shown now. */
   role(pane: Pane): PaneRole;
   setMain(pane: Pane): void;
@@ -975,25 +622,27 @@ export interface Editor {
   wizBtns(buttons?: BannerItem[]): BannerItem[];
   exitWizard(): void;
   aim: EditorAim;
-  path: WizardPath; // precise type: wizard-path.ts after its typing
+  path: WizardPath;
   hints: EditorHints;
   wizard: EditorWizardStore;
 
   // ---------- history and storage ----------
-  history: EditorHistory; // precise type: history.ts after its typing
-  versions: EditorVersions; // precise type: versions.ts after its typing
-  underlay: Underlay; // precise type: underlay.ts after its typing
+  history: PlanHistory;
+  versions: EditorVersions;
+  underlay: Underlay;
 
   // ---------- added after app.ts builds it ----------
+  // flows, askArea and showStart are set by boot.ts (through flows.ts) before any screen, button or step can use them; only
+  // the editor's own updates while app.ts builds it run without them, and those ask with `?.`.
   /** boot.ts: the start screen and the plan tools. */
-  flows?: EditorFlows; // precise type: flows.ts after its typing
+  flows: EditorFlows;
   /** boot.ts: catalog item thumbnails as data URLs, by catalog id, once the models are loaded. */
   thumbs?: Record<string, string>;
   /** flows.ts: an example from the address is about to replace this plan, so the 3D does not build it. */
   hold?: boolean;
   /** flows.ts: the area dialog, and the start screen with "Continue". */
-  askArea?(): void;
-  showStart?(): void;
+  askArea(): void;
+  showStart(): void;
   /** flows.ts: sizes from the area in the documents (D-038), by the first rectangle or the rooms; the factor, 0: none. */
   fitArea?(by: 'rect' | 'rooms', o?: {commit?: boolean; tell?: boolean}): number;
 }
@@ -1009,7 +658,6 @@ export type LookEditor = Pick<
   history: {save(plan: Plan): void};
 };
 
-// precise type: look.ts after its typing
 /** Preview's panel (look.ts createLook). */
 export interface LookPanel {
   open(): void;

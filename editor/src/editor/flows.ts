@@ -1,42 +1,20 @@
 // Start screen, the “upload plan → align → trace” wizard, the “⋯” menu.
 import {t, N, num} from '../i18n/i18n.ts';
 import {emptyPlan, rotatePlan, scalePlan} from '../core/plan.ts';
-import {$, el, esc} from './ui.ts';
+import {$, el, esc, find} from './ui.ts';
 import {icon} from './icons.ts';
 import {pointIn, area, WALL} from '../core/geometry.ts';
 import {pal, dimLabel} from './draw.ts';
 import {DRAW_RECT} from './modes/rooms.ts';
 import {tiltOf, fitPhoto} from './underlay.ts';
 import {readPlan} from '../core/plan-file.ts';
-import {idb as untypedIdb} from './underlay.ts';
+import {idb} from './underlay.ts';
 import {axisCursor} from './drag-gesture.ts';
 import {routeHash} from './route.ts';
 import type {Outline, Plan, PlanInput, Point, Room, UnderlayPlace} from '../core/types.ts';
-import type {
-  BannerItem,
-  CanvasPoint,
-  Editor,
-  EditorFlows,
-  ModeId,
-  PathStep,
-  Underlay,
-} from './editor-types.ts';
-
-/** A page in the address (route.ts PAGES). */
-export type RoutePage = 'plan' | 'furniture' | 'lights' | 'devices' | 'sensors' | 'preview';
-
-/** A page in the address (route.ts): the example it is of (null: your plan) and the page. */
-export interface Route {
-  ex: string | null;
-  page: RoutePage;
-}
-
-/** The address (route.ts hashRouter, haRouter): read it, show a page (push: a new history step), hear it change from outside. */
-export interface Router {
-  read(): Route | null;
-  write(route: Route | null, push: boolean): void;
-  listen(listener: (route: Route | null) => void): void;
-}
+import type {Underlay} from './underlay.ts';
+import type {Route, RoutePage, Router} from './route.ts';
+import type {BannerItem, CanvasPoint, Editor, EditorFlows, ModeId, PathStep} from './editor-types.ts';
 
 /** An example's plan photo (the designer interiors): its image and the two "pixel → metres" pairs that place it. */
 interface ExamplePhoto {
@@ -98,13 +76,6 @@ interface UnderlayOp {
   r0: number;
   moved?: boolean;
 }
-
-// One element of our own markup inside root, typed as present like $ (a missing one fails at its first use)
-const find = <ElementType extends Element = HTMLElement>(root: ParentNode, selector: string): ElementType =>
-  root.querySelector(selector) as ElementType;
-
-// idb.ts is not typed yet: its signature, with the value optional (a read gives what was stored, unchecked)
-const idb = untypedIdb as (op: 'get' | 'put' | 'del', key: string, val?: unknown) => Promise<unknown>;
 
 // the “Outline” and “Rooms” steps: the home is one outline, not split into rooms yet
 const OUTLINE_STEPS: Array<PathStep | null> = ['rect', 'split'];
@@ -373,7 +344,7 @@ export function createFlows(
     // a new photo is straightened along the plan lines right away (D-040); “Undo straightening” is in the rectangle step
     autoTilt = null;
     if (fresh) {
-      const th = tiltOf(ed.underlay.img);
+      const th = tiltOf(ed.underlay.img!); // set() above has put the photo in
       if (th != null && Math.abs(th) > 0.003 && Math.abs(th) < 0.35) {
         const c = ed.underlay.center();
         ed.underlay.turn(c, th);
@@ -922,7 +893,7 @@ export function createFlows(
     const u = ed.underlay;
     if (knob.src !== u.src) {
       knob.src = u.src;
-      knob.straight = tiltOf(u.img);
+      knob.straight = tiltOf(u.img!); // the knob is pressed only on a placed photo
     }
     return knob.straight;
   };

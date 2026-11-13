@@ -9,7 +9,8 @@ import {byId} from '../core/catalog.ts';
 import {SWING, zoneParts} from '../core/plan.ts';
 import {formFor, lineForm, FURN_STRIP} from '../core/fixtures.ts';
 import type {FurnitureItem, Outline, Plan, PlanLight, Point, Segment, Vector} from '../core/types.ts';
-import type {Editor, PathStep, PlanView2d} from './editor-types.ts';
+import type {PlanView2d} from './view2d.ts';
+import type {Editor, PathStep} from './editor-types.ts';
 
 const VARS = [
   'cv',

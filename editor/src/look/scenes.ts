@@ -179,11 +179,11 @@ export function sceneDraft(
   );
 }
 
-// Run: run(step) sends one action and answers true / false (not accepted) or throws. Unavailable devices and those
+// Run: run(step) sends one action and answers true / false or nothing (not accepted) or throws. Unavailable devices and those
 // already in the desired state are left alone. The result is for the line under the buttons: {sent, unchanged, skipped, failed}.
 export async function executeScene(
   steps: SceneStep[],
-  run: (step: SceneStep) => Promise<boolean>,
+  run: (step: SceneStep) => Promise<boolean | undefined>,
 ): Promise<SceneResult> {
   const result: SceneResult = {sent: 0, unchanged: 0, skipped: 0, failed: 0};
   for (const s of steps) {

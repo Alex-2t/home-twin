@@ -1506,7 +1506,7 @@ export function openAiBuild(
     close();
     setAddress(null);
     // flows.ts adds it before the AI build can open.
-    ed.showStart!();
+    ed.showStart();
   }
 
   if (buildId) {

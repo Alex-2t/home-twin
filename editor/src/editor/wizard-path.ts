@@ -203,8 +203,8 @@ export function createPath(ed: Editor): WizardPath {
     ed.v.cv.style.cursor = '';
     if (k === 'rect' || k === 'split') {
       // flows.ts sets both when the editor starts, before any step runs.
-      if (k === 'split' || photo()) ed.askArea!();
-      else ed.showStart!();
+      if (k === 'split' || photo()) ed.askArea();
+      else ed.showStart();
       return;
     }
     const i = MAND.findIndex(s => s[0] === k);
@@ -292,7 +292,7 @@ export function createPath(ed: Editor): WizardPath {
         ],
         // flows.ts sets ed.flows when the editor starts.
         ...(toBoard
-          ? ([[t('Add to dashboard'), () => ed.flows!.addBoard(), true]] satisfies BannerItem[])
+          ? ([[t('Add to dashboard'), () => ed.flows.addBoard(), true]] satisfies BannerItem[])
           : []),
       ],
       null,

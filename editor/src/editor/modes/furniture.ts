@@ -2,12 +2,12 @@
 import {t} from '../../i18n/i18n.ts';
 import {axisCursor} from '../drag-gesture.ts';
 import {
-  CATALOG as catalogEntries,
+  CATALOG,
   CATEGORIES,
   colorOf,
   TOP,
-  TOPS as catalogTops,
-  byId as catalogById,
+  TOPS,
+  byId,
   zOf,
   colorsOf,
   nameOf,
@@ -34,57 +34,19 @@ import {$, el, esc} from '../ui.ts';
 import {icon} from '../icons.ts';
 import {dimLabel, drawRun} from '../draw.ts';
 import {pal, section} from './typed-helpers.ts';
-import type {CatalogEntry, FurnitureItem, MultiPolygon, Plan, Point, Room, Vector} from '../../core/types.ts';
-import type {Editor, FurnitureMode, PlanBox, PlanView2d, Selection} from '../editor-types.ts';
-
-/** A variant's own sizes (catalog vars[i][2] as an object): only what it changes, a wall-hung one its height above the floor. */
-interface VariantSize {
-  w?: number;
-  d?: number;
-  h?: number;
-  z?: number;
-}
-
-/**
- * A catalog entry as catalog.ts has it. types.ts CatalogEntry gives a variant's object all of w, d and h and no z; catalog.ts
- * has variants with only some of them, or only z.
- */
-type CatalogItem = Omit<CatalogEntry, 'vars'> & {
-  vars?: Array<[key: string, name: string, extra?: number | VariantSize]>;
-};
-
-// catalog.ts is not typed yet: its entries read as a union of their object literals, and its [name, colour] pairs as arrays
-// that may be shorter. The same list, lookup and table, with the types they have.
-const CATALOG = catalogEntries as CatalogItem[];
-const byId = catalogById as (id: string) => CatalogItem | undefined;
-/** Worktops: key → [name, colour as 0xrrggbb]. */
-const TOPS = catalogTops as unknown as Record<string, [name: string, hex: number]>;
-
-/** A built-in run's inner face as a ring (runs.ts ring): its perimeter P, metres. */
-interface RunRing {
-  E: unknown[];
-  P: number;
-}
-
-/** A built-in run's handles (runs.ts runShape): its two ends, and the depth handle with the front's normal and offset. */
-interface RunHandles {
-  a: Point;
-  b: Point;
-  d: {p: Point; n: Vector; ref: number};
-}
-
-/** What this mode reads of a built-in run's shape (runs.ts runGeo; runs.ts is not typed yet). */
-interface RunShape {
-  outline: MultiPolygon;
-  sides: Array<{u: Vector; front: unknown}>;
-  /** null: it has no front. */
-  handles: RunHandles | null;
-  room: Room;
-  R: RunRing;
-  /** Where it starts on the ring, and its length along it. */
-  sa: number;
-  L: number;
-}
+import type {Ring, RunGeo, RunHandles} from '../../core/runs.ts';
+import type {
+  CatalogEntry,
+  FurnitureItem,
+  MultiPolygon,
+  Plan,
+  Point,
+  Room,
+  Vector,
+  VariantSize,
+} from '../../core/types.ts';
+import type {PlanView2d} from '../view2d.ts';
+import type {Editor, FurnitureMode, PlanBox, Selection} from '../editor-types.ts';
 
 /** An item's handles: w and d for a sized one, a and b (the ends) and rd (the depth) for a built-in run. */
 type ItemHandle = 'w' | 'd' | 'a' | 'b' | 'rd';
@@ -136,7 +98,7 @@ interface ActiveRunDrag {
   f: FurnitureItem;
   end: ItemHandle | null;
   room: Room;
-  R: RunRing;
+  R: Ring;
   sa: number;
   L: number;
   sp: number;
@@ -152,7 +114,7 @@ type FurnitureDrag = SizeDrag | MoveDrag | RunDrag;
 
 /** An item picked in the catalog: pressed on its card (x, y: where), or clicked (it waits for a click on the plan). */
 interface Placing {
-  c: CatalogItem;
+  c: CatalogEntry;
   name?: string | null;
   x?: number;
   y?: number;
@@ -214,7 +176,7 @@ export function furnitureMode(ed: Editor): FurnitureMode {
     ); // a rug goes last: a click on the sofa on top of it selects the sofa
     for (const f of order) {
       if (isRun(f)) {
-        const g: RunShape | null = runGeo(plan(), f);
+        const g: RunGeo | null = runGeo(plan(), f);
         if (!g) continue;
         const H = g.handles;
         const near = (q: Point): boolean => Math.hypot(p[0] - q[0], p[1] - q[1]) < tol * 1.2;
@@ -511,7 +473,8 @@ export function furnitureMode(ed: Editor): FurnitureMode {
       const Y = Math.max(...cs.map(q => q[1]));
       dimLabel(v(), X, Y + 16, `${Math.round(f.w * 100)} × ${Math.round(f.d * 100)}`);
     }
-    if (run(pf)) drawRun(ed, pf, false, false, true);
+    if (run(pf))
+      drawRun(ed, pf!, false, false, true); // run() is true only for an item
     else if (pf) {
       v().path(corners(pf));
       v().ctx.fillStyle = pal.acc2;
@@ -531,7 +494,7 @@ export function furnitureMode(ed: Editor): FurnitureMode {
   // into another room — moves there. The ends snap to corners and to the edges of doors and windows (Shift — no snapping).
   const placeable = (f: FurnitureItem): boolean => !isRun(f) || !!runGeo(plan(), f);
   function runBox(f: FurnitureItem): PlanBox | null {
-    const g: RunShape | null = runGeo(plan(), f);
+    const g: RunGeo | null = runGeo(plan(), f);
     if (!g?.outline.length) return null;
     const q = g.outline.flatMap(P => P[0]);
     const xs = q.map(x => x[0]);
@@ -539,14 +502,14 @@ export function furnitureMode(ed: Editor): FurnitureMode {
     return [Math.min(...xs), Math.min(...ys), Math.max(...xs), Math.max(...ys)];
   }
   function runCursor(f: FurnitureItem, handle: ItemHandle): string {
-    const g: RunShape | null = runGeo(plan(), f);
+    const g: RunGeo | null = runGeo(plan(), f);
     const fr = g?.sides.filter(s => s.front) || [];
     if (!fr.length) return 'move';
     // it has fronts, so its shape is there and it has handles
     return axisCursor(handle === 'rd' ? g!.handles!.d.n : handle === 'a' ? fr[0].u : fr[fr.length - 1].u);
   }
   function runStart(f: FurnitureItem, handle: ItemHandle | undefined, p: Point): RunDrag {
-    const g: RunShape | null = runGeo(plan(), f);
+    const g: RunGeo | null = runGeo(plan(), f);
     if (!g) return {kind: 'run', f, end: 'none', cursor: 'move'};
     return {
       kind: 'run',
@@ -638,7 +601,7 @@ export function furnitureMode(ed: Editor): FurnitureMode {
     runSet(plan(), f, dr.room, R, sa, L);
   }
   function drawRunSel(f: FurnitureItem): void {
-    const g: RunShape | null = runGeo(plan(), f);
+    const g: RunGeo | null = runGeo(plan(), f);
     if (!g?.handles) return;
     const H = g.handles;
     for (const q of [H.a, H.b, H.d.p]) v().dot(q, 5, '#fff', pal.acc, 1.8);
@@ -766,12 +729,12 @@ export function furnitureMode(ed: Editor): FurnitureMode {
     }
     const holder = el(`<div></div>`);
     side.appendChild(holder);
-    const size = (c: CatalogItem): string => `${Math.round(c.w * 100)}×${Math.round(c.d * 100)}`;
+    const size = (c: CatalogEntry): string => `${Math.round(c.w * 100)}×${Math.round(c.d * 100)}`;
     function renderCatalog(): void {
       holder.innerHTML = '';
       const q = query.trim().toLowerCase();
       const own = byId('custom')!; // the catalog's custom item
-      const rank = (c: CatalogItem): number => {
+      const rank = (c: CatalogEntry): number => {
         const i = TOP.indexOf(c.id);
         return i < 0 ? 999 : i;
       };
@@ -788,7 +751,7 @@ export function furnitureMode(ed: Editor): FurnitureMode {
       if (!q && cat !== t('All')) items.sort((a, b) => rank(a) - rank(b)); // in a category the frequent ones go first
       const grid = el(`<div class="catalog"></div>`);
       holder.appendChild(grid);
-      const card = (c: CatalogItem, name?: string | null): void => {
+      const card = (c: CatalogEntry, name?: string | null): void => {
         const it = el(
           `<button type="button" class="item ${placing?.c === c ? 'on' : ''}" title="${t('Select an item, then click the plan. You can also drag it.')}" aria-label="${esc(name || c.name)}"><img src="${ed.thumbs?.[c.id] || ''}" draggable="false" alt="">${c.kind === 'gen' ? `<span class="rs" title="${t('Any size')}">${icon('resize', 12)}</span>` : ''}<b>${esc(name || c.name)}</b><small>${size(c)}</small></button>`,
         );
@@ -853,10 +816,10 @@ export function furnitureMode(ed: Editor): FurnitureMode {
     stepBanner();
   };
   let more = false;
-  const named = (c: CatalogItem): boolean => c.id === 'custom' || c.id === 'parts';
+  const named = (c: CatalogEntry): boolean => c.id === 'custom' || c.id === 'parts';
   // Colors: the model's swatches and a custom one (the color picker); a picked color practically equal to a swatch (ΔE < 3) selects that
   // swatch. key: 'color', or 'color2' — a rug's border; not set, it is a shade darker than the field: the first swatch, split in two.
-  function swatches(f: FurnitureItem, c: CatalogItem, key: 'color' | 'color2'): HTMLElement[] {
+  function swatches(f: FurnitureItem, c: CatalogEntry, key: 'color' | 'color2'): HTMLElement[] {
     const two = key === 'color2';
     const cur = two ? f.color2 : (f.color ?? c.color);
     const keys: string[] = colorsOf(c);
@@ -878,8 +841,9 @@ export function furnitureMode(ed: Editor): FurnitureMode {
       out.push(b);
     }
     for (const k of keys) {
+      // the keys a catalog entry offers are its swatches (catalog COLORS)
       const b = el(
-        `<button class="sw ${k === cur ? 'on' : ''}" title="${esc(colorOf(c, k)[0])}" style="background:${cssHex(hex(k))}"></button>`,
+        `<button class="sw ${k === cur ? 'on' : ''}" title="${esc(colorOf(c, k)![0])}" style="background:${cssHex(hex(k))}"></button>`,
       );
       b.onclick = () => set(k);
       out.push(b);
@@ -1062,7 +1026,7 @@ export function furnitureMode(ed: Editor): FurnitureMode {
             const val = +Math.max(c.min[i], Math.min(c.max[i], (+x.value || 0) / 100)).toFixed(3);
             // for a built-in cabinet the width is the length along the walls: the end goes further along the outline (and around the corner)
             if (isRun(f) && k === 'w') {
-              const g: RunShape | null = runGeo(plan(), f);
+              const g: RunGeo | null = runGeo(plan(), f);
               if (g) runSet(plan(), f, g.room, g.R, g.sa, g.L + val - f.w);
             } else {
               f[k] = val;

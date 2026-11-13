@@ -5,6 +5,7 @@ import {liveHA, hassPlans, hassPhotos} from './ha-live.ts';
 import type {LocalPhotos, PhotoTodo, PlanUnsent, UnsentMark} from './ha-live.ts';
 import type {Hass, HassAttributes, HassEntityState, HassMessage, UnderlayPlace} from '../core/types.ts';
 import type {RemoteSaveState} from './editor-types.ts';
+import type {UnderlaySave} from './underlay.ts';
 
 globalThis.requestAnimationFrame ??= (callback: FrameRequestCallback) => setTimeout(callback, 0);
 const st = (state: string, attributes: HassAttributes = {}): HassEntityState => ({
@@ -391,8 +392,8 @@ function photoHA(): FakePhotoHa {
   };
   return ha;
 }
-function memPhotos(): LocalPhotos & {src: string | null; at: UnderlayPlace | null} {
-  const m: LocalPhotos & {src: string | null; at: UnderlayPlace | null} = {
+function memPhotos(): LocalPhotos & {src: string | null; at: UnderlaySave | null} {
+  const m: LocalPhotos & {src: string | null; at: UnderlaySave | null} = {
     src: null,
     at: null,
     where: () => m.at,

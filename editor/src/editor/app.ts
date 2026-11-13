@@ -1,50 +1,39 @@
 // Editor: state, history, the 2D–3D link, screen layout, mouse and keyboard.
 import {t} from '../i18n/i18n.ts';
-import {createView as untypedCreateView} from '../core/scene.ts';
+import {createView} from '../core/scene.ts';
 import {validate, wallsAt, offsetVar, edgeThickness, WALL} from '../core/geometry.ts';
 import {migrate, emptyPlan, roomById, wallDefaults, closeOuterOpen} from '../core/plan.ts';
 import {furnitureConflicts} from '../core/layout.ts';
 import {syncRuns} from '../core/runs.ts';
 import {syncFurnStrips} from '../core/fixtures.ts';
 import {byId, nameOf} from '../core/catalog.ts';
-import {sensorsMode as untypedSensorsMode} from './modes/sensors.ts';
-import {devicesMode as untypedDevicesMode} from './modes/devices.ts';
-import {createView2d as untypedCreateView2d} from './view2d.ts';
+import {sensorsMode} from './modes/sensors.ts';
+import {devicesMode} from './modes/devices.ts';
+import {createView2d} from './view2d.ts';
 import {createDragGesture} from './drag-gesture.ts';
-import {createHistory as untypedCreateHistory} from './history.ts';
+import {createHistory} from './history.ts';
 import {idbStore} from './idb.ts';
-import {createVersions as untypedCreateVersions} from './versions.ts';
-import {openVersions as untypedOpenVersions} from './versions-panel.ts';
-import {mergePlanLights as untypedMergePlanLights} from './ha.ts';
-import {createUnderlay as untypedCreateUnderlay} from './underlay.ts';
+import {createVersions} from './versions.ts';
+import {openVersions} from './versions-panel.ts';
+import {mergePlanLights} from './ha.ts';
+import {createUnderlay} from './underlay.ts';
 import {drawPlan, drawGuides, readPalette} from './draw.ts';
 import {icon, fillIcons} from './icons.ts';
-import {roomsMode as untypedRoomsMode, DRAW_RECT} from './modes/rooms.ts';
-import {furnitureMode as untypedFurnitureMode} from './modes/furniture.ts';
-import {lightsMode as untypedLightsMode} from './modes/lights.ts';
-import {$, el, ask as untypedAsk, banner as untypedBanner} from './ui.ts';
-import {createCoach as untypedCreateCoach} from './coach.ts';
+import {roomsMode, DRAW_RECT} from './modes/rooms.ts';
+import {furnitureMode} from './modes/furniture.ts';
+import {lightsMode} from './modes/lights.ts';
+import {$, el, ask, banner, find} from './ui.ts';
+import {createCoach} from './coach.ts';
 import {createViewDemo} from './view-demo.ts';
 import {createLook} from './look.ts';
 import {liveScene} from '../core/devices.ts';
-import {planWalls, planFurniture, planSpots as untypedPlanSpots} from '../core/plan-scene.ts';
-import {createPath as untypedCreatePath} from './wizard-path.ts';
+import {planWalls, planFurniture, planSpots} from '../core/plan-scene.ts';
+import {createPath} from './wizard-path.ts';
 import {stepReadyToFinish, areaOnPlan, lampWaits} from './wizard-state.ts';
 import {LANGS, getLang} from '../i18n/i18n.ts';
 import {readMode, saveMode, nextMode, isNight, tipWanted, onModeChange} from '../core/daynight.ts';
 import {dayNightTip} from './daynight-tip.ts';
-import type {
-  HaLamp,
-  HaLayer,
-  HaSwitch,
-  Lang,
-  Plan,
-  PlanLight,
-  Point,
-  SensorContext,
-  UiState,
-  Vector,
-} from '../core/types.ts';
+import type {HaLayer, Lang, Plan, PlanLight, Point, UiState} from '../core/types.ts';
 
 /** Safari's trackpad gesture: the two fingers' rotation in degrees and the pinch's scale. */
 interface GestureEvent extends UIEvent {
@@ -56,93 +45,28 @@ interface GestureEvent extends UIEvent {
 
 /** A rectangle on the plan canvas: [left, top, right, bottom], CSS pixels from its top-left corner. */
 type PixelBox = [number, number, number, number];
+import type {PhotoStore, UnderlaySnapshot} from './underlay.ts';
 import type {
   Aim,
   BannerButton,
   CanvasPoint,
   BannerItem,
-  Coach,
-  DevicesMode,
   Editor,
-  EditorHistory,
   EditorTool,
-  FurnitureMode,
-  LightsMode,
   Pane,
   PaneRole,
   ModeId,
-  PhotoStore,
   PlanPointer,
-  PlanVersion,
-  PlanView2d,
-  PlanView3d,
   RoomTool,
-  RoomsMode,
   ScreenRect,
-  SensorSpot,
-  SensorsMode,
   StepOptions,
-  Underlay,
-  UnderlaySnapshot,
-  VersionKind,
-  WizardPath,
   WizardStep,
 } from './editor-types.ts';
-
-// ---------- the modules not typed yet ----------
-// Their results take the shapes editor-types.ts gives the editor's members, and the functions whose parameters their defaults typed
-// too narrowly get their signatures here. Once those modules are typed, their own types replace these.
-const ask = untypedAsk as unknown as Editor['ask'];
-const banner = untypedBanner as (text?: string | null, buttons?: BannerItem[]) => void;
-const createView = untypedCreateView as unknown as (el: HTMLElement) => PlanView3d;
-const createView2d = untypedCreateView2d as unknown as (cv: HTMLCanvasElement) => PlanView2d;
-const createHistory = untypedCreateHistory as unknown as (
-  onChange: (() => void) | undefined,
-  o: {
-    capture: () => UnderlaySnapshot | null | undefined;
-    restore: (snapshot: UnderlaySnapshot | null | undefined) => void;
-    store: typeof idbStore;
-  },
-) => EditorHistory;
-/** The versions store (versions.ts createVersions): the list, reading the project's, adding one, and whether one is due. */
-interface VersionsStore {
-  list(): PlanVersion[];
-  ready(): Promise<void>;
-  open(planId: string | undefined): Promise<void>;
-  add(
-    plan: Plan,
-    o: {kind: VersionKind; what: string | null; photo: UnderlaySnapshot | null; at?: number | null},
-  ): Promise<PlanVersion | null>;
-  due(): boolean;
-}
-const createVersions = untypedCreateVersions as unknown as (o: {store: typeof idbStore}) => VersionsStore;
-const openVersions = untypedOpenVersions as unknown as (ed: Editor) => {close(): void};
-const mergePlanLights = untypedMergePlanLights as unknown as (
-  saved: PlanLight[],
-  current: Array<HaLamp | PlanLight>,
-  switches: HaSwitch[],
-) => PlanLight[];
-const createUnderlay = untypedCreateUnderlay as unknown as (
-  onChange: () => void,
-  store?: PhotoStore,
-) => Underlay;
-const roomsMode = untypedRoomsMode as unknown as (ed: Editor) => RoomsMode;
-const furnitureMode = untypedFurnitureMode as unknown as (ed: Editor) => FurnitureMode;
-const lightsMode = untypedLightsMode as unknown as (ed: Editor) => LightsMode;
-const devicesMode = untypedDevicesMode as unknown as (ed: Editor) => DevicesMode;
-const sensorsMode = untypedSensorsMode as unknown as (ed: Editor) => SensorsMode;
-const createCoach = untypedCreateCoach as unknown as (work: HTMLElement, card: HTMLElement) => Coach;
-const createPath = untypedCreatePath as unknown as (ed: Editor) => WizardPath;
-const planSpots = untypedPlanSpots as unknown as (
-  plan: Plan,
-  ctx: SensorContext,
-  o: {moving: string | undefined; cam: Vector | undefined},
-) => SensorSpot[];
 
 /** What the editor is built from (boot.ts): HA's lamps as plan lamps, the HA layer, and where the plan photo is kept. */
 export interface AppOptions {
   /** HA's lamps as plan lamps not placed yet (ha.ts haPlanLights). */
-  haLights: () => Array<HaLamp | PlanLight>;
+  haLights: () => PlanLight[];
   ha: HaLayer;
   /** None: this browser (underlay.ts browserPhotos). */
   photos?: PhotoStore;
@@ -152,9 +76,6 @@ export interface AppOptions {
 const isMouseWheel = (e: WheelEvent & {wheelDeltaY?: number}): boolean =>
   e.deltaX === 0 && e.wheelDeltaY !== undefined && e.wheelDeltaY !== 0 && e.wheelDeltaY % 120 === 0;
 const UI = 'home-twin-editor:ui';
-// One element of our own markup inside root, typed as present like ui.ts $ (a missing one fails at its first use)
-const find = <ElementType extends Element = HTMLElement>(root: ParentNode, selector: string): ElementType =>
-  root.querySelector(selector) as ElementType;
 // the scene settings and the dashboard layout are not plan edits: a restored or undone plan keeps the ones there are now
 const carryOver = <Key extends 'scenes' | 'panel'>(key: Key, from: Plan, to: Plan): void => {
   if (from[key]) to[key] = from[key];
@@ -1757,7 +1678,7 @@ export function createApp({haLights, ha, photos}: AppOptions): Editor {
     if (ed.mode.id === 'rooms') ed.modes.rooms.setTool(ROOM_TOOLS.includes(t) ? (t as RoomTool) : 'select');
     if (ROOM_TOOLS.includes(t)) ed.setMain('plan');
     syncTools();
-    if (t === 'rotate') ed.flows!.rotatePlan(); // boot.ts adds flows before a tool can be chosen
+    if (t === 'rotate') ed.flows.rotatePlan(); // boot.ts adds flows before a tool can be chosen
     refreshCursor();
   };
   // the “Select” button for the bottom bar — the same tool in all modes

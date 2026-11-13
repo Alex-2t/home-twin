@@ -13,7 +13,7 @@ import {
   deviceKind,
   PLACEABLE,
   coverModel,
-  autoPlace as autoPlaceUntyped,
+  autoPlace,
   placeOn,
   moveTo,
   unplace,
@@ -23,6 +23,7 @@ import {
   contactView,
   windowsOf,
 } from '../../core/devices.ts';
+import type {DeviceKind, DeviceTarget} from '../../core/devices.ts';
 import {$, el, esc} from '../ui.ts';
 import {icon, iconD} from '../icons.ts';
 import {pal, section} from './typed-helpers.ts';
@@ -36,13 +37,8 @@ import type {
   PlanDevice,
   Point,
 } from '../../core/types.ts';
-import type {CanvasPoint, DevicesMode, Editor, PlanPointer, PlanView2d, Selection} from '../editor-types.ts';
-
-/** What a device is in the model (devices.ts deviceKind): a heater has no model, only the others are placed. */
-type DeviceKind = 'ac' | 'heat' | 'cover' | 'contact';
-
-/** Where a device goes (devices.ts placeOn, moveTo): an air conditioner on a room side, the others on an opening. */
-type DeviceTarget = {room: string; edge: number; t: number} | {opening: string};
+import type {PlanView2d} from '../view2d.ts';
+import type {CanvasPoint, DevicesMode, Editor, PlanPointer, Selection} from '../editor-types.ts';
 
 /** A room side under the pointer (wallAt): its room and edge, how far along it (metres), its ends, and the distance to it. */
 interface WallSide {
@@ -70,6 +66,9 @@ interface DeviceHover {
   t?: DeviceTarget;
 }
 
+/** What the pointer is over while a device is dragged (targetAt): it always says where the device would go. */
+type DeviceHoverTarget = DeviceHover & {t: DeviceTarget};
+
 /** A device's icon on the plan: its entity and where the icon is, canvas pixels. */
 interface DeviceBadge {
   e: string;
@@ -93,13 +92,6 @@ interface ListDrag {
   dragging?: boolean;
   at?: CanvasPoint | null;
 }
-
-// core/devices.ts is not typed yet: its autoPlace reads as taking an entity lookup without an argument; this is how it is called
-const autoPlace = autoPlaceUntyped as (
-  plan: Plan,
-  devices: HaDevice[],
-  entityOf?: (entity: string) => HassEntityState | null | undefined,
-) => number;
 
 const ICON: Partial<Record<string, string>> = {ac: 'airVent', contact: 'doorOpen'};
 export const deviceIcon = (d: HaDevice): string =>
@@ -141,17 +133,18 @@ export function devicesMode(ed: Editor): DevicesMode {
           ? t('Off')
           : a.temp != null
             ? `${a.name} · ${Math.round(a.temp * 2) / 2}°`
-            : a.name;
+            : a.name!; // an air conditioner that answers has its mode's name (acView)
     }
     if (k === 'cover') {
       const c = coverView(x);
+      // a cover that answers has its position (coverView)
       return !c.ok
         ? t('No connection')
-        : c.pos >= 100
+        : c.pos! >= 100
           ? t('Open')
-          : c.pos <= 0
+          : c.pos! <= 0
             ? t('Closed')
-            : t('{0}% open', Math.round(c.pos));
+            : t('{0}% open', Math.round(c.pos!));
     }
     const c = contactView(x);
     return !c.ok ? t('No connection') : c.open ? t('Open') : t('Closed');
@@ -304,7 +297,7 @@ export function devicesMode(ed: Editor): DevicesMode {
     e: Pick<PlanPointer, 'offsetX' | 'offsetY'>,
     p: Point,
     d: HaDevice,
-  ): DeviceHover | null => {
+  ): DeviceHoverTarget | null => {
     if (kind(d) === 'ac') {
       const w = wallAt(p);
       return w ? {wall: w, t: {room: w.room, edge: w.edge, t: w.t}} : null;
@@ -424,7 +417,7 @@ export function devicesMode(ed: Editor): DevicesMode {
     }
   };
   m.anchor = () => {
-    const rec: PlanDevice | undefined = recOf(plan(), sel().device);
+    const rec: PlanDevice | null = recOf(plan(), sel().device);
     const q = rec && spotOf(rec);
     return q ? [q[0] - 0.3, q[1] - 0.3, q[0] + 0.3, q[1] + 0.3] : null;
   };

@@ -21,6 +21,8 @@ import {
 } from './stats.ts';
 import {demoStatistics, demoStateHistory} from '../editor/ha-demo.ts';
 import {mockHA} from '../editor/ha.ts';
+import type {DemoHistoryOptions, StatSensor} from '../editor/ha-demo.ts';
+import type {DemoHaData} from '../core/types.ts';
 import type {
   ClimateStats,
   EnergyDevice,
@@ -286,7 +288,7 @@ test('sections: sources present — the section exists; overview tiles', () => {
 });
 
 test('demo layer: statistics as in HA — sensor means, meter increments, the current hour not compiled', async () => {
-  const sensors = [
+  const sensors: StatSensor[] = [
     {entity: 'sensor.t', cls: 'temperature'},
     {entity: 'sensor.e', cls: 'energy', daily: 12, shape: 'flat'},
     {entity: 'sensor.x', cls: 'temperature'},
@@ -295,14 +297,13 @@ test('demo layer: statistics as in HA — sensor means, meter increments, the cu
     (({'sensor.t': 22, 'sensor.e': 100}) as Partial<Record<string, number>>)[e] ?? null;
   const now = NOW.getTime();
   const w = periodWindow('week', NOW);
-  // ha-demo.ts is still untyped: its answers are typed here as HA's
   const r = demoStatistics(
     sensors,
     state,
     ['sensor.t', 'sensor.e', 'sensor.x', 'sensor.none'],
     {start: w.start, end: w.end, period: 'day', types: ['mean', 'min', 'max', 'change']},
     {now},
-  ) as Record<string, StatsRow[]>;
+  );
   assert.deepEqual(Object.keys(r), ['sensor.t', 'sensor.e'], 'no reading or meter — no rows');
   assert.equal(r['sensor.t'].length, 7);
   // the demo's rows have these values
@@ -311,14 +312,12 @@ test('demo layer: statistics as in HA — sensor means, meter increments, the cu
   const full = r['sensor.e'][0];
   assert.ok(full.change! > 6 && full.change! < 24);
   assert.ok(today.change! < full.change!, 'today — only the elapsed hours');
-  const hours = (
-    demoStatistics(
-      sensors,
-      state,
-      ['sensor.e'],
-      {start: now - 5 * H, end: now, period: 'hour', types: ['change']},
-      {now},
-    ) as Record<string, StatsRow[]>
+  const hours = demoStatistics(
+    sensors,
+    state,
+    ['sensor.e'],
+    {start: now - 5 * H, end: now, period: 'hour', types: ['change']},
+    {now},
   )['sensor.e'];
   assert.equal(hours.at(-1)!.start, Math.floor(now / H) * H - H, 'the last row is the previous hour');
   assert.deepEqual(
@@ -332,14 +331,8 @@ test('demo layer: statistics as in HA — sensor means, meter increments, the cu
     {},
     'before the data starts — empty',
   );
-  // its options are inferred from the defaults (restart: null)
-  const demoOptions = {outages: {a: {hours: 4, drops: 2}}, restart: 5 * DAY} as unknown as Parameters<
-    typeof demoStateHistory
-  >[2];
-  const hist = demoStateHistory(['a', 'b'], {start: 0, end: 10 * DAY}, demoOptions) as Record<
-    string,
-    HealthRow[]
-  >;
+  const demoOptions: DemoHistoryOptions = {outages: {a: {hours: 4, drops: 2}}, restart: 5 * DAY};
+  const hist = demoStateHistory(['a', 'b'], {start: 0, end: 10 * DAY}, demoOptions);
   assert.equal(hist.a.filter(x => x.s === 'unavailable').length, 3);
   assert.equal(hist.b.filter(x => x.s === 'unavailable').length, 1);
   const b = buildHealth(
@@ -348,10 +341,7 @@ test('demo layer: statistics as in HA — sensor means, meter increments, the cu
       {entity: 'b', name: 'B'},
       ...'cdef'.split('').map(e => ({entity: e, name: e})),
     ],
-    demoStateHistory(['a', 'b', ...'cdef'], {start: 0, end: 10 * DAY}, demoOptions) as Record<
-      string,
-      HealthRow[]
-    >,
+    demoStateHistory(['a', 'b', ...'cdef'], {start: 0, end: 10 * DAY}, demoOptions),
     {start: 0, end: 10 * DAY},
   );
   assert.equal(b.restarts, 1);
@@ -362,7 +352,7 @@ test('demo layer: statistics as in HA — sensor means, meter increments, the cu
 });
 
 test('a whole section through the HA demo layer: climate, energy, connectivity', async () => {
-  // ha.ts is still untyped: mockHA infers its data from the defaults; these leave out what the test does not read
+  // the demo data leave out what the test does not read
   const ha = mockHA({
     areas: {k: 'Kitchen'},
     lights: [],
@@ -373,7 +363,7 @@ test('a whole section through the HA demo layer: climate, energy, connectivity',
     states: {'sensor.k_t': 22, 'sensor.m': 5},
     entities: {'climate.ac': {state: 'cool', attributes: {}}},
     stats: {energy: {grid: ['sensor.m'], devices: []}, outages: {'climate.ac': {hours: 5, drops: 2}}},
-  } as unknown as Parameters<typeof mockHA>[0]);
+  } as unknown as DemoHaData);
   const src = {
     climate: [{room: 'k', temperature: 'sensor.k_t'}],
     energy: energySources(await ha.energy()),

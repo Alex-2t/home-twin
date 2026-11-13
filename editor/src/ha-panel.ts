@@ -2,7 +2,8 @@
 // <home-twin-panel> in its iframe and sets hass on it (plus narrow, route, panel). The iframe has its own document — we insert
 // the styles and the editor shell there and start it (ha-app.js) once the HA registries arrive. Language, number and time formats and theme follow HA.
 import {SHELL, BODY, STYLES} from './gen/shell.gen.js';
-import type {PanelApp, PanelHost, PanelRoute} from './ha-app.ts';
+import type {PanelApp, PanelHost} from './ha-app.ts';
+import type {PanelRoute} from './editor/route.ts';
 import type {Hass, UiState} from './core/types.ts';
 
 class HomeTwinPanel extends HTMLElement implements PanelHost {

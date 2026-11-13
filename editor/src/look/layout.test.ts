@@ -21,7 +21,7 @@ import {readPlan} from '../core/plan-file.ts';
 import {mockHA} from '../editor/ha.ts';
 import type {FavCard} from './layout.ts';
 import type {FavAction, FavItem, FavView} from './favorites.ts';
-import type {HassAttributes, HassEntityState, PanelCard} from '../core/types.ts';
+import type {DemoHaData, HassAttributes, HassEntityState, PanelCard} from '../core/types.ts';
 
 const ids = (c: Array<{id: string}>): string[] => c.map(x => x.id);
 // the card at i is a "Favorites" card where the tests read it so
@@ -239,7 +239,7 @@ test('“Favorites” tile: look and tap by domain, like an HA tile', () => {
 });
 
 test('demo layer: all entities to pick from, commands to switches, scenes and scripts', async () => {
-  // ha.ts is still untyped: mockHA infers its data from the defaults; these leave out what the test does not read
+  // the demo data leave out what the test does not read
   const ha = mockHA({
     areas: {k: 'Kitchen'},
     lights: [{id: 'a', entity: 'light.a', name: 'Ceiling light', area: 'k'}],
@@ -260,7 +260,7 @@ test('demo layer: all entities to pick from, commands to switches, scenes and sc
       {entity: 'scene.movie', name: 'Movie', domain: 'scene'},
       {entity: 'script.s', name: 'S', domain: 'script'},
     ],
-  } as unknown as Parameters<typeof mockHA>[0]);
+  } as unknown as DemoHaData);
   assert.deepEqual(
     ha.entities().map(x => x.entity),
     ['light.a', 'climate.ac', 'sensor.t', 'switch.kettle', 'scene.movie', 'script.s'],
@@ -273,9 +273,9 @@ test('demo layer: all entities to pick from, commands to switches, scenes and sc
     'a sensor — like hass.states',
   );
   assert.equal(await ha.call('switch', 'toggle', {entity_id: 'switch.kettle'}), true);
-  assert.equal(ha.entity('switch.kettle').state, 'on', 'a relay not behind a lamp');
+  assert.equal(ha.entity('switch.kettle')?.state, 'on', 'a relay not behind a lamp');
   await ha.call('script', 'turn_on', {entity_id: 'script.s'});
-  assert.equal(ha.entity('script.s').state, 'on');
+  assert.equal(ha.entity('script.s')?.state, 'on');
   await ha.call('scene', 'turn_on', {entity_id: 'scene.movie'});
-  assert.notEqual(ha.entity('scene.movie').state, '2026');
+  assert.notEqual(ha.entity('scene.movie')?.state, '2026');
 });

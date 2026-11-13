@@ -309,6 +309,17 @@ export interface FurnitureItem {
   b?: Point;
 }
 
+/** A catalog variant's own sizes, metres: any of them; z is its bottom above the floor (on the wall or not). */
+export interface VariantSize {
+  w?: number;
+  d?: number;
+  h?: number;
+  z?: number;
+}
+
+/** A catalog variant: its key (item.v), its name, and how far a sofa bed unfolds or the variant's own sizes. */
+export type CatalogVariant = [key: string, name: string, extra?: number | VariantSize];
+
 /** A catalog entry (catalog.ts CATALOG): a model an item can be, with its sizes, colours and how it stands. */
 export interface CatalogEntry {
   id: string;
@@ -325,14 +336,14 @@ export interface CatalogEntry {
   /** The smallest and the largest size: [w, d, h], metres. */
   min: [number, number, number];
   max: [number, number, number];
-  /** The default colour key (catalog COLORS), the keys offered, and a second colour (a rug's border). */
+  /** The default colour key (catalog COLORS), the keys offered, and whether it takes a second colour (a rug's border). */
   color: string;
   colors?: string[];
-  color2?: string;
+  color2?: boolean;
   /** Search words. */
   tags?: string;
-  /** Variants: [key, name, extra]; extra is how far a sofa bed unfolds, or the variant's own default size. */
-  vars?: Array<[string, string, (number | {w: number; d: number; h: number})?]>;
+  /** Variants: [key, name, extra]; extra is how far a sofa bed unfolds, or the variant's own sizes. */
+  vars?: CatalogVariant[];
   /** Its bottom above the floor, metres (wall cabinets, a TV on the wall). */
   lift?: number;
   /** A table: true, or its top's height in metres (a dressing table has a mirror above it). */
@@ -1059,6 +1070,8 @@ export interface HaDevice {
   /** A leak sensor: the battery charge sensor and the "battery low" binary_sensor of the same device. */
   battery?: string;
   low?: string;
+  /** Its HA device id, which Preview's statistics read; neither HA layer sets it yet. */
+  device?: string;
 }
 
 /** Any entity, for "Favorites" in Preview. */
