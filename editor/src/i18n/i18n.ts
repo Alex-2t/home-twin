@@ -49,8 +49,8 @@ const LOCALE: Record<Lang, string> = {
   pt: 'pt-BR',
   ru: 'ru',
 };
-// A language the UI has: one with a locale. (Looked up as the code always did, by a truthy entry.)
-const isLang = (code: string): code is Lang => Boolean((LOCALE as Partial<Record<string, string>>)[code]);
+// A language the UI has: one with a locale of its own ('toString' is not one, though every object has it).
+const isLang = (code: string): code is Lang => Object.hasOwn(LOCALE, code);
 let lang: Lang = 'en';
 export const getLang = (): Lang => lang;
 export const locale = (): string => LOCALE[lang];
@@ -138,7 +138,7 @@ export function t(s: string, ...args: unknown[]): string {
   let text = bare(s);
   if (lang !== 'en') {
     const d = DICT[lang];
-    const translated = d && s in d ? d[s] : undefined;
+    const translated = d && Object.hasOwn(d, s) ? d[s] : undefined;
     if (translated) text = translated;
     else missing.add(s);
   }
@@ -203,13 +203,13 @@ export function translateDom(root: Element | null | undefined): void {
   while ((node = walker.nextNode())) {
     // a text node's value is never null
     const s = node.nodeValue!.trim();
-    const translated = d[s];
+    const translated = Object.hasOwn(d, s) ? d[s] : undefined;
     if (s && translated && !skip(node)) node.nodeValue = node.nodeValue!.replace(s, translated);
   }
   for (const e of root.querySelectorAll('[title],[placeholder],[aria-label]'))
     for (const a of ['title', 'placeholder', 'aria-label']) {
       const s = e.getAttribute(a);
-      const translated = s ? d[s] : undefined;
+      const translated = s && Object.hasOwn(d, s) ? d[s] : undefined;
       if (s && translated) e.setAttribute(a, translated);
     }
 }

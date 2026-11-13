@@ -7,7 +7,7 @@ import {t} from '../i18n/i18n.ts';
 import {WALL, area, pointIn, openingCoords} from './geometry.ts';
 import {byId, zOf} from './catalog.ts';
 import {roomOfArea} from './sensors.ts';
-import {wallInfo} from './plan.ts';
+import {wallInfo, OPENING} from './plan.ts';
 import {roomKind} from './overview.ts';
 import type {
   AcView,
@@ -276,12 +276,14 @@ function coverItem(plan: DevicePlan, model: string | null, W: OpeningSide, k = 0
   const lr = e.u[0] * -e.n[1] + e.u[1] * e.n[0] > 0; // does the edge run left to right?
   const s = lr ? W.s0 + sw * k + sw / 2 : W.s1 - sw * k - sw / 2;
   if (model === 'blind') {
-    // a window from an older file may have no bottom or top: z and h come out NaN, as they always did (hence c.top! too)
-    const z = Math.max(0, +(Number(c.bottom) - 0.04).toFixed(2));
+    // a window from an older file may have no bottom or top: it is taken as a usual window (plan.ts OPENING)
+    const sill = c.bottom ?? OPENING.window.bottom;
+    const head = c.top ?? OPENING.window.top;
+    const z = Math.max(0, +(sill - 0.04).toFixed(2));
     return itemAt(plan, 'blind', e, s, {
       w: +(sw - 0.02).toFixed(3),
       z,
-      h: +(c.top! + 0.1 - z).toFixed(2),
+      h: +(head + 0.1 - z).toFixed(2),
     });
   }
   return itemAt(plan, 'curtains', e, s, {

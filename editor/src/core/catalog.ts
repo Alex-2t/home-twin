@@ -49,6 +49,8 @@ export const TOPS: Record<string, Worktop> = {
   walnut: [N('Walnut'), 0x74533a, 0.5],
   black: [N('Black stone'), 0x2b2c2f, 0.28],
 };
+// A worktop key from a plan file: one of the keys above, as an own key ('toString' is on every object, but is no worktop).
+export const isWorktop = (k: string | null | undefined): k is string => k != null && Object.hasOwn(TOPS, k);
 // Automotive finishes use the existing saved color keys, with their own swatches and lacquer tones.
 export const CAR_COLORS: Record<string, Swatch> = {
   navy: [N('Sapphire blue'), 0x155fce],

@@ -32,6 +32,8 @@ import {
   center,
   furnOpts,
   syncFurnStrips,
+  shadeOf,
+  housingOf,
 } from './fixtures.ts';
 import type {LampCell, StripRuns} from './fixtures.ts';
 import type {FurnitureItem, Outline, Plan, PlanLight, Point, Room, Segment} from './types.ts';
@@ -381,6 +383,23 @@ test('strip on furniture: by name, moves with the furniture, without furniture b
   const P: PlanLight = {id: 'p', name: 'Worktop light', area: 'kitchen', points: [], segments: []};
   placeForm(plan, P, 'strip', 'top', cell);
   assert.equal(P.opt, 'top', 'without cabinets: as before');
+});
+test('a strip variant or a shade from a file is a key of its table only as its own, not one every object has', () => {
+  const plan = flat();
+  plan.furniture = [{id: 'b', model: 'kitchenBase', w: 2, d: 0.6, h: 0.9, rot: 0, x: 5.5, y: 2.68}];
+  const L: PlanLight = {id: 'w', name: 'Strip', area: 'kitchen', points: [], segments: []};
+  const cell = lampCell(plan, L)!;
+  plan.lights = [L];
+  placeForm(plan, L, 'strip', 'top', cell);
+  L.opt = 'toString';
+  assert.equal(syncFurnStrips(plan), false, 'not a strip on furniture: nothing to follow');
+  assert.deepEqual(furnOpts(plan, cell), ['plinth']);
+  assert.equal(
+    shadeOf({shade: 'constructor', name: 'Pendant'}),
+    'dome',
+    'an unknown shade: guessed from the name',
+  );
+  assert.equal(housingOf({shade: 'toString', name: 'Track'}), 'white');
 });
 test('lighting with furniture: ceiling light and pendants above the table, spots not above a wardrobe, sconces at the headboard, floor lamp by the sofa', () => {
   const R: Outline = [

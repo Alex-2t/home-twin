@@ -7,6 +7,7 @@ import {
   colorOf,
   TOP,
   TOPS,
+  isWorktop,
   byId,
   zOf,
   colorsOf,
@@ -944,7 +945,9 @@ export function furnitureMode(ed: Editor): FurnitureMode {
     } // a rug's second color
     if (c.vars) {
       const vl = el(`<div class="line opts"></div>`);
-      const cur = f.v || c.vars[0][0]; // variants of one object — as chips, like for a strip
+      // variants of one object — as chips, like for a strip; a variant the model no longer has reads as its first
+      const stored = c.vars.find(q => q[0] === f.v);
+      const cur = stored ? stored[0] : c.vars[0][0];
       for (const [k, n] of c.vars) {
         const b = el(`<button class="chip ${k === cur ? 'on' : ''}">${esc(n)}</button>`);
         b.onclick = () => {
@@ -983,7 +986,7 @@ export function furnitureMode(ed: Editor): FurnitureMode {
     // the worktop: one for the whole kitchen — every unit with a worktop in this room gets it
     if (c.tops) {
       const tl = el(`<div class="line opts"><small>${t('Worktop')}</small></div>`);
-      const cur = TOPS[f.top as string] ? f.top : 'stone'; // no worktop: undefined is no key
+      const cur = isWorktop(f.top) ? f.top : 'stone';
       const room = roomAt(plan(), [f.x, f.y]);
       for (const [k, [n, hex]] of Object.entries(TOPS)) {
         const b = el(

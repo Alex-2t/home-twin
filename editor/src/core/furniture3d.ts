@@ -4,7 +4,7 @@ import * as THREE from 'three';
 import {RoundedBoxGeometry} from 'three/addons/geometries/RoundedBoxGeometry.js';
 import {GLTFLoader} from 'three/addons/loaders/GLTFLoader.js';
 import {mergeGeometries} from 'three/addons/utils/BufferGeometryUtils.js';
-import {CATALOG, COLORS, TOPS, byId, zOf, lArms, extOf, hexOf} from './catalog.ts';
+import {CATALOG, COLORS, TOPS, isWorktop, byId, zOf, lArms, extOf, hexOf} from './catalog.ts';
 import {isHex} from './color.ts';
 import {runShape} from './runs.ts';
 import {car as car3d} from './car3d.ts';
@@ -165,7 +165,7 @@ const CHROME = (): THREE.MeshStandardMaterial => finish('chrome');
 const METAL = (): THREE.MeshStandardMaterial => mat(0xb9bcc0, 0.3);
 const TOP = (k: string | undefined): THREE.MeshStandardMaterial => {
   // TOPS: a worktop key → [name, colour, roughness]; any other key is gray stone
-  const [, color, rough] = TOPS[k as string] || TOPS.stone; // no key (undefined) finds none
+  const [, color, rough] = isWorktop(k) ? TOPS[k] : TOPS.stone;
   return mat(color, rough);
 };
 // Sanitary ware (toilet, bidet, washbasin, bathtubs): white ceramic, black or any other color glazed; inside — the floor of the bowl or tub.

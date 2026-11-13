@@ -364,6 +364,9 @@ export const FLOOR_KINDS: Record<string, FloorKind> = {
   grass: {label: t('Lawn'), pattern: 'grass', base: [86, 110, 64], size: 2, rough: 0.95, group: O},
   gravel: {label: t('Gravel'), pattern: 'gravel', base: [176, 168, 154], size: 1.2, rough: 0.92, group: O},
 };
+// A floor kind from a plan file: one of the keys above, as an own key ('toString' is on every object, but is no floor).
+export const isFloorKind = (k: string | null | undefined): k is string =>
+  k != null && Object.hasOwn(FLOOR_KINDS, k);
 export const FLOOR_QUICK = [
   'wood',
   'woodLight',
@@ -423,7 +426,7 @@ export const floorGuess = (room: Room | null | undefined): string => {
   return 'wood';
 };
 export const floorKind = (room: Room | null | undefined): string =>
-  room?.floor && FLOOR_KINDS[room.floor] ? room.floor : floorGuess(room);
+  isFloorKind(room?.floor) ? room.floor : floorGuess(room);
 export const floorColor = (room: Room | null | undefined): string =>
   floorBase(floorKind(room), room?.floorTint);
 
@@ -1122,6 +1125,9 @@ export const WALL_KINDS: Record<string, WallKind> = {
   concrete: {label: t('Concrete'), pattern: 'concrete', base: [176, 174, 170], group: WO},
   microcement: {label: t('Microcement'), pattern: 'concrete', base: [212, 206, 198], group: WO},
 };
+// A wall kind from a plan file: one of the keys above, as an own key (as for floors).
+export const isWallKind = (k: string | null | undefined): k is string =>
+  k != null && Object.hasOwn(WALL_KINDS, k);
 export const WALL_QUICK = [
   'paintWarm',
   'paintWhite',
@@ -1140,12 +1146,12 @@ export const wallGuess = (room: Room | null | undefined): string =>
   BATH.test(`${room?.name || ''} ${room?.id || ''}`.toLowerCase()) ? 'tileWhite' : 'paintWarm';
 // the finish of the room and of edge i: {k, tint, own: the edge has its own setting}
 export const roomWall = (room: Room | null | undefined): Finish => ({
-  k: room?.wall && WALL_KINDS[room.wall] ? room.wall : wallGuess(room),
-  tint: room?.wall && WALL_KINDS[room.wall] ? room.wallTint : null,
+  k: isWallKind(room?.wall) ? room.wall : wallGuess(room),
+  tint: isWallKind(room?.wall) ? room.wallTint : null,
 });
 export function sideWall(room: Room | null | undefined, i: number): WallFinish {
   const o = room?.wf?.[i];
-  return o && WALL_KINDS[o.k] ? {k: o.k, tint: o.tint || null, own: true} : {...roomWall(room), own: false};
+  return o && isWallKind(o.k) ? {k: o.k, tint: o.tint || null, own: true} : {...roomWall(room), own: false};
 }
 export const wallBase = (k: string, tint?: string | null): string => hex(unhex(tint) || WALL_KINDS[k].base);
 // A finish swatch, 48 px ≈ 60 cm of wall (the same pattern as in the shader).
@@ -1291,7 +1297,6 @@ const FIN_PAT: Record<WallKind['pattern'], number> = {
 };
 const TABLE_SIZE = 256; // finishes and stacks per home; number 0 is none
 const BAND_STEP = 0.02; // stack heights in steps of 2 cm (up to 5.1 m)
-const isWallKind = (k: string): boolean => !!WALL_KINDS[k];
 
 /** The finish table: one entry per distinct finish (key, tint, tile size, joint). */
 function finishTable(): {data: Uint8Array; idOf: (finish: Finish) => number; count: () => number} {

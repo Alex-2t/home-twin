@@ -117,6 +117,16 @@ test('auto: an air conditioner goes on a free upper wall facing into the room; t
   assert.equal(autoPlace(p, devs), 0); // the second time: nothing new
 });
 
+test('a roller blind on a window from an older file without heights: as on a usual window, not NaN', () => {
+  const p = plan();
+  delete p.openings[0].bottom;
+  delete p.openings[0].top;
+  const blind = placeOn(p, devs[1], {opening: 'op_1'})!;
+  const item = p.furniture.find(x => x.id === blind.furn)!;
+  assert.equal(item.z, 0.81);
+  assert.equal(item.h, 1.69);
+});
+
 test('auto: an air conditioner placed in “Furniture” and curtains at the window get bound, no second one is placed', () => {
   const p = plan();
   p.furniture.push(

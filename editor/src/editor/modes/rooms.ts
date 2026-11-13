@@ -18,6 +18,7 @@ import {
   floorKind,
   floorSwatch,
   floorBase,
+  isFloorKind,
   WALL_KINDS,
   WALL_QUICK,
   WALL_GROUPS,
@@ -25,6 +26,7 @@ import {
   sideWall,
   wallSwatch,
   wallBase,
+  isWallKind,
 } from '../../core/surfaces.ts';
 import {GRID} from '../../core/layout.ts';
 import {
@@ -2423,7 +2425,7 @@ export function roomsMode(ed: Editor): RoomsMode {
       title: t('Floor'),
       cur: floorKind(r),
       tint: r.floorTint || null,
-      auto: !FIN.floor.kinds[r.floor as string], // none: undefined, no such kind
+      auto: !isFloorKind(r.floor),
       autoTip: t('from room name'),
       ai: hasFloorPieces(r),
       pick: k => {
@@ -2456,7 +2458,7 @@ export function roomsMode(ed: Editor): RoomsMode {
       title: t('Walls'),
       cur: w.k,
       tint: w.tint || null,
-      auto: !FIN.wall.kinds[r.wall as string], // none: undefined, no such kind
+      auto: !isWallKind(r.wall),
       autoTip: t('from room name'),
       ai: hasWallPieces(r, roomSides(r)),
       pick: k => {

@@ -51,6 +51,12 @@ test('a rug: the field in color, the border in color2; without color2 — a dark
     assert.ok(two.has(0xb8b1a5) && two.has(0x978e80), v);
   }
 });
+test('a worktop key from a file: an unknown one, even one every object has, is gray stone', () => {
+  const base = {model: 'kitchenBase', w: 0.6, d: 0.6, h: 0.9};
+  const stone = colorsIn(makeObject(itemOf(base)));
+  assert.deepEqual(colorsIn(makeObject(itemOf({...base, top: 'toString'}))), stone);
+  assert.deepEqual(colorsIn(makeObject(itemOf({...base, top: 'nope'}))), stone);
+});
 test('a built-in wardrobe can reach the ceiling of a 2.7 m room', () => {
   // the catalog has it
   const wardrobe = byId('wardrobeRun')!; // the catalog has it

@@ -3,7 +3,7 @@ import {test} from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import {scan} from '../../tools/i18n-scan.ts';
-import {LANGS, setLang, t, setFormats, num, clock} from './i18n.ts';
+import {LANGS, setLang, getLang, pickLang, t, setFormats, num, clock} from './i18n.ts';
 
 const {keys, bad} = scan();
 const holes = (s: string): string =>
@@ -44,6 +44,18 @@ test('translations: plurals and numbers follow the language; "|context" is not s
   assert.equal(t('{0, plural, one {# light} other {# lights}}', 5), '5 ламп'); // allow-cyrillic: Russian plural form
   setLang('de');
   assert.equal(t('Open|verb'), 'Öffnen');
+  setLang('en');
+});
+
+test('languages and translations are looked up by their own keys, not ones every object has', () => {
+  for (const code of ['toString', 'constructor', '__proto__']) {
+    setLang(code);
+    assert.equal(getLang(), 'en', code);
+    assert.equal(pickLang([code]), 'en', code);
+  }
+  setLang('de');
+  assert.equal(t('toString'), 'toString');
+  assert.equal(t('constructor'), 'constructor');
   setLang('en');
 });
 

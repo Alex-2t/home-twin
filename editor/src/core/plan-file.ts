@@ -18,8 +18,9 @@ function check(ok: unknown): asserts ok {
 const optional = (o: JsonObject, k: string, test: (value: unknown) => boolean): void => {
   if (o[k] != null) check(test(o[k]));
 };
+// An optional number is absent or a finite number: null is not one (a field that may be null says so where it is checked).
 const numbers = (o: JsonObject, ks: string[]): void => {
-  for (const k of ks) optional(o, k, Number.isFinite);
+  for (const k of ks) if (o[k] !== undefined) check(isNumber(o[k]));
 };
 const points = (x: unknown): x is Point[] => isList(x) && x.every(point);
 // The entries of a list the id check below has found to be objects (none: the list is missing).
@@ -130,9 +131,9 @@ export function readPlan(text: string): Plan {
     optional(s, 'label', x => typeof x === 'string');
     optional(s, 'c', x => typeof x === 'string' && /^#[0-9a-f]{6}$/i.test(x));
   }
-  // devices are not in the id check above: an entry that is not an object fails here as it always did (reading its id)
-  for (const d of (p.devices || []) as JsonObject[])
-    check(str(d.id) && str(d.entity) && (str(d.furn) || str(d.opening)));
+  // devices are not in the id check above: here an entry must be an object too
+  for (const d of isList(p.devices) ? p.devices : [])
+    check(obj(d) && str(d.id) && str(d.entity) && (str(d.furn) || str(d.opening)));
   check(((p.sensorSkip || []) as unknown[]).every(str)); // a list when present (checked above)
   numbers(p, ['docArea']);
   if (p.wall != null) {

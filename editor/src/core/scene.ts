@@ -19,6 +19,7 @@ import {installRoomLightMask} from './card/room-light-mask.ts';
 import {
   floorKind,
   FLOOR_KINDS,
+  isFloorKind,
   floorTexture,
   floorUV,
   bakeAO,
@@ -591,7 +592,7 @@ export function createView(host: HTMLElement): SceneView {
   // the pattern laid along the same walls as the room's.
   function addFloorPieces(room: Room, floorMesh: THREE.Mesh, selected: boolean): void {
     // FLOOR_KINDS: a floor finish key → the finish; any other key is none
-    for (const piece of floorPieces(room, k => !!FLOOR_KINDS[k])) {
+    for (const piece of floorPieces(room, isFloorKind)) {
       const kind = FLOOR_KINDS[piece.k];
       const toVectors = (ring: Outline): THREE.Vector2[] => ring.map(([x, y]) => new THREE.Vector2(x, y));
       const shape = new THREE.Shape(toVectors(piece.rings[0]));

@@ -37,6 +37,7 @@ import {
   stripOnEdge,
   stripLayout,
   FURN_STRIP,
+  isFurnStrip,
   furnOpts,
   furnGuess,
 } from '../../core/fixtures.ts';
@@ -580,8 +581,7 @@ export function lightsMode(ed: Editor): LightsMode {
     return r ? {room: r, poly: r.polygon, ch: null} : c;
   }
   function stripOf(L: PlanLight): StripOn | null {
-    // an opt that is not a furniture strip (or none) finds nothing
-    if (FURN_STRIP[L.opt as string]) return null; // on furniture — it follows the furniture, the ends are not dragged
+    if (isFurnStrip(L.opt)) return null; // on furniture — it follows the furniture, the ends are not dragged
     const cell = stripCell(L);
     if (!cell) return null;
     const K = stripContour(plan(), cell, L.opt);
@@ -1402,10 +1402,13 @@ export function lightsMode(ed: Editor): LightsMode {
       const H = host(x);
       const f = x.placed ? formFor(H || x) : guessForm(x).form;
       const opt = x.placed ? (H || x).opt : gOpt(x);
-      // an opt that is not a furniture strip (or none) finds nothing
       const where =
         f === 'strip'
-          ? FURN_STRIP[opt as string]?.where || (opt === 'floor' ? t('at floor') : t('at ceiling'))
+          ? isFurnStrip(opt)
+            ? FURN_STRIP[opt].where
+            : opt === 'floor'
+              ? t('at floor')
+              : t('at ceiling')
           : '';
       const st = H
         ? t('part of “{0}”', esc(H.name))

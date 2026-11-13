@@ -7,7 +7,7 @@ import {isRun, runGeo} from '../core/runs.ts';
 import {zOf, nameOf} from '../core/catalog.ts';
 import {byId} from '../core/catalog.ts';
 import {SWING, zoneParts} from '../core/plan.ts';
-import {formFor, lineForm, FURN_STRIP} from '../core/fixtures.ts';
+import {formFor, lineForm, isFurnStrip} from '../core/fixtures.ts';
 import type {RunSide} from '../core/runs.ts';
 import type {FurnitureItem, Outline, Plan, PlanLight, Point, Segment, Vector} from '../core/types.ts';
 import type {PlanView2d} from './view2d.ts';
@@ -460,7 +460,7 @@ export const FLOOR_SHIFT = 0.12;
 // on furniture — where it is; a lamp without a height is not low (undefined < 1 was false); an opt that is not a furniture
 // strip reads nothing
 export const floorStrip = (L: PlanLight): boolean =>
-  formFor(L) === 'strip' && L.h !== undefined && L.h < 1 && !FURN_STRIP[L.opt as string]; // no opt finds none
+  formFor(L) === 'strip' && L.h !== undefined && L.h < 1 && !isFurnStrip(L.opt);
 export function shiftSegs(plan: Pick<Plan, 'rooms'>, L: PlanLight, segs: Segment[] = L.segments): Segment[] {
   if (!floorStrip(L)) return segs;
   const r = plan.rooms.find(r => r.id === L.room);

@@ -112,6 +112,10 @@ export const SHADES: Record<string, string> = {
   globe: t('Glass globe'),
   woven: t('Rattan'),
 };
+// A light's shade, housing or furniture strip from a plan file is a key of its table only as an own key ('toString' is on
+// every object, but is none of them). No key (a light without a shade) is none either.
+const ownKey = (table: object, k: string | null | undefined): k is string =>
+  k != null && Object.hasOwn(table, k);
 const SHADE_RE: Array<[string, RegExp]> = [
   [
     'woven',
@@ -125,16 +129,14 @@ const SHADE_RE: Array<[string, RegExp]> = [
 ];
 // A linear light's body (L.shade 'black' or 'white'): none set — black if the name says so (“Black track”), else white
 export const HOUSINGS: Record<string, string> = {white: t('White'), black: t('Black')};
-// (A light without a shade or an opt finds no entry in these tables, as looking up undefined did: hence `L.shade && …` and
-// `[L.opt ?? '']` below.)
 export const housingOf = (L: Pick<PlanLight, 'shade' | 'name' | 'model'>): string =>
-  L.shade && HOUSINGS[L.shade]
+  ownKey(HOUSINGS, L.shade)
     ? L.shade
     : SHADE_RE[2][1].test([L.name, L.model].filter(Boolean).join(' '))
       ? 'black'
       : 'white';
 export const shadeOf = (L: Pick<PlanLight, 'shade' | 'name' | 'model'>): string =>
-  L.shade && SHADES[L.shade]
+  ownKey(SHADES, L.shade)
     ? L.shade
     : SHADE_RE.find(([, r]) => r.test([L.name, L.model].filter(Boolean).join(' ')))?.[0] || 'dome';
 const OPT: Partial<Record<LightForm, string>> = {
@@ -745,6 +747,8 @@ export const FURN_STRIP: Record<string, FurnStripKind> = {
     back: 'floor',
   },
 };
+/** A strip variant (L.opt) is one on furniture: a key of FURN_STRIP. */
+export const isFurnStrip = (opt: string | null | undefined): opt is string => ownKey(FURN_STRIP, opt);
 // where the strip is on an item: segments in its axes (x along the width, z towards the front) and height
 // (… as Segment below: a segment mapped point by point is still its two ends)
 const FURN_AT: Record<string, (f: FurnitureItem) => {h: number; segs: Segment[]}> = {
@@ -801,10 +805,9 @@ export const furnOf = (
   cell: Pick<LampCell, 'poly'>,
   opt: string,
 ): FurnitureItem[] => {
+  if (!isFurnStrip(opt)) return [];
   const s = FURN_STRIP[opt];
-  return s
-    ? (plan.furniture || []).filter(f => s.models.includes(f.model) && pointIn([f.x, f.y], cell.poly))
-    : [];
+  return (plan.furniture || []).filter(f => s.models.includes(f.model) && pointIn([f.x, f.y], cell.poly));
 };
 export const furnOpts = (plan: Pick<Plan, 'furniture'>, cell: Pick<LampCell, 'poly'>): string[] =>
   Object.keys(FURN_STRIP).filter(k => furnOf(plan, cell, k).length);
@@ -861,14 +864,14 @@ export function furnGuess(
 }
 // guess: guess the furniture (the light is just being placed); “Ceiling” or “Floor” chosen by the user: on the wall
 function stripPlace(plan: LightPlan, L: PlanLight, cell: LampCell, guess = true): void {
-  const fo = L.opt && FURN_STRIP[L.opt] ? L.opt : guess ? furnGuess(plan, cell, L, L.opt) : null;
+  const fo = isFurnStrip(L.opt) ? L.opt : guess ? furnGuess(plan, cell, L, L.opt) : null;
   const fs = fo && furnStrip(plan, cell, fo);
   if (fs) {
     L.opt = fo;
     L.h = fs.h;
     L.segments = fs.segments;
   } else {
-    if (L.opt && FURN_STRIP[L.opt]) L.opt = FURN_STRIP[L.opt].back;
+    if (isFurnStrip(L.opt)) L.opt = FURN_STRIP[L.opt].back;
     L.h = STRIP[L.opt ?? '']?.h ?? STRIP.top.h;
     L.segments = stripLayout(plan, cell, L.opt, L.name);
   }
@@ -878,7 +881,7 @@ function stripPlace(plan: LightPlan, L: PlanLight, cell: LampCell, guess = true)
 export function syncFurnStrips(plan: LightPlan & Pick<Plan, 'lights'>): boolean {
   let ch = false;
   for (const L of plan.lights) {
-    if (!L.placed || L.with || formFor(L) !== 'strip' || !FURN_STRIP[L.opt ?? '']) continue;
+    if (!L.placed || L.with || formFor(L) !== 'strip' || !isFurnStrip(L.opt)) continue;
     const r = plan.rooms.find(x => x.id === L.room);
     if (!r) continue;
     const c = lampCell(plan, L);
@@ -1224,7 +1227,7 @@ export function relayout(plan: LightPlan, L: PlanLight, cell: LampCell, was?: st
       ? pendantLayout(P, n, tb.c, tb.u, n > 1 ? Math.min(0.7, (tb.len - 0.3) / (n - 1)) : 0)
       : pendantLayout(F, n, c);
   } else if (f === 'line') L.segments = lineLayout(F, L.opt);
-  else if (f === 'strip' && (FURN_STRIP[L.opt ?? ''] || FURN_STRIP[was ?? '']))
+  else if (f === 'strip' && (isFurnStrip(L.opt) || isFurnStrip(was)))
     stripPlace(plan, L, cell, false); // onto furniture or from furniture back to the wall: place again
   else if (f === 'strip') {
     L.h = STRIP[L.opt ?? '']?.h ?? L.h; // floor strip: breaks at doors; ceiling strip: continuous above a door

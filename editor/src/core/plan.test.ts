@@ -52,7 +52,7 @@ import {
   snapLightPoint,
   tuck,
 } from './layout.ts';
-import {sideWall, roomWall, bakeFinish, WALL_KINDS} from './surfaces.ts';
+import {sideWall, roomWall, bakeFinish, WALL_KINDS, floorKind, isFloorKind, isWallKind} from './surfaces.ts';
 import type {
   EdgeRef,
   FurnitureItem,
@@ -335,6 +335,24 @@ test('wall finish: by name, per room, per edge; the edge follows corners and spl
   assert.equal(col(at(1.5, 0.14)), WALL_KINDS.paintSage.base.join(','), 'sage along the bottom one');
   assert.equal(col(at(4.5, 0.14)), WALL_KINDS.tileWhite.base.join(','), 'tiles in the bathroom');
   assert.equal(at(1.5, 2), 0, 'no finish in the middle of the room');
+});
+test('finish keys from a file: only the kinds themselves, not keys every object has', () => {
+  const p = two();
+  const [a, b] = p.rooms;
+  b.name = 'Bathroom';
+  const guessedFloor = floorKind(a);
+  Object.assign(a, {
+    floor: 'toString',
+    wall: 'constructor',
+    wf: a.polygon.map(() => ({k: 'hasOwnProperty'})),
+  });
+  assert.equal(floorKind(a), guessedFloor, 'an unknown floor is guessed from the name');
+  assert.equal(roomWall(a).k, 'paintWarm', 'an unknown wall is guessed from the name');
+  assert.equal(sideWall(a, 0).own, false, 'an unknown side finish is as the room');
+  b.floor = 'woodDark';
+  b.wall = 'brickRed';
+  assert.equal(isFloorKind(b.floor), true);
+  assert.equal(isWallKind(b.wall), true);
 });
 test('under a desk: a chair and a mobile pedestal slide in, a monitor stands on the desk, a loft bed goes above the desk', () => {
   const p = two();

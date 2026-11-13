@@ -103,6 +103,19 @@ test('foreign JSON, invalid data and future versions are rejected before opening
     change(p);
     assert.throws(() => readPlan(JSON.stringify(p)));
   }
+  // A device that is not an object, and null for an optional number: the file's own error, not one the check trips over.
+  const malformed: Array<(p: Plan) => unknown> = [
+    p => Object.assign(p, {devices: [null]}),
+    p => Object.assign(p, {devices: [5]}),
+    p => Object.assign(p.openings[0], {bottom: null}),
+    p => Object.assign(p, {docArea: null}),
+    p => Object.assign(p, {wall: {outer: null}}),
+  ];
+  for (const change of malformed) {
+    const p = plan();
+    change(p);
+    assert.throws(() => readPlan(JSON.stringify(p)), {message: 'Invalid plan file'}, change.toString());
+  }
 });
 test('furniture colors: named and custom #rrggbb (a rug also has a border color) are kept; malformed ones are rejected', () => {
   const rug = {id: 'f', model: 'rug', x: 2, y: 2, w: 2, d: 1.4, h: 0.012, rot: 0};
