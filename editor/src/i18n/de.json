@@ -1417,7 +1417,7 @@
  "Up to {0} photos for one pin.": "Höchstens {0} Fotos pro Pin.",
  "Could not add the photo: {0}": "Foto konnte nicht hinzugefügt werden: {0}",
  "{0, plural, one {# photo} other {# photos}}": "{0, plural, one {# Foto} other {# Fotos}}",
- "All {0} changes are made.": "Alle {0} Änderungen sind erledigt.",
+ "{0, plural, one {The change is made.} other {All # changes are made.}}": "{0, plural, one {Die Änderung ist erledigt.} other {Alle # Änderungen sind erledigt.}}",
  "Drop a photo or a screenshot here — or click": "Foto oder Screenshot hierher ziehen – oder klicken",
  "Add a photo": "Foto hinzufügen",
  "A screenshot with arrows": "Screenshot mit Pfeilen",

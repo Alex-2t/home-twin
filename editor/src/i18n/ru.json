@@ -1417,7 +1417,7 @@
  "Up to {0} photos for one pin.": "Не больше {0} фото на метку.",
  "Could not add the photo: {0}": "Не удалось добавить фото: {0}",
  "{0, plural, one {# photo} other {# photos}}": "{0, plural, one {# фото} few {# фото} many {# фото} other {# фото}}",
- "All {0} changes are made.": "Все правки ({0}) сделаны.",
+ "{0, plural, one {The change is made.} other {All # changes are made.}}": "{0, plural, one {Правка сделана.} few {Все # правки сделаны.} many {Все # правок сделаны.} other {Все правки (#) сделаны.}}",
  "Drop a photo or a screenshot here — or click": "Перетащите сюда фото или скриншот — или нажмите",
  "Add a photo": "Добавить фото",
  "A screenshot with arrows": "Скриншот со стрелками",

@@ -1417,7 +1417,7 @@
  "Up to {0} photos for one pin.": "Hoogstens {0} foto's per speld.",
  "Could not add the photo: {0}": "Foto kon niet worden toegevoegd: {0}",
  "{0, plural, one {# photo} other {# photos}}": "{0, plural, one {# foto} other {# foto's}}",
- "All {0} changes are made.": "Alle {0} wijzigingen zijn gedaan.",
+ "{0, plural, one {The change is made.} other {All # changes are made.}}": "{0, plural, one {De wijziging is gedaan.} other {Alle # wijzigingen zijn gedaan.}}",
  "Drop a photo or a screenshot here — or click": "Sleep hier een foto of screenshot heen — of klik",
  "Add a photo": "Foto toevoegen",
  "A screenshot with arrows": "Screenshot met pijlen",

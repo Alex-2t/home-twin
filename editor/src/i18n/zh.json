@@ -1417,7 +1417,7 @@
  "Up to {0} photos for one pin.": "每个标记最多 {0} 张照片。",
  "Could not add the photo: {0}": "无法添加照片：{0}",
  "{0, plural, one {# photo} other {# photos}}": "{0, plural, other {# 张照片}}",
- "All {0} changes are made.": "全部 {0} 处修改已完成。",
+ "{0, plural, one {The change is made.} other {All # changes are made.}}": "{0, plural, other {全部 # 处修改已完成。}}",
  "Drop a photo or a screenshot here — or click": "将照片或截图拖到这里 — 或点击",
  "Add a photo": "添加照片",
  "A screenshot with arrows": "带箭头的截图",

@@ -809,7 +809,7 @@ export function openReview(
     line.classList.toggle('all', done === pins.length);
     line.textContent =
       done === pins.length
-        ? t('All {0} changes are made.', pins.length)
+        ? t('{0, plural, one {The change is made.} other {All # changes are made.}}', pins.length)
         : t('{0} of {1} changes are made. The rest are pinned again, each with why.', done, pins.length);
   }
 
