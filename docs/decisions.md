@@ -17,6 +17,17 @@ New decisions are appended at the top of their section, old ones are not rewritt
 
 ## Decisions
 
+### D-106. A plan of several floors stops the AI build after the plan, and the page asks for a plan of one floor — **accepted** (2026-11-14)
+- **Why:** the first release builds homes of one floor. A plan image that draws two floors side by side (or a loft or a basement as a plan of its own) went into the build whole and came out a wrong home, at the user's expense. The AI build now tells it from the plan itself and stops right after reading it, before the paid work on rooms and furniture.
+- **The build's status says it** (`severalFloors`: how many floors and their labels as written). The progress page (`ai-build.ts`) then shows:
+  - the title "Your plan has several floors";
+  - one card: "We build one floor for now" — "Upload a plan of one floor, or crop this one to one floor.", with "Upload a plan", which opens the upload page for a new build (the stopped one is no longer followed);
+  - the plan photo as uploaded, so the owner sees what to crop; the rooms of the video, the overall bar and "the build goes on" are hidden, as they no longer hold.
+- **The start screen's card** says "Your plan has several floors" — "We build one floor for now". Such a build is offered among the account's builds only until it was shown in this browser, like a finished one (`offeredBuilds`).
+- What was spent on reading the plan (a few cents) is not mentioned: nothing scary, one or two short phrases (the hint rule).
+- The three new strings are in all ten languages ("floor" as a storey, not the floor surface).
+- Tests: `src/editor/ai-build.test.ts` — a build stopped on several floors is offered until seen. Looked at in the built editor on a demo listing plan (desktop and phone, English, Russian, German).
+
 ### D-105. The upload page says how to film in three short tips, and gently notes a very short or small upright video — **accepted** (2026-11-14)
 - **Why:** paid builds of eight new homes showed the result follows the video: a dark, upright 480p phone video of an empty flat gives few things and no lamps. Casual users film once, so the AI build's upload page is the one place to help. The owner left the decision to us; the choices below are ours, written down so they can be changed.
 - **Three tips in one row of pills** under the plan and the video (`ai-build.ts`, `.aib-tips`), each an icon and a few words: "Hold the phone sideways", "Lights on. No need to tidy up.", "Walk slowly, turn around in each room". Hints stay one short phrase each (D-022), and the second half of the lights tip keeps it from reading as homework. "Show the furniture" is left out: turning around in each room already shows it, and a fourth tip is too many (the casual-users rule: two or three at most). On a phone the pills become one panel of three rows. The older "Walk slowly and turn around once in every room." is replaced by the shorter third tip.

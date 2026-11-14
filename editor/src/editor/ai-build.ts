@@ -146,6 +146,11 @@ interface BuildStatus {
   ourCode?: boolean;
   /** The build waits: for a top-up ('balance'), or for the payments service to answer ('payments'). */
   paused?: 'balance' | 'payments' | null;
+  /**
+   * The plan draws more than one floor: the build stopped after reading it, before the rest (one floor is built for now).
+   * The page asks for a plan of one floor.
+   */
+  severalFloors?: PlanFloors | null;
   /** Its home was opened. */
   finished?: boolean;
   /** Seconds left. */
@@ -157,6 +162,12 @@ interface BuildStatus {
   rounds?: PinRound[];
   /** The things it could not place clear, each with one phrase in the owner's language. */
   unplaced?: UnplacedThing[];
+}
+
+/** How many floors the plan draws, and their labels as written on it (empty when none is). */
+interface PlanFloors {
+  count: number;
+  labels: string[];
 }
 
 /** A failed answer says why in {error}. */
@@ -485,11 +496,12 @@ export function buildStartedAt(id: string | undefined): number | null {
  * The account's builds to offer on the start screen, newest first: those not finished, and a finished one only if this
  * browser never showed its home. Builds whose time is not known keep the service's order, after the others.
  */
-export function offeredBuilds<Status extends {id?: string; finished?: boolean}>(
-  builds: Status[],
-  seen: Set<string>,
-): Status[] {
-  const offered = builds.filter(build => !build.finished || !seen.has(build.id || ''));
+export function offeredBuilds<
+  Status extends {id?: string; finished?: boolean; severalFloors?: PlanFloors | null},
+>(builds: Status[], seen: Set<string>): Status[] {
+  // A build stopped on a plan of several floors goes no further: offered, like a finished one, only until it was shown here.
+  const ended = (build: Status): boolean => !!build.finished || !!build.severalFloors;
+  const offered = builds.filter(build => !ended(build) || !seen.has(build.id || ''));
   const timed = offered.filter(build => buildStartedAt(build.id) !== null);
   const untimed = offered.filter(build => buildStartedAt(build.id) === null);
   timed.sort((a, b) => (buildStartedAt(b.id) || 0) - (buildStartedAt(a.id) || 0));
@@ -589,6 +601,13 @@ function buildCardText(status: BuildStatus): BuildCardText {
       note: t('Look at it in 3D and say what to change.'),
     };
   }
+  if (status.severalFloors) {
+    return {
+      state: 'stopped',
+      title: t('Your plan has several floors'),
+      note: t('We build one floor for now'),
+    };
+  }
   if (status.error || !status.alive) {
     return {state: 'stopped', title: t('The build stopped'), note: t('Open it to try again.')};
   }
@@ -639,6 +658,7 @@ export function aiStartCard(ed: Editor, card: HTMLElement, {api = ''}: {api?: st
     const shot = `<img src="${api}/api/builds/${encodeURIComponent(status.id as string)}/shot" alt="">`;
     if ((text.state === 'ready' || text.state === 'done') && status.has?.shot) return shot;
     if (text.state === 'ready' || text.state === 'done') return icon('house', 20);
+    if (status.severalFloors) return icon('plan', 20);
     if (text.state === 'stopped') return icon('alert', 20);
     return '<i class="aib-start-spin"></i>';
   };
@@ -1215,8 +1235,8 @@ export function openAiBuild(ed: Editor, options: AiBuildOptions = {}): AiBuildSc
       const s = (await getJson('')) as BuildStatus;
       if (answered && s.waiting !== answered) answered = null;
       status = answered && s.waiting === answered ? {...s, waiting: null} : s;
-      // Its finished home was shown in this browser: it is not offered here again (offeredBuilds).
-      if (status.finished) markSeen(buildId);
+      // Its finished home, or its stop on several floors, was shown in this browser: not offered here again (offeredBuilds).
+      if (status.finished || status.severalFloors) markSeen(buildId);
       noteSpending(status);
       if (status.has?.plan && !planRead) await loadPlanRead();
       if (status.waiting !== 'final') shownFinal = false;
@@ -1650,6 +1670,16 @@ export function openAiBuild(ed: Editor, options: AiBuildOptions = {}): AiBuildSc
   function ctaCard(): {key: string; html: string} {
     const s = shown();
     if (locked) return lockedCard();
+    if (s.severalFloors) {
+      // The split and the plan call are spent; the build goes no further. A plan of one floor (or this one cropped) goes on.
+      return {
+        key: 'several-floors',
+        html: `<div class="aib-card asking">
+          <span class="aib-card-ic">${icon('plan', 20)}</span>
+          <span class="aib-card-text"><b>${esc(t('We build one floor for now'))}</b><small>${esc(t('Upload a plan of one floor, or crop this one to one floor.'))}</small></span>
+          <button class="primary" data-act="new-build">${esc(t('Upload a plan'))}</button></div>`,
+      };
+    }
     if (s.error) {
       // An error of our own code is said in words; its message stays on hover, for us.
       const why = s.ourCode ? t('An error in our code, not in the files') : s.error;
@@ -1730,10 +1760,12 @@ export function openAiBuild(ed: Editor, options: AiBuildOptions = {}): AiBuildSc
   function renderReading(): void {
     const status = shown();
     const box = find(root, '.aib-reading');
-    const reading = !!status.has?.photo && !status.has?.plan && !status.error;
+    const reading = !!status.has?.photo && !status.has?.plan && !status.error && !status.severalFloors;
     const read = !!planRead;
-    box.hidden = !reading && !read;
-    const mode = read ? 'read' : reading ? 'reading' : '';
+    // The plan of several floors as uploaded: the owner sees what to crop.
+    const floors = !!status.severalFloors && !!status.has?.photo;
+    box.hidden = !reading && !read && !floors;
+    const mode = read ? 'read' : reading ? 'reading' : floors ? 'floors' : '';
     if (box.dataset.mode !== mode) {
       box.dataset.mode = mode;
       // 'read': the plan is read (planRead is there).
@@ -1747,8 +1779,11 @@ export function openAiBuild(ed: Editor, options: AiBuildOptions = {}): AiBuildSc
                 <span class="aib-card-thumb plan">${planRead!.svg}</span>
                 <span class="aib-card-text"><b>${esc(t('The plan is read'))}</b><small></small></span>
                 <span class="aib-done">${icon('check', 15)}</span></div>`
-            : '';
+            : mode === 'floors'
+              ? `<div class="aib-scan"><img src="${base()}/photo" alt=""></div>`
+              : '';
     }
+    if (mode === 'floors') box.classList.remove('aib-waiting');
     if (mode === 'reading') {
       // The photo is there from the upload; the plan is read once the video is cut into rooms (it learns the rooms from it).
       const next = !stepRunning('plan') && !status.live?.plan;
@@ -1894,6 +1929,7 @@ export function openAiBuild(ed: Editor, options: AiBuildOptions = {}): AiBuildSc
   function progressTitle(s: BuildStatus | null): string {
     if (locked) return t('AI build');
     if (!s) return t('Building your home');
+    if (s.severalFloors) return t('Your plan has several floors');
     if (s.error) return t('The build stopped');
     if (s.paused === 'balance') return t('Waiting for a top-up');
     if (s.paused === 'payments') return t('Waiting for payments');
@@ -1907,10 +1943,12 @@ export function openAiBuild(ed: Editor, options: AiBuildOptions = {}): AiBuildSc
     const s = status;
     // Not shown to this browser: only the way in, without the stages and the link that would say nothing.
     find(root, '.aib-screen').classList.toggle('aib-locked', !!locked);
+    // Stopped on a plan of several floors: the plan photo and what to do; the rooms of the video and "the build goes on" are not.
+    find(root, '.aib-screen').classList.toggle('aib-floors', !!s?.severalFloors && !locked);
     find(root, '.aib-title').textContent = progressTitle(s);
     find(root, '.aib-eta').textContent = s && !locked ? etaText(s.eta) : '';
     const overall = find(root, '.aib-overall');
-    overall.hidden = !s || !!s.error || !!locked;
+    overall.hidden = !s || !!s.error || !!s.severalFloors || !!locked;
     barOf(overall).style.width = percent(s?.share || 0);
     if (!s) return;
     renderSteps();
@@ -1929,6 +1967,7 @@ export function openAiBuild(ed: Editor, options: AiBuildOptions = {}): AiBuildSc
     const act = targetOf(e).closest<HTMLElement>('[data-act]')?.dataset.act;
     if (act === 'review') startReview();
     else if (act === 'open') openHome();
+    else if (act === 'new-build') newBuild();
     else if (act === 'top-up') {
       // The top-up button: act came from it. Bought at the checkout, it comes back to this build, which goes on by itself
       // once the payment is counted.
@@ -1946,6 +1985,16 @@ export function openAiBuild(ed: Editor, options: AiBuildOptions = {}): AiBuildSc
         renderProgress();
       }
     }
+  }
+
+  // A build stopped on a plan of several floors: the upload again, for a plan of one floor; this build is no longer followed.
+  function newBuild(): void {
+    clearTimeout(timer);
+    follow(null);
+    buildId = null;
+    status = null;
+    planRead = null;
+    showUpload();
   }
 
   // ---------- the review ----------
