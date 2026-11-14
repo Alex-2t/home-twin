@@ -6,6 +6,7 @@ import {
   AccountError,
   accountFrom,
   accountOffer,
+  balanceDetail,
   balanceFrom,
   balanceMeter,
   balancePercents,
@@ -17,6 +18,8 @@ import {
   emptyBalanceText,
   emptyStartText,
   isSignedOut,
+  morePackagesShort,
+  morePackagesText,
   offerFrom,
   pathOf,
   paymentClaimText,
@@ -72,30 +75,36 @@ async function withService(
   }
 }
 
-test('a little used is at least 1 %; not used up is at most 99 %', () => {
-  assert.deepEqual(balancePercents({used: 0, left: 1, empty: false, bought: true}), {used: 0, left: 100});
-  assert.deepEqual(balancePercents({used: 0.001, left: 0.999, empty: false, bought: true}), {
+test('a little used is at least 1 %; not used up is at most 99 % (a service before D-108: one package)', () => {
+  assert.deepEqual(balancePercents(balanceFrom({used: 0, left: 1, empty: false, bought: true})), {
+    used: 0,
+    left: 100,
+  });
+  assert.deepEqual(balancePercents(balanceFrom({used: 0.001, left: 0.999, empty: false, bought: true})), {
     used: 1,
     left: 99,
   });
-  assert.deepEqual(balancePercents({used: 0.36, left: 0.64, empty: false, bought: true}), {
+  assert.deepEqual(balancePercents(balanceFrom({used: 0.36, left: 0.64, empty: false, bought: true})), {
     used: 36,
     left: 64,
   });
-  assert.deepEqual(balancePercents({used: 0.998, left: 0.002, empty: false, bought: true}), {
+  assert.deepEqual(balancePercents(balanceFrom({used: 0.998, left: 0.002, empty: false, bought: true})), {
     used: 99,
     left: 1,
   });
-  assert.deepEqual(balancePercents({used: 1, left: 0, empty: true, bought: true}), {used: 100, left: 0});
+  assert.deepEqual(balancePercents(balanceFrom({used: 1, left: 0, empty: true, bought: true})), {
+    used: 100,
+    left: 0,
+  });
 });
 
 test('the meter fills with what is used and says what is left; nothing without an account', () => {
-  const html = balanceMeter({used: 0.36, left: 0.64, empty: false, bought: true});
+  const html = balanceMeter(balanceFrom({used: 0.36, left: 0.64, empty: false, bought: true}));
   assert.match(html, /width:36%/);
   assert.match(html, /64% left/);
   assert.match(html, /Package: 36% used, 64% left/);
   assert.doesNotMatch(html, /\$/);
-  assert.match(balanceMeter({used: 1, left: 0, empty: true, bought: true}), /aib-wallet empty/);
+  assert.match(balanceMeter(balanceFrom({used: 1, left: 0, empty: true, bought: true})), /aib-wallet empty/);
   assert.equal(balanceMeter(null), '');
 });
 
@@ -131,13 +140,24 @@ test('the account is checked: shares stay between 0 and 1, a missing balance is 
   assert.deepEqual(account, {
     email: 'someone@example.com',
     providers: ['github'],
-    balance: {used: 1, left: 0, empty: true, bought: true},
+    balance: {
+      used: 1,
+      left: 0,
+      empty: true,
+      bought: true,
+      packages: 1,
+      packagesLeft: 0,
+      current: {used: 1, left: 0},
+    },
   });
   assert.deepEqual(accountFrom({email: 'a@example.com'}).balance, {
     used: 1,
     left: 0,
     empty: true,
     bought: false,
+    packages: 0,
+    packagesLeft: 0,
+    current: {used: 1, left: 0},
   });
   // A service that does not say whether anything was bought: an empty balance reads as used up.
   assert.equal(balanceFrom({used: 1, left: 0, empty: true}).bought, true);
@@ -145,8 +165,8 @@ test('the account is checked: shares stay between 0 and 1, a missing balance is 
 });
 
 test('an empty balance says whether a first package is needed or nothing is left', () => {
-  const fresh = {used: 1, left: 0, empty: true, bought: false};
-  const usedUp = {used: 1, left: 0, empty: true, bought: true};
+  const fresh = balanceFrom({used: 1, left: 0, empty: true, bought: false});
+  const usedUp = balanceFrom({used: 1, left: 0, empty: true, bought: true});
   assert.equal(emptyBalanceText(fresh), 'No package yet');
   assert.equal(emptyBalanceText(usedUp), 'Nothing left on your account');
   assert.equal(emptyStartText(fresh), 'Buy your first package to build');
@@ -289,8 +309,60 @@ test('a build waiting for money offers the top-up; one waiting for the service g
 
 test('an empty balance beside the account reads in words, never a red "0% left" (a new account has used nothing)', async () => {
   const {walletHtml} = await import('./ai-account-ui.ts');
-  assert.match(walletHtml({used: 0, left: 0, empty: true, bought: false}), /No package yet/);
-  assert.doesNotMatch(walletHtml({used: 0, left: 0, empty: true, bought: false}), /% left/);
-  assert.match(walletHtml({used: 1, left: 0, empty: true, bought: true}), /Nothing left on your account/);
-  assert.match(walletHtml({used: 0.4, left: 0.6, empty: false, bought: true}), /60% left/);
+  assert.match(walletHtml(balanceFrom({used: 0, left: 0, empty: true, bought: false})), /No package yet/);
+  assert.doesNotMatch(walletHtml(balanceFrom({used: 0, left: 0, empty: true, bought: false})), /% left/);
+  assert.match(
+    walletHtml(balanceFrom({used: 1, left: 0, empty: true, bought: true})),
+    /Nothing left on your account/,
+  );
+  assert.match(walletHtml(balanceFrom({used: 0.4, left: 0.6, empty: false, bought: true})), /60% left/);
+});
+
+// Packages are spent one after another (D-108): two bought, 70 % of the first used.
+const TWO_AT_70 = balanceFrom({
+  used: 0.35,
+  left: 0.65,
+  empty: false,
+  bought: true,
+  packages: 2,
+  packagesLeft: 1,
+  current: {used: 0.7, left: 0.3},
+});
+
+test('packages one after another: the current one in percent, "+1 package" after it', () => {
+  assert.deepEqual(balancePercents(TWO_AT_70), {used: 70, left: 30});
+  const html = balanceMeter(TWO_AT_70);
+  assert.match(html, /width:70%/);
+  assert.match(html, /30% left<\/span><span class="aib-wallet-more">· \+1 package</);
+  assert.match(html, /title="Package: 70% used, 30% left · 1 more package"/);
+  assert.equal(morePackagesShort({...TWO_AT_70, packagesLeft: 3}), '+3 packages');
+  assert.equal(morePackagesText({...TWO_AT_70, packagesLeft: 3}), '3 more packages');
+  // One package: nothing after it is said.
+  const one = balanceFrom({used: 0.2, left: 0.8, empty: false, bought: true, packages: 1, packagesLeft: 0});
+  assert.doesNotMatch(balanceMeter(one), /aib-wallet-more/);
+  assert.equal(morePackagesText(one), '');
+});
+
+test("the account's menu: which package, its bar, and the full ones after it", () => {
+  const detail = balanceDetail(TWO_AT_70);
+  assert.match(detail, /Current package/);
+  assert.match(detail, /<b>30% left<\/b>/);
+  assert.match(detail, /width:70%/);
+  assert.match(detail, /1 more package/);
+  const one = balanceFrom({used: 0.2, left: 0.8, empty: false, bought: true, packages: 1, packagesLeft: 0});
+  assert.match(balanceDetail(one), /Your package/);
+  assert.doesNotMatch(balanceDetail(one), /more package/);
+});
+
+test('a broken count of packages reads as none after the current one', () => {
+  const odd = balanceFrom({
+    used: 0.5,
+    left: 0.5,
+    empty: false,
+    bought: true,
+    packages: -1,
+    packagesLeft: 1.5,
+  });
+  assert.equal(odd.packages, 1);
+  assert.equal(odd.packagesLeft, 0);
 });

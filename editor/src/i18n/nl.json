@@ -1634,5 +1634,9 @@
  "Filmed upright in low resolution: some things may be missed. Fine to go ahead.": "Staand gefilmd in lage resolutie: er kan iets gemist worden. Je kunt gewoon doorgaan.",
  "Your plan has several floors": "Je plattegrond heeft meerdere verdiepingen",
  "We build one floor for now": "Voorlopig bouwen we één verdieping",
- "Upload a plan of one floor, or crop this one to one floor.": "Upload een plattegrond van één verdieping, of snijd deze bij tot één verdieping."
+ "Upload a plan of one floor, or crop this one to one floor.": "Upload een plattegrond van één verdieping, of snijd deze bij tot één verdieping.",
+ "{0, plural, one {+# package} other {+# packages}}": "{0, plural, one {+# pakket} other {+# pakketten}}",
+ "{0, plural, one {# more package} other {# more packages}}": "{0, plural, one {nog # pakket} other {nog # pakketten}}",
+ "Current package": "Huidig pakket",
+ "Your package": "Je pakket"
 }

@@ -8,6 +8,7 @@ import {el, esc, find} from './ui.ts';
 import {holdFocus} from './keyboard.ts';
 import {icon} from './icons.ts';
 import {
+  balanceDetail,
   balanceMeter,
   buyButtonInner,
   emptyBalanceText,
@@ -314,7 +315,7 @@ export function accountBar(options: AccountBarOptions): AccountBar {
   }
 
   function openMenu(account: Account): void {
-    const balance = walletHtml(account.balance);
+    const balance = account.balance.empty ? walletHtml(account.balance) : balanceDetail(account.balance);
     const buyInner = buyButtonInner(view.offer, {topUp: account.balance.bought});
     menu = el(`<div class="aib-account-menu menu glass" role="menu">
       <div class="aib-account-who"><span class="aib-avatar">${esc(initialOf(account.email))}</span><b>${esc(account.email)}</b></div>
