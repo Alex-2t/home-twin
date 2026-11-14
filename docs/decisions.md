@@ -25,7 +25,8 @@ New decisions are appended at the top of their section, old ones are not rewritt
 - **By hand:** in the furniture panel a rug has a row of chips "Plain · Squares · Stripes · Mottled". With a pattern chosen, the "Border" row is called "Second color". New strings in all ten languages.
 - **Open:** whether these three cover enough real rugs (a Persian or a floral rug is drawn mottled); the AI build sets `pat` from the room call's label words today ("colourful … play mat", "distressed", "striped"), and from the room call's own `pattern` once its prompt asks for it.
 
-### D-100. A curtain or a blind on a glazed door — **proposed** (2026-11-14)
+### D-100. A curtain or a blind on a glazed door — **accepted** (2026-11-14)
+- The owner agreed on 2026-11-14: a blind or a curtain the AI build sees on a door makes that door glass.
 - A roller blind on the balcony door is common, and D-071 gave the editor glazed doors. In “Devices” (D-048) a cover still went onto windows only: the HA cover of such a blind could not be put on its door, and “Arrange automatically” made a new blind on the window instead of binding the one already hanging at the door (placed in Furniture, or by the AI build, which now hangs a blind the video shows on a balcony door at that door and marks the door glass).
 - **Now** (`core/devices.ts`): a cover goes onto a window or a glazed door (`opening.glass`) — clicked, dragged from the list or moved on the plan. On a door it hangs indoors: a glazed door drawn from the balcony's side is hung on the home's side of its wall. A roller blind on a door reaches from the floor to just over the door's head; curtains as at a window.
 - **Arrange automatically:** a cover already at a glazed door takes the room's device of its kind named for a door or a balcony (“Balcony door blind”, in the ten languages), or the room's only device of that kind when no window has a free one. New covers still go onto the windows; a room with no window gets them on its glazed doors. Rooms without glazed doors are arranged exactly as before.
@@ -40,7 +41,8 @@ New decisions are appended at the top of their section, old ones are not rewritt
 - The service sends `thing` and `room` with each `unplaced` entry; `say` is both in one phrase ("Base cabinets · Kitchen"). A service before this sends only `say` (the thing and why): the row keeps D-098's words.
 - **Phone (360–430 px):** the review's title and tools share one row at the top that wraps: the tools go to a second row on the right when both do not fit (in every language they do not at phone width), the hint under them. Before, the tools covered the title ("Check yo"). The plan view, a pin's bubble and the plan photo start below the tools. Desktop is unchanged.
 - Refines D-098.
-### D-098. The review lists what the AI build could not place clear — **proposed** (2026-11-14)
+### D-098. The review lists what the AI build could not place clear — **accepted** (2026-11-14)
+- The owner agreed on 2026-11-14: the AI build may move or shrink a thing to clear it, the owner's own too (at most 15 % smaller, up to 1.5 m away); what stays red is left where it is, with its note.
 - A thing the AI build could not move clear of another, of a door's zone or of a wall (no spot that keeps what it is, too big to shrink a little) stays where it is, red in Furniture mode. The owner should not find it unexplained.
 - **In the review:** each such thing is one line under the round's line, in the owner's language, in D-083's words: "We can’t do this yet: Radiator: blocks a door". The thing's name and the editor's own reason for the red; two things in each other are one line. No new strings.
 - **Progress:** the service's last code step before the pictures belongs to the Assembly stage.
