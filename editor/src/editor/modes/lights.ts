@@ -287,7 +287,8 @@ export function lightsMode(ed: Editor): LightsMode {
     // another lamp was selected — it flashes: at home (HA) and in 3D, this shows which one it is (two lights in a room)
     const L = find(id);
     if (L?.placed) {
-      ed.ha.identify?.(L.entity!); // a lamp from HA has its entity (ha.ts mergePlanLights)
+      // a lamp the AI build saw in the video has no entity yet: it blinks in the editor only
+      if (L.entity) ed.ha.identify?.(L.entity);
       blink(L.id);
     }
   };
@@ -331,10 +332,11 @@ export function lightsMode(ed: Editor): LightsMode {
   // A lamp has no area in HA but was placed in a room with an area — write it to HA (the owner: the link is stored
   // there — voice assistants, “kitchen lights” automations, other dashboards). A lamp with an area is not touched: in HA it has its own.
   function toHA(L: PlanLight): void {
-    if (L.area || !L.placed || !L.room || !ed.ha.setArea) return;
+    // a lamp the AI build saw in the video has no entity in HA to write it to
+    if (L.area || !L.entity || !L.placed || !L.room || !ed.ha.setArea) return;
     const a = roomById(plan(), L.room)?.area;
     if (!a) return;
-    ed.ha.setArea(L.entity!, a); // a lamp from HA has its entity
+    ed.ha.setArea(L.entity, a);
     L.area = a;
   }
   // every caller hands a lamp with its snapshot
@@ -1233,7 +1235,7 @@ export function lightsMode(ed: Editor): LightsMode {
       `<button class="ib ${flash === L.id ? 'on' : ''}" title="${t('Flash this light at home to see which one it is')}">${icon('zap', 15)}</button>`,
     );
     b.onclick = () => {
-      ed.ha.identify(L.entity!); // a lamp from HA has its entity
+      if (L.entity) ed.ha.identify(L.entity); // a lamp seen by the AI build has none: it shines in the editor only
       flash = L.id;
       b.classList.add('on');
       const t0 = performance.now();
