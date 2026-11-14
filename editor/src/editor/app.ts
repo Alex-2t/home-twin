@@ -47,7 +47,8 @@ import {createLook} from './look.ts';
 import {liveScene} from '../core/devices.ts';
 import {planWalls, planFurniture, planSpots} from '../core/plan-scene.ts';
 import {createPath} from './wizard-path.ts';
-import {stepClipButton} from './wizard-clips.ts';
+import {placeStepClip, showStepClip, stepClipCardPill, stepClipInset} from './wizard-clip-panel.ts';
+import type {ClipBox} from './wizard-clip-panel.ts';
 import {stepReadyToFinish, areaOnPlan, lampWaits} from './wizard-state.ts';
 import {LANGS, getLang} from '../i18n/i18n.ts';
 import {readMode, saveMode, nextMode, isNight, tipWanted, onModeChange} from '../core/daynight.ts';
@@ -162,8 +163,11 @@ export function createApp({haLights, ha, photos}: AppOptions): Editor {
     banner(text, buttons);
     bn.classList.toggle('wizard-card', wizard);
     bn.classList.toggle('in-look', !!o.look);
-    bn.classList.remove('short', 'has-path', 'has-clip');
+    bn.classList.remove('short', 'has-path');
     document.body.dataset.wizard = phase || '';
+    // the step's clip of its action beside the plan (D-110); none on other cards and on the final one
+    const clipStep = phase && phase !== 'fin' ? phase : null;
+    showStepClip(bn.parentElement!, clipStep); // the card is in the work area
     if (wizard) {
       const message = bn.querySelector(':scope>span') as HTMLElement; // banner() puts the text in a span
       const full = message.innerHTML;
@@ -209,13 +213,9 @@ export function createApp({haLights, ha, photos}: AppOptions): Editor {
       for (const b of [...bn.children]) if (b.tagName === 'BUTTON') actions.append(b);
       // the outline is drawn with the mouse; from the keyboard its size is typed — a button only keyboard users meet
       if (phase === 'rect') actions.append(typeOutlineButton());
+      // on a phone the clip has no room beside the plan: a “Watch how” pill on the card opens it full width
+      if (clipStep) actions.prepend(stepClipCardPill(clipStep));
       bn.append(actions);
-      // the step's clip of its action (D-109), top left beside the path strip and the phrase
-      const clip = phase && phase !== 'fin' ? stepClipButton(phase) : null;
-      if (clip) {
-        say.before(clip);
-        bn.classList.add('has-clip');
-      }
     }
     if (text) keepCardFocus();
     syncFinishHint();
@@ -228,6 +228,11 @@ export function createApp({haLights, ha, photos}: AppOptions): Editor {
         compact: wizard || o.compact,
       });
     else coach.hide();
+    // the clip panel keeps above the card: placed once the card has its place (placeFloats runs it too)
+    requestAnimationFrame(() => {
+      placeClip();
+      placeCtx();
+    });
   };
   // Keyboard focus and the card (D-096): pressing a card's button with the keyboard rebuilds the card for the next step, and
   // the focus would fall to the page's start (so would closing a dialog whose button is gone). Lost like that, it goes to the
@@ -870,7 +875,13 @@ export function createApp({haLights, ha, photos}: AppOptions): Editor {
       const bn = $('banner');
       const pill = $('pill');
       const pip = ed.role('3d') === 'win' ? rbox($('pane-3d').getBoundingClientRect()) : null;
-      const hard = [!bn.hidden && bn.getBoundingClientRect(), !pill.hidden && pill.getBoundingClientRect()]
+      // the step's clip panel or its pill (D-110) stays uncovered too
+      const clip = document.querySelector<HTMLElement>('.clip-panel:not([hidden]), .clip-pill:not([hidden])');
+      const hard = [
+        !bn.hidden && bn.getBoundingClientRect(),
+        !pill.hidden && pill.getBoundingClientRect(),
+        clip?.getBoundingClientRect(),
+      ]
         .filter((r): r is DOMRect => Boolean(r))
         .map(rbox);
       const obs = [pip, ...hard].filter((o): o is PixelBox => Boolean(o));
@@ -1328,6 +1339,63 @@ export function createApp({haLights, ha, photos}: AppOptions): Editor {
   div.ondblclick = () => setView(50);
   addEventListener('resize', layout);
 
+  // Where the plan is on screen, in the work area's coordinates: its rooms, or the plan photo while there are none yet.
+  function planScreenBox(): ClipBox | null {
+    let points: Point[] = ed.plan.rooms.flatMap(r => r.polygon);
+    if (!points.length && ed.underlay.ready && ed.underlay.visible) {
+      const {width, height} = ed.underlay.img!; // a ready photo has its image
+      const corners: Point[] = [
+        [0, 0],
+        [width, 0],
+        [width, height],
+        [0, height],
+      ];
+      points = corners.map(ed.underlay.toWorld);
+    }
+    if (!points.length) return null;
+    const canvas = ed.v.cv.getBoundingClientRect();
+    const area = work.getBoundingClientRect();
+    const xs = points.map(p => ed.v.S(p)[0] + canvas.left - area.left);
+    const ys = points.map(p => ed.v.S(p)[1] + canvas.top - area.top);
+    const left = Math.min(...xs);
+    const top = Math.min(...ys);
+    return {left, top, width: Math.max(...xs) - left, height: Math.max(...ys) - top};
+  }
+  // The step's clip panel (D-110): on the left under the side panel's header, or right of the open side panel, kept above
+  // the step card, the toolbar and the test panel. The card's place is where it was put (style), as it may still be moving.
+  function placeClip(): void {
+    const open = !side.classList.contains('closed');
+    const bn = $('banner');
+    const boxOf = (e: HTMLElement | null): ClipBox | null => {
+      if (!e || e.hidden) return null;
+      const r = e.getBoundingClientRect();
+      const w = work.getBoundingClientRect();
+      return {left: r.left - w.left, top: r.top - w.top, width: r.width, height: r.height};
+    };
+    const card: ClipBox | null = bn.hidden
+      ? null
+      : {
+          left: parseFloat(bn.style.left || '0'),
+          top: parseFloat(bn.style.top || '0'),
+          width: bn.offsetWidth,
+          height: bn.offsetHeight,
+        };
+    const keepClear = [card, boxOf($('dock')), boxOf(document.querySelector<HTMLElement>('.dev'))].filter(
+      (box): box is ClipBox => !!box,
+    );
+    // a view still at its automatic fit is fitted again beside the panel below, so only a view the user set can be covered
+    const insetBefore = stepClipInset();
+    placeStepClip({
+      planBox: ed.v.fitted ? null : planScreenBox(),
+      left: open ? side.offsetLeft + side.offsetWidth + 12 : 12,
+      top: open ? side.offsetTop : side.offsetTop + side.offsetHeight + 10,
+      containerWidth: work.clientWidth,
+      containerHeight: work.clientHeight,
+      keepClear,
+      hidden: look,
+    });
+    if (ed.v.fitted && stepClipInset() !== insetBefore) ed.fit();
+  }
   // Floating panels centered in the free part of the screen: the modes and the bottom bar — between the edges of the main view,
   // badges — to the right of the open left panel; all — without running onto the 3D window, the title and the buttons on the right.
   function placeFloats(): void {
@@ -1447,6 +1515,7 @@ export function createApp({haLights, ha, photos}: AppOptions): Editor {
       b.classList.toggle('tight', fit < 560);
     }
     coach.place();
+    placeClip();
     placeCtx();
     const bn = $('banner');
     $('pill').style.bottom = 70 + (bn.hidden || !coach.bottom() ? 0 : bn.offsetHeight + 8) + 'px';
@@ -1619,6 +1688,11 @@ export function createApp({haLights, ha, photos}: AppOptions): Editor {
     let ins: {l: number; r?: number; t?: number; b?: number} = {
       l: innerWidth > 760 && r === 'main' && floatingOpen() ? side.offsetWidth + 24 : 0,
     };
+    // the step's clip panel on the left (D-110): the plan goes beside it
+    if (innerWidth > 760 && r === 'main') {
+      const canvasLeft = ed.v.cv.getBoundingClientRect().left - work.getBoundingClientRect().left;
+      ins.l = Math.max(ins.l, stepClipInset() - canvasLeft);
+    }
     // at the top — the title and the modes, at the bottom — the bottom bar
     ins.t = innerWidth <= 760 ? 176 : 60;
     ins.b = innerWidth <= 760 ? 110 : 64;
