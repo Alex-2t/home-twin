@@ -17,6 +17,13 @@ New decisions are appended at the top of their section, old ones are not rewritt
 
 ## Decisions
 
+### D-NEXT. Lamps the AI build saw are the plan's lights, without an HA entity; floor and table lamps have their shades again — **proposed** (2026-11-14)
+- The AI build now turns the lamps a room's video shows (pendants, sconces, table and floor lamps) into the plan's `lights`, each with its form, variant, height and place as the Lights layer keeps them, and no `entity`: which of the owner's Home Assistant lights it is, the owner says. A floor or table lamp is a light only, never also the catalog's floor lamp (that would be two lamps, ideas.md).
+- **The review's words:** a pin asking for a lamp is no longer "Lights are added at the next stage": the lamp is built; when no place is found for it (a table lamp with nothing to stand on, a floor lamp with no free floor near), "We could not place this lamp: point at another spot". The progress page's assembly stage includes hanging the lamps, with its own lines. All ten languages.
+- **A lamp without an entity is never sent to HA:** the Lights wizard flashed it with `identify` and wrote its area with `setArea` on save, both with no entity; now it shines in the editor only and keeps no area.
+- **Fixed on the way:** since D-061 the floor and table lamps' shade and bulb were inside a line comment (dense code spread over lines), so a floor lamp was a bare pole and a table lamp a base with nothing on it. A test (`code-in-comments.test.ts`) finds code left inside a comment.
+- **Open, the owner's call:** when such a plan reaches HA, the owner's own lights come unplaced and the wizard places each by its guess — beside the lamp the video showed, a second one. Proposed in ideas.md: an HA light placed in a room takes the place of a seen lamp of the same form there.
+
 ### D-087. The editor is TypeScript, formatted by Prettier — **accepted** (2026-11-13)
 - The owner: “let's do it properly first: move everything to TS, and only then go on”. The editor had grown as plain JavaScript in a dense style, with no types at all, while the AI build that uses its core (the catalog, plan checks, rendering) was already TypeScript and had to describe the editor's modules by hand.
 - **Every hand-written file is `.ts`**: `src/`, the tests, the demo homes, `build.ts`, the tools. Strict `tsc`, no `any`; the shared data shapes (the plan file, Home Assistant's states, the UI's saved state) are in `src/core/types.ts`.
