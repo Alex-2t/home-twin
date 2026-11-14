@@ -17,13 +17,24 @@ New decisions are appended at the top of their section, old ones are not rewritt
 
 ## Decisions
 
-### D-NEXT. The AI build's upload goes in 16 MB chunks and resumes after a dropped connection — **accepted** (2026-11-14)
+### D-107. The AI build's upload goes in 16 MB chunks and resumes after a dropped connection — **accepted** (2026-11-14)
 - **Why:** the AI build service is reached through Cloudflare's tunnel, which refuses a request body over 100 MB on its Free and Pro plans. The upload page sent the plan photo and every video in one request, and a phone's video of a home is often 100–500 MB: a long video failed in production though it worked locally.
 - **How** (`src/editor/ai-upload.ts`, used by the upload page in `ai-build.ts`): the page first tells the service the files to come (the plan photo, then the videos, each with its name and size); sign-in and money are checked there, so a signed-out browser or an empty account hears 401 or 402 before any byte goes, as before. Then each file goes in chunks of the size the service names (16 MB), one after another, each with its SHA-256 where the browser can make one (a secure page). Last, the page says the upload is finished; the service checks every file is whole and the build starts as before.
 - **Retries and resume:** a chunk that breaks (no connection, a moment's failure of the service or the tunnel, damaged on the way, quiet for a minute) is sent again after a pause of 1 to 30 s, from where the service says it has got to: a chunk that arrived though its answer was lost is not sent twice. After about a minute without a connection the upload stops with "Could not upload: no connection"; pressing "Build my home" again with the same files goes on from what the service has. Other files chosen start a new upload.
 - **The bar:** each chunk's own progress moves it (XMLHttpRequest; fetch tells nothing of an upload), and it never goes back: a chunk sent again does not move it until it passes where it was. The percent is rounded down, so 100 % shows only when every byte is there.
 - **The old upload in one request** is gone from the service: this page is its only client and is served by the service itself, so only a page open since before the change sends it; that page is told to reload.
 - Tests: `src/editor/ai-upload.test.ts` (4) against a stand-in for the service that keeps its rules: no request carries more than a chunk and the bar only grows to 100 %; a connection lost before and after the service has a chunk, a damaged chunk and a busy service, with nothing missing and nothing twice; a stop and a resume that sends only what was missing; signed out, nothing is sent. No new strings.
+
+### D-106. A plan of several floors stops the AI build after the plan, and the page asks for a plan of one floor — **accepted** (2026-11-14)
+- **Why:** the first release builds homes of one floor. A plan image that draws two floors side by side (or a loft or a basement as a plan of its own) went into the build whole and came out a wrong home, at the user's expense. The AI build now tells it from the plan itself and stops right after reading it, before the paid work on rooms and furniture.
+- **The build's status says it** (`severalFloors`: how many floors and their labels as written). The progress page (`ai-build.ts`) then shows:
+  - the title "Your plan has several floors";
+  - one card: "We build one floor for now" — "Upload a plan of one floor, or crop this one to one floor.", with "Upload a plan", which opens the upload page for a new build (the stopped one is no longer followed);
+  - the plan photo as uploaded, so the owner sees what to crop; the rooms of the video, the overall bar and "the build goes on" are hidden, as they no longer hold.
+- **The start screen's card** says "Your plan has several floors" — "We build one floor for now". Such a build is offered among the account's builds only until it was shown in this browser, like a finished one (`offeredBuilds`).
+- What was spent on reading the plan (a few cents) is not mentioned: nothing scary, one or two short phrases (the hint rule).
+- The three new strings are in all ten languages ("floor" as a storey, not the floor surface).
+- Tests: `src/editor/ai-build.test.ts` — a build stopped on several floors is offered until seen. Looked at in the built editor on a demo listing plan (desktop and phone, English, Russian, German).
 
 ### D-105. The upload page says how to film in three short tips, and gently notes a very short or small upright video — **accepted** (2026-11-14)
 - **Why:** paid builds of eight new homes showed the result follows the video: a dark, upright 480p phone video of an empty flat gives few things and no lamps. Casual users film once, so the AI build's upload page is the one place to help. The owner left the decision to us; the choices below are ours, written down so they can be changed.

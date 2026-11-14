@@ -1631,5 +1631,8 @@
  "Hold the phone sideways": "Houd de telefoon liggend",
  "Walk slowly, turn around in each room": "Loop langzaam, draai in elke kamer één keer rond",
  "A short video: rooms it skips stay empty. Fine to go ahead.": "Korte video: ontbrekende kamers blijven leeg. Je kunt gewoon doorgaan.",
- "Filmed upright in low resolution: some things may be missed. Fine to go ahead.": "Staand gefilmd in lage resolutie: er kan iets gemist worden. Je kunt gewoon doorgaan."
+ "Filmed upright in low resolution: some things may be missed. Fine to go ahead.": "Staand gefilmd in lage resolutie: er kan iets gemist worden. Je kunt gewoon doorgaan.",
+ "Your plan has several floors": "Je plattegrond heeft meerdere verdiepingen",
+ "We build one floor for now": "Voorlopig bouwen we één verdieping",
+ "Upload a plan of one floor, or crop this one to one floor.": "Upload een plattegrond van één verdieping, of snijd deze bij tot één verdieping."
 }

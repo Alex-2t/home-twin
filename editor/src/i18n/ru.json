@@ -1631,5 +1631,8 @@
  "Hold the phone sideways": "Держите телефон горизонтально",
  "Walk slowly, turn around in each room": "Идите медленно, оглядитесь в каждой комнате",
  "A short video: rooms it skips stay empty. Fine to go ahead.": "Короткое видео: пропущенные комнаты останутся пустыми. Можно продолжать.",
- "Filmed upright in low resolution: some things may be missed. Fine to go ahead.": "Снято вертикально и в низком разрешении: что-то может не найтись. Можно продолжать."
+ "Filmed upright in low resolution: some things may be missed. Fine to go ahead.": "Снято вертикально и в низком разрешении: что-то может не найтись. Можно продолжать.",
+ "Your plan has several floors": "На плане несколько этажей",
+ "We build one floor for now": "Пока мы строим один этаж",
+ "Upload a plan of one floor, or crop this one to one floor.": "Загрузите план одного этажа или обрежьте этот до одного этажа."
 }

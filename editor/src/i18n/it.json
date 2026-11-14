@@ -1631,5 +1631,8 @@
  "Hold the phone sideways": "Tieni il telefono in orizzontale",
  "Walk slowly, turn around in each room": "Cammina piano e girati una volta in ogni stanza",
  "A short video: rooms it skips stay empty. Fine to go ahead.": "Video breve: le stanze non riprese restano vuote. Puoi procedere comunque.",
- "Filmed upright in low resolution: some things may be missed. Fine to go ahead.": "Girato in verticale a bassa risoluzione: qualcosa potrebbe sfuggire. Puoi procedere comunque."
+ "Filmed upright in low resolution: some things may be missed. Fine to go ahead.": "Girato in verticale a bassa risoluzione: qualcosa potrebbe sfuggire. Puoi procedere comunque.",
+ "Your plan has several floors": "La tua pianta ha più piani",
+ "We build one floor for now": "Per ora costruiamo un solo piano",
+ "Upload a plan of one floor, or crop this one to one floor.": "Carica la pianta di un piano o ritaglia questa su un solo piano."
 }

@@ -29,3 +29,18 @@ test('offered: unfinished builds newest first, a finished one only if this brows
   );
   assert.deepEqual(offeredBuilds([], new Set()), []);
 });
+
+test('offered: a build stopped on a plan of several floors only until this browser showed it, as a finished one', () => {
+  const stoppedSeen = `home-${Date.UTC(2026, 10, 12).toString(36)}`;
+  const stoppedNew = `home-${Date.UTC(2026, 10, 11).toString(36)}`;
+  const floors = {count: 2, labels: ['Ground Floor', 'First Floor']};
+  const builds = [
+    {id: stoppedSeen, finished: false, severalFloors: floors},
+    {id: stoppedNew, finished: false, severalFloors: floors},
+  ];
+  const offered = offeredBuilds(builds, new Set([stoppedSeen]));
+  assert.deepEqual(
+    offered.map(build => build.id),
+    [stoppedNew],
+  );
+});

@@ -1,4 +1,4 @@
-// The AI build's upload in chunks (D-NEXT). The build service is reached through Cloudflare's tunnel, which refuses a request
+// The AI build's upload in chunks (D-107). The build service is reached through Cloudflare's tunnel, which refuses a request
 // body over 100 MB, and a phone's video of a home is often 100–500 MB: sent in one request it failed in production. So the
 // plan photo and each video go in chunks of the size the service names (16 MB), one after another, each with its SHA-256:
 //   POST <api>/api/uploads                  {files: [{kind, name, size}], lang} → {id, chunkBytes, files: [{received}]}
