@@ -33,7 +33,7 @@ Found by the homes check and by the agents who built the plans; not done yet:
 
 ## Scale by area — implemented; additional methods undecided (2026-11-05)
 
-Per D-038 the area is asked right after the photo. From the first rectangle the scale is set approximately; after the rooms are bound it is refined by the area without shafts and, unless the user ticks the box, without the balcony and loggia. Instead of the area, a known wall length can be given. Code — [flows.js](../editor/src/editor/flows.js).
+Per D-038 the area is asked right after the photo. From the first rectangle the scale is set approximately; after the rooms are bound it is refined by the area without shafts and, unless the user ticks the box, without the balcony and loggia. Instead of the area, a known wall length can be given. Code — [flows.ts](../editor/src/editor/flows.ts).
 
 Remaining proposals:
 
@@ -59,7 +59,7 @@ The proposal is one common choice for the plan and a separate one for a room; th
 
 ## Floor covering — implemented (idea of 2026-11-04)
 
-The room panel has a floor choice and a custom color: eight quick swatches and a window with all 24 coverings. The automatic guess by name remains the default and can be changed. Walls and individual wall sides also have a finish and their own color (D-028, D-031; [rooms.js](../editor/src/editor/modes/rooms.js), [surfaces.js](../editor/src/core/surfaces.js)).
+The room panel has a floor choice and a custom color: eight quick swatches and a window with all 24 coverings. The automatic guess by name remains the default and can be changed. Walls and individual wall sides also have a finish and their own color (D-028, D-031; [rooms.ts](../editor/src/editor/modes/rooms.ts), [surfaces.ts](../editor/src/core/surfaces.ts)).
 
 ## Lower walls in the general view (2026-11-04)
 
