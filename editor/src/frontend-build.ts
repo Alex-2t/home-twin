@@ -73,3 +73,28 @@ export function noticeLang(language: string | undefined, languages: readonly str
     .split(/[-_]/)[0];
   return languages.includes(base) ? base : 'en';
 }
+
+/** The look of the notice; the card and the panel place it (card.ts: over the card; ha-app.ts: over the editor). HA's theme
+ * colours where there are some (the card), the editor's own fallbacks otherwise. */
+export const UPDATE_NOTICE_CSS = `.ht-updated{display:flex;align-items:center;gap:10px;max-width:calc(100% - 24px);box-sizing:border-box;
+  padding:5px 5px 5px 14px;border-radius:18px;font-size:13px;line-height:1.3;white-space:nowrap;
+  color:var(--primary-text-color,#f2f2f5);background:color-mix(in srgb,var(--card-background-color,#1c1c1f) 88%,transparent);
+  backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px);box-shadow:0 2px 12px rgba(0,0,0,.28)}
+.ht-updated span{overflow:hidden;text-overflow:ellipsis}
+.ht-updated button{flex-shrink:0;padding:6px 12px;border:0;border-radius:14px;font:inherit;font-weight:500;cursor:pointer;
+  color:var(--text-primary-color,#fff);background:var(--primary-color,#03a9f4)}`;
+
+/** “Home Twin was updated · Reload”: one short phrase and the button (the words in the user's language). */
+export function createUpdateNotice(words: {text: string; reload: string}, onReload: () => void): HTMLElement {
+  const notice = document.createElement('div');
+  notice.className = 'ht-updated';
+  notice.setAttribute('role', 'status');
+  const text = document.createElement('span');
+  text.textContent = words.text;
+  const reload = document.createElement('button');
+  reload.type = 'button';
+  reload.textContent = words.reload;
+  reload.addEventListener('click', onReload);
+  notice.append(text, reload);
+  return notice;
+}

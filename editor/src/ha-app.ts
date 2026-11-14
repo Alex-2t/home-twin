@@ -6,7 +6,7 @@ import {liveHA, hassPlans, hassPhotos} from './editor/ha-live.ts';
 import {browserPhotos} from './editor/underlay.ts';
 import {t, setFormats} from './i18n/i18n.ts';
 import {haRouter} from './editor/route.ts';
-import {buildOf, reloadPanel, watchBuild} from './frontend-build.ts';
+import {UPDATE_NOTICE_CSS, buildOf, createUpdateNotice, reloadPanel, watchBuild} from './frontend-build.ts';
 import type {Hass} from './core/types.ts';
 import type {Editor} from './editor/editor-types.ts';
 import type {PanelRoute, PanelRouter} from './editor/route.ts';
@@ -49,19 +49,25 @@ export async function start(panel: PanelHost): Promise<PanelApp> {
         () => {
           plans.keepMine();
           ed!.banner(); // this banner is shown only once the editor is up
-          if (updated) showUpdated();
         },
         true,
       ],
     ]);
   };
   // HA serves a newer build of the panel (an update without a restart, D-NEXT): this one keeps working — the integration does not
-  // move an open panel — and “Reload” brings the new one. A conflict's question comes first: this is shown after it is answered.
-  let updated = false;
+  // move an open panel — and “Reload” brings the new one. Its own notice, not the banner: the coach reuses the banner, and the start
+  // screen covers it. It stays awake over dialogs (keyboard.ts: data-awake).
   const showUpdated = (): void => {
-    updated = true;
-    if (!ed || plans.state() === 'conflict') return;
-    ed.banner(t('Home Twin was updated'), [[t('Reload'), () => reloadPanel(hass()), true]]);
+    if (document.querySelector('.ht-updated')) return;
+    const style = document.createElement('style');
+    style.textContent =
+      UPDATE_NOTICE_CSS +
+      '.ht-updated{position:fixed;top:68px;left:50%;transform:translateX(-50%);z-index:2147483000}';
+    const words = {text: t('Home Twin was updated'), reload: t('Reload')};
+    const notice = createUpdateNotice(words, () => reloadPanel(hass()));
+    notice.setAttribute('data-awake', '');
+    document.head.append(style);
+    document.body.append(notice);
   };
   const status = (): void => ed?.syncSave?.();
   const plans = hassPlans(hass, {onConflict: ask, onStatus: status});

@@ -131,7 +131,11 @@ function syncInert(): void {
   ) {
     for (const sibling of node.parentElement?.children || []) {
       const asleep = sibling instanceof HTMLElement && sibling !== node && sibling.tagName !== 'SCRIPT';
-      if (asleep && !sibling.classList.contains('tip')) sleepers.add(sibling);
+      // a tooltip, and a notice marked data-awake (the panel's “Home Twin was updated”, frontend-build.ts), stay alive over dialogs
+      const awake =
+        sibling instanceof HTMLElement &&
+        (sibling.classList.contains('tip') || sibling.hasAttribute('data-awake'));
+      if (asleep && !awake) sleepers.add(sibling);
     }
   }
   for (const element of document.querySelectorAll<HTMLElement>(`[${HELD_MARK}]`)) {

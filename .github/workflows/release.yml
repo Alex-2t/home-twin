@@ -1,5 +1,5 @@
 # Release: when a GitHub release is published (tag v0.1.0), build the editor, set the version number in manifest.json and attach
-# home_twin.zip (the contents of custom_components/home_twin including frontend/panel.js). HACS downloads it (hacs.json: zip_release).
+# home_twin.zip (the contents of custom_components/home_twin including the built frontend/ with build.json). HACS downloads it (hacs.json: zip_release).
 name: Release
 on:
   release:

@@ -3,7 +3,14 @@
 // a card is actually shown. This file must stay small: it imports only the build watch and the notice's words (type imports are erased).
 // When HA starts serving a newer build (an update without a restart), the cards on the page say so and offer a reload; an old card
 // never loads the new build's card-app.js (D-NEXT).
-import {buildOf, noticeLang, reloadPage, watchBuild} from './frontend-build.ts';
+import {
+  UPDATE_NOTICE_CSS,
+  buildOf,
+  createUpdateNotice,
+  noticeLang,
+  reloadPage,
+  watchBuild,
+} from './frontend-build.ts';
 import {UPDATE_NOTICE} from './gen/update-notice.gen.js';
 import type {CardApp, CardConfig, CardHost} from './card-main.ts';
 import type {Hass} from './core/types.ts';
@@ -28,13 +35,7 @@ const APP = new URL('./card-app.js', import.meta.url).href; // beside this file:
 const BOARD = 'home-twin-3d'; // the Home Twin dashboard the editor creates (editor/ha-live.js: board)
 const OURS = buildOf(import.meta.url);
 // the notice over the card (over the 3D's top edge), or in its place when the 3D could not load
-const NOTICE_CSS = `.ht-updated{position:absolute;top:10px;left:50%;transform:translateX(-50%);z-index:9;max-width:calc(100% - 24px);box-sizing:border-box;
-  display:flex;align-items:center;gap:10px;padding:5px 5px 5px 14px;border-radius:18px;font-size:13px;line-height:1.3;white-space:nowrap;
-  color:var(--primary-text-color);background:color-mix(in srgb,var(--card-background-color,#1c1c1c) 88%,transparent);
-  backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px);box-shadow:0 2px 12px rgba(0,0,0,.28)}
-.ht-updated span{overflow:hidden;text-overflow:ellipsis}
-.ht-updated button{flex-shrink:0;padding:6px 12px;border:0;border-radius:14px;font:inherit;font-weight:500;cursor:pointer;
-  color:var(--text-primary-color,#fff);background:var(--primary-color,#03a9f4)}
+const NOTICE_PLACE = `.ht-updated{position:absolute;top:10px;left:50%;transform:translateX(-50%);z-index:9}
 ha-card.ht-alone{display:block;position:relative;min-height:64px}`;
 
 // One watch per page for every card: HA tells when it serves a newer build than this file's.
@@ -141,18 +142,8 @@ class HomeTwinCard extends HTMLElement implements CardHost {
     }
     const words = UPDATE_NOTICE[noticeLang(this._hass?.language, Object.keys(UPDATE_NOTICE))];
     const style = document.createElement('style');
-    style.textContent = NOTICE_CSS;
-    const notice = document.createElement('div');
-    notice.className = 'ht-updated';
-    notice.setAttribute('role', 'status');
-    const text = document.createElement('span');
-    text.textContent = words.text;
-    const reload = document.createElement('button');
-    reload.type = 'button';
-    reload.textContent = words.reload;
-    reload.addEventListener('click', reloadPage);
-    notice.append(style, text, reload);
-    box.append(notice);
+    style.textContent = UPDATE_NOTICE_CSS + NOTICE_PLACE;
+    box.append(style, createUpdateNotice(words, reloadPage));
   }
 }
 if (!customElements.get('home-twin-card')) {
