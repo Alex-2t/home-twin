@@ -919,7 +919,7 @@ function checker(
   }
   return c;
 }
-// ---------- pattern parameters (D-NEXT) ----------
+// ---------- pattern parameters (D-089) ----------
 // A finish may have its pattern set like the real one: a plank's width and length, a tile's size, joint, grout colour and
 // layout, a stripe's width and second colour, a brick's size and mortar. Each finish takes only those that mean something for
 // how it is drawn (patternSpec); none set: the finish's own look, exactly as before. The AI build sets them from the video;
@@ -934,7 +934,7 @@ export interface PatternSize {
 }
 
 /**
- * The pattern parameters a finish uses (D-NEXT), with their own values: tile[0] (width), tile[1] (height; its own label when
+ * The pattern parameters a finish uses (D-089), with their own values: tile[0] (width), tile[1] (height; its own label when
  * it is not the second side of the same thing — the dado rail of classic panels), the joint, the joint's and the second
  * colour, the layout of tiles.
  */
@@ -1664,7 +1664,7 @@ const FIN_PAT: Record<WallKind['pattern'], number> = {
 const TABLE_SIZE = 256; // finishes and stacks per home; number 0 is none
 const BAND_STEP = 0.02; // stack heights in steps of 2 cm (up to 5.1 m)
 
-// The finish table's rows: colour and pattern; sizes; the joints' colour (D-NEXT); the second colour (D-NEXT).
+// The finish table's rows: colour and pattern; sizes; the joints' colour (D-089); the second colour (D-089).
 const FINISH_ROWS = 4;
 // A colour in the table's last two rows: its RGB and this in alpha when it is set (0: the finish's own, as before).
 const COLOUR_SET = 255;
@@ -1842,7 +1842,7 @@ vec3 htLin(vec3 c){return pow(c,vec3(2.2));}
 float htFbm(vec2 p){return 0.5*htNoise(p)+0.3*htNoise(p*2.03+7.1)+0.2*htNoise(p*4.11+3.7);}
 // The share of a pixel's footprint along one axis (d wide, round x) covered by joints jt wide every p, centred on multiples of
 // p: a box filter in closed form, so joints thinner than a pixel fade to their real share of the wall instead of a hatch of
-// half-dark lines (D-NEXT: the joints of a set pattern; seen steeply, a wall's height is squeezed and only v's footprint grows).
+// half-dark lines (D-089: the joints of a set pattern; seen steeply, a wall's height is squeezed and only v's footprint grows).
 float htJoint(float x,float p,float jt,float d){d=max(d,1e-5);float a=x+jt*0.5+d*0.5,b=a-d;
   return clamp(((floor(a/p)*jt+min(mod(a,p),jt))-(floor(b/p)*jt+min(mod(b,p),jt)))/d,0.0,1.0);}
 void htFinish(inout vec4 dc){
@@ -1853,7 +1853,7 @@ void htFinish(inout vec4 dc){
   // the stack: up to four finishes bottom to top and the heights where the next ones start (pieces of finish, D-084)
   vec4 S=floor(texture2D(htFinStk,vec2((stack+0.5)/256.0,0.25))*255.0+0.5),Z=floor(texture2D(htFinStk,vec2((stack+0.5)/256.0,0.75))*255.0+0.5)*0.02;
   float id=S.r;if(htPos.y>=Z.r)id=S.g;if(htPos.y>=Z.g)id=S.b;if(htPos.y>=Z.b)id=S.a;if(id<0.5)return;
-  // the finish: colour and pattern, sizes, and its own joint colour and second colour when set (alpha 1; D-NEXT)
+  // the finish: colour and pattern, sizes, and its own joint colour and second colour when set (alpha 1; D-089)
   vec4 A=texture2D(htFinTab,vec2((id+0.5)/256.0,0.125)),B=texture2D(htFinTab,vec2((id+0.5)/256.0,0.375)),
     C=texture2D(htFinTab,vec2((id+0.5)/256.0,0.625)),D=texture2D(htFinTab,vec2((id+0.5)/256.0,0.875));
   bool ownJoint=C.a>0.75,filtered=C.a>0.25,ownSecond=D.a>0.5;

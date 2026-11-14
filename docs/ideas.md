@@ -2,7 +2,7 @@
 
 Reviewed 2026-11-07. This file keeps proposals and already implemented ideas with links to decisions. The current development queue is in [status.md](status.md); an idea being recorded does not mean it has been included in the nearest release.
 
-## A custom colour wherever there is a colour (owner, 2026-11-09) — done, re-checked 2026-11-14 (D-070, D-NEXT)
+## A custom colour wherever there is a colour (owner, 2026-11-09) — done, re-checked 2026-11-14 (D-070, D-092)
 
 Every colour choice in the editor offers the predefined swatches **and** a custom colour (`#rrggbb`, a colour picker); a picked colour within ΔE 3 of a swatch selects that swatch. The paid AI build (D-063) needs it too: colours taken from a real home rarely match a named one (a real rug was ΔE 11.7 from the nearest named colour).
 - **Done 2026-11-10 (D-070):** every catalog model and generator, the furniture panel's custom colour, the rug's border colour, plan files.
@@ -37,12 +37,12 @@ Found by the homes check and by the agents who built the plans; not done yet:
 - **Zones in auto-placement.** In a room with two HA areas, covers go onto the room's windows by name order and sensor labels share one row across the zone boundary; both should follow the zone.
 - **A TV backlight behind the TV** — a strip variant on the TV, like “Under cabinets” on wall cabinets; now it becomes a ceiling strip on the longest wall.
 - **A catalog floor lamp as the body of an HA floor lamp.** Now the HA lamp draws its own floor lamp: placed next to a catalog one, there are two.
-- **An HA light takes the place of a lamp seen in the video** (D-NEXT, 2026-11-14). A plan from the AI build has lights without an entity, where the video showed them. When the owner's HA lights are placed (the wizard, “Auto-place”), one of the same form in that room could take the seen lamp's place, form, height and shade, instead of a second lamp beside it.
+- **An HA light takes the place of a lamp seen in the video** (D-091, 2026-11-14). A plan from the AI build has lights without an entity, where the video showed them. When the owner's HA lights are placed (the wizard, “Auto-place”), one of the same form in that room could take the seen lamp's place, form, height and shade, instead of a second lamp beside it.
 - **Contacts and covers:** a window contact in a room with several windows (by a direction word in the name: “east”, “south”); a roller shutter on a terrace door (covers go only onto windows); a garage door in the model.
 - **Doors:** double doors (now one leaf as wide as both, or no leaf from 1.15 m); a door from a file in the middle of a thin wall attaches to one of the two rooms by rounding — a side or swing in the file would make it exact.
 - **A sensor label on a glazed balcony:** when glazing takes every wall, the label could sit on the parapet below it.
 - **Catalog:** a ceiling fan with a light (common in US homes; in HA both a fan and a light), an upholstered bench, a tankless water heater, a piano, a wallbox, base-cabinet fillers of 15–30 cm.
-- **Houses:** floors, ceiling height per room (per plan is D-NEXT), a garden without walls or with a low fence (a terrace has a railing since D-071), a staircase as structure (typical-homes.md, “What the editor needs”).
+- **Houses:** floors, ceiling height per room (per plan is D-090), a garden without walls or with a low fence (a terrace has a railing since D-071), a staircase as structure (typical-homes.md, “What the editor needs”).
 - **Styles in the editor** (D-062, D-064 — every example now has its own concept and palette): the examples are finished by a style that finds the accents from the furniture (headboard wall, media wall, backsplash). The same could be a button for your own home: “Style: scandi / warm / classic / modern / green”, one click, then adjust.
 - **The default walls and the light in 3D:** light wall colors read as white, every room the same; a quieter default wall and a little less exposure would help every home, not only the examples — a change of the look, at the owner's word.
 

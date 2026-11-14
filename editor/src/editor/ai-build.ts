@@ -841,7 +841,7 @@ export function openAiBuild(ed: Editor, options: AiBuildOptions = {}): AiBuildSc
   // How many polls since the account was asked last: the balance is asked again every few.
   let pollsSinceAccount = 0;
   let pausedBefore: BuildStatus['paused'] = null;
-  // What the action at hand will about take (D-NEXT): a new build on the upload page, the round of pins in the review.
+  // What the action at hand will about take (D-094): a new build on the upload page, the round of pins in the review.
   let uploadEstimate: Estimate | null = null;
   // The chosen videos' length together, seconds (null: none chosen, or the browser cannot tell).
   let chosenSeconds: number | null = null;
@@ -886,7 +886,7 @@ export function openAiBuild(ed: Editor, options: AiBuildOptions = {}): AiBuildSc
     }
   }
 
-  // ---------- the estimates before an action (D-NEXT) ----------
+  // ---------- the estimates before an action (D-094) ----------
 
   // What a new build of the chosen videos will about take; before a video is chosen, a usual home's.
   async function askUploadEstimate(): Promise<void> {

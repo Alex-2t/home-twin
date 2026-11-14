@@ -1,4 +1,4 @@
-// A finish's pattern by hand (D-NEXT): in the finish popup, under the swatches, the sizes and colours of the chosen finish's
+// A finish's pattern by hand (D-089): in the finish popup, under the swatches, the sizes and colours of the chosen finish's
 // pattern — a plank's width and length, a tile's size, joint, grout and layout, a stripe's width and second colour — only those
 // it has (surfaces.ts patternSpec), and Reset to its own look. The AI build sets the same fields from the video.
 import {t} from '../i18n/i18n.ts';

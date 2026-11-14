@@ -2267,7 +2267,7 @@ const UNKNOWN_MIN = 0.01;
 const UNKNOWN_MAX = 20;
 /**
  * An item's model; one this catalog does not have (a newer editor's, a broken file's) gets a stand-in of kind 'unknown', so the
- * item is still drawn (a plain box of its size, furniture3d.ts), keeps its name, and can be moved, turned and removed (D-NEXT).
+ * item is still drawn (a plain box of its size, furniture3d.ts), keeps its name, and can be moved, turned and removed (D-095).
  */
 export const modelOf = (f: Pick<FurnitureItem, 'model' | 'name' | 'w' | 'd' | 'h'>): CatalogEntry =>
   byId(f.model) ?? {

@@ -2,7 +2,7 @@
 // small file on every page, so nothing has to be set up by hand; the 3D and the home panel (card-app.js, a few MB) load only when
 // a card is actually shown. This file must stay small: it imports only the build watch and the notice's words (type imports are erased).
 // When HA starts serving a newer build (an update without a restart), the cards on the page say so and offer a reload; an old card
-// never loads the new build's card-app.js (D-NEXT).
+// never loads the new build's card-app.js (D-097).
 import {
   UPDATE_NOTICE_CSS,
   buildOf,

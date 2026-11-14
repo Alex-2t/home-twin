@@ -24,7 +24,7 @@ html,body{margin:0;height:100%;overflow:hidden;-webkit-user-select:none;user-sel
 button{all:unset;box-sizing:border-box;display:inline-flex;align-items:center;justify-content:center;gap:7px;height:32px;min-width:32px;padding:0 10px;border-radius:9px;
   cursor:pointer;color:var(--tx);white-space:nowrap;font-weight:500;transition:background .12s,color .12s}
 button:hover{background:var(--hov)}button:focus-visible{outline:2px solid var(--acc);outline-offset:1px}
-/* The keyboard alone (D-NEXT, keyboard.ts): one focus ring for everything a keyboard user reaches; it shows for the keyboard only
+/* The keyboard alone (D-096, keyboard.ts): one focus ring for everything a keyboard user reaches; it shows for the keyboard only
    (:focus-visible), so the mouse sees nothing new. A dialog holding the focus shows none itself. A .kb-only control is for keyboard
    users: hidden until Tab reaches it. .vh hides a control that must still take the focus (a file field in its drop zone). */
 :is(a,summary,[tabindex]):focus-visible,label:has(>input.vh:focus-visible){outline:2px solid var(--acc);outline-offset:1px}
@@ -204,7 +204,7 @@ body[data-main="3d"]:not([data-mode=lights]) .tools{display:none}
 .fpop button.floor{width:30px;height:30px;padding:0;border-radius:8px;background-size:cover;box-shadow:inset 0 0 0 1px var(--line2)}.fpop button.floor:hover{filter:brightness(1.08)}.fpop button.floor.on{box-shadow:0 0 0 2px var(--acc)}
 .fpop .own{display:flex;align-items:center;gap:8px;margin-top:10px;padding-top:10px;border-top:1px solid var(--line);font-size:12.5px;cursor:pointer}.fpop .own span{flex:1}
 .fpop input[type=color]{width:30px;height:30px;padding:0;border:0;background:none;border-radius:8px;cursor:pointer}.fpop .own button{height:26px;padding:0 10px;font-size:12px}
-/* a finish's pattern (D-NEXT): sizes, joint, colours, layout — compact rows under "Custom color" */
+/* a finish's pattern (D-089): sizes, joint, colours, layout — compact rows under "Custom color" */
 .fpop .fpat{display:flex;flex-direction:column;gap:6px;margin-top:8px;padding-top:8px;border-top:1px solid var(--line);font-size:12.5px}
 .fpop .fpl{display:flex;align-items:center;gap:5px;flex-wrap:wrap}.fpop .fpl>span{color:var(--tx)}.fpop .fpl>i{font-style:normal;color:var(--mut)}
 .fpop .fpl small{color:var(--mut);font-size:11.5px}.fpop .fpl input[type=number]{width:52px;height:26px;padding:0 6px;font-variant-numeric:tabular-nums}
@@ -559,7 +559,7 @@ button.aib-link{height:auto;min-width:0;padding:0;border-radius:4px;color:var(--
 .aib-go{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:14px;margin-top:24px;padding-top:18px;border-top:1px solid var(--line)}
 .aib-time{display:flex;align-items:center;gap:8px;color:var(--mut)}
 .aib-go-facts{flex:1 1 180px;min-width:0;display:flex;flex-direction:column;gap:6px}.aib-go-cost:empty{display:none}
-/* What an action will about take (D-NEXT): a quiet line; a plain warning when it is more than what is left */
+/* What an action will about take (D-094): a quiet line; a plain warning when it is more than what is left */
 .aib-cost{display:grid;grid-template-columns:auto minmax(0,1fr);align-items:center;gap:2px 8px;color:var(--mut);font-size:13px;font-variant-numeric:tabular-nums}
 .aib-cost>.ic{color:var(--acc)}.aib-review-account .aib-cost{flex-basis:100%;font-size:12.5px;column-gap:7px}
 .aib-cost-short{grid-column:2;color:var(--warn)}.aib-cost.short>.ic{color:var(--warn)}

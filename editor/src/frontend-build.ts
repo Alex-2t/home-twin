@@ -1,4 +1,4 @@
-// Which build of the Home Twin frontend this code is, and whether Home Assistant serves a newer one (D-NEXT). The integration
+// Which build of the Home Twin frontend this code is, and whether Home Assistant serves a newer one (D-097). The integration
 // serves every build at its own address, /home_twin_static/<build>/<file>, and tells open pages when it starts serving a new one
 // (home_twin/frontend/subscribe). A page keeps the code it has loaded, so the panel and the card offer a reload: it loads the
 // new build whole, never a mix of old and new files. Kept small: the card's loader (card.ts) imports it on every HA page.

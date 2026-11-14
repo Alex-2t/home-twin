@@ -7,7 +7,7 @@
 //   [{t: [from, to] — fractions of the edge from its start corner (none: all of it),
 //     z: [bottom, top] — metres above the floor (none: floor to ceiling),
 //     k: a wall finish (surfaces.js WALL_KINDS), tint: '#rrggbb',
-//     and the pattern parameters (types.ts FinishPattern, D-NEXT): tile: [width, height] — metres, the tile, brick, slat or
+//     and the pattern parameters (types.ts FinishPattern, D-089): tile: [width, height] — metres, the tile, brick, slat or
 //     panel; joint — metres; grout, tint2: '#rrggbb'; lay: 'grid' | 'bond'}]
 // room.fp — pieces of the floor, later ones on top, drawn only inside the room:
 //   [{poly: [[x, y], …] — plan metres, k: a floor finish (surfaces.js FLOOR_KINDS), tint: '#rrggbb', the pattern parameters}]
@@ -49,7 +49,7 @@ const isPoint = (point: unknown): point is Point =>
 const round = (value: number): number => +value.toFixed(4);
 
 /**
- * The pattern parameters of a finish (a piece, an edge's finish, a room's wallPattern or floorPattern, D-NEXT) that are well
+ * The pattern parameters of a finish (a piece, an edge's finish, a room's wallPattern or floorPattern, D-089) that are well
  * formed: a tile of two sizes within the limits, a joint within them, colours as '#rrggbb', a layout the editor knows. Which of
  * them a finish uses is surfaces.ts's (usedPattern); here only their form.
  */

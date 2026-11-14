@@ -219,7 +219,7 @@ export function createApp({haLights, ha, photos}: AppOptions): Editor {
       });
     else coach.hide();
   };
-  // Keyboard focus and the card (D-NEXT): pressing a card's button with the keyboard rebuilds the card for the next step, and
+  // Keyboard focus and the card (D-096): pressing a card's button with the keyboard rebuilds the card for the next step, and
   // the focus would fall to the page's start (so would closing a dialog whose button is gone). Lost like that, it goes to the
   // new card's main button, so the path goes on with Enter. A focus that is somewhere, and a mouse user's, are left alone.
   function keepCardFocus(): void {
@@ -1887,7 +1887,7 @@ export function createApp({haLights, ha, photos}: AppOptions): Editor {
     if (b) setTimeout(() => b.blur());
   });
   // ---------- keyboard ----------
-  // The keyboard alone (D-NEXT, keyboard.ts): which input came last decides whether the focus is moved for the user; tooltips
+  // The keyboard alone (D-096, keyboard.ts): which input came last decides whether the focus is moved for the user; tooltips
   // show on keyboard focus; the rows of the left panel's lists are one Tab stop each, walked with the arrows, pressed with
   // Enter or Space (the lists are re-rendered by every mode, so they are set up whenever the panel changes).
   watchInputKind();

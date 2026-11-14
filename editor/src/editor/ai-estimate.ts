@@ -1,4 +1,4 @@
-// What an AI build action will about take, told before it starts (D-NEXT): a build on the upload page, a round of pins in
+// What an AI build action will about take, told before it starts (D-094): a build on the upload page, a round of pins in
 // the review. The service tells it as percent of a package, never money (D-085), and says when it is more than what is
 // left: the action may still start, and waits for a top-up where the money runs out.
 //   GET <api>/api/estimate?seconds=<videos' length>&videos=<n>   a new build

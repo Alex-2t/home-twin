@@ -1,4 +1,4 @@
-// Pattern parameters of finishes (D-NEXT): what each finish takes, how a value that is not well formed is left out, the
+// Pattern parameters of finishes (D-089): what each finish takes, how a value that is not well formed is left out, the
 // floor's repeat, the wall table the shader reads, and that the plan file keeps them through loading and a split.
 import {test} from 'node:test';
 import assert from 'node:assert/strict';

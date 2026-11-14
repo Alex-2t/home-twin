@@ -783,7 +783,7 @@ export function furnitureMode(ed: Editor): FurnitureMode {
           e.preventDefault();
           placing = {c, name, x: e.clientX, y: e.clientY};
         };
-        // Enter or Space on a card (a click without a pointer): the keyboard cannot point at the plan (D-NEXT)
+        // Enter or Space on a card (a click without a pointer): the keyboard cannot point at the plan (D-096)
         it.onclick = e => {
           if (e.detail === 0) placeFromKeyboard({c, name});
         };

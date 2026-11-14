@@ -84,7 +84,7 @@ test('the outline typed from the keyboard is offered so the documented area fits
 // A dialog's markup in a file: the dialog class the editor's dialogs share, a dialog role, the AI build's sheet.
 const DIALOG_MARKUP = /class="keys[ "]|role="dialog"|class="aib-veil"/;
 
-test('every dialog holds the focus: the page under it sleeps, Escape closes it, the focus goes back (D-NEXT)', () => {
+test('every dialog holds the focus: the page under it sleeps, Escape closes it, the focus goes back (D-096)', () => {
   const folder = new URL('.', import.meta.url).pathname;
   const missing: string[] = [];
   for (const name of fs.readdirSync(folder)) {

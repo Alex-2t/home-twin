@@ -54,7 +54,7 @@ export async function start(panel: PanelHost): Promise<PanelApp> {
       ],
     ]);
   };
-  // HA serves a newer build of the panel (an update without a restart, D-NEXT): this one keeps working — the integration does not
+  // HA serves a newer build of the panel (an update without a restart, D-097): this one keeps working — the integration does not
   // move an open panel — and “Reload” brings the new one. Its own notice, not the banner: the coach reuses the banner, and the start
   // screen covers it. It stays awake over dialogs (keyboard.ts: data-awake).
   const showUpdated = (): void => {

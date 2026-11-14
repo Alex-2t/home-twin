@@ -14,7 +14,7 @@ The dashboard card (D-059): frontend/card.js is a small file HA loads on every p
 picker without setup; the 3D itself (frontend/card-app.js) loads only where a card is shown. The card follows the plan with
 home_twin/plan/subscribe: the plan now and after every write.
 
-The panel and the card are served build by build (serve.py, D-NEXT): a new editor build put into frontend/ (an update) is taken up
+The panel and the card are served build by build (serve.py, D-097): a new editor build put into frontend/ (an update) is taken up
 without restarting HA — within a minute, or as soon as a page asks for it — and panels and cards already open are told
 (home_twin/frontend/subscribe) so they offer a reload; an open editor is never reloaded by itself. A change to this Python code still
 needs a restart, as with any integration.

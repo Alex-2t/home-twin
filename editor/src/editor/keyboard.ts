@@ -1,4 +1,4 @@
-// The keyboard alone (D-NEXT): every place of the first-run path can be reached with Tab, worked with Enter, Space and the
+// The keyboard alone (D-096): every place of the first-run path can be reached with Tab, worked with Enter, Space and the
 // arrows, and closed with Escape. The pieces shared by the editor's screens live here:
 //   - which kind of input came last, so focus is moved for keyboard users only and the mouse sees nothing new;
 //   - which of the editor's own keys a focused element lets through;

@@ -306,7 +306,7 @@ interface FinishCatalog {
 
 /**
  * A row of finish swatches (floorState, wallState, sideState): what is chosen now (auto: guessed, autoTip says how), whether the
- * AI build put pieces there, and what a pick, a custom colour, a pattern (D-NEXT), a reset and "Same as room" do.
+ * AI build put pieces there, and what a pick, a custom colour, a pattern (D-089), a reset and "Same as room" do.
  */
 interface FinishState {
   type: 'floor' | 'wall';
@@ -1587,7 +1587,7 @@ export function roomsMode(ed: Editor): RoomsMode {
       [a[0], b[1]],
     ]);
   }
-  // The outline from the keyboard (D-NEXT): instead of two clicks, the width and then the depth are typed (centimetres, as a
+  // The outline from the keyboard (D-096): instead of two clicks, the width and then the depth are typed (centimetres, as a
   // wall's length). The sizes offered fit the documented area; the rectangle stands at the middle of the plan photo, or of
   // the plan in view, and is then sized by the area like a drawn one (newRoom → fitArea). With rooms already there it is a room.
   m.typeOutline = () => {
@@ -2638,7 +2638,7 @@ export function roomsMode(ed: Editor): RoomsMode {
       own.append(rs);
     }
     box.append(own);
-    // the chosen finish's pattern: sizes, joints, the second colour (D-NEXT); none for a finish without one
+    // the chosen finish's pattern: sizes, joints, the second colour (D-089); none for a finish without one
     const pattern = patternBlock(st.type, patternSpec(st.type, st.cur), st.pattern, st.setPattern);
     if (pattern) box.append(pattern);
     return box;

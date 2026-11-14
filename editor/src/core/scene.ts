@@ -675,7 +675,7 @@ export function createView(host: HTMLElement): SceneView {
     };
     for (const r of roomList) {
       if (r.solid) continue;
-      // the room's floor: its key, colour and pattern (D-NEXT)
+      // the room's floor: its key, colour and pattern (D-089)
       const {k: kind, tint, ...pattern} = roomFloor(r);
       const K = FLOOR_KINDS[kind];
       const g = new THREE.ShapeGeometry(new THREE.Shape(r.polygon.map(([x, y]) => new THREE.Vector2(x, y))));
@@ -1259,7 +1259,7 @@ export function createView(host: HTMLElement): SceneView {
       });
     }
     devs = [];
-    // One lamp must not take the others down (D-NEXT, 2026-11-14): a lamp that fails to build is left out, with what it had added.
+    // One lamp must not take the others down (D-095, 2026-11-14): a lamp that fails to build is left out, with what it had added.
     for (const L0 of list) {
       const drawnBefore = fixtures.children.length;
       try {

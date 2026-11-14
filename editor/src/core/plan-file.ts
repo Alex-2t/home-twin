@@ -65,7 +65,7 @@ export function readPlan(text: string): Plan {
     optional(r, 'area', str);
     optional(r, 'wt', x => isList(x) && x.every(v => v == null || Number.isFinite(v)));
     optional(r, 'wf', x => isList(x) && x.every(v => v == null || obj(v)));
-    // a finish's pattern parameters (D-NEXT): an object; a value inside it that is not well formed is left out when drawn
+    // a finish's pattern parameters (D-089): an object; a value inside it that is not well formed is left out when drawn
     optional(r, 'wallPattern', obj);
     optional(r, 'floorPattern', obj);
     // pieces of finish (pieces.js, D-084): on the walls per edge, on the floor as outlines; a bad value inside one is skipped when drawn

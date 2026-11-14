@@ -1,7 +1,7 @@
 // A plan with one odd thing in it (demo/odd-plans.ts: an unknown model, a size that is not a number, an opening on a wall that is
 // not there…) on every typical home: the file check rejects what makes the plan meaningless and opens the rest; whichever way a
 // plan arrives (a checked file, or unchecked from Home Assistant, the history, the browser), what draws it — the plan, the 3D's
-// furniture and walls, the readings, the dashboard card's walls — does not throw, and the odd thing degrades on its own (D-NEXT).
+// furniture and walls, the readings, the dashboard card's walls — does not throw, and the odd thing degrades on its own (D-095).
 // The browser half (the 3D view, the 2D plan, Preview and the card in the built editor) is checked by hand with the same plans.
 import test from 'node:test';
 import assert from 'node:assert/strict';

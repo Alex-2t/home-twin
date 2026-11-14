@@ -608,7 +608,7 @@ const outN = (room: Room, i: number): Vector => {
 };
 /** The fields of a room's own finish (FINISH_KEYS). */
 type FinishField = 'wall' | 'wallTint' | 'wallPattern' | 'floor' | 'floorTint' | 'floorPattern';
-// A room's finish that the new part of a split room gets too, with its pattern (D-NEXT).
+// A room's finish that the new part of a split room gets too, with its pattern (D-089).
 const FINISH_KEYS: FinishField[] = ['wall', 'wallTint', 'wallPattern', 'floor', 'floorTint', 'floorPattern'];
 // A copy, not the same object: the two rooms' patterns are edited apart.
 function copyFinish<Key extends FinishField>(from: Room, to: Room, key: Key): void {

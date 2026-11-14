@@ -1,4 +1,4 @@
-"""The editor panel and the dashboard card are served build by build, so a new build takes effect without restarting HA (D-NEXT).
+"""The editor panel and the dashboard card are served build by build, so a new build takes effect without restarting HA (D-097).
 
 Every build of the editor (editor: npm run build) writes frontend/build.json: the sha256 of every file and the build id made from
 them. The files are served at /home_twin_static/<build>/<file>:

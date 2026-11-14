@@ -170,7 +170,7 @@ const watching = process.argv.includes('--serve');
 
 // build.json beside the files: every file's sha256 and the build id made from them. The integration serves each build at its own
 // address and takes a new one up only once the files on disk match this list, so an update half done is never served (serve.py,
-// D-NEXT). The id is made the way serve.py makes it: the sha256 of the "name:sha256" lines in name order, its first 12 characters.
+// D-097). The id is made the way serve.py makes it: the sha256 of the "name:sha256" lines in name order, its first 12 characters.
 const FRONTEND_FILE = /^[a-z0-9][a-z0-9-]*\.js$/;
 const BUILD_ID_LENGTH = 12;
 const sha256 = (data: string | Buffer): string => crypto.createHash('sha256').update(data).digest('hex');

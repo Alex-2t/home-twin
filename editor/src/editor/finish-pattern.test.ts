@@ -1,4 +1,4 @@
-// A finish's pattern set by hand (D-NEXT): a change stays in the finish's range, the tile is written whole, and a value
+// A finish's pattern set by hand (D-089): a change stays in the finish's range, the tile is written whole, and a value
 // set back to the finish's own is left out, so the file stays as it was.
 import {test} from 'node:test';
 import assert from 'node:assert/strict';

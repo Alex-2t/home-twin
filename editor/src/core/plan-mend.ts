@@ -1,6 +1,6 @@
 // A plan that reaches the editor or the dashboard card without the file check (Home Assistant, the version history, the
 // browser's own save, an older or newer editor) may hold values the drawing code cannot take. One bad entry must not take the
-// whole home down (D-NEXT, 2026-11-14), so migrate mends the plan first, by the file check's own rules (plan-file.ts):
+// whole home down (D-095, 2026-11-14), so migrate mends the plan first, by the file check's own rules (plan-file.ts):
 // - an entry the file check would reject as meaningless — not an object, a room without an outline of three corners, an opening
 //   on a wall that is not there, an item without a model or a place — is left out;
 // - a field the file check would reject, where the editor has a default — a size that is not a positive number, a colour that is

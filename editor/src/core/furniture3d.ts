@@ -4957,7 +4957,7 @@ function partsObject(item: Item3d): THREE.Group {
   g.add(b);
   return g;
 }
-// An item in 3D, by its model. One item must not take the whole home down (D-NEXT, 2026-11-14): a model this catalog does not
+// An item in 3D, by its model. One item must not take the whole home down (D-095, 2026-11-14): a model this catalog does not
 // have, or one whose generator fails on this item's values (a variant or a colour from a newer editor), is a plain box of its size.
 export function makeObject(item: Item3d): THREE.Group {
   const c = byId(item.model);

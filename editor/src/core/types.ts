@@ -36,7 +36,7 @@ export interface Prism {
 // ---------- the plan file: rooms and openings ----------
 
 /**
- * A finish's pattern parameters (D-NEXT): the sizes and colours of its pattern, each optional (none: the finish's own). A
+ * A finish's pattern parameters (D-089): the sizes and colours of its pattern, each optional (none: the finish's own). A
  * finish uses only those that mean something for it (surfaces.ts patternSpec); the others are left out when drawn, and so is
  * a value that is not well formed.
  */
