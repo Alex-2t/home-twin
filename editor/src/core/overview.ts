@@ -22,13 +22,21 @@ import type {
 type OutdoorKind = 'loggia' | 'terrace' | 'patio' | 'garden' | 'porch';
 
 // The room kind from its name, for the icon; in the ten UI languages (D-036). Order matters: a “kids bedroom” is a kids' room,
-// a “kitchen-living room” is a kitchen.
+// a “kitchen-living room” is a kitchen, a “dining terrace” is outdoors.
+// (A German Waschküche and a Dutch bijkeuken are a utility room, not a kitchen; an Italian “sala da pranzo” and a Portuguese
+// “sala de jantar” a dining room, not a living room; a “quarto de vestir” a dressing room, not a bedroom: LATER_KINDS below.)
 const KINDS: Array<[RoomKind, RegExp]> = [
   ['bath', BATH],
   ['kids', /детск|kid|child|nursery|kinder|enfant|niñ|infantil|bambin|cameretta|dziec|criança|infantil|儿童/],
-  ['bed', /спальн|bedroom|schlaf|chambre|dormitorio|camera da letto|slaapkamer|sypialn|quarto|卧室/],
-  ['kitchen', /кухн|kitchen|küche|cuisine|cocina|cucina|keuken|kuchni|cozinha|厨房/],
-  ['living', /гостин|living|зал|wohnzimmer|salon|séjour|woonkamer|sala|soggiorno|salotto|pokój dzienny|客厅/],
+  [
+    'bed',
+    /спальн|bedroom|schlaf|chambre|dormitorio|camera da letto|slaapkamer|sypialn|quarto(?! de vestir)|卧室/,
+  ],
+  ['kitchen', /кухн|kitchen|(?<!wasch)küche|cuisine|cocina|cucina|(?<!bij)keuken|kuchni|cozinha|厨房/],
+  [
+    'living',
+    /гостин|living|зал|wohnzimmer|salon|séjour|woonkamer|sala(?! d[aeo] (jantar|pranzo))|soggiorno|salotto|pokój dzienny|客厅|客餐厅/,
+  ],
   [
     'hall',
     /коридор|прихож|холл|hall|corridor|flur|diele|entrée|couloir|pasillo|recibidor|corridoio|ingresso|\bgang\b|\bhal\b|entrada|korytarz|przedpok|corredor|走廊|玄关/,
@@ -43,17 +51,73 @@ const KINDS: Array<[RoomKind, RegExp]> = [
     'office',
     /кабинет|office|study|büro|arbeitszimmer|bureau|despacho|oficina|studio|kantoor|werkkamer|gabinet|escritório|escritorio|书房/,
   ],
+  // a dressing room before a storage room: a walk-in closet is one, a closet alone (an American cupboard) is not
+  [
+    'dressing',
+    /гардероб|dressing|walk-?in[ -]?(closet|wardrobe|robe)|ankleide|vestidor|cabina armadio|inloopkast|garderob|quarto de vestir|衣帽间/,
+  ],
   [
     'storage',
-    /кладов|гардероб|storage|pantry|closet|abstell|cellier|despensa|ripostiglio|berging|spiżarn|debarras|trastero|schowek|arrecada|储藏/,
+    /кладов|storage|pantry|closet|abstell|cellier|despensa|ripostiglio|berging|spiżarn|debarras|trastero|schowek|arrecada|储藏/,
   ],
+];
+// The kinds added later (a dining room, a utility room, a boiler room, a garage) and a plan's English words for the kinds above,
+// read only where no kind above knows the name: what had a kind keeps it ("Entrance porch" stays outdoors, "Storage/utility"
+// a storage room). The AI build met the words on British and American plans. Order matters here too: a “lounge/dining room”
+// is a living room, as a “living/dining room” is; a cupboard under the stairs or on the landing is a cupboard.
+const LATER_KINDS: Array<[RoomKind, RegExp]> = [
+  [
+    'living',
+    /sitting|lounge|\breception|family room|front room|drawing room|great room|day room|parlou?r|\bden\b|\bsnug\b/,
+  ],
+  [
+    'dining',
+    /столов|dining|esszimmer|essbereich|salle à manger|comedor|sala da pranzo|eetkamer|jadalni|sala de jantar|餐厅/,
+  ],
+  // a utility room and a laundry are one kind: in most of the ten languages one word names both
+  [
+    'utility',
+    /постироч|прачечн|хозяйствен|подсоб|хозблок|utility|\butil\b|laundry|scullery|hauswirtschaft|\bhwr\b|waschküche|waschraum|buanderie|lavadero|cuarto de lavado|lavanderia|lavandaria|bijkeuken|washok|wasruimte|pralni|pomieszczenie gospodarcze|área de serviço|洗衣/,
+  ],
+  [
+    'boiler',
+    /котельн|boiler|plant room|heizungsraum|heizraum|chaufferie|calderas|caldaia|ketelruimte|stookruimte|kotłowni|caldeira|锅炉/,
+  ],
+  ['garage', /гараж|garag|garaj|garaż|车库/],
+  ['storage', /cupboard|\bstore\b|store ?room|larder|airing|cellar/],
+  ['bed', /box ?room|guest room|spare room|master suite/],
+  ['kids', /play ?room/],
+  ['office', /library|work ?room|hobby room|craft room/],
+  ['hall', /landing|lobby|foyer|vestibul|\bentry\b|entrance|passage|stair/],
+  ['kitchen', /galley/],
+];
+// A plan's letters for a small room, when they are the whole name: a British plan's cupboards ("C", "Cpd", "Cupd", "AC" an
+// airing cupboard, "St" a store, "W" a wardrobe; an American "CL" a closet), with a number or not; a walk-in closet or robe.
+const LETTERS: Array<[RoomKind, RegExp]> = [
+  ['storage', /^(c|cpd|cupd|ac|st|w|cl)\.?( ?\d+)?$/],
+  ['dressing', /^(wic|wir|wiw)\.?( ?\d+)?$/],
 ];
 // Matched as written and with its accents taken off ("Balcón", "Pátio", "Véranda" as the words are listed).
 const plainLetters = (s: string): string => s.normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+
+/** The first kind of a table whose words the text has, as written or without its accents. */
+function kindByWords(table: Array<[RoomKind, RegExp]>, text: string): RoomKind | undefined {
+  const plain = plainLetters(text);
+  return table.find(([, words]) => words.test(text) || words.test(plain))?.[0];
+}
+
+/** The kind a room's name stands for when it is only such letters; the name alone, not the area or the id given after it. */
+function kindByLetters(name: string | undefined): RoomKind | undefined {
+  const letters = String(name || '')
+    .trim()
+    .toLowerCase();
+  return LETTERS.find(([, pattern]) => pattern.test(letters))?.[0];
+}
+
 export const roomKind = (...names: Array<string | null | undefined>): RoomKind => {
-  const s = names.filter(Boolean).join(' ').toLowerCase();
-  const plain = plainLetters(s);
-  return KINDS.find(([, re]) => re.test(s) || re.test(plain))?.[0] || 'room';
+  const given = names.filter((name): name is string => !!name);
+  const text = given.join(' ').toLowerCase();
+  return kindByWords(KINDS, text) || kindByWords(LATER_KINDS, text) || kindByLetters(given[0]) || 'room';
 };
 // Each kind of room named in the user's language (tr = i18n t): what the AI build calls a room it found.
 export const KIND_NAME: Record<RoomKind, string> = {
@@ -65,7 +129,12 @@ export const KIND_NAME: Record<RoomKind, string> = {
   hall: N('Hallway'),
   balcony: N('Balcony'),
   office: N('Office|room'),
+  dining: N('Dining room'),
+  dressing: N('Dressing room'),
   storage: N('Storage|room'),
+  utility: N('Utility room'),
+  boiler: N('Boiler room'),
+  garage: N('Garage'),
   room: N('Room'),
 };
 // (A room's name has keys of its own where the catalog's category is the same English word: a storage room took the

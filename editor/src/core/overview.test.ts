@@ -107,7 +107,7 @@ test('a room outdoors is named by what it is, not all "Balcony"; names that read
   assert.equal(kindName('лоджия', asIs), 'Loggia'); // allow-cyrillic: a room name from a Russian plan
   assert.equal(kindName('patio', asIs), 'Patio');
   assert.equal(kindName('bedroom', asIs), 'Bedroom');
-  assert.equal(localRoomName('Rear Porch/Utility', asIs), 'Porch/Utility');
+  assert.equal(localRoomName('Rear Porch/Utility', asIs), 'Porch/Utility room');
   assert.equal(localRoomName('Bedroom 2', asIs), 'Bedroom 2');
   assert.deepEqual(numberAlike(['Bedroom', 'Kitchen', 'Bedroom']), ['Bedroom 1', 'Kitchen', 'Bedroom 2']);
   assert.deepEqual(numberAlike(['Garden', 'Terrace']), ['Garden', 'Terrace']);
@@ -185,6 +185,111 @@ test('a room named by its kind in any language is that kind again', async () => 
       if (kind !== 'room') assert.equal(roomKind(t(key)), kind, `${lang} ${kind} ${t(key)}`);
     for (const outdoors of ['loggia', 'rear terrace', 'patio', 'front garden', 'porch'])
       assert.equal(roomKind(kindName(outdoors, t)), 'balcony', `${lang} ${kindName(outdoors, t)}`);
+  }
+  setLang('en');
+});
+
+// The AI build (home-mwdqg2dp, a Russian owner's build) showed "Sitting room" and "Utility room" in English: no kind knew
+// them. Common rooms have kinds of their own now, and a plan's other English words and a British plan's letters name the kind
+// they mean.
+test('common rooms have kinds of their own: a utility room, a boiler room, a dressing room, a dining room, a garage', () => {
+  assert.equal(roomKind('Utility room'), 'utility');
+  assert.equal(roomKind('Utility'), 'utility');
+  assert.equal(roomKind('Laundry'), 'utility');
+  assert.equal(roomKind('Laundry room'), 'utility');
+  assert.equal(roomKind('Boiler room'), 'boiler');
+  assert.equal(roomKind('Plant room'), 'boiler');
+  assert.equal(roomKind('Dressing room'), 'dressing');
+  assert.equal(roomKind('Walk-in closet'), 'dressing');
+  assert.equal(roomKind('Walk-in wardrobe'), 'dressing');
+  assert.equal(roomKind('Walk-in-closet'), 'dressing');
+  assert.equal(roomKind('Dining room'), 'dining');
+  assert.equal(roomKind('Dining'), 'dining');
+  assert.equal(roomKind('Garage'), 'garage');
+  assert.equal(roomKind('Double garage'), 'garage');
+  // a garage is a room indoors: walls to the ceiling, no railings (not the outdoor kind)
+  assert.notEqual(roomKind('Garage'), 'balcony');
+});
+
+test('a combined name keeps the kind that comes first, as before; a closet, a pantry, a dining terrace stay what they were', () => {
+  assert.equal(roomKind('Kitchen/Dining'), 'kitchen');
+  assert.equal(roomKind('Kitchen-dining room'), 'kitchen');
+  assert.equal(roomKind('Living/dining room'), 'living');
+  assert.equal(roomKind('Reception/Dining Room'), 'living');
+  assert.equal(roomKind('Lounge/diner'), 'living');
+  assert.equal(roomKind('Dining terrace'), 'balcony');
+  assert.equal(roomKind('Dining hall'), 'hall');
+  assert.equal(roomKind('Closet'), 'storage');
+  assert.equal(roomKind('Pantry'), 'storage');
+  assert.equal(roomKind('Storage/utility'), 'storage');
+  assert.equal(roomKind('Walk-in shower'), 'bath');
+  assert.equal(roomKind('Utility/WC'), 'bath');
+  assert.equal(roomKind('Entrance porch'), 'balcony');
+  assert.equal(roomKind('Master bedroom'), 'bed');
+});
+
+test("a plan's other English words name the kind they mean", () => {
+  assert.equal(roomKind('Sitting room'), 'living');
+  assert.equal(roomKind('Lounge'), 'living');
+  assert.equal(roomKind('Reception room 2'), 'living');
+  assert.equal(roomKind('Family room'), 'living');
+  assert.equal(roomKind('Landing'), 'hall');
+  assert.equal(roomKind('Entrance'), 'hall');
+  assert.equal(roomKind('Foyer'), 'hall');
+  assert.equal(roomKind('Box room'), 'bed');
+  assert.equal(roomKind('Boxroom'), 'bed');
+  assert.equal(roomKind('Guest room'), 'bed');
+  assert.equal(roomKind('Playroom'), 'kids');
+  assert.equal(roomKind('Library'), 'office');
+  assert.equal(roomKind('Airing cupboard'), 'storage');
+  assert.equal(roomKind('Store'), 'storage');
+  assert.equal(roomKind('Larder'), 'storage');
+  assert.equal(roomKind('Under-stairs cupboard'), 'storage');
+  assert.equal(roomKind('Landing cupboard'), 'storage');
+});
+
+test("a British plan's letters for a cupboard name the storage kind, only when they are the whole name", () => {
+  for (const letters of ['C', 'Cpd', 'Cupd', 'AC', 'C.', 'cpd 2'])
+    assert.equal(roomKind(letters), 'storage', letters);
+  assert.equal(roomKind('WIC'), 'dressing');
+  // the overview passes the room's id and area after its name
+  assert.equal(roomKind('C', undefined, 'r12'), 'storage');
+  assert.equal(roomKind('C', 'kitchen', 'r12'), 'kitchen');
+  // a letter inside a longer name is no cupboard
+  assert.equal(roomKind('Room C'), 'room');
+  assert.equal(roomKind('Block C'), 'room');
+});
+
+test("such a name reads in the owner's language, its number kept", async () => {
+  const {LANGS, setLang, t} = await import('../i18n/i18n.ts');
+  for (const [lang] of LANGS) {
+    setLang(lang);
+    assert.equal(localRoomName('Utility room', t), t('Utility room'), lang);
+    assert.equal(localRoomName('Sitting room', t), t('Living room'), lang);
+    assert.equal(localRoomName('Lounge/Dining room', t), `${t('Living room')}/${t('Dining room')}`, lang);
+    assert.equal(localRoomName('Landing', t), t('Hallway'), lang);
+    assert.equal(localRoomName('Box room 2', t), `${t('Bedroom')} 2`, lang);
+    assert.equal(localRoomName('C', t), t('Storage|room'), lang);
+    assert.equal(localRoomName('Boiler room', t), t('Boiler room'), lang);
+    assert.equal(localRoomName('Dressing room', t), t('Dressing room'), lang);
+    assert.equal(localRoomName('Garage', t), t('Garage'), lang);
+    if (lang !== 'en') assert.notEqual(t('Utility room'), 'Utility room', lang);
+  }
+  setLang('ru');
+  assert.equal(localRoomName('Utility room', t), 'Постирочная'); // allow-cyrillic: the Russian owner's build
+  setLang('en');
+});
+
+test('a garage and a boiler room have a concrete floor in every language; a dining or dressing room parquet', async () => {
+  const {floorGuess} = await import('./surfaces.ts');
+  const {LANGS, setLang, t} = await import('../i18n/i18n.ts');
+  for (const [lang] of LANGS) {
+    setLang(lang);
+    const floorOf = (name: string): string => floorGuess({id: 'r1', name: t(name), polygon: []});
+    assert.equal(floorOf('Garage'), 'concrete', `${lang} ${t('Garage')}`);
+    assert.equal(floorOf('Boiler room'), 'concrete', `${lang} ${t('Boiler room')}`);
+    assert.equal(floorOf('Dining room'), 'wood', `${lang} ${t('Dining room')}`);
+    assert.equal(floorOf('Dressing room'), 'wood', `${lang} ${t('Dressing room')}`);
   }
   setLang('en');
 });

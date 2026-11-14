@@ -213,7 +213,12 @@ const ROOM_IC: Record<RoomKind, string> = {
   hall: 'door',
   balcony: 'window',
   office: 'device',
+  dining: 'kitchen',
+  dressing: 'layers',
   storage: 'home',
+  utility: 'droplet',
+  boiler: 'flame',
+  garage: 'home',
   room: 'home',
 };
 const lampIcon = (form: LightForm): string =>

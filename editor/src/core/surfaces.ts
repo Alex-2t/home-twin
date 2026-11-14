@@ -399,8 +399,9 @@ export const floorGuess = (room: Room | null | undefined): string => {
   const s = `${room?.name || ''} ${room?.id || ''}`.toLowerCase();
   if (BATH.test(s)) return 'tile';
   // a garage, utility or boiler room, a basement, a shed: concrete; a laundry room: tiles (the homes check: these had parquet)
+  // (the garage's and the boiler room's names in all ten languages, as the room kinds name them: core/overview.ts KIND_NAME)
   if (
-    /гараж|котельн|подвал|сарай|мастерск|garag|garaż|utility|boiler|basement|cellar|\bshed\b|workshop|keller|hauswirtschaft|heizungsraum|schuppen|werkstatt|chaufferie|sótano|scantinato|piwnica|kotłownia|porão|车库|地下室/.test(
+    /гараж|котельн|подвал|сарай|мастерск|garag|garaj|garaż|utility|boiler|plant room|basement|cellar|\bshed\b|workshop|keller|hauswirtschaft|heizungsraum|heizraum|schuppen|werkstatt|chaufferie|calderas|caldaia|ketelruimte|stookruimte|bijkeuken|caldeira|sótano|scantinato|piwnica|kotłownia|porão|车库|锅炉|地下室/.test(
       s,
     )
   )
