@@ -1639,5 +1639,7 @@
  "{0, plural, one {+# package} other {+# packages}}": "{0, plural, one {+# pacchetto} other {+# pacchetti}}",
  "{0, plural, one {# more package} other {# more packages}}": "{0, plural, one {ancora # pacchetto} other {ancora # pacchetti}}",
  "Current package": "Pacchetto attuale",
- "Your package": "Il tuo pacchetto"
+ "Your package": "Il tuo pacchetto",
+ "All examples": "Tutti gli esempi",
+ "Fewer examples": "Meno esempi"
 }

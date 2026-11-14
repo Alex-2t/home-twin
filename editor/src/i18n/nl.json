@@ -1639,5 +1639,7 @@
  "{0, plural, one {+# package} other {+# packages}}": "{0, plural, one {+# pakket} other {+# pakketten}}",
  "{0, plural, one {# more package} other {# more packages}}": "{0, plural, one {nog # pakket} other {nog # pakketten}}",
  "Current package": "Huidig pakket",
- "Your package": "Je pakket"
+ "Your package": "Je pakket",
+ "All examples": "Alle voorbeelden",
+ "Fewer examples": "Minder voorbeelden"
 }

@@ -1639,5 +1639,7 @@
  "{0, plural, one {+# package} other {+# packages}}": "{0, plural, one {+# forfait} other {+# forfaits}}",
  "{0, plural, one {# more package} other {# more packages}}": "{0, plural, one {encore # forfait} other {encore # forfaits}}",
  "Current package": "Forfait en cours",
- "Your package": "Votre forfait"
+ "Your package": "Votre forfait",
+ "All examples": "Tous les exemples",
+ "Fewer examples": "Moins d’exemples"
 }

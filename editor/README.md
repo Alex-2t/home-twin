@@ -65,13 +65,13 @@ assets/lucide-LICENSE.txt  icon license (ISC)
 ```
 
 ## Screen layout (D-017, D-018)
-- **The whole screen is a canvas, and all controls float above it** as translucent panels:
+- **The whole screen is a canvas, and all controls float above it** as translucent panels of one style (D-111: the same surface, border, radius and shadow, 12 px from the edges and between panels):
   - top left — a house icon, which opens the file menu with the apartment name;
-  - top center — the modes “Plan / Furniture / Lights / Sensors” with a count of lamps on the plan;
+  - top center — the modes “Plan / Furniture / Lights / Sensors” with a count of lamps on the plan; before the home has rooms of its own (the outline and rooms steps) the later modes are dimmed and the count is left out;
   - right — undo, “Saved” and settings (theme, grid, hotkeys);
-  - bottom center — the mode's tools, hand, zoom as a percentage of “whole plan”, “whole plan” and “?”.
+  - bottom center — the mode's tools, hand, zoom as a percentage of “whole plan”, “whole plan” and “?” (hidden during the guided path, whose card has its own “?”).
 
-  The modes and the bottom panel are centered in the free part of the screen and do not run under the 3D window.
+  The modes and the bottom panel are centered in the free part of the screen and do not run under the 3D window. Only what is of use now is shown (D-111): the 3D window waits for the first room, the Plan mode's side panel for a room or a plan photo.
 - **Languages (D-036)**: ten — English (source), Russian, German, French, Dutch, Spanish, Chinese, Italian, Polish, Portuguese. English is the source language of UI strings: in code, text is written in English via `t('…')` (`src/i18n/i18n.js`; the key is the string itself, e.g. `t('Done')`; substitutions `{0}`, plurals in ICU). A `|context` suffix disambiguates identical English words with different meanings (`t('Open|verb')` shows “Open” in English; the suffix is dropped on display). The dictionaries `src/i18n/<lang>.json` map English → translation, including `ru.json`; the glossary is in `src/i18n/GLOSSARY.md`. The language is set by `i18n/boot.js` before the other modules: the user's own choice (the “⋯” menu → “Language”, changing it reloads the page) or the system language. The furniture catalog is translated when the module loads; the `shell.html` markup uses `translateDom`. The scanner `node tools/i18n-scan.ts [--keys]` finds untranslated text outside `t()` and, with `--keys`, writes `keys.json` (the list of all keys); the test `i18n.test.js` checks that dictionaries have no gaps, and the tests forbid Cyrillic in code (except regular expressions and lines marked `allow-cyrillic`). The words used to guess lamp shape, coverage and service sensors are provided in all ten languages.
 - **Theme**: “system”, light or dark. Interface and drawing colors are CSS variables in `styles.css`; `draw.js` reads them when the theme changes. The underlay is processed like a scan (`inkMask` in `underlay.js`): photo lighting is evened out, paper becomes transparent, lines are dark on the light theme and light on the dark one. Icons are Lucide (ISC), `src/editor/icons.js`.
 - **The plan looks like a drawing.** Walls are cut at a height of 1.2 m and built from the same geometry as 3D (`wallsAt` in `core/geometry.js`). Windows are thin lines, doors up to 1.15 m have an opening arc, lamps glow. While rooms have an error, room outlines are drawn instead of walls.
@@ -179,13 +179,13 @@ The mouse wheel and trackpad are distinguished by the step of `wheelDelta` (for 
 
 ## First launch
 
-The start screen: “Upload a plan”, “Draw from scratch”, “Demo home”; with a saved project — “Continue”.
+The start screen: “Build with AI” (where its service answers), “Upload a plan”, “Draw from scratch”, and one row of five examples with “All examples” for the full list (D-111); with a saved project — “Continue”.
 
 After a photo is uploaded — the area from the documents (`askArea` / `ed.fitArea` in `flows.js`, D-038). “Don't know” lets you specify the ends of a wall and its length. The scale from the first rectangle is approximate; after the rooms are linked it is refined without shafts and, at the user's choice, without the balcony (`plan.docArea`, `plan.docBalcony`, `plan.scaleBy`). The photo is straightened by lines (`tiltOf`, D-040); it can be rotated manually and the original tilt restored.
 
 The main path (`MAND` in `wizard-path.js`): **Outline → Rooms → Windows & doors → Room linking → Furniture → Lights**. Optional (`OPT`): “Sensors on walls” and “Card view”. You can leave the wizard and return at any moment.
 
-Per D-042/D-043 the wizard card is always at the bottom. The first row has the visible stage strip and exit, the second a short instruction, “Back” and the action; details expand with “?”. The hint key does not depend on a changing counter. Hints outside the wizard may use the `ed.aim` area, but it is not the position of the main-path card.
+Per D-111 (refining D-043 and D-110) the wizard card is the coach panel on the left on a desktop (wider than 760 px): the progress line (a small dot per main step and the step's name, “Watch how” or collapse, exit as a cross), the step's clip, a short instruction, “Back” and the action; details expand with “?”. Collapsed, only the clip folds away: the instruction and the buttons stay. On a phone and a tablet held upright the card stays at the bottom, and its “Watch how” pill opens the clip over the page. The hint key does not depend on a changing counter. Hints outside the wizard may use the `ed.aim` area, but it is not the position of the main-path card.
 
 Confirmation and deferral of stages are stored in `plan.onboarding.steps`; actual readiness is recomputed from the plan (`wizard-state.js`). A skip is not completion, a light draft requires room confirmation. The summary lists unfinished stages with jumps to them; “Run setup” returns to the first unfinished one. The last UI step is additionally stored in `ui.wiz` of this browser.
 

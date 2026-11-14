@@ -1,4 +1,4 @@
-// Six stages D-041; states D-042; the card and the path strip D-043. Confirmation and deferral are stored in the plan.
+// Six stages D-041; states D-042; the card and the path strip D-043, the progress line D-111. Confirmation and deferral are stored in the plan.
 // Next goes forward along the path; the summary lists what is unfinished. “Run setup” returns to the first unfinished step.
 import {t, N} from '../i18n/i18n.ts';
 import {icon} from './icons.ts';
@@ -299,56 +299,48 @@ export function createPath(ed: Editor): WizardPath {
       {exit: false, id: 'fin', fixed: true},
     );
   };
-  // The path strip (D-043) is always visible: step numbers, a done step — with a check mark, a deferred one — with an orange ring,
-  // optional ones — with icons. The tooltip on a dot is the name and the state, a click jumps to the step.
+  // The progress line (D-043, made one compact line in D-111): a small dot per main step — done filled, deferred with an orange
+  // ring, the current one longer — and the step's name. The tooltip on a dot is the step's number, name and state; a click jumps
+  // to it. The optional steps (devices, sensors) have no dots: they are asked about after the main ones.
   P.el = () => {
-    const k0 = P.cur();
-    if (!k0) return null;
+    const current = P.cur();
+    if (!current) return null;
     const box = document.createElement('nav');
     box.className = 'path';
     box.setAttribute('aria-label', t('All steps'));
-    const dot = (k: OnboardingStepId, label: string, opt: boolean): HTMLButtonElement => {
-      const cur = k === k0;
-      const s = P.status(k);
-      const b = document.createElement('button');
-      b.type = 'button';
-      b.className =
-        'dot' +
-        (opt ? ' opt' : '') +
-        (cur ? ' cur' : s === 'confirmed' ? ' done' : s === 'deferred' ? ' later' : '');
-      b.title = nameOf(k) + ' · ' + statusName(s);
-      b.setAttribute('aria-label', b.title);
-      if (cur) b.setAttribute('aria-current', 'step');
-      b.innerHTML = s === 'confirmed' && !cur ? icon('check', 11) : label;
-      if (cur || !can(k)) b.disabled = true;
+    const dots = document.createElement('span');
+    dots.className = 'path-dots';
+    MAND.forEach(([key], index) => {
+      const isCurrent = key === current;
+      const status = P.status(key);
+      const dot = document.createElement('button');
+      dot.type = 'button';
+      let state = '';
+      if (isCurrent) state = ' cur';
+      else if (status === 'confirmed') state = ' done';
+      else if (status === 'deferred') state = ' later';
+      dot.className = 'dot' + state;
+      dot.title =
+        t('Step {0} of {1}', index + 1, MAND.length) + ': ' + nameOf(key) + ' · ' + statusName(status);
+      dot.setAttribute('aria-label', dot.title);
+      if (isCurrent) dot.setAttribute('aria-current', 'step');
+      if (isCurrent || !can(key)) dot.disabled = true;
       else
-        b.onclick = e => {
-          e.stopPropagation();
-          P.go(k);
+        dot.onclick = event => {
+          event.stopPropagation();
+          P.go(key);
         };
-      return b;
-    };
-    MAND.forEach(([k], i) => {
-      if (i)
-        box.append(
-          Object.assign(document.createElement('i'), {className: P.done(MAND[i - 1][0]) ? 'on' : ''}),
-        );
-      box.append(dot(k, String(i + 1), false));
+      dots.append(dot);
     });
-    box.append(Object.assign(document.createElement('i'), {className: 'gap'}));
-    for (const [k, , ic] of OPT) box.append(dot(k, icon(ic, 11), true));
-    const mi = MAND.findIndex(s => s[0] === k0);
-    box.append(
-      Object.assign(document.createElement('span'), {
-        className: 'path-name',
-        textContent:
-          k0 === 'fin'
-            ? t('Current result')
-            : mi >= 0
-              ? nameOf(k0) + ' · ' + t('Step {0} of {1}', mi + 1, MAND.length)
-              : nameOf(k0) + ' · ' + t('optional'),
-      }),
-    );
+    box.append(dots);
+    const mainIndex = MAND.findIndex(s => s[0] === current);
+    let name = nameOf(current) + ' · ' + t('optional');
+    if (current === 'fin') name = t('Current result');
+    else if (mainIndex >= 0) name = nameOf(current);
+    const label = document.createElement('span');
+    label.className = 'path-name';
+    label.textContent = name;
+    box.append(label);
     return box;
   };
   return P;
