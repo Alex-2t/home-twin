@@ -17,7 +17,7 @@ New decisions are appended at the top of their section, old ones are not rewritt
 
 ## Decisions
 
-### D-NEXT. An HA light takes the place of the lamp the AI build saw; the arrows nudge what is selected — **accepted** (2026-11-14)
+### D-103. An HA light takes the place of the lamp the AI build saw; the arrows nudge what is selected — **accepted** (2026-11-14)
 - The two follow-ups recorded today in D-091 and D-096. The owner left the decisions to us; the choices below are ours, written down so they can be changed.
 - **An HA light takes the place of a seen lamp** (D-091's follow-up; `core/light-place.ts`, `core/seen-lamps.ts`). A lamp the AI build saw is a plan light without an HA entity. When one of the owner's HA lights is placed in a room — the guided Lights step landing it, “Auto-place”, a drop from the list onto the plan, a shape tile — and a seen lamp of the same kind stands there, the HA light takes its place instead of standing beside it as a second fitting.
   - **Same kind:** the same form; a floor lamp and a table lamp are different kinds. Spots, lines and strips match by form whatever their layout.
