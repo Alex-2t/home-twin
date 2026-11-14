@@ -8,7 +8,10 @@
 //   GET  <api>/pay/auth/<google|github>/start?return=<path>   the provider's sign-in, then back to <path>
 //                                            (a failed one comes back with ?signin=failed, a cancelled one ?signin=cancelled)
 //   GET  <api>/pay/me                        the account {email, providers, balance}; 401 SIGNED_OUT. The balance is
-//                                            {used, left, empty, bought}: bought is false until a first package
+//                                            {current: {used, left}, packages, packagesLeft, used, left, empty, bought}:
+//                                            packages are spent one after another (D-108), current is the one being spent,
+//                                            packagesLeft the full ones after it; used/left are of all bought (older
+//                                            services give only those); bought is false until a first package
 //   POST <api>/pay/auth/sign-out
 //   POST <api>/pay/checkout                  {return, lang} → {url}: the provider's checkout for one package; it comes back to
 //                                            <return>?paid=1&payment_id=…&status=…
@@ -42,15 +45,29 @@ export interface Offer {
   signIn: SignInWay[];
 }
 
+/** One package's shares, from 0 to 1. */
+export interface PackageShare {
+  used: number;
+  left: number;
+}
+
 /**
- * What is left on the account: shares from 0 to 1 of all that was bought, whether nothing is left, and whether a package
- * was ever bought (a new account is empty too, but it has used nothing).
+ * What is left on the account (D-108): packages are spent one after another in the order bought, so the owner sees the
+ * current package in percent and how many full packages wait after it. Also whether nothing is left, and whether a
+ * package was ever bought (a new account is empty too, but it has used nothing).
  */
 export interface BalanceShare {
+  /** Of all that was bought (what an older service gives); the screens show `current`. */
   used: number;
   left: number;
   empty: boolean;
   bought: boolean;
+  /** How many packages were bought. */
+  packages: number;
+  /** Full packages after the current one. */
+  packagesLeft: number;
+  /** The package being spent now. */
+  current: PackageShare;
 }
 
 /** The signed-in account (GET /pay/me): its email, the providers it has signed in with, and its balance. */
@@ -109,13 +126,41 @@ export function offerFrom(data: unknown): Offer {
   return {payments: data.payments, mode, price: priceFrom(data.price), signIn};
 }
 
+/** A count of packages: a whole number from 0; anything else reads as `fallback`. */
+function countOf(value: unknown, fallback: number): number {
+  if (typeof value !== 'number' || !Number.isInteger(value) || value < 0) return fallback;
+  return value;
+}
+
+/** A package's shares in the service's answer; null when it gives none. */
+function packageShareFrom(value: unknown): PackageShare | null {
+  if (!isFields(value)) return null;
+  return {used: shareOf(value.used), left: shareOf(value.left)};
+}
+
 /** The balance's shares in the service's answer; a missing balance reads as nothing left. */
 export function balanceFrom(value: unknown): BalanceShare {
-  if (!isFields(value)) return {used: 1, left: 0, empty: true, bought: false};
+  if (!isFields(value)) {
+    return {
+      used: 1,
+      left: 0,
+      empty: true,
+      bought: false,
+      packages: 0,
+      packagesLeft: 0,
+      current: {used: 1, left: 0},
+    };
+  }
   const empty = value.empty === true;
   // A service that does not say yet: something left means something was bought; nothing left reads as used up.
   const bought = typeof value.bought === 'boolean' ? value.bought : true;
-  return {used: shareOf(value.used), left: shareOf(value.left), empty, bought};
+  const used = shareOf(value.used);
+  const left = shareOf(value.left);
+  // A service from before D-108 tells only shares of all that was bought: they read as one package.
+  const current = packageShareFrom(value.current) ?? {used, left};
+  const packages = countOf(value.packages, bought ? 1 : 0);
+  const packagesLeft = countOf(value.packagesLeft, 0);
+  return {used, left, empty, bought, packages, packagesLeft, current};
 }
 
 /** The account in the service's answer; throws when the answer is not one. */
@@ -331,20 +376,56 @@ export function buyButtonInner(offer: Offer | null, options: {topUp?: boolean} =
 }
 
 /**
- * The shares as whole percents: a little used never reads as 0 % used, and a balance not used up never reads as 100 %
- * (it would look like the build should wait).
+ * The current package's shares as whole percents: a little used never reads as 0 % used, and a package not used up
+ * never reads as 100 % (it would look like the build should wait).
  */
 export function balancePercents(share: BalanceShare): {used: number; left: number} {
-  const used = share.empty ? 100 : Math.min(99, Math.ceil(share.used * 100));
+  const used = share.empty ? 100 : Math.min(99, Math.ceil(share.current.used * 100));
   return {used, left: 100 - used};
 }
 
-/** The balance as a small bar of what is used, with what is left beside it; '' when there is none. */
+/** The full packages after the current one, short, beside its percent: "+1 package"; '' when there are none. */
+export function morePackagesShort(share: BalanceShare): string {
+  if (share.empty || share.packagesLeft <= 0) return '';
+  return t('{0, plural, one {+# package} other {+# packages}}', share.packagesLeft);
+}
+
+/** The full packages after the current one, in words: "1 more package"; '' when there are none. */
+export function morePackagesText(share: BalanceShare): string {
+  if (share.empty || share.packagesLeft <= 0) return '';
+  return t('{0, plural, one {# more package} other {# more packages}}', share.packagesLeft);
+}
+
+/** The bar of the current package's used share. */
+function packageBar(usedPercent: number): string {
+  return `<i class="aib-meter"><i style="width:${usedPercent}%"></i></i>`;
+}
+
+/**
+ * The balance as a small bar of the current package, what is left of it beside it, and the full packages after it:
+ * "30% left · +1 package"; '' when there is none.
+ */
 export function balanceMeter(share: BalanceShare | null | undefined): string {
   if (!share) return '';
   const {used, left} = balancePercents(share);
-  const title = t('Package: {0}% used, {1}% left', used, left);
+  const more = morePackagesShort(share);
+  const moreTitle = morePackagesText(share);
+  const title = t('Package: {0}% used, {1}% left', used, left) + (moreTitle ? ` · ${moreTitle}` : '');
   const emptyClass = share.empty ? ' empty' : '';
-  return `<span class="aib-wallet${emptyClass}" title="${esc(title)}">${icon('wallet', 14)}
-    <i class="aib-meter"><i style="width:${used}%"></i></i><span>${esc(t('{0}% left', left))}</span></span>`;
+  const moreHtml = more ? `<span class="aib-wallet-more">· ${esc(more)}</span>` : '';
+  return `<span class="aib-wallet${emptyClass}" title="${esc(title)}">${icon('wallet', 14)}${packageBar(used)}<span>${esc(t('{0}% left', left))}</span>${moreHtml}</span>`;
+}
+
+/**
+ * The balance in the account's menu, a little fuller than the header's: which package, its bar and what is left of it,
+ * and the full packages after it on a line of their own. The caller shows an empty balance in words instead.
+ */
+export function balanceDetail(share: BalanceShare): string {
+  const {used, left} = balancePercents(share);
+  const which = share.packages > 1 ? t('Current package') : t('Your package');
+  const more = morePackagesText(share);
+  const moreHtml = more ? `<small class="aib-balance-more">${esc(more)}</small>` : '';
+  return `<div class="aib-balance-detail">
+    <div class="aib-balance-row">${icon('wallet', 14)}<span>${esc(which)}</span><b>${esc(t('{0}% left', left))}</b></div>
+    ${packageBar(used)}${moreHtml}</div>`;
 }

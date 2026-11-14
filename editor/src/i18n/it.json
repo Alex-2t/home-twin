@@ -1634,5 +1634,9 @@
  "Filmed upright in low resolution: some things may be missed. Fine to go ahead.": "Girato in verticale a bassa risoluzione: qualcosa potrebbe sfuggire. Puoi procedere comunque.",
  "Your plan has several floors": "La tua pianta ha più piani",
  "We build one floor for now": "Per ora costruiamo un solo piano",
- "Upload a plan of one floor, or crop this one to one floor.": "Carica la pianta di un piano o ritaglia questa su un solo piano."
+ "Upload a plan of one floor, or crop this one to one floor.": "Carica la pianta di un piano o ritaglia questa su un solo piano.",
+ "{0, plural, one {+# package} other {+# packages}}": "{0, plural, one {+# pacchetto} other {+# pacchetti}}",
+ "{0, plural, one {# more package} other {# more packages}}": "{0, plural, one {ancora # pacchetto} other {ancora # pacchetti}}",
+ "Current package": "Pacchetto attuale",
+ "Your package": "Il tuo pacchetto"
 }
