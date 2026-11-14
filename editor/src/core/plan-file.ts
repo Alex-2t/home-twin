@@ -2,6 +2,7 @@
 // an invalid structure or an unknown version must not turn into an empty saved plan.
 import {migrate, PLAN_VERSION} from './plan.ts';
 import {checkItem} from './parts.ts';
+import {isHex} from './color.ts';
 import type {Plan, PlanInput, Point} from './types.ts';
 
 // A JSON object: its fields are unknown until checked.
@@ -117,6 +118,7 @@ export function readPlan(text: string): Plan {
     numbers(l, ['h', 'count']);
     optional(l, 'room', str);
     optional(l, 'shade', str);
+    optional(l, 'body', isHex); // the fitting's own colour (fixtures.ts BODY_COLORS)
     optional(l, 'name', x => typeof x === 'string');
     if (l.was != null) {
       check(obj(l.was) && typeof l.was.s === 'string');

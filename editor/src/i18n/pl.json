@@ -1573,5 +1573,7 @@
  "Up to {0}% of your package": "Do {0}% pakietu",
  "About {0}–{1}% of your package": "Około {0}–{1}% pakietu",
  "An estimate: a bigger home or more furniture takes more": "To szacunek: większy dom lub więcej mebli zużyje więcej",
- "More than is left: it pauses for a top-up": "Więcej, niż zostało: praca stanie do doładowania"
+ "More than is left: it pauses for a top-up": "Więcej, niż zostało: praca stanie do doładowania",
+ "Body color": "Kolor oprawy",
+ "Default color": "Kolor domyślny"
 }

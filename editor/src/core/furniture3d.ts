@@ -159,11 +159,14 @@ function frustum(w: number, h: number, d: number, tw: number, td: number, tz: nu
   geo.computeVertexNormals();
   return geo;
 }
-// TOP(k): the kitchen worktop (catalog TOPS, item.top): gray stone by default, white quartz, oak, walnut, black stone
+// TOP(k): the kitchen worktop (catalog TOPS, item.top): gray stone by default, white quartz, oak, walnut, black stone, or a
+// custom #rrggbb (D-070 everywhere), as smooth as the stones
 const CERAMIC = (): THREE.MeshStandardMaterial => mat(0xf6f5f0, 0.22);
 const CHROME = (): THREE.MeshStandardMaterial => finish('chrome');
 const METAL = (): THREE.MeshStandardMaterial => mat(0xb9bcc0, 0.3);
+const CUSTOM_TOP_ROUGHNESS = 0.3;
 const TOP = (k: string | undefined): THREE.MeshStandardMaterial => {
+  if (isHex(k)) return mat(hexOf(k), CUSTOM_TOP_ROUGHNESS);
   // TOPS: a worktop key → [name, colour, roughness]; any other key is gray stone
   const [, color, rough] = isWorktop(k) ? TOPS[k] : TOPS.stone;
   return mat(color, rough);

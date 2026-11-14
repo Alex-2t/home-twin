@@ -135,6 +135,10 @@ export const housingOf = (L: Pick<PlanLight, 'shade' | 'name' | 'model'>): strin
     : SHADE_RE[2][1].test([L.name, L.model].filter(Boolean).join(' '))
       ? 'black'
       : 'white';
+// A fitting's own colour (L.body, '#rrggbb'): white and black to pick at once, or any colour. Forms with a body to colour:
+// all but the strip (a thin profile that shows only when it glows).
+export const BODY_COLORS: Record<string, string> = {white: '#eeebe6', black: '#27282b'};
+export const hasBody = (form: LightForm): boolean => form !== 'strip';
 export const shadeOf = (L: Pick<PlanLight, 'shade' | 'name' | 'model'>): string =>
   ownKey(SHADES, L.shade)
     ? L.shade

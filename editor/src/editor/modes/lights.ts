@@ -24,6 +24,8 @@ import {
   shadeOf,
   HOUSINGS,
   housingOf,
+  BODY_COLORS,
+  hasBody,
   FORM_ORDER,
   stripContour,
   stripRuns,
@@ -44,6 +46,7 @@ import {
 import type {Contour, LampCell, StripRuns} from '../../core/fixtures.ts';
 import {$, el, esc, parseLen, section, tip, tipHide} from '../ui.ts';
 import {icon} from '../icons.ts';
+import {cssHex, hexNum, isHex, snapColor} from '../../core/color.ts';
 import {FONT, alpha, dimLabel, pal, shiftSegs, shiftPoint} from '../draw.ts';
 import type {LightForm, Plan, PlanLight, Point, Segment, WallStrip} from '../../core/types.ts';
 import type {PlanView2d} from '../view2d.ts';
@@ -1533,17 +1536,20 @@ export function lightsMode(ed: Editor): LightsMode {
       opts.append(el(`<small>${t('Count')}</small>`), count(L.points.length, 8), ...shade);
     } else if (f === 'line') {
       const cur = housingOf(L);
+      // the body color: only the look; a chip is chosen while the body has no colour of its own
+      const own = isHex(L.body);
       const body = Object.entries(HOUSINGS).map(([k, name]) => {
-        const b = el(`<button class="chip ${cur === k ? 'on' : ''}">${esc(name)}</button>`);
+        const b = el(`<button class="chip ${cur === k && !own ? 'on' : ''}">${esc(name)}</button>`);
         b.onclick = () => {
-          if (cur === k) return;
+          if (cur === k && !own) return;
           L.shade = k;
+          delete L.body;
           ed.commit();
           blink(L.id);
         };
         return b;
-      }); // the body color: only the look
-      opts.append(...chips(LINES, L.opt), el('<span class="sep"></span>'), ...body);
+      });
+      opts.append(...chips(LINES, L.opt), el('<span class="sep"></span>'), ...body, ownBody(L));
     } else if (f === 'strip')
       opts.append(
         ...chips(
@@ -1585,7 +1591,55 @@ export function lightsMode(ed: Editor): LightsMode {
     }
     // a floor lamp has no choice (the owner: remove “Floor lamp / Table lamp”); the height is guessed from the name: “night light”, “table” — 75 cm
     if (opts.childNodes.length) lines.push(opts);
+    // the fitting's own colour (a line light has its body chips above)
+    if (hasBody(f) && f !== 'line' && !wizOn()) {
+      const colour = el(`<div class="line opts"></div>`);
+      colour.append(bodyColours(L));
+      lines.push(colour);
+    }
     return [...lines, ...missingLine(cell), ...nextLine(L, cell)];
+  }
+  // A fitting's own colour (L.body, D-070 everywhere): as the form draws it, white, black, or any colour; a picked colour
+  // practically white or black (ΔE below 3) is that swatch.
+  function setBody(L: PlanLight, colour: string | null): void {
+    if ((L.body ?? null) === colour) return;
+    if (colour) L.body = colour;
+    else delete L.body;
+    ed.commit();
+    blink(L.id);
+  }
+  function ownBody(L: PlanLight): HTMLElement {
+    const presets = Object.values(BODY_COLORS);
+    const own = isHex(L.body) && !presets.includes(L.body);
+    const picker = el(
+      `<label class="sw own ${own ? 'on' : ''}" title="${t('Custom color')}"${own ? ` style="background:${L.body}"` : ''}><input type="color" value="${isHex(L.body) ? L.body : BODY_COLORS.black}"></label>`,
+    );
+    // the input is in the markup above
+    picker.querySelector('input')!.onchange = e => {
+      const picked = (e.target as HTMLInputElement).value;
+      const snapped = snapColor(
+        picked,
+        Object.values(BODY_COLORS).map((hex): [string, number] => [hex, hexNum(hex)]),
+      );
+      setBody(L, snapped);
+    };
+    return picker;
+  }
+  function bodyColours(L: PlanLight): HTMLElement {
+    const swatches = el(`<span class="ink" title="${t('Body color')}"></span>`);
+    const auto = el(`<button class="sw auto ${L.body ? '' : 'on'}" title="${t('Default color')}"></button>`);
+    auto.onclick = () => setBody(L, null);
+    swatches.append(auto);
+    for (const [key, hex] of Object.entries(BODY_COLORS)) {
+      const name = HOUSINGS[key];
+      const button = el(
+        `<button class="sw ${L.body === hex ? 'on' : ''}" title="${esc(name)}" style="background:${cssHex(hexNum(hex))}"></button>`,
+      );
+      button.onclick = () => setBody(L, hex);
+      swatches.append(button);
+    }
+    swatches.append(ownBody(L));
+    return swatches;
   }
   // “Missing a light?” — in the step, above “Confirm room”: a fixture comes only from HA (the owner)
   // the cell's area: the second part of a room — its area, otherwise — the room's; without an area — just “add it in HA”

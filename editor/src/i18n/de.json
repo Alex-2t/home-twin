@@ -1573,5 +1573,7 @@
  "Up to {0}% of your package": "Bis zu {0} % Ihres Pakets",
  "About {0}–{1}% of your package": "Etwa {0}–{1} % Ihres Pakets",
  "An estimate: a bigger home or more furniture takes more": "Eine Schätzung: ein größeres Zuhause oder mehr Möbel brauchen mehr",
- "More than is left: it pauses for a top-up": "Mehr als übrig ist: es pausiert bis zum Aufladen"
+ "More than is left: it pauses for a top-up": "Mehr als übrig ist: es pausiert bis zum Aufladen",
+ "Body color": "Gehäusefarbe",
+ "Default color": "Standardfarbe"
 }

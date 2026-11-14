@@ -6,6 +6,7 @@ import {RoomEnvironment} from 'three/addons/environments/RoomEnvironment.js';
 import {WALL, pointIn} from './geometry.ts';
 import {trimBoxes} from './trim.ts';
 import {formFor, lineForm, shadeOf, housingOf} from './fixtures.ts';
+import {isHex, hexNum, shadeHex} from './color.ts';
 import {makeObject} from './furniture3d.ts';
 import {partsKey} from './parts.ts';
 import {createAirflow} from './airflow.ts';
@@ -834,22 +835,39 @@ export function createView(host: HTMLElement): SceneView {
     p.reduce<Point>((s, v) => [s[0] + v[0] / p.length, s[1] + v[1] / p.length], [0, 0]);
   // Lamp body by shape (fixtures.js): only the diffuser glows (glass, shade); cord, stand and mounts have no emissive.
   // A lamp that is part of another fixture (L.with) shines from that fixture's position and draws no body: the host owns it.
-  const darkMat = new THREE.MeshStandardMaterial({color: 0x3b3b3f, roughness: 0.5, metalness: 0.35});
-  const bodyMat = new THREE.MeshStandardMaterial({color: 0xe9e2d4, roughness: 0.45});
+  const sharedDark = new THREE.MeshStandardMaterial({color: 0x3b3b3f, roughness: 0.5, metalness: 0.35});
+  const sharedBase = new THREE.MeshStandardMaterial({color: 0xe9e2d4, roughness: 0.45});
   // pendant shades that do not glow: black metal (the inside too), rattan (a woven bell with darker ribs)
-  const shellMat = new THREE.MeshStandardMaterial({
+  const sharedShell = new THREE.MeshStandardMaterial({
     color: 0x232427,
     roughness: 0.42,
     metalness: 0.45,
     side: THREE.DoubleSide,
   });
-  const rattanMat = new THREE.MeshStandardMaterial({
+  const sharedRattan = new THREE.MeshStandardMaterial({
     color: 0xb48c5c,
     roughness: 0.92,
     side: THREE.DoubleSide,
   });
-  const rattanRib = new THREE.MeshStandardMaterial({color: 0x8a6741, roughness: 0.9});
-  const SHARED = new Set([darkMat, bodyMat, shellMat, rattanMat, rattanRib]);
+  const sharedRib = new THREE.MeshStandardMaterial({color: 0x8a6741, roughness: 0.9});
+  const SHARED = new Set([sharedDark, sharedBase, sharedShell, sharedRattan, sharedRib]);
+  // A fitting in its own colour (L.body): its parts, its shade seen from inside too, and a rattan shade's ribs a shade darker.
+  // They belong to that one fitting and go with it (setLights disposes what is not SHARED).
+  const BODY_RIB_SHADE = 0.75;
+  function bodyMaterials(color: string): {
+    solid: THREE.MeshStandardMaterial;
+    shell: THREE.MeshStandardMaterial;
+    rib: THREE.MeshStandardMaterial;
+  } {
+    const solid = new THREE.MeshStandardMaterial({color: hexNum(color), roughness: 0.45, metalness: 0.25});
+    const shell = solid.clone();
+    shell.side = THREE.DoubleSide;
+    const rib = new THREE.MeshStandardMaterial({
+      color: shadeHex(hexNum(color), BODY_RIB_SHADE),
+      roughness: 0.9,
+    });
+    return {solid, shell, rib};
+  }
   const cyl = (rt: number, rb: number, h: number, s = 24, open = false): THREE.CylinderGeometry =>
     new THREE.CylinderGeometry(rt, rb, h, s, 1, open);
   const lathe = (pts: Array<[number, number]>): THREE.LatheGeometry =>
@@ -904,6 +922,13 @@ export function createView(host: HTMLElement): SceneView {
     poly: Outline | undefined,
   ): LampMesh[] {
     const out: LampMesh[] = [];
+    // The fitting's own colour (L.body) on everything of it that does not glow; none: the shared materials as drawn.
+    const body = isHex(L.body) ? bodyMaterials(L.body) : null;
+    const darkMat = body?.solid ?? sharedDark;
+    const bodyMat = body?.solid ?? sharedBase;
+    const shellMat = body?.shell ?? sharedShell;
+    const rattanMat = body?.shell ?? sharedRattan;
+    const rattanRib = body?.rib ?? sharedRib;
     const at = (g: THREE.BufferGeometry, p: Point, y: number, m = mat): LampMesh => {
       const o = new THREE.Mesh(g, m);
       o.position.set(p[0], y, -p[1]);
@@ -917,7 +942,8 @@ export function createView(host: HTMLElement): SceneView {
         const len = Math.hypot(b[0] - a[0], b[1] - a[1]);
         const mid: Point = [(a[0] + b[0]) / 2, (a[1] + b[1]) / 2];
         const ry = Math.atan2(b[1] - a[1], b[0] - a[0]);
-        if (form === 'line' && housingOf(L) === 'black') {
+        // a line light in its own colour is the rail, in that colour
+        if (form === 'line' && (housingOf(L) === 'black' || body)) {
           at(new THREE.BoxGeometry(len, 0.035, 0.045), mid, L.h + 0.012, shellMat).rotation.y = ry;
           at(new THREE.BoxGeometry(len - 0.02, 0.006, 0.026), mid, L.h - 0.008).rotation.y = ry;
         } else {
@@ -1023,7 +1049,12 @@ export function createView(host: HTMLElement): SceneView {
         }
         // floor and table lamp: an open shade with a bulb inside; a floor lamp has a stand and a disc base, a table lamp a ceramic base
         else if (form === 'lamp') {
-          const tall = L.opt ? L.opt === 'floor' : L.h > 1.1; // a table lamp on a desk stands at 1.17 m: still a table lampat(cyl(tall?.12:.085,tall?.17:.125,tall?.26:.17,36,true),p,L.h);at(new THREE.SphereGeometry(tall?.04:.03,14,10),p,L.h-.03);
+          // a table lamp on a desk stands at 1.17 m: still a table lamp
+          const tall = L.opt ? L.opt === 'floor' : L.h > 1.1;
+          // the shade and the bulb in it (from 2026-11-10 to the colour check of 2026-11-14 they sat inside the comment above,
+          // so a floor or table lamp drew only its stand)
+          at(cyl(tall ? 0.12 : 0.085, tall ? 0.17 : 0.125, tall ? 0.26 : 0.17, 36, true), p, L.h);
+          at(new THREE.SphereGeometry(tall ? 0.04 : 0.03, 14, 10), p, L.h - 0.03);
           if (tall) {
             const pole = L.h - 0.12;
             at(cyl(0.011, 0.011, pole, 10), p, L.h - 0.12 - pole / 2, darkMat);
