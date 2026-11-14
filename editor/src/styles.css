@@ -629,6 +629,8 @@ button.aib-big{height:46px;padding:0 22px;border-radius:12px;font-size:15px;box-
   .aib-card{grid-template-columns:auto minmax(0,1fr)}.aib-card button.primary{grid-column:1/-1;width:100%}.aib-card-thumb{width:88px;height:64px}}
 /* the review */
 .aib-review{-webkit-user-select:none;user-select:none}
+/* the bar, the tools and the hint: each placed on its own on a wide screen; on a phone one row at the top that wraps */
+.aib-top{display:contents}
 .aib-bar{position:fixed;top:12px;left:12px;z-index:40;display:flex;align-items:center;gap:10px;height:auto;padding:6px 16px 6px 6px;border-radius:14px;max-width:calc(100vw - 400px)}
 .aib-bar .logo{width:28px;height:28px;border-radius:8px}
 .aib-bar-text{display:flex;flex-direction:column;line-height:1.2;min-width:0}.aib-bar-text small{color:var(--mut);font-size:11.5px}.aib-bar-text b{font-size:14px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
@@ -695,17 +697,23 @@ button.aib-big{height:46px;padding:0 22px;border-radius:12px;font-size:15px;box-
 .aib-sketch-bar{display:flex;align-items:center;gap:8px;flex-wrap:wrap;padding:8px 10px;border-radius:14px}.aib-sketch-bar>span{display:flex;align-items:center;gap:7px;margin-right:6px;color:var(--mut);font-size:13px}
 .aib-sketch-bar button{display:inline-flex;align-items:center;gap:6px}
 .aib-last{flex:none;margin:0;padding:8px 10px;border-radius:10px;background:var(--warn-bg);color:var(--tx);font-size:12.5px;line-height:1.4}.aib-last.all{background:var(--hov)}
-.aib-cannot{flex:none;margin:0;padding:8px 10px 8px 26px;border-radius:10px;background:var(--warn-bg);color:var(--tx);font-size:12.5px;line-height:1.4}.aib-cannot li+li{margin-top:4px}
+.aib-cannot{flex:none;display:flex;flex-direction:column;gap:2px;margin:0;padding:3px;border-radius:10px;background:var(--warn-bg);list-style:none}
+button.aib-unplaced{display:grid;grid-template-columns:22px minmax(0,1fr);gap:9px;align-items:start;justify-content:stretch;width:100%;height:auto;padding:6px 7px;border-radius:8px;white-space:normal;font-weight:400;text-align:left}
+.aib-unplaced .aib-num{width:22px;height:22px;border-radius:11px;background:none;color:var(--warn)}button.aib-unplaced.on{background:color-mix(in srgb,var(--warn) 14%,transparent);color:var(--tx);box-shadow:inset 0 0 0 1.5px var(--warn)}
+.aib-unplaced .aib-note-body>span{font-size:13px;line-height:1.35}
 .aib-pins{position:absolute;inset:0;z-index:8;pointer-events:none;overflow:hidden}
 .aib-pin{position:absolute;left:0;top:0;width:28px;height:28px;min-width:0;margin-top:-28px;padding:0;border-radius:14px 14px 14px 3px;background:var(--acc);color:var(--acc-tx);
   font-size:12.5px;font-weight:700;pointer-events:auto;transform-origin:0 100%;box-shadow:0 0 0 2px var(--panel-solid),0 3px 10px rgba(0,0,0,.28);transition:scale .12s}
 .aib-pin:hover{background:var(--acc);filter:brightness(1.08)}.aib-pin.on,.aib-pin.hover{scale:1.18}
 .aib-pin.draft{background:var(--panel-solid);color:var(--acc);box-shadow:0 0 0 2px var(--acc),0 3px 10px rgba(0,0,0,.2)}
+.aib-pin.unplaced,.aib-pin.unplaced:hover{background:var(--warn);color:#fff}
 @media (max-width:720px){
-  .aib-bar{max-width:calc(100vw - 140px)}
-  .aib-tools{top:12px;right:12px;bottom:auto;left:auto;transform:none}
-  .aib-hint{top:64px;right:12px;bottom:auto;left:auto!important;transform:none}.aib-hint::after{display:none}
+  .aib-top{position:fixed;top:12px;left:12px;right:12px;z-index:40;display:flex;flex-wrap:wrap;align-items:flex-start;gap:8px;pointer-events:none}
+  .aib-top>*{pointer-events:auto}
+  .aib-bar{position:static;flex:0 1 auto;min-width:0;max-width:100%}
+  .aib-tools{position:static;flex:none;margin-left:auto;transform:none}
+  .aib-hint{position:static;margin-left:auto;left:auto!important;max-width:100%;transform:none}.aib-hint::after{display:none}
   .aib-panel{top:auto;left:8px;right:8px;bottom:8px;width:auto;max-height:46vh;padding:12px 14px}.aib-panel.collapsed{bottom:8px}.aib-photo{height:64px}
-  .aib-photo-big{left:8px;right:8px;width:auto;top:64px;bottom:48vh}}
+  .aib-photo-big{left:8px;right:8px;width:auto;top:var(--aib-top,64px);bottom:48vh}}
 @media (prefers-reduced-motion:reduce){.aib .spin,.aib-start-spin{animation-duration:2.4s}.aib-scan i,.aib-frame{animation:none}.aib-step.st-ask .aib-dot{animation:none}
   .aib-swap,.aib-tag,.aib-chip,.aib-hint{animation:none}.aib-tools .ib.aib-pulse{animation:none;box-shadow:0 0 0 2px var(--acc)}}

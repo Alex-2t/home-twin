@@ -7,19 +7,30 @@
 // they add, dropped or pasted onto its bubble or its row (D-076): the service's model sees what they mean. Pins that did
 // not work out last time come back with why.
 import {t} from '../i18n/i18n.ts';
+import {zOf} from '../core/catalog.ts';
 import {$, el, esc, find} from './ui.ts';
 import {icon} from './icons.ts';
 import {newPin, pinLabel, changeCount, MAX_PIN_PHOTOS, MISSED_REASON} from './ai-pins.ts';
 import type {Pin, PinHit, PinNotes, PinRetry, PinRound, RoundPin} from './ai-pins.ts';
 import type {CanvasPoint, Editor, Pane} from './editor-types.ts';
 
-/** A thing the service could not place clear (it stands where the editor draws it red): where, and one phrase why. */
+/** A thing the service could not place clear (it stands where the editor draws it red): which, where, and what to call it. */
 export interface UnplacedThing {
   id: string;
   x: number;
   y: number;
-  /** The thing and why, in the owner's language. */
+  /** Its short name and its room, in the owner's language (null: none). A service before them sends only `say`. */
+  thing?: string | null;
+  room?: string | null;
+  /** The thing in one phrase, in the owner's language (an older service: the thing and why). */
   say: string;
+}
+
+/** A spot on the home a marker points at: on the plan, and how high (3D). */
+interface MarkerSpot {
+  x: number;
+  y: number;
+  z?: number;
 }
 
 /** What openReview is given (see its comment). */
@@ -98,7 +109,7 @@ const targetOf = (e: Event): Element => e.target as Element;
  * onChange(notes) after each change; onBack() — back to the progress; onSend(notes) → a promise: the answer is on its way
  * (all right when there are no changes); upload(blob, 'view' | 'photo') → a promise of the picture's name at the service;
  * pictureUrl(name) → where to show it; lastRound — the service's last round (how many pins worked out); unplaced — the things
- * the service could not place clear, each listed as what it can't do yet (D-083's words); onReport(pin) → a
+ * the service could not place clear, each listed by its short name and room, to move in the editor; onReport(pin) → a
  * promise: a pin that came back is sent to the developer (what the app could not do, or did wrong); account(slot) fills the
  * account's place above the button that sends the changes (the balance, and a top-up once it is used up; ai-build.ts), and
  * fills it again itself when the account changes.
@@ -128,6 +139,9 @@ export function openReview(
   );
   let pastOpen: number | null = null;
   let pastHovered: number | null = null;
+  // The thing that did not fit whose row is open (tapped) or pointed at: a marker shows where it stands.
+  let unplacedOpen: number | null = null;
+  let unplacedHovered: number | null = null;
   let view: Pane = '3d';
   let tool: ReviewTool = 'pin';
   let active: number | null = null;
@@ -139,22 +153,24 @@ export function openReview(
   let raf = 0;
 
   const box = el(`<div class="aib-review">
-    <div class="aib-bar glass">
-      <button class="ib" data-act="back" title="${esc(t('Back to the build'))}">${icon('left', 17)}</button>
-      <span class="logo">${icon('sparkles', 14)}</span>
-      <span class="aib-bar-text"><b>${esc(t('Check your home'))}</b></span>
-    </div>
-    <div class="aib-tools glass">
-      <button class="ib" data-tool="look" title="${esc(t('Look around (V)'))}">${icon('pointer', 17)}</button>
-      <button class="ib" data-tool="pin" title="${esc(t('Pin: click where something is wrong (P)'))}">${icon('mapPin', 17)}</button>
-      <span class="sep"></span>
-      <div class="seg aib-views"><button data-view="3d">3D</button><button data-view="plan">${esc(t('Plan'))}</button></div>
-      <button class="ib" data-act="fit" title="${esc(t('Whole home'))}">${icon('fit', 17)}</button>
-    </div>
-    <div class="aib-hint glass" role="status">
-      <span class="aib-hint-ic">${icon('mapPin', 16)}</span>
-      <span>${esc(t('Turn the home any way you like. Click where something is wrong and write what to change.'))}</span>
-      <button class="ib" data-act="hint-close" title="${esc(t('Close'))}">${icon('x', 14)}</button>
+    <div class="aib-top">
+      <div class="aib-bar glass">
+        <button class="ib" data-act="back" title="${esc(t('Back to the build'))}">${icon('left', 17)}</button>
+        <span class="logo">${icon('sparkles', 14)}</span>
+        <span class="aib-bar-text"><b>${esc(t('Check your home'))}</b></span>
+      </div>
+      <div class="aib-tools glass">
+        <button class="ib" data-tool="look" title="${esc(t('Look around (V)'))}">${icon('pointer', 17)}</button>
+        <button class="ib" data-tool="pin" title="${esc(t('Pin: click where something is wrong (P)'))}">${icon('mapPin', 17)}</button>
+        <span class="sep"></span>
+        <div class="seg aib-views"><button data-view="3d">3D</button><button data-view="plan">${esc(t('Plan'))}</button></div>
+        <button class="ib" data-act="fit" title="${esc(t('Whole home'))}">${icon('fit', 17)}</button>
+      </div>
+      <div class="aib-hint glass" role="status">
+        <span class="aib-hint-ic">${icon('mapPin', 16)}</span>
+        <span>${esc(t('Turn the home any way you like. Click where something is wrong and write what to change.'))}</span>
+        <button class="ib" data-act="hint-close" title="${esc(t('Close'))}">${icon('x', 14)}</button>
+      </div>
     </div>
     <aside class="aib-panel glass">
       <header>
@@ -223,11 +239,22 @@ export function openReview(
     return {left, right: PANEL_WIDTH + 32, bottom: 0};
   }
 
-  // The tools sit in the middle of what the panels leave free (a phone: their own place at the top, styles.css).
+  // Where the view is clear of the bar and the tools at the top: on a phone the tools are up there too, on a second row when
+  // the title and they do not fit side by side (styles.css .aib-top).
+  function topClear(): number {
+    const bottoms = ['.aib-bar', '.aib-tools'].map(
+      selector => find(box, selector).getBoundingClientRect().bottom,
+    );
+    return Math.max(...bottoms);
+  }
+
+  // The tools sit in the middle of what the panels leave free (a phone: their own place at the top, styles.css); what opens
+  // under them on a phone (the plan photo) starts below them.
   function placeTools(): void {
     const tools = find(box, '.aib-tools');
     const ins = insets();
     tools.style.left = narrow() ? '' : `${(ins.left + innerWidth - ins.right) / 2}px`;
+    box.style.setProperty('--aib-top', `${Math.round(topClear() + 8)}px`);
   }
 
   // The hint and the pin tool's pulse: until the first pin, or until the owner closes it.
@@ -242,7 +269,8 @@ export function openReview(
       const points = ed.plan.rooms.flatMap(room => room.polygon);
       const ins = insets();
       // the tools: at the bottom, on a phone at the top
-      ed.v.fit(points, 40, {l: ins.left, r: ins.right, t: 72, b: ins.bottom + (narrow() ? 8 : 76)});
+      const top = narrow() ? topClear() + 16 : 72;
+      ed.v.fit(points, 40, {l: ins.left, r: ins.right, t: top, b: ins.bottom + (narrow() ? 8 : 76)});
       ed.v.fitted = false;
       ed.draw();
     } else ed.view.home();
@@ -567,7 +595,17 @@ export function openReview(
     const shownPast = pastPins
       .map((pin, k) => ({pin, k}))
       .filter(({k}) => k === pastOpen || k === pastHovered);
+    const shownUnplaced = unplaced
+      .map((thing, k) => ({thing, k}))
+      .filter(({k}) => k === unplacedOpen || k === unplacedHovered);
     pinLayer.replaceChildren(
+      ...shownUnplaced.map(({thing, k}) => {
+        const b = el(
+          `<button class="aib-pin unplaced" data-u="${k}" title="${esc(unplacedLabel(thing))}">${icon('alert', 14)}</button>`,
+        );
+        b.classList.toggle('on', k === unplacedOpen);
+        return b;
+      }),
       ...shownPast.map(({pin, k}) => {
         const b = el(
           `<button class="aib-pin past" data-p="${k}" title="${esc(pin.text)}">${icon('check', 13)}</button>`,
@@ -661,6 +699,23 @@ export function openReview(
     );
   }
 
+  // Where a marker on the home points: a pin of this round (data-i), of an earlier one (data-p), or a thing that did not fit
+  // (data-u).
+  function markerSpot(b: HTMLElement): MarkerSpot | undefined {
+    if (b.dataset.u != null) {
+      const thing = unplaced[Number(b.dataset.u)];
+      return thing && unplacedSpot(thing);
+    }
+    if (b.dataset.p != null) return pastPins[Number(b.dataset.p)];
+    return notes.pins[Number(b.dataset.i)];
+  }
+
+  // A thing that did not fit: the marker stands on its top, where it shows above whatever it stands in.
+  function unplacedSpot(thing: UnplacedThing): MarkerSpot {
+    const item = ed.plan.furniture.find(candidate => candidate.id === thing.id);
+    return {x: thing.x, y: thing.y, z: item ? zOf(item) + item.h : 0};
+  }
+
   // Each frame: pins follow the view (pan, zoom, orbit); the bubble follows its pin.
   function place(): void {
     const pane = panes[view];
@@ -670,9 +725,10 @@ export function openReview(
     // The layer holds only the pins' buttons.
     (pinLayer.childNodes as NodeListOf<HTMLElement>).forEach(b => {
       const past = b.dataset.p != null;
-      const pin = past ? pastPins[Number(b.dataset.p)] : notes.pins[Number(b.dataset.i)];
-      if (!pin) return;
-      const [x, y] = view === 'plan' ? ed.v.S([pin.x, pin.y]) : ed.view.project([pin.x, pin.y], pin.z ?? 0);
+      const spot = markerSpot(b);
+      if (!spot) return;
+      const [x, y] =
+        view === 'plan' ? ed.v.S([spot.x, spot.y]) : ed.view.project([spot.x, spot.y], spot.z ?? 0);
       // `translate`, not `transform`: the bigger active pin's `scale` would scale a transform's offset too
       b.style.translate = `${x.toFixed(1)}px ${y.toFixed(1)}px`;
       if (!past && Number(b.dataset.i) === active) activeAt = [paneBox.left + x, paneBox.top + y];
@@ -691,7 +747,10 @@ export function openReview(
       let left = at[0] + 44;
       if (left > maxLeft) left = at[0] - w - 16;
       left = Math.max(12, Math.min(maxLeft, left));
-      const top = Math.max(64, Math.min(innerHeight - ins.bottom - h - 12, at[1] - 46));
+      const top = Math.max(
+        narrow() ? topClear() + 8 : 64,
+        Math.min(innerHeight - ins.bottom - h - 12, at[1] - 46),
+      );
       bubble.style.transform = `translate(${left.toFixed(0)}px, ${top.toFixed(0)}px)`;
     }
   }
@@ -754,13 +813,39 @@ export function openReview(
         : t('{0} of {1} changes are made. The rest are pinned again, each with why.', done, pins.length);
   }
 
-  // The things the service could not place clear: each told once, in the words of what the app can't do yet (D-083).
+  // A thing that did not fit, by its short name and room ("Base cabinets · Kitchen").
+  function unplacedLabel(thing: UnplacedThing): string {
+    return [thing.thing, thing.room].filter(Boolean).join(' · ') || thing.say;
+  }
+
+  // The things the service could not place clear, each told once in a few words: which, and that the owner moves it in the
+  // editor. A tap on a row shows where it stands (as a pin of an earlier round does); an older service's phrase (the thing and
+  // why) keeps D-083's words.
   function renderUnplaced(): void {
     const list = find(box, '.aib-cannot');
     list.hidden = !unplaced.length;
-    list.innerHTML = unplaced
-      .map(thing => `<li>${esc(t('We can’t do this yet: {0}', thing.say))}</li>`)
-      .join('');
+    list.replaceChildren(
+      ...unplaced.map((thing, k) => {
+        const row = el(`<li><button class="aib-unplaced" data-u="${k}">
+          <span class="aib-num">${icon('alert', 13)}</span>
+          <span class="aib-note-body"><small></small><span></span></span></button></li>`);
+        const named = thing.thing !== undefined || thing.room !== undefined;
+        find(row, '.aib-unplaced').classList.toggle('on', k === unplacedOpen);
+        find(row, 'small').textContent = named ? unplacedLabel(thing) : '';
+        find(row, 'small').hidden = !named;
+        find(row, '.aib-note-body>span').textContent = named
+          ? t('Did not fit: move it in the editor')
+          : t('We can’t do this yet: {0}', thing.say);
+        return row;
+      }),
+    );
+  }
+
+  // A tap on a thing's row (or its marker) shows it on the home; another tap hides it.
+  function toggleUnplaced(k: number): void {
+    unplacedOpen = unplacedOpen === k ? null : k;
+    renderPins();
+    renderUnplaced();
   }
 
   function renderSend(): void {
@@ -851,6 +936,8 @@ export function openReview(
   // ---------- input ----------
 
   box.addEventListener('click', e => {
+    const unplacedRow = targetOf(e).closest<HTMLElement>('.aib-unplaced');
+    if (unplacedRow) return toggleUnplaced(Number(unplacedRow.dataset.u));
     const target = targetOf(e).closest<HTMLElement>('[data-act],[data-tool],[data-view],.aib-note');
     if (target?.classList.contains('past')) return openPast(Number(target.dataset.p));
     if (!target) return;
@@ -887,19 +974,23 @@ export function openReview(
     const past = row?.classList.contains('past');
     const next = row && !past ? Number(row.dataset.i) : null;
     const nextPast = row && past ? Number(row.dataset.p) : null;
-    if (next !== hovered || nextPast !== pastHovered) {
+    const unplacedRow = targetOf(e).closest<HTMLElement>('.aib-unplaced');
+    const nextUnplaced = unplacedRow ? Number(unplacedRow.dataset.u) : null;
+    if (next !== hovered || nextPast !== pastHovered || nextUnplaced !== unplacedHovered) {
       hovered = next;
       pastHovered = nextPast;
+      unplacedHovered = nextUnplaced;
       renderPins();
     }
   });
   // Off the rows, to the home or anywhere outside the panel: no row is pointed at.
   box.addEventListener('pointerout', e => {
     // Where the pointer went: an element, or nothing (out of the window).
-    if ((e.relatedTarget as Element | null)?.closest?.('.aib-note')) return;
-    if (hovered == null && pastHovered == null) return;
+    if ((e.relatedTarget as Element | null)?.closest?.('.aib-note,.aib-unplaced')) return;
+    if (hovered == null && pastHovered == null && unplacedHovered == null) return;
     hovered = null;
     pastHovered = null;
+    unplacedHovered = null;
     renderPins();
   });
   popText.addEventListener('input', () => {
@@ -971,7 +1062,8 @@ export function openReview(
   }
   pinLayer.addEventListener('click', e => {
     const b = targetOf(e).closest<HTMLElement>('.aib-pin');
-    if (b?.dataset.p != null) openPast(Number(b.dataset.p));
+    if (b?.dataset.u != null) toggleUnplaced(Number(b.dataset.u));
+    else if (b?.dataset.p != null) openPast(Number(b.dataset.p));
     else if (b) setActive(Number(b.dataset.i));
   });
 

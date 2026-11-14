@@ -1607,5 +1607,6 @@
  "leave the plan": "离开平面图",
  "Plan: room by its typed size": "平面图：按输入尺寸添加房间",
  "move in a list or menu": "在列表或菜单中移动",
- "Unknown model “{0}”: drawn as a box": "未知型号“{0}”：显示为方块"
+ "Unknown model “{0}”: drawn as a box": "未知型号“{0}”：显示为方块",
+ "Did not fit: move it in the editor": "放不下：请在编辑器中移动"
 }

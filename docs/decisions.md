@@ -17,6 +17,15 @@ New decisions are appended at the top of their section, old ones are not rewritt
 
 ## Decisions
 
+### D-NEXT. The review's "did not fit" notes are one short line that shows the thing; on a phone the tools no longer cover the title — **proposed** (2026-11-14)
+- D-098's lines read long and technical: "We can’t do this yet: narrow cream base cabinet with drawer and door, white worktop: overlaps “cream base cabinet with drawer and door next to the bathroom door”" (an English build names things by the room call's long description). The hint rule (D-022): what to do, and that it is not scary.
+- **Now each note is a row like a pin's:** a warning mark, the thing's short name and its room in small ("Base cabinets · Kitchen"), and one phrase, **"Did not fit: move it in the editor"** (new, in every language). The reason (overlaps, blocks a door) is not told: the editor shows it in red where the owner moves the thing. Two things in each other stay one row.
+- **The short name** comes from the service, in the owner's language: our catalog's name of the thing's model, else of the closest model; in English else the room call's own short word for the thing ("Weight bench"); never the long description. In another language with no catalog name only the room is shown.
+- **A tap on a row shows the thing:** a warning-coloured marker on its top, in 3D and on the plan, as a row of an earlier round's pin shows its pin; pointing at the row shows it too, a second tap hides it. The view does not move (nothing moves the view but the owner, D-073).
+- The service sends `thing` and `room` with each `unplaced` entry; `say` is both in one phrase ("Base cabinets · Kitchen"). A service before this sends only `say` (the thing and why): the row keeps D-098's words.
+- **Phone (360–430 px):** the review's title and tools share one row at the top that wraps: the tools go to a second row on the right when both do not fit (in every language they do not at phone width), the hint under them. Before, the tools covered the title ("Check yo"). The plan view, a pin's bubble and the plan photo start below the tools. Desktop is unchanged.
+- Refines D-098.
+
 ### D-098. The review lists what the AI build could not place clear — **proposed** (2026-11-14)
 - A thing the AI build could not move clear of another, of a door's zone or of a wall (no spot that keeps what it is, too big to shrink a little) stays where it is, red in Furniture mode. The owner should not find it unexplained.
 - **In the review:** each such thing is one line under the round's line, in the owner's language, in D-083's words: "We can’t do this yet: Radiator: blocks a door". The thing's name and the editor's own reason for the red; two things in each other are one line. No new strings.
