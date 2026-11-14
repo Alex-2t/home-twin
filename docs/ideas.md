@@ -2,11 +2,25 @@
 
 Reviewed 2026-11-07. This file keeps proposals and already implemented ideas with links to decisions. The current development queue is in [status.md](status.md); an idea being recorded does not mean it has been included in the nearest release.
 
-## A custom colour wherever there is a colour (owner, 2026-11-09) — catalog furniture done (D-070)
+## A custom colour wherever there is a colour (owner, 2026-11-09) — done, re-checked 2026-11-14 (D-070, D-NEXT)
 
-Every colour choice in the editor offers the predefined swatches **and** a custom colour (`#rrggbb`, a colour picker): catalog furniture and generators (today only named colours, 2–14 per model, and some models have none — the sit/stand desk, the nightstand), curtains and blinds, rugs (two colours: the field and the border), finishes (they already have a tint). The paid AI build (D-063) needs it too: colours taken from a real home rarely match a named one — a real rug was ΔE 11.7 from the nearest named colour.
-- **Done 2026-11-10 (D-070):** every catalog model and generator, the furniture panel's custom colour, the rug's border colour, plan files. **Not yet:** curtains and blinds placed as HA devices, lamp shades, a wardrobe up to any ceiling height.
-- **Re-check everywhere afterwards** (owner): once done, go through every place where a colour is chosen or shown — the catalog, generators, curtains and blinds, rugs, lamps, finishes, the dashboard card, plan files written by the AI build — and confirm each has the swatches plus a custom colour and keeps a custom colour through saving and loading.
+Every colour choice in the editor offers the predefined swatches **and** a custom colour (`#rrggbb`, a colour picker); a picked colour within ΔE 3 of a swatch selects that swatch. The paid AI build (D-063) needs it too: colours taken from a real home rarely match a named one (a real rug was ΔE 11.7 from the nearest named colour).
+- **Done 2026-11-10 (D-070):** every catalog model and generator, the furniture panel's custom colour, the rug's border colour, plan files.
+- **Re-checked everywhere 2026-11-14** (the owner's parked check): a plan with a custom colour on every catalog model in every variant, the rug's border, the worktop, every finish and piece of finish, an item from parts, a sensor's digits and a lamp, taken through the plan file, the panel's picker, undo and redo, a version, a save and reload, an export and import, and the dashboard card; every item's colour found in the 3D. Kept as a test (`colour-everywhere.test.ts`).
+
+  | Place | Swatches + custom | Kept (file, undo, versions, export, card) | Drawn |
+  |---|---|---|---|
+  | Catalog models and generators, every variant; curtains and blinds, also those placed as HA covers | yes | yes | 3D, card |
+  | Rug border | yes | yes | 3D, card |
+  | Kitchen worktop | yes (custom added 2026-11-14) | yes | 3D, card |
+  | Room finishes, a wall's own finish, pieces of finish | yes (tint) | yes | 3D, card |
+  | Items from parts | `#rrggbb` per material | yes | 3D, card |
+  | Sensor digits | yes | yes | plan, 3D |
+  | Lamp light colour | custom (Home Assistant gives it) | yes | plan, 3D |
+  | Light fitting body (shade, rail, stand) | yes (added 2026-11-14) | yes | 3D, card |
+
+  The plan view is a schematic and shows no furniture colours, by design. Found on the way: floor and table lamps drew only their stand since 2026-11-10 (fixed).
+- **Left:** a wardrobe up to any ceiling height (a wall height per plan).
 
 ## From furnishing the examples (2026-11-09, D-064)
 

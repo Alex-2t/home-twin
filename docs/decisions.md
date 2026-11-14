@@ -17,6 +17,13 @@ New decisions are appended at the top of their section, old ones are not rewritt
 
 ## Decisions
 
+### D-NEXT. A light fitting's body and a kitchen worktop take a custom colour — **proposed** (2026-11-14)
+- The owner's re-check of D-070 (“wherever a colour is used — predefined swatches plus a custom one”) went through every place a plan holds a colour (the inventory is in [ideas.md](ideas.md), top). Two choices still had swatches only: a line light's body (white or black) and the kitchen worktop (five). Nothing let a pendant's metal or rattan shade, a lamp's stand or a sconce's plate take another colour.
+- **Light fittings:** a fitting has its own body colour (`light.body`, `#rrggbb`): the default as its form draws it, white, black or a custom one (`.sw.own`), under the form's options in the Lights panel (not in the guided steps). It colours what does not glow: the cord and canopy, a metal or rattan shade (ribs a shade darker), a line light's rail (a line light in its own colour is drawn as the rail), a lamp's stand and base, a sconce's plate, a spot's ring. A line light keeps its White and Black chips, with the custom colour after them. Not the strip (a profile that shows only lit).
+- **Worktop:** `item.top` takes `#rrggbb` besides the five keys, picked with a custom swatch after them; one worktop for the kitchen in the room as before.
+- A picked colour within ΔE 3 of a swatch selects that swatch (`snapColor`), as in the furniture panel. The plan file checks `light.body` as `#rrggbb`.
+- Found by the same check: a floor or table lamp drew only its stand since 2026-11-10 — the shade and bulb sat inside a line comment after the TypeScript move. A source test now finds code glued onto a comment.
+
 ### D-087. The editor is TypeScript, formatted by Prettier — **accepted** (2026-11-13)
 - The owner: “let's do it properly first: move everything to TS, and only then go on”. The editor had grown as plain JavaScript in a dense style, with no types at all, while the AI build that uses its core (the catalog, plan checks, rendering) was already TypeScript and had to describe the editor's modules by hand.
 - **Every hand-written file is `.ts`**: `src/`, the tests, the demo homes, `build.ts`, the tools. Strict `tsc`, no `any`; the shared data shapes (the plan file, Home Assistant's states, the UI's saved state) are in `src/core/types.ts`.
