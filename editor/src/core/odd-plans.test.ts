@@ -230,11 +230,11 @@ test('an unknown model is a plain box of its size, with its name, and the furnit
   assert.equal(modelOf({...item, model: 'bed'}).id, 'bed');
 });
 
-test('every catalog model builds itself, not a box, with a variant, colour or worktop it does not know', () => {
+test('every catalog model builds itself, not a box, with a variant, colour, worktop or pattern it does not know', () => {
   // several odd values at once on one item: each is degraded on its own, so together they show the same
   const odd: Array<Partial<Item3d>> = [
-    {v: 'nope', color: 'plaid', color2: 'zz', top: 'nope'},
-    {v: 'toString', color: 'toString', top: 'toString', mx: true},
+    {v: 'nope', color: 'plaid', color2: 'zz', top: 'nope', pat: 'paisley'},
+    {v: 'toString', color: 'toString', top: 'toString', mx: true, pat: 'toString'},
     {w: 0.01, d: 0.01, h: 0.01},
   ];
   const boxes: string[] = [];

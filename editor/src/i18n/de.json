@@ -1608,5 +1608,9 @@
  "Plan: room by its typed size": "Grundriss: Raum nach eingegebenen Maßen",
  "move in a list or menu": "in Liste oder Menü bewegen",
  "Unknown model “{0}”: drawn as a box": "Unbekanntes Modell „{0}“: als Quader gezeichnet",
- "Did not fit: move it in the editor": "Passt nicht hin: verschieb es im Editor"
+ "Did not fit: move it in the editor": "Passt nicht hin: verschieb es im Editor",
+ "Plain": "Einfarbig",
+ "Squares": "Karos",
+ "Stripes": "Streifen",
+ "Mottled": "Meliert"
 }

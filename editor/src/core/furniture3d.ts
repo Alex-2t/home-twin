@@ -7,6 +7,8 @@ import {mergeGeometries} from 'three/addons/utils/BufferGeometryUtils.js';
 import {CATALOG, COLORS, TOPS, isWorktop, byId, zOf, lArms, extOf, hexOf} from './catalog.ts';
 import {isHex} from './color.ts';
 import {runShape} from './runs.ts';
+import {isRugPattern, rugPatternTexture} from './rug-pattern.ts';
+import type {RugPattern} from './rug-pattern.ts';
 import {car as car3d} from './car3d.ts';
 import {checkItem, buildItem} from './parts.ts';
 import type {RunGeo, RunSide} from './runs.ts';
@@ -144,6 +146,61 @@ function box(
   mesh.castShadow = mesh.receiveShadow = true;
   g.add(mesh);
   return mesh;
+}
+// The patterned top lies this far over the rug's body (no flicker against it), this much smaller than the rug (its edge rounds off).
+const RUG_TOP_LIFT_METRES = 0.0006;
+const RUG_TOP_INSET_METRES = 0.004;
+// A rug's patterned top (rug-pattern.ts): one material per pattern, size and colours, kept like mat() keeps its own.
+const rugMats = new Map<string, THREE.MeshStandardMaterial>();
+function rugPatternMat(
+  pattern: RugPattern,
+  width: number,
+  depth: number,
+  field: number,
+  second: number,
+): THREE.MeshStandardMaterial {
+  const key = [pattern, width.toFixed(3), depth.toFixed(3), field, second].join(':');
+  let material = rugMats.get(key);
+  if (!material) {
+    const texture = rugPatternTexture(pattern, width, depth, field, second);
+    material = new THREE.MeshStandardMaterial({map: texture, roughness: 0.98});
+    rugMats.set(key, material);
+  }
+  return material;
+}
+// The patterned rug: its body in the field colour, and a thin top over it showing the pattern edge to edge (rectangular), or
+// within its circle or ellipse (round, oval: a flat disc's texture spans its square, stretched to the rug's w × d).
+function rugPatterned(
+  g: THREE.Object3D,
+  {w, d, h, v}: Pick<FurnitureItem, 'w' | 'd' | 'h' | 'v'>,
+  pattern: RugPattern,
+  field: number,
+  second: number,
+): void {
+  const body = mat(field, 0.98);
+  const top = rugPatternMat(pattern, w, d, field, second);
+  const lift = h + RUG_TOP_LIFT_METRES;
+  if (v === 'rect' || !v) {
+    part(g, w, h, d, body, 0, 0, 0, 0.003);
+    const plane = new THREE.Mesh(
+      new THREE.PlaneGeometry(w - RUG_TOP_INSET_METRES, d - RUG_TOP_INSET_METRES),
+      top,
+    );
+    plane.rotation.x = -Math.PI / 2;
+    plane.position.y = lift;
+    plane.receiveShadow = true;
+    g.add(plane);
+    return;
+  }
+  const across = v === 'round' ? Math.min(w, d) : w;
+  const along = v === 'round' ? Math.min(w, d) : d;
+  cyl(g, 0.5, h, body, 0, 0, 0, {sx: across, sz: along, seg: 72});
+  const disc = new THREE.Mesh(new THREE.CircleGeometry(0.5 - RUG_TOP_INSET_METRES / 2, 72), top);
+  disc.rotation.x = -Math.PI / 2;
+  disc.scale.set(across, along, 1);
+  disc.position.y = lift;
+  disc.receiveShadow = true;
+  g.add(disc);
 }
 // Truncated block: bottom w×d, top tw×td, shifted along z by tz (hood dome, slanted-hood wedge); bottom at y.
 function frustum(w: number, h: number, d: number, tw: number, td: number, tz: number): THREE.BoxGeometry {
@@ -3648,10 +3705,15 @@ const GEN: Record<string, Generator> = {
   },
   // ---------- second batch: decor ----------
   // Rug: a border and lines in color2 (not set — a darker shade of the field), the field in color and a lighter center; rectangular,
-  // round or oval. Furniture stands on top of it.
-  rug(g, {w, d, h, color, color2, v}) {
+  // round or oval. With a pattern (pat), its top is a picture of the two colours instead (rugPatterned). Furniture stands on top of it.
+  rug(g, {w, d, h, color, color2, v, pat}) {
     const c = hexOf(color);
-    const b = mat(color2 ? hexOf(color2, shade(c, 0.78)) : shade(c, 0.78), 0.98);
+    const second = color2 ? hexOf(color2, shade(c, 0.78)) : shade(c, 0.78);
+    if (isRugPattern(pat)) {
+      rugPatterned(g, {w, d, h, v}, pat, c, second);
+      return;
+    }
+    const b = mat(second, 0.98);
     const m = mat(c, 0.98);
     const f2 = mat(shade(c, 1.12), 0.98);
     if (v === 'rect') {

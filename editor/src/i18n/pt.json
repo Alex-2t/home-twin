@@ -1608,5 +1608,9 @@
  "Plan: room by its typed size": "Planta: divisão com as medidas digitadas",
  "move in a list or menu": "mover-se numa lista ou menu",
  "Unknown model “{0}”: drawn as a box": "Modelo desconhecido “{0}”: desenhado como um bloco",
- "Did not fit: move it in the editor": "Não coube: mova no editor"
+ "Did not fit: move it in the editor": "Não coube: mova no editor",
+ "Plain": "Liso",
+ "Squares": "Xadrez",
+ "Stripes": "Listras",
+ "Mottled": "Mesclado"
 }

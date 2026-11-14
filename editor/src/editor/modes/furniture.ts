@@ -839,6 +839,24 @@ export function furnitureMode(ed: Editor): FurnitureMode {
   let more = false;
   const named = (c: CatalogEntry): boolean => c.id === 'custom' || c.id === 'parts';
   // Colors: the model's swatches and a custom one (the color picker); a picked color practically equal to a swatch (ΔE < 3) selects that
+  // A pattern of the item's two colors (a rug's tiles, stripes, patches) as chips, its own look first as "Plain"; a pattern the
+  // model does not have reads as Plain.
+  function patternLine(f: FurnitureItem, patterns: [key: string, name: string][]): HTMLElement {
+    const line = el(`<div class="line opts"></div>`);
+    const current = patterns.some(([key]) => key === f.pat) ? f.pat : undefined;
+    const choices: [string | undefined, string][] = [[undefined, t('Plain')], ...patterns];
+    for (const [key, name] of choices) {
+      const chip = el(`<button class="chip ${key === current ? 'on' : ''}">${esc(name)}</button>`);
+      chip.onclick = () => {
+        if (key === current) return;
+        if (key) f.pat = key;
+        else delete f.pat;
+        ed.commit();
+      };
+      line.appendChild(chip);
+    }
+    return line;
+  }
   // swatch. key: 'color', or 'color2' — a rug's border; not set, it is a shade darker than the field: the first swatch, split in two.
   function swatches(f: FurnitureItem, c: CatalogEntry, key: 'color' | 'color2'): HTMLElement[] {
     const two = key === 'color2';
@@ -966,11 +984,16 @@ export function furnitureMode(ed: Editor): FurnitureMode {
           `<div class="line opts"><small class="warn">${esc(t('Unknown model “{0}”: drawn as a box', f.model))}</small></div>`,
         ),
       );
+    if (c.pats) lines.push(patternLine(f, c.pats));
     if (c.color2) {
-      const bl = el(`<div class="line opts"><small>${t('Border')}</small></div>`);
+      // a rug's second color: its border, or with a pattern the pattern's second color
+      const patterned = !!c.pats?.some(([key]) => key === f.pat);
+      const bl = el(
+        `<div class="line opts"><small>${t(patterned ? 'Second color' : 'Border')}</small></div>`,
+      );
       bl.append(...swatches(f, c, 'color2'));
       lines.push(bl);
-    } // a rug's second color
+    }
     if (c.vars) {
       const vl = el(`<div class="line opts"></div>`);
       // variants of one object — as chips, like for a strip; a variant the model no longer has reads as its first

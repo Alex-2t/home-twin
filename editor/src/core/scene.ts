@@ -781,7 +781,7 @@ export function createView(host: HTMLElement): SceneView {
       else frame(box);
     }
   }
-  // Furniture lives apart from the walls: dragging only changes the position; an item is rebuilt when its size, color, variant, mirroring or height changes.
+  // Furniture lives apart from the walls: dragging only changes the position; an item is rebuilt when its size, color, variant, pattern, mirroring or height changes.
   const furn = new THREE.Group();
   scene.add(furn);
   const objs = new Map<string, THREE.Group>();
@@ -797,6 +797,7 @@ export function createView(host: HTMLElement): SceneView {
         it.color2,
         it.top,
         it.v,
+        it.pat,
         it.mx,
         it.z,
         it.geo?.key,

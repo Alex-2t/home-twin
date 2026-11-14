@@ -1608,5 +1608,9 @@
  "Plan: room by its typed size": "Pianta: stanza con le misure inserite",
  "move in a list or menu": "muoversi in un elenco o menu",
  "Unknown model “{0}”: drawn as a box": "Modello sconosciuto «{0}»: disegnato come un blocco",
- "Did not fit: move it in the editor": "Non c’entrava: spostalo nell’editor"
+ "Did not fit: move it in the editor": "Non c’entrava: spostalo nell’editor",
+ "Plain": "Tinta unita",
+ "Squares": "Quadri",
+ "Stripes": "Righe",
+ "Mottled": "Screziato"
 }

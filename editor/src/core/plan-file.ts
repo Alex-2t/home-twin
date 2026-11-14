@@ -105,6 +105,7 @@ export function readPlan(text: string): Plan {
     check(['x', 'y', 'w', 'd', 'h'].every(k => Number.isFinite(f[k])));
     numbers(f, ['rot', 'z']);
     optional(f, 'top', str);
+    optional(f, 'pat', str); // a pattern the model does not have is drawn as its own look
   }
   // an item's color: a named one (catalog COLORS) or a custom #rrggbb; color2 — the second one (a rug's border)
   for (const f of objects(p.furniture))

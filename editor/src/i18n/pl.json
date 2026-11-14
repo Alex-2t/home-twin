@@ -1608,5 +1608,9 @@
  "Plan: room by its typed size": "Plan: pokój o wpisanych wymiarach",
  "move in a list or menu": "poruszać się po liście lub menu",
  "Unknown model “{0}”: drawn as a box": "Nieznany model „{0}”: rysowany jako bryła",
- "Did not fit: move it in the editor": "Brak miejsca: przesuń w edytorze"
+ "Did not fit: move it in the editor": "Brak miejsca: przesuń w edytorze",
+ "Plain": "Gładki",
+ "Squares": "Kratka",
+ "Stripes": "Paski",
+ "Mottled": "Melanż"
 }

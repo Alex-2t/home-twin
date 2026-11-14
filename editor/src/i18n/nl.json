@@ -1608,5 +1608,9 @@
  "Plan: room by its typed size": "Plattegrond: kamer met ingevoerde afmetingen",
  "move in a list or menu": "door een lijst of menu bewegen",
  "Unknown model “{0}”: drawn as a box": "Onbekend model \"{0}\": als blok getekend",
- "Did not fit: move it in the editor": "Paste niet: verplaats het in de editor"
+ "Did not fit: move it in the editor": "Paste niet: verplaats het in de editor",
+ "Plain": "Effen",
+ "Squares": "Ruiten",
+ "Stripes": "Strepen",
+ "Mottled": "Gemêleerd"
 }
