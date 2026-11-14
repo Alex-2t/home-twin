@@ -983,26 +983,41 @@ export function furnitureMode(ed: Editor): FurnitureMode {
       }
       lines.push(vl);
     }
-    // the worktop: one for the whole kitchen — every unit with a worktop in this room gets it
+    // the worktop: one for the whole kitchen — every unit with a worktop in this room gets it; a swatch or a custom colour, a
+    // picked colour practically one of the swatches (ΔE < 3) is that swatch
     if (c.tops) {
       const tl = el(`<div class="line opts"><small>${t('Worktop')}</small></div>`);
-      const cur = isWorktop(f.top) ? f.top : 'stone';
+      const cur = isWorktop(f.top) || isHex(f.top) ? f.top : 'stone';
       const room = roomAt(plan(), [f.x, f.y]);
+      const setTop = (k: string): void => {
+        if (k === cur) return;
+        for (const g of plan().furniture)
+          if (byId(g.model)?.tops && (g === f || (room && roomAt(plan(), [g.x, g.y]) === room))) {
+            if (k === 'stone') delete g.top;
+            else g.top = k;
+          }
+        ed.commit();
+      };
       for (const [k, [n, hex]] of Object.entries(TOPS)) {
         const b = el(
-          `<button class="sw ${k === cur ? 'on' : ''}" title="${esc(n)}" style="background:#${hex.toString(16).padStart(6, '0')}"></button>`,
+          `<button class="sw ${k === cur ? 'on' : ''}" title="${esc(n)}" style="background:${cssHex(hex)}"></button>`,
         );
-        b.onclick = () => {
-          if (k === cur) return;
-          for (const g of plan().furniture)
-            if (byId(g.model)?.tops && (g === f || (room && roomAt(plan(), [g.x, g.y]) === room))) {
-              if (k === 'stone') delete g.top;
-              else g.top = k;
-            }
-          ed.commit();
-        };
+        b.onclick = () => setTop(k);
         tl.appendChild(b);
       }
+      const own = isHex(cur);
+      const pk = el(
+        `<label class="sw own ${own ? 'on' : ''}" title="${t('Custom color')}"${own ? ` style="background:${cur}"` : ''}><input type="color" value="${own ? cur.toLowerCase() : cssHex(TOPS[cur]?.[1] ?? TOPS.stone[1])}"></label>`,
+      );
+      // the input is in the markup above
+      pk.querySelector('input')!.onchange = e =>
+        setTop(
+          snapColor(
+            (e.target as HTMLInputElement).value,
+            Object.entries(TOPS).map(([k, [, hex]]): [string, number] => [k, hex]),
+          ),
+        );
+      tl.appendChild(pk);
       lines.push(tl);
     }
     if (c.kind === 'gen') {

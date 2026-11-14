@@ -1528,5 +1528,7 @@
  "The payment did not go through": "Оплата не прошла",
  "Could not check the payment: {0}": "Не удалось проверить оплату: {0}",
  "Could not open the payment: {0}": "Не удалось открыть оплату: {0}",
- "Opening the payment…": "Открываем оплату…"
+ "Opening the payment…": "Открываем оплату…",
+ "Body color": "Цвет корпуса",
+ "Default color": "Цвет по умолчанию"
 }

@@ -1528,5 +1528,7 @@
  "The payment did not go through": "Il pagamento non è andato a buon fine",
  "Could not check the payment: {0}": "Impossibile verificare il pagamento: {0}",
  "Could not open the payment: {0}": "Impossibile aprire il pagamento: {0}",
- "Opening the payment…": "Apertura del pagamento…"
+ "Opening the payment…": "Apertura del pagamento…",
+ "Body color": "Colore della lampada",
+ "Default color": "Colore predefinito"
 }

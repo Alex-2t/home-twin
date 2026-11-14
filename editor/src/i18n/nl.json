@@ -1528,5 +1528,7 @@
  "The payment did not go through": "De betaling is niet gelukt",
  "Could not check the payment: {0}": "Betaling kon niet worden gecontroleerd: {0}",
  "Could not open the payment: {0}": "Betaling kon niet worden geopend: {0}",
- "Opening the payment…": "Betaling openen…"
+ "Opening the payment…": "Betaling openen…",
+ "Body color": "Kleur van de lamp",
+ "Default color": "Standaardkleur"
 }

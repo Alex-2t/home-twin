@@ -409,6 +409,11 @@ export interface PlanLight {
   opt?: string;
   /** A pendant's shade ('dome', 'metal', 'globe', 'woven') or a line light's body ('white', 'black'); none: from the name. */
   shade?: string;
+  /**
+   * '#rrggbb', the colour of the fitting's body: what does not glow — the cord, the canopy, a metal or rattan shade, a line
+   * light's rail, a lamp's stand and base, a wall plate, a spot's ring (fixtures.ts BODY_COLORS); none: as the form draws it.
+   */
+  body?: string;
   /** Metres above the floor (a table lamp: its bulb); a lamp from HA has none until it is placed. */
   h?: number;
   /** How many points (ceiling, pendant, spots, wall). */

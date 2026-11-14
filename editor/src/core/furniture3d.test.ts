@@ -57,6 +57,12 @@ test('a worktop key from a file: an unknown one, even one every object has, is g
   assert.deepEqual(colorsIn(makeObject(itemOf({...base, top: 'toString'}))), stone);
   assert.deepEqual(colorsIn(makeObject(itemOf({...base, top: 'nope'}))), stone);
 });
+test('a worktop in a custom colour: every model with a worktop draws it', () => {
+  for (const entry of CATALOG.filter(model => model.tops && !model.hidden)) {
+    const unit = {model: entry.id, w: entry.w, d: entry.d, h: entry.h, top: '#3a7bd5'};
+    assert.ok(colorsIn(makeObject(itemOf(unit))).has(0x3a7bd5), entry.id);
+  }
+});
 test('a built-in wardrobe can reach the ceiling of a 2.7 m room', () => {
   // the catalog has it
   const wardrobe = byId('wardrobeRun')!; // the catalog has it

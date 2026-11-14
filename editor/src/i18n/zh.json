@@ -1528,5 +1528,7 @@
  "The payment did not go through": "付款未成功",
  "Could not check the payment: {0}": "无法核实付款：{0}",
  "Could not open the payment: {0}": "无法打开付款页面：{0}",
- "Opening the payment…": "正在打开付款页面…"
+ "Opening the payment…": "正在打开付款页面…",
+ "Body color": "灯具颜色",
+ "Default color": "默认颜色"
 }

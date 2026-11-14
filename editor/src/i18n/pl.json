@@ -1528,5 +1528,7 @@
  "The payment did not go through": "Płatność nie powiodła się",
  "Could not check the payment: {0}": "Nie udało się sprawdzić płatności: {0}",
  "Could not open the payment: {0}": "Nie udało się otworzyć płatności: {0}",
- "Opening the payment…": "Otwieranie płatności…"
+ "Opening the payment…": "Otwieranie płatności…",
+ "Body color": "Kolor oprawy",
+ "Default color": "Kolor domyślny"
 }
