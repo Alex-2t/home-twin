@@ -1,4 +1,4 @@
-// Each main step of the guided path has a short looping clip of its action (D-108): a mini plan, a pointer, the action and
+// Each main step of the guided path has a short looping clip of its action (D-109): a mini plan, a pointer, the action and
 // its result, drawn in code as an inline SVG. No text inside, so it works in every language; the colours are the theme's
 // tokens (styles.css, .clip-svg), so it follows light and dark and the inverted step card. It is still when the system asks
 // for reduced motion (the result is shown), and it stops while the tab is hidden or the card is not on screen.

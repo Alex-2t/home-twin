@@ -1635,5 +1635,9 @@
  "Filmed upright in low resolution: some things may be missed. Fine to go ahead.": "竖拍且分辨率较低：可能漏掉一些物品。可以继续。",
  "Your plan has several floors": "你的平面图有多个楼层",
  "We build one floor for now": "目前我们只建一个楼层",
- "Upload a plan of one floor, or crop this one to one floor.": "请上传单个楼层的平面图，或把这张裁剪到一个楼层。"
+ "Upload a plan of one floor, or crop this one to one floor.": "请上传单个楼层的平面图，或把这张裁剪到一个楼层。",
+ "{0, plural, one {+# package} other {+# packages}}": "{0, plural, other {+# 个套餐}}",
+ "{0, plural, one {# more package} other {# more packages}}": "{0, plural, other {还有 # 个套餐}}",
+ "Current package": "当前套餐",
+ "Your package": "你的套餐"
 }

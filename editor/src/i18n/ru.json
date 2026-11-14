@@ -1635,5 +1635,9 @@
  "Filmed upright in low resolution: some things may be missed. Fine to go ahead.": "Снято вертикально и в низком разрешении: что-то может не найтись. Можно продолжать.",
  "Your plan has several floors": "На плане несколько этажей",
  "We build one floor for now": "Пока мы строим один этаж",
- "Upload a plan of one floor, or crop this one to one floor.": "Загрузите план одного этажа или обрежьте этот до одного этажа."
+ "Upload a plan of one floor, or crop this one to one floor.": "Загрузите план одного этажа или обрежьте этот до одного этажа.",
+ "{0, plural, one {+# package} other {+# packages}}": "{0, plural, one {+# пакет} few {+# пакета} many {+# пакетов} other {+# пакета}}",
+ "{0, plural, one {# more package} other {# more packages}}": "{0, plural, one {ещё # пакет} few {ещё # пакета} many {ещё # пакетов} other {ещё # пакета}}",
+ "Current package": "Текущий пакет",
+ "Your package": "Ваш пакет"
 }

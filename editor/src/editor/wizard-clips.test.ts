@@ -1,4 +1,4 @@
-// The step clips (D-108): every main step has one, and its timing holds together.
+// The step clips (D-109): every main step has one, and its timing holds together.
 import {test} from 'node:test';
 import assert from 'node:assert/strict';
 import {STEP_CLIPS, pointerAt} from './wizard-clips.ts';

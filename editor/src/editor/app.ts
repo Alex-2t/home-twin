@@ -210,7 +210,7 @@ export function createApp({haLights, ha, photos}: AppOptions): Editor {
       // the outline is drawn with the mouse; from the keyboard its size is typed — a button only keyboard users meet
       if (phase === 'rect') actions.append(typeOutlineButton());
       bn.append(actions);
-      // the step's clip of its action (D-108), top left beside the path strip and the phrase
+      // the step's clip of its action (D-109), top left beside the path strip and the phrase
       const clip = phase && phase !== 'fin' ? stepClipButton(phase) : null;
       if (clip) {
         say.before(clip);
