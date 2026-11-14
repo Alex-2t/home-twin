@@ -6,6 +6,7 @@
 import {t} from '../i18n/i18n.ts';
 import {WALL, area, pointIn, openingCoords} from './geometry.ts';
 import {byId, zOf} from './catalog.ts';
+import {fitNewItem} from './ceiling.ts';
 import {roomOfArea} from './sensors.ts';
 import {wallInfo, OPENING} from './plan.ts';
 import {roomKind} from './overview.ts';
@@ -159,7 +160,7 @@ const rotTo = (n: Vector): number => +((Math.atan2(n[0], -n[1]) * 180) / Math.PI
 // an item at edge e of a room: at t along it, back against the wall
 // (model is an air conditioner, curtains or a blind: in the catalog, hence byId!)
 function itemAt(
-  plan: Pick<DevicePlan, 'furniture' | 'devices'>,
+  plan: Pick<DevicePlan, 'furniture' | 'devices' | 'wall'>,
   model: string,
   e: RoomSide,
   t: number,
@@ -168,18 +169,22 @@ function itemAt(
   const c = byId(model)!;
   const d = extra.d ?? c.d;
   const o = WALL.inner + d / 2;
-  return {
-    id: newId(plan, 'f'),
-    model,
-    w: c.w,
-    d,
-    h: c.h,
-    color: c.color,
-    rot: rotTo(e.n),
-    x: +(e.a[0] + e.u[0] * t + e.n[0] * o).toFixed(3),
-    y: +(e.a[1] + e.u[1] * t + e.n[1] * o).toFixed(3),
-    ...extra,
-  };
+  // under the plan's own ceiling curtains reach it and an air conditioner stays under it
+  return fitNewItem(
+    {
+      id: newId(plan, 'f'),
+      model,
+      w: c.w,
+      d,
+      h: c.h,
+      color: c.color,
+      rot: rotTo(e.n),
+      x: +(e.a[0] + e.u[0] * t + e.n[0] * o).toFixed(3),
+      y: +(e.a[1] + e.u[1] * t + e.n[1] * o).toFixed(3),
+      ...extra,
+    },
+    plan,
+  );
 }
 
 // A binding is alive while its item or opening exists; otherwise the device is “not in the model”. No entity: none.

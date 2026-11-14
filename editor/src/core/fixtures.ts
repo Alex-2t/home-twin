@@ -3,7 +3,7 @@
 // (a strip along three walls). No three.js, covered by tests.
 import {t} from '../i18n/i18n.ts';
 import pc from 'polygon-clipping';
-import {WALL, pointIn, area, offset, segDist, openingCoords, poly} from './geometry.ts';
+import {WALL, ceilingOf, pointIn, area, offset, segDist, openingCoords, poly} from './geometry.ts';
 import {zoneParts} from './plan.ts';
 import {axes, footRects} from './layout.ts';
 import {zOf, lArms, byId} from './catalog.ts';
@@ -63,7 +63,8 @@ export interface FurnStripKind {
   back: string;
 }
 /** What placing lights reads of a plan: the rooms, the openings and the furniture. */
-type LightPlan = Pick<Plan, 'rooms' | 'openings' | 'furniture'>;
+// (wall: its ceiling height, ceilingOf; none: the usual walls)
+type LightPlan = Pick<Plan, 'rooms' | 'openings' | 'furniture'> & Partial<Pick<Plan, 'wall'>>;
 /** A table found for the lights (tableOf): its centre, long axis and length, and the item. */
 export interface LightTable {
   c: Point;
@@ -86,19 +87,49 @@ export const lineForm = (f: LightForm | null | undefined): boolean => f === 'lin
 // (no height counts as 0, as the comparison read it)
 export const formFor = (L: Pick<PlanLight, 'form' | 'kind' | 'h'>): LightForm =>
   L.form || (L.kind === 'strip' ? 'strip' : (L.h ?? 0) > 2 ? 'ceiling' : 'wall');
-const CEIL = WALL.height;
-export const HEIGHTS = {
-  ceiling: CEIL - 0.05,
-  pendant: CEIL - 0.6,
-  spots: CEIL - 0.02,
-  line: CEIL - 0.02,
+/** How high each form of light is placed, metres above the floor. */
+export interface LightHeights {
+  ceiling: number;
+  pendant: number;
+  spots: number;
+  line: number;
+  wall: number;
+}
+// A pendant's shade hangs 60 cm under the usual 2.6 m ceiling; under another its cord is longer or shorter by half the
+// difference (a pendant under a 3.2 m ceiling at 2.3 m, not 2.6 m: it lights the room, not the ceiling).
+const PENDANT_UNDER_USUAL_CEILING = 0.6;
+const PENDANT_FOLLOWS_CEILING = 0.5;
+/** Where each form goes under a ceiling this high (the plan's, ceilingOf): on it, a pendant under it, a sconce at 1.6 m. */
+export const lightHeights = (ceiling: number): LightHeights => ({
+  ceiling: +(ceiling - 0.05).toFixed(2),
+  pendant: +(
+    WALL.height -
+    PENDANT_UNDER_USUAL_CEILING +
+    (ceiling - WALL.height) * PENDANT_FOLLOWS_CEILING
+  ).toFixed(2),
+  spots: +(ceiling - 0.02).toFixed(2),
+  line: +(ceiling - 0.02).toFixed(2),
   wall: 1.6,
-};
+});
+/** The heights under the usual walls (a plan that sets no ceiling of its own). */
+export const HEIGHTS: LightHeights = lightHeights(WALL.height);
 // A strip is at the ceiling or at the floor (or on furniture, FURN_STRIP below). Old strips with opt 'cab' (1.4 m) keep their height.
+// h is the height under the usual walls; under the plan's own ceiling a ceiling strip is 10 cm under it (stripHeight).
 export const STRIP: Record<string, {h: number; name: string; tip: string}> = {
-  top: {h: 2.5, name: t('Ceiling'), tip: t('2.5 m: cove, floating ceiling, niche — light down the walls')},
+  top: {
+    h: 2.5,
+    name: t('Ceiling'),
+    tip: t('Under the ceiling: cove, floating ceiling, niche — light down the walls'),
+  },
   floor: {h: 0.1, name: t('Floor'), tip: t('10 cm: baseboard, under the bed, stairs — light onto the floor')},
 };
+const STRIP_UNDER_CEILING = WALL.height - STRIP.top.h;
+/** A strip variant's height under a ceiling this high; none for a variant that is not one of STRIP's. */
+export function stripHeight(opt: string | null | undefined, ceiling: number): number | undefined {
+  if (opt === 'top') return +(ceiling - STRIP_UNDER_CEILING).toFixed(2);
+  if (opt == null || !Object.hasOwn(STRIP, opt)) return undefined;
+  return STRIP[opt].h;
+}
 export const LAMP: Record<string, {h: number; name: string}> = {
   floor: {h: 1.5, name: t('Floor lamp')},
   table: {h: 0.75, name: t('Table lamp')},
@@ -872,7 +903,8 @@ function stripPlace(plan: LightPlan, L: PlanLight, cell: LampCell, guess = true)
     L.segments = fs.segments;
   } else {
     if (isFurnStrip(L.opt)) L.opt = FURN_STRIP[L.opt].back;
-    L.h = STRIP[L.opt ?? '']?.h ?? STRIP.top.h;
+    const ceiling = ceilingOf(plan);
+    L.h = stripHeight(L.opt, ceiling) ?? stripHeight('top', ceiling);
     L.segments = stripLayout(plan, cell, L.opt, L.name);
   }
   L.loop = 1;
@@ -1120,7 +1152,7 @@ function mirrorSpot(plan: LightPlan, cell: LampCell): {p: Point; h: number} | nu
   const hung = f.model === 'wallMirror' || f.model === 'mirrorCabinet';
   return {
     p: [f.x - (fz[0] * f.d) / 2, f.y - (fz[1] * f.d) / 2],
-    h: R3(Math.min(2.35, hung ? zOf(f) + f.h + 0.08 : 1.95)),
+    h: R3(Math.min(2.35, ceilingOf(plan) - 0.15, hung ? zOf(f) + f.h + 0.08 : 1.95)),
   };
 }
 // Floor lamp by a sofa or armchair: to the side, closer to the back, in a free spot inside the cell. No such furniture: null.
@@ -1152,6 +1184,7 @@ export function placeForm(
   const P = cell.poly;
   const F = freeCeiling(plan, cell);
   const tb = tableOf(plan, cell);
+  const heights = lightHeights(ceilingOf(plan));
   L.points = [];
   L.segments = [];
   L.form = form;
@@ -1160,24 +1193,24 @@ export function placeForm(
   delete L.count;
   // ceiling light and pendant: above the table if there is one; otherwise above the free part of the ceiling (not above a wardrobe)
   if (form === 'ceiling') {
-    L.h = HEIGHTS.ceiling;
+    L.h = heights.ceiling;
     L.count = 1;
     L.points = tb ? [P3(tb.c)] : ceilingLayout(F, 1);
   } else if (form === 'pendant') {
-    L.h = HEIGHTS.pendant;
+    L.h = heights.pendant;
     L.count = 1;
     L.points = tb ? [P3(tb.c)] : pendantLayout(F, 1);
   } else if (form === 'spots') {
-    L.h = HEIGHTS.spots;
+    L.h = heights.spots;
     L.count = defaultSpots(F);
     L.points = spotsLayout(F, L.count, L.opt);
   } else if (form === 'line') {
-    L.h = HEIGHTS.line;
+    L.h = heights.line;
     L.segments = lineLayout(F, L.opt);
   } else if (form === 'strip')
     stripPlace(plan, L, cell); // on furniture if the name suggests it and the furniture is there
   else if (form === 'wall') {
-    L.h = HEIGHTS.wall;
+    L.h = heights.wall;
     L.count = L.opt === 'pair' ? 2 : 1;
     delete L.opt; // a “pair” guess means two
     const m =
@@ -1230,7 +1263,7 @@ export function relayout(plan: LightPlan, L: PlanLight, cell: LampCell, was?: st
   else if (f === 'strip' && (isFurnStrip(L.opt) || isFurnStrip(was)))
     stripPlace(plan, L, cell, false); // onto furniture or from furniture back to the wall: place again
   else if (f === 'strip') {
-    L.h = STRIP[L.opt ?? '']?.h ?? L.h; // floor strip: breaks at doors; ceiling strip: continuous above a door
+    L.h = stripHeight(L.opt, ceilingOf(plan)) ?? L.h; // floor strip: breaks at doors; ceiling strip: continuous above a door
     // runs follow the previous kind (at the floor doors do not split the strip), segments the new one
     const was = stripContour(plan, cell, L.opt === 'floor' ? 'top' : 'floor');
     const K = stripContour(plan, cell, L.opt);

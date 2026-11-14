@@ -11,7 +11,7 @@ import {migrate} from './core/plan.ts';
 import {syncRuns} from './core/runs.ts';
 import {syncFurnStrips} from './core/fixtures.ts';
 import {liveScene} from './core/devices.ts';
-import {validate} from './core/geometry.ts';
+import {ceilingOf, validate} from './core/geometry.ts';
 import {planWalls, planFurniture, planSpots} from './core/plan-scene.ts';
 import {loadKenney} from './core/furniture3d.ts';
 import {MODELS} from './gen/models.gen.js';
@@ -254,10 +254,11 @@ export async function createCard(card: CardHost, hass0: Hass, config0: CardConfi
     }
     live();
     const placed = plan.lights.filter(l => l.placed);
-    const lk = JSON.stringify([placed, plan.rooms]);
+    const ceiling = ceilingOf(plan);
+    const lk = JSON.stringify([placed, plan.rooms, ceiling]);
     if (lk !== keys.lights) {
       keys.lights = lk;
-      view.setLights(placed, plan.rooms);
+      view.setLights(placed, plan.rooms, ceiling);
     }
     const wk = JSON.stringify([plan.rooms, plan.openings, plan.wall]);
     if (wk !== keys.walls) {

@@ -157,7 +157,8 @@ export interface SceneView {
   set(plan2d: null): void;
   set(plan2d: WallPlan, rooms: Room[], openings: PlacedOpening[], selected?: string | null): void;
   setFurniture(items: Item3d[], selected?: string | null): void;
-  setLights(list: PlanLight[], rooms: Room[]): void;
+  /** The plan's lights; ceiling: how high its ceiling is (pendants hang from it), none: the usual walls. */
+  setLights(list: PlanLight[], rooms: Room[], ceiling?: number): void;
   /** Keeps each lamp's light inside its room; the time it took, ms. */
   applyMask(rooms: Room[]): number;
   setLightOn(id: string, on: boolean | undefined): void;
@@ -308,6 +309,8 @@ const CONE: Partial<Record<LightForm, {power: number; angle: number}>> = {
 };
 const CONE_MAX = 2;
 const NEAR: Partial<Record<LightForm, number>> = {lamp: 2.6, wall: 2.6, ceiling: 4.5};
+// Which facade a strip or a sconce hides with is probed at its height, but under the ceiling by this: the top band is the wall's last.
+const PROBE_UNDER_CEILING = 0.1;
 const HALO: {day: number; night: number; size: Record<string, number | undefined>} = {
   day: 0.85,
   night: 0.5,
@@ -994,9 +997,9 @@ export function createView(host: HTMLElement): SceneView {
           }
           const top = sh === 'globe' ? 0.12 : sh === 'metal' ? 0.11 : sh === 'woven' ? 0.11 : 0.095;
           at(cyl(0.034, 0.04, 0.03, 20), p, L.h + top, darkMat);
-          const c = WALL.height - L.h - top - 0.015;
+          const c = Math.max(0, lightsCeiling - L.h - top - 0.015);
           at(cyl(0.004, 0.004, c, 6), p, L.h + top + 0.015 + c / 2, darkMat);
-          at(cyl(0.05, 0.055, 0.02, 24), p, WALL.height - 0.01, darkMat);
+          at(cyl(0.05, 0.055, 0.02, 24), p, lightsCeiling - 0.01, darkMat);
         }
         // sconce: a wall plate, a bracket, a shade flaring upwards
         else if (form === 'wall') {
@@ -1203,7 +1206,8 @@ export function createView(host: HTMLElement): SceneView {
     fixtures.add(m);
     return m;
   }
-  function setLights(list: PlanLight[], rooms: Room[]): void {
+  function setLights(list: PlanLight[], rooms: Room[], ceiling = WALL.height): void {
+    lightsCeiling = ceiling;
     const was = new Map(devs.map(d => [d.L.id, d.solo]));
     for (const d of devs) {
       d.meshes.forEach(m => {
@@ -1236,7 +1240,7 @@ export function createView(host: HTMLElement): SceneView {
       meshes.forEach(m => {
         if (host) m.userData.off = true;
         else if (form === 'strip' || form === 'wall') {
-          m.userData.probe = [r.polygon, Math.min(L.h, 2.5)];
+          m.userData.probe = [r.polygon, Math.min(L.h, lightsCeiling - PROBE_UNDER_CEILING)];
           m.userData.side = fixtureSide(m, ...(m.userData.probe as FixtureProbe));
         }
         m.visible = !host;
@@ -1280,7 +1284,7 @@ export function createView(host: HTMLElement): SceneView {
                 HALO.size[table ? 'table' : form] ?? 0.6,
                 m => {
                   if (form === 'wall') {
-                    m.userData.probe = [r.polygon, Math.min(L.h, 2.5)];
+                    m.userData.probe = [r.polygon, Math.min(L.h, lightsCeiling - PROBE_UNDER_CEILING)];
                     m.userData.side = fixtureSide(m, ...(m.userData.probe as FixtureProbe));
                   }
                 },
@@ -1669,6 +1673,8 @@ export function createView(host: HTMLElement): SceneView {
   scene.add(sensGrp);
   const labels = new Map<string, SensorLabel>();
   let plan2dNow: WallPlan | null = null;
+  // The ceiling the lights were set under (setLights): a pendant's cord and canopy reach it.
+  let lightsCeiling = WALL.height;
   const LPX = 360;
   const LFONT = 'Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif';
   const INK = {
@@ -2055,7 +2061,7 @@ export function createView(host: HTMLElement): SceneView {
       box = new THREE.Box3();
       for (const [x, y] of poly) {
         box.expandByPoint(new THREE.Vector3(x, 0, -y));
-        box.expandByPoint(new THREE.Vector3(x, WALL.height, -y));
+        box.expandByPoint(new THREE.Vector3(x, plan2dNow?.height ?? WALL.height, -y));
       }
     }
     const c = box.getCenter(new THREE.Vector3());

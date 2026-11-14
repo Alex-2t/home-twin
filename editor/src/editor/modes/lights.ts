@@ -2,7 +2,7 @@
 // floor lamp — the user says with one click (the one guessed by name is highlighted); the default place comes from fixtures.js,
 // then — drag on the plan. The “Lights” wizard step: room by room is highlighted and asked about its lamp without a place.
 import {t, num} from '../../i18n/i18n.ts';
-import {dist2, segDist, pointIn, WALL} from '../../core/geometry.ts';
+import {dist2, segDist, pointIn, WALL, ceilingOf} from '../../core/geometry.ts';
 import {GRID, snapLightPoint, stripOnWall} from '../../core/layout.ts';
 import {roomAt, roomById, zoneParts} from '../../core/plan.ts';
 import {
@@ -1576,7 +1576,7 @@ export function lightsMode(ed: Editor): LightsMode {
           inp.value = String(Math.round(L.h! * 100));
           return;
         }
-        L.h = +Math.max(0.1, Math.min(WALL.height - 0.1, h)).toFixed(2);
+        L.h = +Math.max(0.1, Math.min(ceilingOf(plan()) - 0.1, h)).toFixed(2);
         delete L.auto;
         ed.commit();
         blink(L.id);

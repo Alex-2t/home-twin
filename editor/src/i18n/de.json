@@ -5,7 +5,7 @@
  "10 cm: baseboard, under the bed, stairs — light onto the floor": "10 cm: Sockelleiste, unterm Bett, Stufen – Licht auf den Boden",
  "12 cm": "12 cm",
  "15 cm": "15 cm",
- "2.5 m: cove, floating ceiling, niche — light down the walls": "2,5 m: Voute, schwebende Decke, Nische – Licht an den Wänden hinab",
+ "Under the ceiling: cove, floating ceiling, niche — light down the walls": "Unter der Decke: Voute, schwebende Decke, Nische – Licht an den Wänden hinab",
  "25 cm": "25 cm",
  "30 cm": "30 cm",
  "38 cm": "38 cm",
@@ -1528,5 +1528,7 @@
  "The payment did not go through": "Die Zahlung ist nicht durchgegangen",
  "Could not check the payment: {0}": "Zahlung konnte nicht geprüft werden: {0}",
  "Could not open the payment: {0}": "Zahlung konnte nicht geöffnet werden: {0}",
- "Opening the payment…": "Zahlung wird geöffnet…"
+ "Opening the payment…": "Zahlung wird geöffnet…",
+ "Ceiling height": "Deckenhöhe",
+ "For the whole home: ceiling lights, curtains and tall cabinets follow it": "Für die ganze Wohnung: Deckenleuchten, Vorhänge und hohe Schränke folgen ihr"
 }

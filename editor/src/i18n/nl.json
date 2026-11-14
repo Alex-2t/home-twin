@@ -5,7 +5,7 @@
  "10 cm: baseboard, under the bed, stairs — light onto the floor": "10 cm: plint, onder bed, treden — licht op de vloer",
  "12 cm": "12 cm",
  "15 cm": "15 cm",
- "2.5 m: cove, floating ceiling, niche — light down the walls": "2,5 m: koof, zwevend plafond, nis — licht langs de muren",
+ "Under the ceiling: cove, floating ceiling, niche — light down the walls": "Onder het plafond: koof, zwevend plafond, nis — licht langs de muren",
  "25 cm": "25 cm",
  "30 cm": "30 cm",
  "38 cm": "38 cm",
@@ -1528,5 +1528,7 @@
  "The payment did not go through": "De betaling is niet gelukt",
  "Could not check the payment: {0}": "Betaling kon niet worden gecontroleerd: {0}",
  "Could not open the payment: {0}": "Betaling kon niet worden geopend: {0}",
- "Opening the payment…": "Betaling openen…"
+ "Opening the payment…": "Betaling openen…",
+ "Ceiling height": "Plafondhoogte",
+ "For the whole home: ceiling lights, curtains and tall cabinets follow it": "Voor de hele woning: plafondlampen, gordijnen en hoge kasten volgen mee"
 }

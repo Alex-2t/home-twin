@@ -4,6 +4,7 @@ import {createHistory} from './history.ts';
 import {createUnderlay} from './underlay.ts';
 import {emptyPlan, addRoom, addOpening, scalePlan, rotatePlan} from '../core/plan.ts';
 import {readPlan} from '../core/plan-file.ts';
+import {setCeiling} from '../core/ceiling.ts';
 import {mergePlanLights} from './ha.ts';
 import type {Plan, PlanLight} from '../core/types.ts';
 import type {StoreOp} from './idb.ts';
@@ -63,7 +64,7 @@ const apartment = (): Plan => {
   return p;
 };
 
-test('rooms, openings, furniture, lights and sensors: undo/redo, reload and file all keep the same result', () => {
+test('rooms, openings, furniture, lights, sensors and the ceiling height: undo/redo, reload and file all keep the same result', () => {
   const h = createHistory();
   const p = apartment();
   h.reset(p);
@@ -74,6 +75,7 @@ test('rooms, openings, furniture, lights and sensors: undo/redo, reload and file
     () => (p.furniture[0].x = 4),
     () => (p.lights[0].points[0][1] = 3),
     () => (p.sensors[0].at = [2, 0]),
+    () => setCeiling(p, 3.2), // the lamp on the ceiling goes up with it
   ];
   for (const edit of edits) {
     edit();

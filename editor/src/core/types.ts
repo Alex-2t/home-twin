@@ -524,8 +524,11 @@ export interface Plan {
   /** HA sensors marked "Don't show": their entity ids. */
   sensorSkip: string[];
   devices: PlanDevice[];
-  /** The plan's wall thicknesses, metres: exterior (none: geometry.ts OUTER) and partitions (none: 10 cm). */
-  wall?: {outer?: number; inner?: number};
+  /**
+   * The plan's walls, metres: the exterior thickness (none: geometry.ts OUTER), the partitions' (none: 10 cm) and the height from
+   * the floor to the ceiling, one for the whole home (none: geometry.ts WALL.height, 2.6 m; ceilingOf).
+   */
+  wall?: {outer?: number; inner?: number; height?: number};
   /** The area from the documents, m². */
   docArea?: number;
   /** The documents' area includes the balcony. */
@@ -602,6 +605,8 @@ export interface WallPlan {
   openingSide: Array<FacadeSideId | null>;
   /** The rounding the build succeeded with (1000: 1 mm). */
   step: number;
+  /** How high the walls go: the plan's ceiling, metres (geometry.ts ceilingOf). */
+  height: number;
 }
 
 /** Edge j of a room: the room and the edge's index (the edge runs from corner j to corner j + 1). */

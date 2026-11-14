@@ -1,7 +1,8 @@
 // Editor: state, history, the 2D–3D link, screen layout, mouse and keyboard.
-import {t} from '../i18n/i18n.ts';
+import {t, num} from '../i18n/i18n.ts';
+import {setCeiling} from '../core/ceiling.ts';
 import {createView} from '../core/scene.ts';
-import {validate, wallsAt, offsetVar, edgeThickness, WALL} from '../core/geometry.ts';
+import {validate, wallsAt, offsetVar, edgeThickness, ceilingOf, WALL} from '../core/geometry.ts';
 import {migrate, emptyPlan, roomById, wallDefaults, closeOuterOpen} from '../core/plan.ts';
 import {furnitureConflicts} from '../core/layout.ts';
 import {syncRuns} from '../core/runs.ts';
@@ -555,10 +556,11 @@ export function createApp({haLights, ha, photos}: AppOptions): Editor {
       ed.view.setClimate?.(live.climate);
       ed.view.setContacts?.(live.contacts);
       const placed = plan.lights.filter(l => l.placed);
-      const lk = JSON.stringify([placed, plan.rooms]);
+      const ceiling = ceilingOf(plan);
+      const lk = JSON.stringify([placed, plan.rooms, ceiling]);
       if (lk !== keys.lights) {
         keys.lights = lk;
-        ed.view.setLights(placed, plan.rooms);
+        ed.view.setLights(placed, plan.rooms, ceiling);
       }
       $('pane-3d').toggleAttribute('data-empty', !plan.rooms.length); // an attribute: the pane layout rewrites className
       if (!plan.rooms.length) {
@@ -2128,6 +2130,20 @@ export function createApp({haLights, ha, photos}: AppOptions): Editor {
     viewMoved = m;
     ed.syncSave();
   });
+  // The ceiling heights to choose from, metres; a plan's own height that is none of them (the AI build measures one) is listed too.
+  const CEILING_CHOICES = [2.3, 2.4, 2.5, 2.6, 2.7, 2.8, 2.9, 3, 3.2, 3.5, 4];
+  const fillCeilingList = (sel: HTMLSelectElement, now: number): void => {
+    const heights = [...new Set([...CEILING_CHOICES, now])].sort((a, b) => a - b);
+    sel.replaceChildren(
+      ...heights.map(height => {
+        const option = document.createElement('option');
+        option.value = String(height);
+        option.textContent = t('{0} m', num(height));
+        return option;
+      }),
+    );
+    sel.value = String(now);
+  };
   // Default wall thicknesses are a plan property (the house is like that), so they change through the history.
   const near = (sel: HTMLSelectElement, v: number): void => {
     let best = sel.options[0];
@@ -2136,9 +2152,10 @@ export function createApp({haLights, ha, photos}: AppOptions): Editor {
   };
   ed.syncSettings = () => {
     const d = wallDefaults(ed.plan);
-    // the thickness lists and the per-wall checkbox
+    // the thickness lists, the ceiling height and the per-wall checkbox
     near($('wall-outer') as HTMLSelectElement, d.outer);
     near($('wall-inner') as HTMLSelectElement, d.inner);
+    fillCeilingList($('wall-height') as HTMLSelectElement, ceilingOf(ed.plan));
     ($('wall-each') as HTMLInputElement).checked = !!ui.wallEach;
   };
   // Per-wall thickness is off: two shared thicknesses are enough 99% of the time. When on, it shows the thickness in the wall menu and a handle.
@@ -2219,6 +2236,11 @@ export function createApp({haLights, ha, photos}: AppOptions): Editor {
       ed.plan.wall = {...ed.plan.wall, [k]: +(e.target as HTMLSelectElement).value}; // the list the handler is on
       ed.commit();
     };
+  // The ceiling height is the whole home's too: what follows the ceiling moves with it (core/ceiling.ts), one step to undo.
+  $('wall-height').onchange = e => {
+    setCeiling(ed.plan, +(e.target as HTMLSelectElement).value); // the list the handler is on
+    ed.commit();
+  };
   // Day / night (D-068): auto — by the sun (it opens as it is outside, turns night after sunset and day after sunrise), or always day,
   // always night (core/daynight.js). The button steps auto → day → night; the label says the mode, the icon what is shown now.
   // The sun: ha.sunDown (sun.sun in HA, the weather profile in the demo), checked on HA changes and once a minute (the demo has no sun events)
