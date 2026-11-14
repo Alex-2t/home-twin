@@ -1612,5 +1612,12 @@
  "Plain": "Effen",
  "Squares": "Ruiten",
  "Stripes": "Strepen",
- "Mottled": "Gemêleerd"
+ "Mottled": "Gemêleerd",
+ "Oriental": "Oosters",
+ "Lattice": "Ruitpatroon",
+ "Chevron": "Zigzag",
+ "Dots": "Stippen",
+ "Rings": "Ringen",
+ "Plaid": "Geruit",
+ "Custom": "Eigen"
 }

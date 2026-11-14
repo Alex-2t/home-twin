@@ -1612,5 +1612,12 @@
  "Plain": "纯色",
  "Squares": "方格",
  "Stripes": "条纹",
- "Mottled": "斑驳"
+ "Mottled": "斑驳",
+ "Oriental": "东方",
+ "Lattice": "菱格",
+ "Chevron": "人字纹",
+ "Dots": "波点",
+ "Rings": "同心圆",
+ "Plaid": "苏格兰格",
+ "Custom": "自定义"
 }

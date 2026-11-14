@@ -6,6 +6,7 @@ import type * as THREE from 'three';
 import {CATALOG, byId} from './catalog.ts';
 import {makeObject} from './furniture3d.ts';
 import type {Item3d} from './furniture3d.ts';
+import {RUG_PATTERNS} from './rug-pattern-spec.ts';
 
 const isMesh = (o: THREE.Object3D): o is THREE.Mesh => (o as THREE.Mesh).isMesh === true;
 // a test item: only its look, not an item placed on a plan
@@ -73,16 +74,24 @@ const pixelColours = (texture: THREE.DataTexture): Set<number> => {
     colours.add((pixels[i] << 16) | (pixels[i + 1] << 8) | pixels[i + 2]);
   return colours;
 };
+// Whether a picture holds a colour, each channel within this much of it.
+const holdsNear = (colours: Set<number>, target: number, within: number): boolean =>
+  [...colours].some(colour =>
+    [16, 8, 0].every(shift => Math.abs(((colour >> shift) & 255) - ((target >> shift) & 255)) <= within),
+  );
+// A plaid mixes its bands in partly: where they cross is near the second colour, not the colour itself.
+const PLAID_CROSSING_WITHIN = 40;
 test('a rug with a pattern: its body in the field colour, its top a picture of both colours, in every shape', () => {
   const rug = {model: 'rug', w: 2, d: 1.4, h: 0.012, color: '#b8b1a5', color2: '#3a4a6b'};
-  for (const pat of ['tiles', 'stripes', 'mottled'])
+  for (const pat of RUG_PATTERNS)
     for (const v of ['rect', 'round', 'oval']) {
       const drawn = makeObject(itemOf({...rug, v, pat}));
       const textures = texturesIn(drawn);
       assert.equal(textures.length, 1, `${pat} ${v}`);
       assert.ok(colorsIn(drawn).has(0xb8b1a5), `${pat} ${v}: the body`);
       const colours = pixelColours(textures[0]);
-      assert.ok(colours.has(0xb8b1a5) && colours.has(0x3a4a6b), `${pat} ${v}: both colours`);
+      const within = pat === 'plaid' ? PLAID_CROSSING_WITHIN : 0;
+      assert.ok(colours.has(0xb8b1a5) && holdsNear(colours, 0x3a4a6b, within), `${pat} ${v}: both colours`);
     }
 });
 test("a rug's pattern without color2 uses the border's darker shade; one the rug does not have draws its own look", () => {
@@ -97,6 +106,25 @@ test("a rug's pattern without color2 uses the border's darker shade; one the rug
   const unknown = makeObject(itemOf({...rug, pat: 'paisley'}));
   assert.deepEqual(texturesIn(unknown), []);
   assert.deepEqual(colorsIn(unknown), plain);
+});
+test("a rug's own pattern draws instead of its named one; one with nothing drawable draws the named one", () => {
+  const rug = {
+    model: 'rug',
+    w: 2,
+    d: 1.4,
+    h: 0.012,
+    color: '#b8b1a5',
+    color2: '#3a4a6b',
+    v: 'round',
+    pat: 'tiles',
+  };
+  const own = {colors: ['#c03030'], layers: [{shape: 'frame' as const, color: 2, inset: 0.05, width: 0.08}]};
+  const drawnOwn = pixelColours(texturesIn(makeObject(itemOf({...rug, patSpec: own})))[0]);
+  assert.ok(drawnOwn.has(0xc03030), 'its own colour');
+  assert.ok(!drawnOwn.has(0x3a4a6b), 'no tiles of the second colour');
+  const odd = {layers: [{shape: 'paisley'}]} as unknown as typeof own;
+  const tiles = texturesIn(makeObject(itemOf(rug)))[0].image.data;
+  assert.deepEqual(texturesIn(makeObject(itemOf({...rug, patSpec: odd})))[0].image.data, tiles);
 });
 test('a worktop key from a file: an unknown one, even one every object has, is gray stone', () => {
   const base = {model: 'kitchenBase', w: 0.6, d: 0.6, h: 0.9};

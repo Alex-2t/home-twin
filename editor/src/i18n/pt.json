@@ -1612,5 +1612,12 @@
  "Plain": "Liso",
  "Squares": "Xadrez",
  "Stripes": "Listras",
- "Mottled": "Mesclado"
+ "Mottled": "Mesclado",
+ "Oriental": "Oriental",
+ "Lattice": "Treliça",
+ "Chevron": "Zigue-zague",
+ "Dots": "Bolinhas",
+ "Rings": "Anéis",
+ "Plaid": "Xadrez",
+ "Custom": "Personalizado"
 }

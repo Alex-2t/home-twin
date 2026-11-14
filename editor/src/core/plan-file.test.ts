@@ -147,6 +147,19 @@ test("a rug's pattern is kept, one this editor does not know too (drawn as its o
     assert.throws(() => readPlan(file), `pat: ${JSON.stringify(bad)}`);
   }
 });
+test("a rug's own pattern is kept as it is, odd values in it too (left out when drawn); one that is not an object is rejected", () => {
+  const rug = {id: 'f', model: 'rug', x: 2, y: 2, w: 2, d: 1.4, h: 0.012, rot: 0};
+  const p = plan();
+  p.furniture = [
+    {...rug, pat: 'oriental', patSpec: {layers: [{shape: 'medallion', color: 1, form: 'circle', size: 0.3}]}},
+    {...rug, id: 'g', pat: 'lattice', patSpec: {layers: [{shape: 'paisley', size: 'big'}]} as never},
+  ];
+  assert.deepEqual(readPlan(JSON.stringify(p)), p);
+  for (const bad of [5, true, 'oriental', [{shape: 'dots'}]]) {
+    const file = JSON.stringify({...plan(), furniture: [{...rug, patSpec: bad}]});
+    assert.throws(() => readPlan(file), `patSpec: ${JSON.stringify(bad)}`);
+  }
+});
 test('overlapping rooms can be opened and fixed; the file check does not replace the geometry check', () => {
   const p = plan();
   p.rooms.push({...p.rooms[0], id: 'overlap'});

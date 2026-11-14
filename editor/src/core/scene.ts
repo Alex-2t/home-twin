@@ -798,6 +798,7 @@ export function createView(host: HTMLElement): SceneView {
         it.top,
         it.v,
         it.pat,
+        it.patSpec ? JSON.stringify(it.patSpec) : '',
         it.mx,
         it.z,
         it.geo?.key,

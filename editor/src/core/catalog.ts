@@ -2015,11 +2015,19 @@ export const CATALOG: CatalogEntry[] = [
       ['round', N('Round')],
       ['oval', N('Oval')],
     ],
-    // a pattern of the field's and the second colour: a checker or a play mat's tiles, stripes, a distressed rug's patches
+    // a pattern of the field's and the second colour (core/rug-pattern-spec.ts RUG_PRESETS): a checker or a play mat's tiles,
+    // stripes, a distressed rug's patches, a Persian rug's borders and medallion, a Berber rug's trellis, zigzags, dots, a
+    // braided rug's rings, a plaid
     pats: [
       ['tiles', N('Squares')],
       ['stripes', N('Stripes')],
       ['mottled', N('Mottled')],
+      ['oriental', N('Oriental')],
+      ['lattice', N('Lattice')],
+      ['chevron', N('Chevron')],
+      ['dots', N('Dots')],
+      ['rings', N('Rings')],
+      ['plaid', N('Plaid')],
     ],
     soft: true,
     tags: N('rug carpet runner mat'),

@@ -50,6 +50,14 @@ import type {
 } from '../../core/types.ts';
 import type {PlanView2d} from '../view2d.ts';
 import type {Editor, FurnitureMode, PlanBox, Selection} from '../editor-types.ts';
+import {cleanRugSpec} from '../../core/rug-pattern-spec.ts';
+
+// The pattern chip that stands for an item's own pattern (patSpec): no named pattern has this key.
+const CUSTOM_PATTERN = ' custom';
+
+/** Whether an item has a pattern of its own that is drawn (a patSpec that is not drawable is drawn as its pat). */
+const hasOwnPattern = (item: FurnitureItem): boolean =>
+  item.patSpec !== undefined && cleanRugSpec(item.patSpec) !== null;
 
 /** An item's handles: w and d for a sized one, a and b (the ends) and rd (the depth) for a built-in run. */
 type ItemHandle = 'w' | 'd' | 'a' | 'b' | 'rd';
@@ -839,16 +847,20 @@ export function furnitureMode(ed: Editor): FurnitureMode {
   let more = false;
   const named = (c: CatalogEntry): boolean => c.id === 'custom' || c.id === 'parts';
   // Colors: the model's swatches and a custom one (the color picker); a picked color practically equal to a swatch (ΔE < 3) selects that
-  // A pattern of the item's two colors (a rug's tiles, stripes, patches) as chips, its own look first as "Plain"; a pattern the
-  // model does not have reads as Plain.
+  // A pattern of the item's two colors (a rug's tiles, stripes, patches…) as chips, its own look first as "Plain"; a pattern the
+  // model does not have reads as Plain. A pattern of its own (patSpec, set by the AI build) shows as a chosen "Custom" chip at
+  // the end; picking another chip drops it (⌘Z brings it back).
   function patternLine(f: FurnitureItem, patterns: [key: string, name: string][]): HTMLElement {
     const line = el(`<div class="line opts"></div>`);
-    const current = patterns.some(([key]) => key === f.pat) ? f.pat : undefined;
+    const custom = hasOwnPattern(f);
+    const current = custom ? CUSTOM_PATTERN : patterns.some(([key]) => key === f.pat) ? f.pat : undefined;
     const choices: [string | undefined, string][] = [[undefined, t('Plain')], ...patterns];
+    if (custom) choices.push([CUSTOM_PATTERN, t('Custom')]);
     for (const [key, name] of choices) {
       const chip = el(`<button class="chip ${key === current ? 'on' : ''}">${esc(name)}</button>`);
       chip.onclick = () => {
         if (key === current) return;
+        delete f.patSpec;
         if (key) f.pat = key;
         else delete f.pat;
         ed.commit();
@@ -987,7 +999,7 @@ export function furnitureMode(ed: Editor): FurnitureMode {
     if (c.pats) lines.push(patternLine(f, c.pats));
     if (c.color2) {
       // a rug's second color: its border, or with a pattern the pattern's second color
-      const patterned = !!c.pats?.some(([key]) => key === f.pat);
+      const patterned = hasOwnPattern(f) || !!c.pats?.some(([key]) => key === f.pat);
       const bl = el(
         `<div class="line opts"><small>${t(patterned ? 'Second color' : 'Border')}</small></div>`,
       );

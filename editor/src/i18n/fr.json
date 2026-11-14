@@ -1612,5 +1612,12 @@
  "Plain": "Uni",
  "Squares": "Carreaux",
  "Stripes": "Rayures",
- "Mottled": "Chiné"
+ "Mottled": "Chiné",
+ "Oriental": "Oriental",
+ "Lattice": "Treillis",
+ "Chevron": "Zigzag",
+ "Dots": "Pois",
+ "Rings": "Anneaux",
+ "Plaid": "Écossais",
+ "Custom": "Personnalisé"
 }
