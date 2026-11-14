@@ -413,6 +413,7 @@ html[data-theme=dark] .banner.wizard-card{--panel-solid:#eceef3;--line:rgba(17,1
 .clip-svg .cl-fresh{fill:none;stroke:var(--acc)}
 .clip-svg .cl-wall{fill:none;stroke:var(--clip-wall);stroke-opacity:.85}
 .clip-svg .cl-walls{fill:var(--clip-wall);fill-opacity:.6}
+.clip-svg .cl-wallband{fill:var(--clip-wall);fill-opacity:.85}.clip-svg .cl-freshband{fill:var(--acc)}
 .clip-svg .cl-band{fill:color-mix(in srgb,var(--acc) 12%,transparent);stroke:var(--acc);stroke-width:1.4;stroke-dasharray:4 3}
 .clip-svg .cl-new{fill:color-mix(in srgb,var(--acc) 26%,transparent)}.clip-svg .cl-new2{fill:color-mix(in srgb,var(--acc) 14%,transparent)}
 .clip-svg .cl-dot{fill:var(--acc);stroke:#fff;stroke-width:1.2}

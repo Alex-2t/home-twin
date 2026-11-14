@@ -177,28 +177,33 @@ const RIPPLE_MARKUP = (name: string): string =>
 /** Markup drawn on the paper: turned with it, in paper units. */
 const onPaper = (inner: string): string => `<g transform="${PAPER_TURN}">${inner}</g>`;
 
-// The editor's outline of the flat: the floor inside the outer walls and the walls along the drawn ones.
-const FLAT_FLOOR: [Point, Point] = [
+// The editor's outline of the whole home: the rectangle drawn in step 1 takes in the balcony too, as the step's hint asks
+// ("a rectangle that fits your whole home"); the rooms step then cuts the balcony off and deletes the area beside it.
+const HOME_TOP = 8.95; // the balcony's glazing, the drawn home's northmost line
+const FLAT_TOP = 7.6; // the flat's rooms end here; the wall between the flat and the balcony runs above it
+const BALCONY_LEFT = 5.5;
+const BALCONY_RIGHT = 9;
+const STRIP_BOTTOM = FLAT_TOP + OUTER_WALL; // the strip between the flat's wall and the glazing
+const HOME_FLOOR: [Point, Point] = [
   [0, 0],
-  [10.4, 7.6],
+  [10.4, HOME_TOP],
 ];
-const outlineMarkup = (extra = ''): string =>
-  `<rect class="cl-floor" ${planRect(...FLAT_FLOOR)}/>` + outlineWallsMarkup('cl-wall') + extra;
-/** The outline's walls along the drawn outer walls; class cl-fresh draws them in the accent as they are made. */
+/** The outline's walls along the home's box; class cl-fresh draws them in the accent as they are made. */
 const outlineWallsMarkup = (className: string, extra = ''): string =>
-  `<rect class="${className}" ${planRect([-OUTER_WALL / 2, -OUTER_WALL / 2], [10.4 + OUTER_WALL / 2, 7.6 + OUTER_WALL / 2])} stroke-width="${(OUTER_WALL * SCALE).toFixed(2)}"${extra}/>`;
-// The wall the rooms step adds along the drawn wall between the bedrooms and the rest.
-const SPLIT_WALL_X = 3.45;
-const splitWallMarkup = (extra = '', className = 'cl-wall'): string => {
-  const [x, top] = toPaper([SPLIT_WALL_X, 7.6]);
-  const [, bottom] = toPaper([SPLIT_WALL_X, 0]);
-  return `<line class="${className}" x1="${x.toFixed(2)}" x2="${x.toFixed(2)}" y1="${top.toFixed(2)}" y2="${bottom.toFixed(2)}" stroke-width="${(INNER_WALL * SCALE).toFixed(2)}"${extra}/>`;
-};
-// Every room and wall the editor has once the rooms are done (steps 4 to 6).
-const ROOMS_INSIDE = PAPER_ROOMS.filter(room => room.id !== 'balcony');
+  `<rect class="${className}" ${planRect([-OUTER_WALL / 2, -OUTER_WALL / 2], [10.4 + OUTER_WALL / 2, HOME_TOP + OUTER_WALL / 2])} stroke-width="${(OUTER_WALL * SCALE).toFixed(2)}"${extra}/>`;
+
+/** A wall as a filled band between two plan corners; class cl-wallband, or cl-freshband for one just made. */
+const bandMarkup = (a: Point, b: Point, extra = '', className = 'cl-wallband'): string =>
+  `<rect class="${className}" ${planRect(a, b)}${extra}/>`;
+const hidden = (part: string): string => ` data-part="${part}" style="opacity:0"`;
+const shown = (part: string): string => ` data-part="${part}"`;
+
+// Every room and wall the editor has once the rooms are done (steps 3 to 6), the balcony with its parapet among them.
+const BALCONY = PAPER_ROOMS.find(room => room.id === 'balcony')!; // in the drawn flat
 const allRoomsMarkup = (): string =>
-  ROOMS_INSIDE.map(room => `<path class="cl-floor" d="${planPath(room.polygon)}"/>`).join('') +
-  `<path class="cl-walls" fill-rule="evenodd" d="${wallsPath()}"/>`;
+  PAPER_ROOMS.map(room => `<path class="cl-floor" d="${planPath(room.polygon)}"/>`).join('') +
+  `<path class="cl-walls" fill-rule="evenodd" d="${wallsPath()}"/>` +
+  `<path class="cl-wall" d="${planPath(BALCONY.polygon)}" stroke-width="${(INNER_WALL * SCALE).toFixed(2)}"/>`;
 const LIVING_ROOM = PAPER_ROOMS.find(room => room.id === 'living')!; // in the drawn flat
 
 /** A text's width in the view, roughly, for the pills drawn around it. */
@@ -206,8 +211,9 @@ const textWidth = (text: string, size: number): number => text.length * size * 0
 
 // ---------- the six clips ----------
 
-// 1. Outline: a click on one corner of the drawn flat, a click on the opposite one, and the walls snap over the drawing.
-const OUTLINE_A: Point = [-OUTER_WALL, 7.6 + OUTER_WALL];
+// 1. Outline: a click on one corner of the drawn home, a click on the opposite one, and the walls snap over the drawing.
+// The rectangle takes in the balcony: what sticks out is cut off in the next step.
+const OUTLINE_A: Point = [-OUTER_WALL, HOME_TOP + OUTER_WALL];
 const OUTLINE_B: Point = [10.4 + OUTER_WALL, -OUTER_WALL];
 const OUTLINE_A_SEEN = seen(...OUTLINE_A);
 const OUTLINE_B_SEEN = seen(...OUTLINE_B);
@@ -228,8 +234,8 @@ const outlineClip: ClipDefinition = {
   markup: () =>
     onPaper(
       `<rect data-part="band" class="cl-band" style="opacity:0"/>` +
-        `<g data-part="outline" style="opacity:0">${outlineMarkup()}</g>` +
-        `<rect data-part="flash" class="cl-new" ${planRect(...FLAT_FLOOR)} style="opacity:0"/>` +
+        `<g data-part="outline" style="opacity:0"><rect class="cl-floor" ${planRect(...HOME_FLOOR)}/>${outlineWallsMarkup('cl-wall')}</g>` +
+        `<rect data-part="flash" class="cl-new" ${planRect(...HOME_FLOOR)} style="opacity:0"/>` +
         outlineWallsMarkup('cl-fresh', ' data-part="fresh" style="opacity:0"'),
     ) +
     `<circle data-part="cornerA" class="cl-dot" cx="${OUTLINE_A_SEEN[0]}" cy="${OUTLINE_A_SEEN[1]}" r="3.4" style="opacity:0"/>` +
@@ -261,60 +267,224 @@ const outlineClip: ClipDefinition = {
   },
 };
 
-// 2. Rooms: a line through the pointer crosses the outline and snaps onto a drawn inner wall; a click makes it a wall.
-const SPLIT_POINTER_Y = 4.4;
+// 2. Rooms: the outline from step 1 takes in the balcony and the empty paper beside it. A line through the pointer snaps
+// onto the drawn wall above the flat (a click makes it a wall), two short cuts follow the balcony's sides, and the two
+// pieces beside the balcony are selected and deleted, as the step's hint says ("delete any extra area outside").
 const SPLIT_SNAP_METRES = 0.35;
-const SPLIT_CLICK: Ms = 1950;
-const SPLIT_LOOP: Ms = 4000;
-const SPLIT_CLICK_SEEN = seen(SPLIT_WALL_X, SPLIT_POINTER_Y);
+const CUT_Y = FLAT_TOP + OUTER_WALL / 2; // the drawn wall between the flat and the balcony, along its middle
+const STRIP_MIDDLE_Y = (STRIP_BOTTOM + HOME_TOP) / 2;
+const EXTRA_LEFT_MIDDLE: Point = [2.7, STRIP_MIDDLE_Y];
+const EXTRA_RIGHT_MIDDLE: Point = [(BALCONY_RIGHT + 10.4) / 2, STRIP_MIDDLE_Y];
+// the clicks
+const CUT_ACROSS_CLICK: Ms = 1450;
+const CUT_LEFT_CLICK: Ms = 2400;
+const CUT_RIGHT_CLICK: Ms = 3300;
+const PICK_LEFT_CLICK: Ms = 4000;
+const TRASH_LEFT_CLICK: Ms = 4650;
+const PICK_RIGHT_CLICK: Ms = 5450;
+const TRASH_RIGHT_CLICK: Ms = 6100;
+const SPLIT_LOOP: Ms = 7900;
+// when the pointer sweeps for each cut, so its guide shows only then
+const SWEEP_ACROSS: readonly [Ms, Ms] = [600, CUT_ACROSS_CLICK];
+const SWEEP_LEFT: readonly [Ms, Ms] = [2000, CUT_LEFT_CLICK];
+const SWEEP_RIGHT: readonly [Ms, Ms] = [2900, CUT_RIGHT_CLICK];
+// the delete button that comes up under a selected piece, in view units from the piece's middle
+const TRASH_BELOW = 20;
+const TRASH_SIZE = 18;
+const trashSeen = (middle: Point): Point => {
+  const [x, y] = seen(...middle);
+  return [x, y + TRASH_BELOW];
+};
+const CUT_ACROSS_SEEN = seen(2.2, CUT_Y);
+const CUT_LEFT_SEEN = seen(BALCONY_LEFT, STRIP_MIDDLE_Y);
+const CUT_RIGHT_SEEN = seen(BALCONY_RIGHT, STRIP_MIDDLE_Y);
+const PICK_LEFT_SEEN = seen(...EXTRA_LEFT_MIDDLE);
+const PICK_RIGHT_SEEN = seen(...EXTRA_RIGHT_MIDDLE);
+const TRASH_LEFT_SEEN = trashSeen(EXTRA_LEFT_MIDDLE);
+const TRASH_RIGHT_SEEN = trashSeen(EXTRA_RIGHT_MIDDLE);
 const SPLIT_POINTER: PointerKey[] = [
   key(0, POINTER_HOME),
-  key(650, seen(6.6, SPLIT_POINTER_Y)),
-  key(1500, seen(3.85, SPLIT_POINTER_Y)),
-  key(1780, SPLIT_CLICK_SEEN),
-  key(2150, SPLIT_CLICK_SEEN),
-  key(2900, POINTER_EXIT),
+  key(SWEEP_ACROSS[0], seen(2.2, 6.7)),
+  key(1250, CUT_ACROSS_SEEN),
+  key(1600, CUT_ACROSS_SEEN),
+  key(SWEEP_LEFT[0], seen(4.9, STRIP_MIDDLE_Y)),
+  key(2250, CUT_LEFT_SEEN),
+  key(2550, CUT_LEFT_SEEN),
+  key(SWEEP_RIGHT[0], seen(8.4, STRIP_MIDDLE_Y)),
+  key(3150, CUT_RIGHT_SEEN),
+  key(3450, CUT_RIGHT_SEEN),
+  key(3850, PICK_LEFT_SEEN),
+  key(4150, PICK_LEFT_SEEN),
+  key(4500, TRASH_LEFT_SEEN),
+  key(4800, TRASH_LEFT_SEEN),
+  key(5300, PICK_RIGHT_SEEN),
+  key(5600, PICK_RIGHT_SEEN),
+  key(5950, TRASH_RIGHT_SEEN),
+  key(6250, TRASH_RIGHT_SEEN),
+  key(6950, POINTER_EXIT),
 ];
-/** A paper x (clip units) as metres along the plan. */
-const paperXToMetres = (x: number): number => x / SCALE - toPaper([0, 0])[0] / SCALE;
+const during = (time: Ms, [from, to]: readonly [Ms, Ms]): boolean => time >= from && time < to;
+/** The value snapped onto `target` when it is near enough, as the editor snaps a cut onto the photo's lines. */
+const snapTo = (value: number, target: number): {value: number; snapped: boolean} =>
+  Math.abs(value - target) < SPLIT_SNAP_METRES ? {value: target, snapped: true} : {value, snapped: false};
+/** A view point as plan metres. */
+const viewToPlan = (point: Point): Point => {
+  const [paperX, paperY] = viewToPaper(point);
+  const [originX, originY] = toPaper([0, 0]);
+  return [(paperX - originX) / SCALE, (originY - paperY) / SCALE];
+};
+/** The delete button under a selected piece: a small panel with a bin. */
+const trashMarkup = (part: string, middle: Point): string => {
+  const [x, y] = trashSeen(middle);
+  const half = TRASH_SIZE / 2;
+  return (
+    `<g data-part="${part}" style="opacity:0">` +
+    `<rect class="cl-panel" x="${(x - half - 3).toFixed(2)}" y="${(y - half - 3).toFixed(2)}" width="${TRASH_SIZE + 6}" height="${TRASH_SIZE + 6}" rx="6"/>` +
+    `<rect data-part="${part}Button" class="cl-choice" x="${(x - half).toFixed(2)}" y="${(y - half).toFixed(2)}" width="${TRASH_SIZE}" height="${TRASH_SIZE}" rx="4"/>` +
+    `<path class="cl-icon" d="M${(x - 5).toFixed(2)} ${(y - 3.5).toFixed(2)}h10M${(x - 1.8).toFixed(2)} ${(y - 3.5).toFixed(2)}v-1.6h3.6v1.6M${(x - 3.8).toFixed(2)} ${(y - 3.5).toFixed(2)}l.7 8.5h6.2l.7-8.5"/>` +
+    `</g>`
+  );
+};
 const splitClip: ClipDefinition = {
   loopMs: SPLIT_LOOP,
-  stillMs: 3300,
+  stillMs: 7200,
   markup: () => {
-    const [, top] = toPaper([0, 7.6]);
-    const [, bottom] = toPaper([0, 0]);
+    const w = OUTER_WALL;
+    const half = INNER_WALL / 2;
+    const floors =
+      `<rect class="cl-floor" ${planRect([0, 0], [10.4, STRIP_BOTTOM])}/>` +
+      `<rect class="cl-floor" data-part="extraLeft" ${planRect([0, STRIP_BOTTOM], [BALCONY_LEFT, HOME_TOP])}/>` +
+      `<rect class="cl-floor" ${planRect([BALCONY_LEFT, STRIP_BOTTOM], [BALCONY_RIGHT, HOME_TOP])}/>` +
+      `<rect class="cl-floor" data-part="extraRight" ${planRect([BALCONY_RIGHT, STRIP_BOTTOM], [10.4, HOME_TOP])}/>`;
+    // the outline's walls, in pieces: those around the area beside the balcony go with it
+    const walls =
+      bandMarkup([-w, -w], [10.4 + w, 0]) +
+      bandMarkup([-w, 0], [0, STRIP_BOTTOM]) +
+      bandMarkup([10.4, 0], [10.4 + w, STRIP_BOTTOM]) +
+      bandMarkup([BALCONY_LEFT - half, HOME_TOP], [BALCONY_RIGHT + half, HOME_TOP + w]) +
+      bandMarkup([-w, STRIP_BOTTOM], [0, HOME_TOP + w], shown('wallsLeftA')) +
+      bandMarkup([0, HOME_TOP], [BALCONY_LEFT - half, HOME_TOP + w], shown('wallsLeftB')) +
+      bandMarkup([10.4, STRIP_BOTTOM], [10.4 + w, HOME_TOP + w], shown('wallsRightA')) +
+      bandMarkup([BALCONY_RIGHT + half, HOME_TOP], [10.4, HOME_TOP + w], shown('wallsRightB'));
+    // the three cuts: made in the accent, then plain walls
+    const cuts: Array<[string, Point, Point]> = [
+      ['cutAcross', [0, FLAT_TOP], [10.4, STRIP_BOTTOM]],
+      ['cutLeft', [BALCONY_LEFT - half, STRIP_BOTTOM], [BALCONY_LEFT + half, HOME_TOP]],
+      ['cutRight', [BALCONY_RIGHT - half, STRIP_BOTTOM], [BALCONY_RIGHT + half, HOME_TOP]],
+    ];
+    const cutMarkup = cuts
+      .map(
+        ([part, a, b]) =>
+          bandMarkup(a, b, hidden(part)) + bandMarkup(a, b, hidden(`${part}Fresh`), 'cl-freshband'),
+      )
+      .join('');
+    const markedLeft = `<rect class="cl-marked"${hidden('markedLeft')} ${planRect([0, STRIP_BOTTOM], [BALCONY_LEFT - half, HOME_TOP])}/>`;
+    const markedRight = `<rect class="cl-marked"${hidden('markedRight')} ${planRect([BALCONY_RIGHT + half, STRIP_BOTTOM], [10.4, HOME_TOP])}/>`;
     return (
       onPaper(
-        outlineMarkup() +
-          `<rect data-part="leftRoom" class="cl-new" ${planRect([0, 0], [3.4, 7.6])} style="opacity:0"/>` +
-          `<rect data-part="rightRoom" class="cl-new2" ${planRect([3.5, 0], [10.4, 7.6])} style="opacity:0"/>` +
-          `<line data-part="guide" class="cl-guide" y1="${top.toFixed(2)}" y2="${bottom.toFixed(2)}" style="opacity:0"/>` +
-          splitWallMarkup(' data-part="wall" style="opacity:0"') +
-          splitWallMarkup(' data-part="fresh" style="opacity:0"', 'cl-fresh'),
+        floors +
+          walls +
+          cutMarkup +
+          markedLeft +
+          markedRight +
+          `<line data-part="guide" class="cl-guide" style="opacity:0"/>`,
       ) +
-      RIPPLE_MARKUP('ring') +
+      trashMarkup('trashLeft', EXTRA_LEFT_MIDDLE) +
+      trashMarkup('trashRight', EXTRA_RIGHT_MIDDLE) +
+      RIPPLE_MARKUP('ringCut') +
+      RIPPLE_MARKUP('ringPick') +
       POINTER_MARKUP
     );
   },
   pose(parts, time) {
     const kept = beforeFadeOut(time, SPLIT_LOOP);
     const pointer = pointerAt(SPLIT_POINTER, time);
-    const [paperX] = viewToPaper([pointer.x, pointer.y]);
-    const metres = paperXToMetres(paperX);
-    // near the drawn wall the line jumps onto it, as the editor snaps to the photo's lines
-    const snapped = Math.abs(metres - SPLIT_WALL_X) < SPLIT_SNAP_METRES;
-    const guideX = snapped ? toPaper([SPLIT_WALL_X, 0])[0] : paperX;
-    const inside = metres > 0.3 && metres < 10.1;
-    parts.guide.setAttribute('x1', guideX.toFixed(2));
-    parts.guide.setAttribute('x2', guideX.toFixed(2));
-    parts.guide.classList.toggle('snap', snapped);
-    setOpacity(parts.guide, inside && time < SPLIT_CLICK ? 1 : 0);
-    setOpacity(parts.wall, presence(time, SPLIT_CLICK) * kept);
-    setOpacity(parts.fresh, presence(time, SPLIT_CLICK, SPLIT_CLICK + 800) * kept);
-    setOpacity(parts.leftRoom, presence(time, SPLIT_CLICK + 120) * kept);
-    setOpacity(parts.rightRoom, presence(time, SPLIT_CLICK + 260) * kept);
-    poseRipple(parts.ring, time, SPLIT_CLICK, SPLIT_CLICK_SEEN);
-    posePointer(parts, SPLIT_POINTER, time, [pressAt(SPLIT_CLICK)], kept);
+    const [pointerX, pointerY] = viewToPlan([pointer.x, pointer.y]);
+    // the guide: across the whole outline first, then up and down across the strip by the balcony
+    let guide: [Point, Point] | null = null;
+    let snapped = false;
+    if (during(time, SWEEP_ACROSS)) {
+      const cut = snapTo(pointerY, CUT_Y);
+      guide = [
+        [0, cut.value],
+        [10.4, cut.value],
+      ];
+      snapped = cut.snapped;
+    } else if (during(time, SWEEP_LEFT) || during(time, SWEEP_RIGHT)) {
+      const cut = snapTo(pointerX, during(time, SWEEP_LEFT) ? BALCONY_LEFT : BALCONY_RIGHT);
+      guide = [
+        [cut.value, STRIP_BOTTOM],
+        [cut.value, HOME_TOP],
+      ];
+      snapped = cut.snapped;
+    }
+    setOpacity(parts.guide, guide ? 1 : 0);
+    if (guide) {
+      const [x1, y1] = toPaper(guide[0]);
+      const [x2, y2] = toPaper(guide[1]);
+      parts.guide.setAttribute('x1', x1.toFixed(2));
+      parts.guide.setAttribute('y1', y1.toFixed(2));
+      parts.guide.setAttribute('x2', x2.toFixed(2));
+      parts.guide.setAttribute('y2', y2.toFixed(2));
+      parts.guide.classList.toggle('snap', snapped);
+    }
+    const cutAt: Array<[string, Ms]> = [
+      ['cutAcross', CUT_ACROSS_CLICK],
+      ['cutLeft', CUT_LEFT_CLICK],
+      ['cutRight', CUT_RIGHT_CLICK],
+    ];
+    for (const [part, clickAt] of cutAt) {
+      setOpacity(parts[part], presence(time, clickAt) * kept);
+      setOpacity(parts[`${part}Fresh`], presence(time, clickAt, clickAt + 700) * kept);
+    }
+    // a piece beside the balcony: selected by a click, gone with its walls at the bin's click
+    const pieces: Array<[string, Ms, Ms]> = [
+      ['Left', PICK_LEFT_CLICK, TRASH_LEFT_CLICK],
+      ['Right', PICK_RIGHT_CLICK, TRASH_RIGHT_CLICK],
+    ];
+    for (const [side, pickAt, trashAt] of pieces) {
+      const left = 1 - presence(time, trashAt);
+      // the piece comes back as the loop's result fades out, so the next loop starts from the outline again
+      const there = Math.max(left, 1 - kept);
+      setOpacity(parts[`extra${side}`], there);
+      setOpacity(parts[`walls${side}A`], there);
+      setOpacity(parts[`walls${side}B`], there);
+      setOpacity(parts[`marked${side}`], presence(time, pickAt, trashAt));
+      setOpacity(parts[`trash${side}`], presence(time, pickAt + 80, trashAt + 120));
+      parts[`trash${side}Button`].classList.toggle('on', time >= trashAt - PRESS_MS / 2);
+    }
+    // one ring for the cuts and one for the picks: their clicks never overlap
+    const lastCut = [CUT_RIGHT_CLICK, CUT_LEFT_CLICK, CUT_ACROSS_CLICK].find(clickAt => time >= clickAt);
+    const cutSeen =
+      lastCut === CUT_RIGHT_CLICK
+        ? CUT_RIGHT_SEEN
+        : lastCut === CUT_LEFT_CLICK
+          ? CUT_LEFT_SEEN
+          : CUT_ACROSS_SEEN;
+    poseRipple(parts.ringCut, time, lastCut ?? CUT_ACROSS_CLICK, cutSeen);
+    const picks: Array<[Ms, Point]> = [
+      [TRASH_RIGHT_CLICK, TRASH_RIGHT_SEEN],
+      [PICK_RIGHT_CLICK, PICK_RIGHT_SEEN],
+      [TRASH_LEFT_CLICK, TRASH_LEFT_SEEN],
+      [PICK_LEFT_CLICK, PICK_LEFT_SEEN],
+    ];
+    const lastPick = picks.find(([clickAt]) => time >= clickAt) ?? picks[picks.length - 1];
+    poseRipple(parts.ringPick, time, lastPick[0], lastPick[1]);
+    posePointer(
+      parts,
+      SPLIT_POINTER,
+      time,
+      [
+        pressAt(CUT_ACROSS_CLICK),
+        pressAt(CUT_LEFT_CLICK),
+        pressAt(CUT_RIGHT_CLICK),
+        pressAt(PICK_LEFT_CLICK),
+        pressAt(TRASH_LEFT_CLICK),
+        pressAt(PICK_RIGHT_CLICK),
+        pressAt(TRASH_RIGHT_CLICK),
+      ],
+      kept,
+    );
   },
 };
 
@@ -342,7 +512,7 @@ const openClip: ClipDefinition = {
   stillMs: 3400,
   markup: () => {
     const choice = OPEN_CHOICE;
-    const [wallLeft, wallY] = toPaper([3.5, -OUTER_WALL / 2]);
+    const [wallLeft, wallY] = toPaper([7, -OUTER_WALL / 2]); // the kitchen's outer wall
     const [wallRight] = toPaper([10.4, -OUTER_WALL / 2]);
     const [, glassY] = toPaper([0, -OUTER_WALL / 2]);
     const [glassFrom] = toPaper([OPEN_WINDOW_FROM, 0]);
@@ -353,8 +523,7 @@ const openClip: ClipDefinition = {
     const buttonTop = choice.top + 3;
     return (
       onPaper(
-        outlineMarkup() +
-          splitWallMarkup() +
+        allRoomsMarkup() +
           `<line data-part="selected" class="cl-selected" x1="${wallLeft.toFixed(2)}" x2="${wallRight.toFixed(2)}" y1="${wallY.toFixed(2)}" y2="${wallY.toFixed(2)}" style="opacity:0"/>` +
           // the editor's window: across the wall, with the glass's line
           `<g data-part="window" style="opacity:0">` +
