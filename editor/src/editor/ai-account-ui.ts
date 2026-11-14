@@ -5,6 +5,7 @@
 //   6-digit code by email. A provider's sign-in leaves the page and comes back to the same address; the code keeps the page.
 import {t, N} from '../i18n/i18n.ts';
 import {el, esc, find} from './ui.ts';
+import {holdFocus} from './keyboard.ts';
 import {icon} from './icons.ts';
 import {
   balanceMeter,
@@ -129,6 +130,8 @@ export function openSignIn(host: HTMLElement, options: SignInOptions): SignInShe
     </section>
   </div>`);
   host.append(veil);
+  // the page under the sheet sleeps for the keyboard while it is open (keyboard.ts); its own Escape closes it (onKey)
+  const held = holdFocus(veil);
   const emailForm = find<HTMLFormElement>(veil, '[data-step=email]');
   const codeForm = find<HTMLFormElement>(veil, '[data-step=code]');
   const emailInput = find<HTMLInputElement>(emailForm, 'input');
@@ -230,6 +233,7 @@ export function openSignIn(host: HTMLElement, options: SignInOptions): SignInShe
     if (closed) return;
     closed = true;
     removeEventListener('keydown', onKey, true);
+    held.release();
     veil.remove();
   }
 

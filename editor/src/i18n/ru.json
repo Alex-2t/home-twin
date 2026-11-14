@@ -1599,5 +1599,10 @@
  "Straight": "Шов в шов",
  "Stripe": "Полоса",
  "The finish as it was": "Отделка как была",
- "Width": "Ширина"
+ "Width": "Ширина",
+ "Type the size": "Ввести размеры",
+ "Depth, cm": "Глубина, см",
+ "leave the plan": "уйти с плана",
+ "Plan: room by its typed size": "План: комната по введённым размерам",
+ "move in a list or menu": "перемещаться по списку или меню"
 }

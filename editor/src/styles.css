@@ -24,6 +24,12 @@ html,body{margin:0;height:100%;overflow:hidden;-webkit-user-select:none;user-sel
 button{all:unset;box-sizing:border-box;display:inline-flex;align-items:center;justify-content:center;gap:7px;height:32px;min-width:32px;padding:0 10px;border-radius:9px;
   cursor:pointer;color:var(--tx);white-space:nowrap;font-weight:500;transition:background .12s,color .12s}
 button:hover{background:var(--hov)}button:focus-visible{outline:2px solid var(--acc);outline-offset:1px}
+/* The keyboard alone (D-NEXT, keyboard.ts): one focus ring for everything a keyboard user reaches; it shows for the keyboard only
+   (:focus-visible), so the mouse sees nothing new. A dialog holding the focus shows none itself. A .kb-only control is for keyboard
+   users: hidden until Tab reaches it. .vh hides a control that must still take the focus (a file field in its drop zone). */
+:is(a,summary,[tabindex]):focus-visible,label:has(>input.vh:focus-visible){outline:2px solid var(--acc);outline-offset:1px}
+[data-holds-focus]:focus{outline:none}
+.vh,.kb-only:not(:focus){position:absolute!important;width:1px!important;height:1px!important;min-width:0!important;padding:0!important;margin:-1px!important;overflow:hidden!important;clip-path:inset(50%)!important;white-space:nowrap!important;border:0!important}
 button.ib{padding:0}button.on,button.primary{background:var(--acc);color:var(--acc-tx)}button.primary:hover{filter:brightness(1.08)}
 button.soft{background:var(--chip)}button.soft:hover{background:var(--hov)}button.bad{color:var(--bad)}
 input,select{font:inherit;color:var(--tx);-webkit-user-select:text;user-select:text}
@@ -131,7 +137,7 @@ body[data-main="3d"]:not([data-mode=lights]) .tools{display:none}
 .sec-body{padding:0 0 10px}.sec-body.list{padding:2px 0 10px}
 .row{display:flex;align-items:center;gap:8px;padding:0 8px;border-radius:9px;cursor:pointer;min-height:32px}.row:hover{background:var(--hov)}.row.sel{background:var(--acc2)}
 .row .name{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-weight:500}.row small{color:var(--mut);font-variant-numeric:tabular-nums}
-.row .x{visibility:hidden;height:24px;min-width:24px;color:var(--mut)}.row:hover .x{visibility:visible}
+.row .x{visibility:hidden;height:24px;min-width:24px;color:var(--mut)}.row:hover .x,.row:is(:focus-visible,:has(:focus-visible)) .x{visibility:visible}
 .row.warn .name::after{content:' ⚠';color:var(--warn)}
 .add{width:100%;height:32px;margin-top:4px;border:1px dashed var(--line2);color:var(--mut)}.add:hover{color:var(--acc);border-color:var(--acc);background:var(--acc2)}
 .add-row{width:100%;justify-content:flex-start;gap:9px;height:32px;padding:0 8px;color:var(--mut)}.add-row:hover{color:var(--acc);background:var(--acc2)}
@@ -140,7 +146,7 @@ body[data-main="3d"]:not([data-mode=lights]) .tools{display:none}
 .room-row .ar{min-width:52px;text-align:right}.room-row .meta{display:flex;align-items:center;gap:6px;min-width:30px;justify-content:flex-end}
 .room-row .lamps{display:inline-flex;align-items:center;gap:2px;color:var(--mut);font-size:11.5px;font-weight:500;font-variant-numeric:tabular-nums}
 .room-row .wr{color:var(--warn);display:inline-flex}
-.room-row .acts{display:none;gap:0}.room-row:hover .acts,.room-row.editing .acts{display:flex}.room-row:hover .meta,.room-row.editing .meta{display:none}
+.room-row .acts{display:none;gap:0}.room-row:hover .acts,.room-row:is(:focus-visible,:has(:focus-visible)) .acts,.room-row.editing .acts{display:flex}.room-row:hover .meta,.room-row:is(:focus-visible,:has(:focus-visible)) .meta,.room-row.editing .meta{display:none}
 .room-row .acts .ib{height:24px;min-width:24px;color:var(--mut)}.room-row .acts .ib:hover{color:var(--tx)}
 .room-row input.rename{flex:1;min-width:0;height:24px;padding:0 6px}
 .ul-row{display:flex;align-items:center;gap:4px;margin:0 -10px;padding:8px 10px 0;border-top:1px solid var(--line)}

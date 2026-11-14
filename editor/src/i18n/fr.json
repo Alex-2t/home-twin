@@ -1599,5 +1599,10 @@
  "Straight": "Droit",
  "Stripe": "Rayure",
  "The finish as it was": "La finition d’origine",
- "Width": "Largeur"
+ "Width": "Largeur",
+ "Type the size": "Saisir les dimensions",
+ "Depth, cm": "Profondeur, cm",
+ "leave the plan": "quitter le plan",
+ "Plan: room by its typed size": "Plan : pièce aux dimensions saisies",
+ "move in a list or menu": "se déplacer dans une liste ou un menu"
 }

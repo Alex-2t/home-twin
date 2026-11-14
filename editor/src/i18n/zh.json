@@ -1599,5 +1599,10 @@
  "Straight": "对缝",
  "Stripe": "条纹",
  "The finish as it was": "恢复原样",
- "Width": "宽度"
+ "Width": "宽度",
+ "Type the size": "输入尺寸",
+ "Depth, cm": "深度（cm）",
+ "leave the plan": "离开平面图",
+ "Plan: room by its typed size": "平面图：按输入尺寸添加房间",
+ "move in a list or menu": "在列表或菜单中移动"
 }

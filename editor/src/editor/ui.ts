@@ -1,6 +1,7 @@
 // UI bits: an input field on the plan, the hint bar at the top, collapsible sections.
 import {t, num} from '../i18n/i18n.ts';
 import {icon} from './icons.ts';
+import {keyboardInUse, menuKeys, focusMenuStart} from './keyboard.ts';
 import type {AskNumberOptions, AskOptions, AskTextOptions, BannerItem} from './editor-types.ts';
 // Our own markup always has the ids the code asks for, so the element is typed as present; a missing one fails at its
 // first use, as it always did. Code that checks for a missing element (`$('x')?.…`) still works.
@@ -74,6 +75,8 @@ export function ask(
   inp.onkeydown = e => {
     e.stopPropagation();
     if (e.key === 'Enter') {
+      // what ok() does may put the focus on a button: this Enter must not press it too
+      e.preventDefault();
       const raw = inp.value.trim();
       if (isLen) {
         done(parseLen(raw));
@@ -148,7 +151,23 @@ export function tipHide(): void {
   clearTimeout(tipT);
   tipEl?.classList.remove('on');
 }
+// The texts given to tip(), for showing them on keyboard focus too.
+const tipTexts = new WeakMap<HTMLElement, string>();
+/**
+ * With the keyboard, a control's tooltip (its title, or the text given to tip()) shows when it gets the focus: the keys in
+ * tooltips (D-022) are for keyboard users most of all, and an icon button says what it is. The mouse sees no change.
+ */
+export function tipsOnFocus(): void {
+  addEventListener('focusin', e => {
+    const target = e.target as HTMLElement;
+    const text = tipTexts.get(target) || target.getAttribute?.('title');
+    if (text && keyboardInUse() && target.matches(':focus-visible')) tipShow(target, text);
+    else tipHide();
+  });
+  addEventListener('focusout', tipHide);
+}
 export function tip(target: HTMLElement, text: string, info?: HTMLElement | null): void {
+  tipTexts.set(target, text);
   target.addEventListener('pointerenter', e => {
     if (e.pointerType !== 'mouse') return;
     clearTimeout(tipT);
@@ -173,10 +192,30 @@ export function tip(target: HTMLElement, text: string, info?: HTMLElement | null
     });
 }
 // Popup menu at a button: items — [icon, label, action, class]. Closes on an outside click and Escape.
+// A keyboard user lands on its first item, moves with the arrows, and Escape gives the focus back to the button (keyboard.ts).
 let pop: HTMLElement | null = null;
+let popAnchor: HTMLElement | null = null;
 export function closePop(): void {
+  const hadFocus = !!pop?.contains(document.activeElement);
   pop?.remove();
   pop = null;
+  // the focus was in the popup (an item chosen with the keyboard): back to its button, not to the page's start
+  if (hadFocus && popAnchor) anchorNow(popAnchor)?.focus({preventScroll: true});
+  popAnchor = null;
+}
+// A pick in a popup re-renders the panel its button is on: the same button is then a new element, found by its label.
+function anchorNow(anchor: HTMLElement): HTMLElement | null {
+  if (anchor.isConnected) return anchor;
+  const label = anchor.getAttribute('aria-label') || anchor.title;
+  if (!label) return null;
+  const sameKind = document.querySelectorAll<HTMLElement>(anchor.tagName);
+  return [...sameKind].find(other => (other.getAttribute('aria-label') || other.title) === label) || null;
+}
+// The popup's keys and first focus, for both kinds of popup.
+function popKeys(m: HTMLElement, anchor: HTMLElement): void {
+  popAnchor = anchor;
+  menuKeys(m, anchor, closePop);
+  focusMenuStart(m);
 }
 /** A menu item: its icon, its label, what it does and its button's classes. */
 export type PopoverItem = [icon: string, label: string, action: () => void, cls?: string];
@@ -196,6 +235,7 @@ export function popover(anchor: HTMLElement, items: PopoverItem[]): void {
   const r = anchor.getBoundingClientRect();
   m.style.left = Math.max(8, Math.min(innerWidth - m.offsetWidth - 8, r.right - m.offsetWidth)) + 'px';
   m.style.top = Math.min(innerHeight - m.offsetHeight - 8, r.bottom + 6) + 'px';
+  popKeys(m, anchor);
   const off = (e: PointerEvent): void => {
     // A pointer event's target is a node.
     const target = e.target as Node | null;
@@ -225,6 +265,7 @@ export function panelPop(anchor: HTMLElement, content: Node, cls = ''): HTMLElem
   const h = m.offsetHeight;
   m.style.left = Math.max(8, Math.min(innerWidth - w - 8, r.left - 8)) + 'px';
   m.style.top = (r.bottom + 6 + h > innerHeight - 8 ? Math.max(8, r.top - 6 - h) : r.bottom + 6) + 'px';
+  popKeys(m, anchor);
   const off = (e: PointerEvent): void => {
     if (!document.body.contains(m)) {
       removeEventListener('pointerdown', off, true);

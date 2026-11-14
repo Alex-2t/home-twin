@@ -1599,5 +1599,10 @@
  "Straight": "Prosto",
  "Stripe": "Pas",
  "The finish as it was": "Wykończenie jak było",
- "Width": "Szerokość"
+ "Width": "Szerokość",
+ "Type the size": "Wpisz wymiary",
+ "Depth, cm": "Głębokość, cm",
+ "leave the plan": "opuścić plan",
+ "Plan: room by its typed size": "Plan: pokój o wpisanych wymiarach",
+ "move in a list or menu": "poruszać się po liście lub menu"
 }

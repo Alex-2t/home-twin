@@ -1599,5 +1599,10 @@
  "Straight": "Dritto",
  "Stripe": "Riga",
  "The finish as it was": "La finitura originale",
- "Width": "Larghezza"
+ "Width": "Larghezza",
+ "Type the size": "Inserisci le misure",
+ "Depth, cm": "Profondità, cm",
+ "leave the plan": "lasciare la pianta",
+ "Plan: room by its typed size": "Pianta: stanza con le misure inserite",
+ "move in a list or menu": "muoversi in un elenco o menu"
 }

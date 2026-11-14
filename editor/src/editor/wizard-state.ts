@@ -81,3 +81,30 @@ export function stepReadyToFinish(p: Plan, k: string | undefined): boolean {
 export function recordStep(p: Plan, k: OnboardingStepId, status: OnboardingStatus): void {
   p.onboarding = {...p.onboarding, steps: {...p.onboarding?.steps, [k]: status}};
 }
+
+// The first rectangle includes the walls and empty corners: about 80% of it is the documented living area (flows.ts fitArea).
+export const OUTLINE_LIVING_SHARE = 0.8;
+// Without a documented area the outline from the keyboard is 10 × 7 m, the frame “Draw from scratch” shows; a further room 3 × 3 m.
+const OUTLINE_WITHOUT_AREA_M = {width: 10, depth: 7};
+const ROOM_TYPED_M = {width: 3, depth: 3};
+// The typed outline's sides are offered in whole 10 cm.
+const OUTLINE_STEP_M = 0.1;
+// Its width to depth, as the frame of “Draw from scratch”.
+const OUTLINE_ASPECT = 10 / 7;
+
+/**
+ * The sizes offered when the outline is typed from the keyboard (metres): a rectangle the documented area fits, as one
+ * drawn by eye is sized to (fitArea); with a width already typed, the depth that goes with it. A further room is 3 × 3 m.
+ */
+export function typedOutlineSize(
+  docArea: number | undefined,
+  {first = true, width}: {first?: boolean; width?: number} = {},
+): {width: number; depth: number} {
+  const round = (metres: number): number =>
+    Math.max(OUTLINE_STEP_M, Math.round(metres / OUTLINE_STEP_M) * OUTLINE_STEP_M);
+  if (!first) return {width: width ?? ROOM_TYPED_M.width, depth: ROOM_TYPED_M.depth};
+  if (!docArea) return {width: width ?? OUTLINE_WITHOUT_AREA_M.width, depth: OUTLINE_WITHOUT_AREA_M.depth};
+  const outlineArea = docArea / OUTLINE_LIVING_SHARE;
+  const chosenWidth = width ?? round(Math.sqrt(outlineArea * OUTLINE_ASPECT));
+  return {width: chosenWidth, depth: round(outlineArea / chosenWidth)};
+}

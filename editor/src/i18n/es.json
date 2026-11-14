@@ -1599,5 +1599,10 @@
  "Straight": "Recto",
  "Stripe": "Raya",
  "The finish as it was": "El acabado original",
- "Width": "Ancho"
+ "Width": "Ancho",
+ "Type the size": "Escribir las medidas",
+ "Depth, cm": "Fondo, cm",
+ "leave the plan": "salir del plano",
+ "Plan: room by its typed size": "Plano: habitación con las medidas escritas",
+ "move in a list or menu": "moverse por una lista o menú"
 }

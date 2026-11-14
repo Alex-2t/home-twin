@@ -1599,5 +1599,10 @@
  "Straight": "Reto",
  "Stripe": "Listra",
  "The finish as it was": "O acabamento original",
- "Width": "Largura"
+ "Width": "Largura",
+ "Type the size": "Digitar as medidas",
+ "Depth, cm": "Profundidade, cm",
+ "leave the plan": "sair da planta",
+ "Plan: room by its typed size": "Planta: divisão com as medidas digitadas",
+ "move in a list or menu": "mover-se numa lista ou menu"
 }

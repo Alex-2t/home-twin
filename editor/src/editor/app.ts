@@ -23,7 +23,21 @@ import {icon, fillIcons} from './icons.ts';
 import {roomsMode, DRAW_RECT} from './modes/rooms.ts';
 import {furnitureMode} from './modes/furniture.ts';
 import {lightsMode} from './modes/lights.ts';
-import {$, el, ask, banner, find} from './ui.ts';
+import {$, el, esc, ask, banner, find, tipsOnFocus} from './ui.ts';
+import {
+  watchInputKind,
+  keyboardInUse,
+  holdFocus,
+  keyTargetOf,
+  editorKeyAllowed,
+  rovingFocus,
+  firstFocusable,
+  lastFocusable,
+  focusIndexIn,
+  refocusAt,
+  keepFocusThroughRenders,
+} from './keyboard.ts';
+import type {HeldFocus} from './keyboard.ts';
 import {createCoach} from './coach.ts';
 import {createViewDemo} from './view-demo.ts';
 import {createLook} from './look.ts';
@@ -189,8 +203,11 @@ export function createApp({haLights, ha, photos}: AppOptions): Editor {
       }
       const actions = el('<div class="wizard-actions"></div>');
       for (const b of [...bn.children]) if (b.tagName === 'BUTTON') actions.append(b);
+      // the outline is drawn with the mouse; from the keyboard its size is typed — a button only keyboard users meet
+      if (phase === 'rect') actions.append(typeOutlineButton());
       bn.append(actions);
     }
+    if (text) keepCardFocus();
     syncFinishHint();
     ed.syncSave?.();
     // with a text there is its key
@@ -202,6 +219,25 @@ export function createApp({haLights, ha, photos}: AppOptions): Editor {
       });
     else coach.hide();
   };
+  // Keyboard focus and the card (D-NEXT): pressing a card's button with the keyboard rebuilds the card for the next step, and
+  // the focus would fall to the page's start (so would closing a dialog whose button is gone). Lost like that, it goes to the
+  // new card's main button, so the path goes on with Enter. A focus that is somewhere, and a mouse user's, are left alone.
+  function keepCardFocus(): void {
+    const active = document.activeElement;
+    const lost = !active || active === document.body;
+    if (lost && keyboardInUse()) ed.focusStep();
+  }
+  ed.focusStep = () => {
+    const bn = $('banner');
+    const buttons = [...bn.querySelectorAll<HTMLElement>(':scope > button, .wizard-actions > button')];
+    const main = buttons.find(b => b.classList.contains('primary')) || buttons.at(-1);
+    main?.focus({preventScroll: true});
+  };
+  function typeOutlineButton(): HTMLElement {
+    const b = el(`<button class="kb-only">${esc(t('Type the size'))}</button>`);
+    b.onclick = () => ed.modes.rooms.typeOutline();
+    return b;
+  }
   // Each step has “Exit setup” (except “yes / no” questions: {exit:false}).
   // “Back” — to the previous step on the path (wizard-path.js); on the first step — correct the area, without a photo — to the start screen.
   ed.exitBtn = () => {
@@ -668,6 +704,8 @@ export function createApp({haLights, ha, photos}: AppOptions): Editor {
     const k = ctxKey() + '|' + path.cur();
     const opened = k === ctxDetailsKey ? [...c.querySelectorAll('details')].map(d => d.open) : [];
     ctxDetailsKey = k;
+    // the panel is rebuilt below: a keyboard user's focus in it comes back to the same place (a pick, the next question)
+    const focusAt = focusIndexIn(c);
     c.innerHTML = '';
     if (!nodes) {
       c.hidden = true;
@@ -677,8 +715,9 @@ export function createApp({haLights, ha, photos}: AppOptions): Editor {
     c.append(...nodes);
     const first = c.querySelector<HTMLElement>('.line');
     if (first) {
+      // the handle is for the pointer only (drag, double-click): Tab passes it
       const g = el(
-        `<button class="ib grip" title="${t('Drag panel · double-click to reset')}">${icon('grip', 15)}</button>`,
+        `<button class="ib grip" tabindex="-1" title="${t('Drag panel · double-click to reset')}">${icon('grip', 15)}</button>`,
       );
       first.append(g);
       gripDrag(g);
@@ -689,6 +728,7 @@ export function createApp({haLights, ha, photos}: AppOptions): Editor {
     });
     c.hidden = false;
     placeCtx();
+    refocusAt(c, focusAt);
   };
   // dragged by the handle — the panel stays there on screen (the top-left in canvas coordinates): zooming and panning the plan do not move it
   // (the owner); a double click on the handle — back at the object
@@ -1841,17 +1881,69 @@ export function createApp({haLights, ha, photos}: AppOptions): Editor {
     ed.capture?.spinEnd?.();
   });
 
+  // A pressed button (or list row) gives the focus up, so Space and the editor's keys go on working for the mouse user.
   addEventListener('pointerup', e => {
-    const b = (e.target as Element).closest?.('button'); // a pointer is released over an element (or the document)
+    const b = (e.target as Element).closest?.<HTMLElement>('button,.row'); // a pointer is released over an element (or the document)
     if (b) setTimeout(() => b.blur());
   });
   // ---------- keyboard ----------
+  // The keyboard alone (D-NEXT, keyboard.ts): which input came last decides whether the focus is moved for the user; tooltips
+  // show on keyboard focus; the rows of the left panel's lists are one Tab stop each, walked with the arrows, pressed with
+  // Enter or Space (the lists are re-rendered by every mode, so they are set up whenever the panel changes).
+  watchInputKind();
+  tipsOnFocus();
+  const sideBody = $('side-body');
+  const rowsByKeyboard = (): void => {
+    const lists = new Set<HTMLElement>();
+    for (const row of sideBody.querySelectorAll<HTMLElement>('.row'))
+      if (row.parentElement) lists.add(row.parentElement);
+    for (const list of lists) rovingFocus(list, '.row');
+    const catalog = sideBody.querySelector<HTMLElement>('.catalog');
+    if (catalog) rovingFocus(catalog, '.item', {grid: true});
+  };
+  // a row or a tool pressed with the keyboard re-renders its panel: the focus comes back to the same place
+  keepFocusThroughRenders(sideBody, rowsByKeyboard);
+  keepFocusThroughRenders($('tools'));
+  // The selection panel stands by its object but comes early in the page: Tab from the step card's last control or from the
+  // selected row of a list goes into it, and Shift+Tab from its first control goes back there.
+  let ctxCameFrom: HTMLElement | null = null;
+  addEventListener(
+    'keydown',
+    e => {
+      const ctxPanel = $('ctx');
+      if (e.key !== 'Tab' || e.metaKey || e.ctrlKey || e.altKey || ctxPanel.hidden) return;
+      const target = e.target as HTMLElement;
+      if (e.shiftKey) {
+        if (!ctxCameFrom?.isConnected || target !== firstFocusable(ctxPanel)) return;
+        e.preventDefault();
+        ctxCameFrom.focus();
+        return;
+      }
+      const fromCard = target === lastFocusable($('banner'));
+      const fromRow = !!target.matches?.('#side-body .row.sel');
+      const first = firstFocusable(ctxPanel);
+      if ((!fromCard && !fromRow) || !first) return;
+      e.preventDefault();
+      ctxCameFrom = target;
+      first.focus();
+    },
+    true,
+  );
+  // “Keyboard shortcuts” is a dialog: the page under it sleeps, Escape closes it, the focus goes back to what opened it.
   const keysBox = $('keys');
+  let keysHeld: HeldFocus | null = null;
+  const hideKeys = (): void => {
+    keysBox.hidden = true;
+    keysHeld?.release();
+    keysHeld = null;
+  };
   ed.showKeys = () => {
+    if (!keysBox.hidden) return;
     keysBox.hidden = false;
+    keysHeld = holdFocus(keysBox, {onEscape: hideKeys});
   };
   keysBox.onclick = e => {
-    if (e.target === keysBox || (e.target as Element).closest('[data-close]')) keysBox.hidden = true;
+    if (e.target === keysBox || (e.target as Element).closest('[data-close]')) hideKeys();
   };
   addEventListener('keyup', e => {
     if (e.code === 'Space') {
@@ -1866,7 +1958,11 @@ export function createApp({haLights, ha, photos}: AppOptions): Editor {
     handCursor();
   });
   addEventListener('keydown', e => {
-    if ((e.target as Element).closest?.('input,select,textarea,button,summary,a')) return; // an element or the document
+    // A field takes the typing and a popup its own keys; a focused button keeps Enter, Space, Tab and the arrows (keyboard.ts).
+    const target = e.target as Element; // an element or the document
+    if (!editorKeyAllowed(keyTargetOf(target), e.key)) return;
+    // Delete removes what is selected: on a list row that is not the selected one it would remove something else
+    if ((e.key === 'Delete' || e.key === 'Backspace') && target.closest?.('.row:not(.sel)')) return;
     if (look) {
       if (e.key === 'Escape') lookUI.esc();
       return;
@@ -1892,10 +1988,6 @@ export function createApp({haLights, ha, photos}: AppOptions): Editor {
       return;
     }
     if (e.key === 'Escape') {
-      if (!keysBox.hidden) {
-        keysBox.hidden = true;
-        return;
-      }
       if (ed.capture) {
         ed.capture.cancel?.();
         ed.cancelDrag();
@@ -1924,8 +2016,10 @@ export function createApp({haLights, ha, photos}: AppOptions): Editor {
       ed.showKeys();
       return;
     }
-    // Tab — swap the plan and 3D; in “Split” — rotate the split line
-    if (!mod && !e.shiftKey && e.key === 'Tab' && e.target === cv) {
+    // Tab on the plan — swap the plan and 3D; in “Split” — rotate the split line. Shift+Tab leaves the plan, and anywhere else
+    // Tab moves the focus as usual: the modes never get it.
+    if (e.key === 'Tab') {
+      if (mod || e.shiftKey || e.target !== cv) return;
       e.preventDefault();
       if (ed.tool === 'split' && ed.mode.flipCut) ed.mode.flipCut();
       else ed.swap();
@@ -2000,6 +2094,10 @@ export function createApp({haLights, ha, photos}: AppOptions): Editor {
     $('look-btn').classList.toggle('on', v);
     if (v) lookUI.open();
     else lookUI.close();
+    // the button that led here (“See the result”) is gone: a keyboard user's focus goes to “Preview” itself, between the
+    // modes (Shift+Tab, the way back) and the preview (Tab)
+    const focusLost = !document.activeElement || document.activeElement === document.body;
+    if (v && focusLost && keyboardInUse()) $('look-btn').focus({preventScroll: true});
     layout();
     insets3d();
     placeFloats();

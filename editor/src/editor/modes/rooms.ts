@@ -63,6 +63,8 @@ import {$, el, esc, fmtArea, popover, panelPop, closePop, popClosedAt} from '../
 import {icon} from '../icons.ts';
 import {FONT, dimLabel, labelAt, pal} from '../draw.ts';
 import {openingsTool} from './openings.ts';
+import {typedOutlineSize} from '../wizard-state.ts';
+import {focusIndexIn, refocusAt} from '../keyboard.ts';
 import type {OpeningHit, OpeningsTool} from './openings.ts';
 import type {
   EdgeFinish,
@@ -1468,12 +1470,8 @@ export function roomsMode(ed: Editor): RoomsMode {
     ed.view.select(null);
     m.refresh();
   };
+  // Tab in "Split" rotates the line only on the plan itself: app.ts handles it there, and elsewhere Tab moves the focus.
   m.key = e => {
-    if (e.key === 'Tab' && tool === 'split') {
-      e.preventDefault();
-      m.flipCut();
-      return;
-    }
     if (e.key === 'Escape') {
       draft = null;
       if (sel().opening || sel().wall) {
@@ -1487,6 +1485,11 @@ export function roomsMode(ed: Editor): RoomsMode {
     if ((e.key === 'Delete' || e.key === 'Backspace') && ops.del()) return;
     if (e.key === 'Enter' && draft?.kind === 'poly') {
       finishPoly();
+      return;
+    }
+    // Enter with “Outline” / “Room” and nothing drawn yet: the rectangle by its typed size (the keyboard's way)
+    if (e.key === 'Enter' && tool === 'rect' && !draft) {
+      m.typeOutline();
       return;
     }
     if (e.key === 'Escape' && sel().wall) {
@@ -1584,6 +1587,39 @@ export function roomsMode(ed: Editor): RoomsMode {
       [a[0], b[1]],
     ]);
   }
+  // The outline from the keyboard (D-NEXT): instead of two clicks, the width and then the depth are typed (centimetres, as a
+  // wall's length). The sizes offered fit the documented area; the rectangle stands at the middle of the plan photo, or of
+  // the plan in view, and is then sized by the area like a drawn one (newRoom → fitArea). With rooms already there it is a room.
+  m.typeOutline = () => {
+    const first = !plan().rooms.length;
+    const X = v().w / 2;
+    const Y = v().h / 2;
+    const offered = typedOutlineSize(plan().docArea, {first});
+    const centimetres = (metres: number): number => Math.round(metres * 100);
+    ed.ask(X, Y, t('Width, cm'), centimetres(offered.width), {
+      type: 'len',
+      ok: width => {
+        const depthOffered = typedOutlineSize(plan().docArea, {first, width}).depth;
+        ed.ask(X, Y, t('Depth, cm'), centimetres(depthOffered), {
+          type: 'len',
+          ok: depth => {
+            const photo = ed.underlay.ready && ed.underlay.visible;
+            const middle = photo ? ed.underlay.center() : v().W([X, Y]);
+            const centre = snapPoint(middle, null, false);
+            const a: Point = [centre[0] - width / 2, centre[1] - depth / 2];
+            const b: Point = [centre[0] + width / 2, centre[1] + depth / 2];
+            newRoom([
+              [a[0], a[1]],
+              [b[0], a[1]],
+              [b[0], b[1]],
+              [a[0], b[1]],
+            ]);
+            ed.focusStep();
+          },
+        });
+      },
+    });
+  };
   function finishPoly(): void {
     const pts = (draft as PolyDraft).points; // only while an outline is drawn
     draft = null;
@@ -2622,7 +2658,7 @@ export function roomsMode(ed: Editor): RoomsMode {
   // after an edit — the popup with the new choice; a panel about something else (another room or wall) — the popup closes
   function syncFin(owner: string | null): void {
     if (!finPop) return;
-    const m = document.querySelector('.menu.pop.panel.fp');
+    const m = document.querySelector<HTMLElement>('.menu.pop.panel.fp');
     if (!m || finPop.owner !== owner) {
       closePop();
       finPop = null;
@@ -2630,7 +2666,10 @@ export function roomsMode(ed: Editor): RoomsMode {
     }
     const st = finPop.get();
     finPop.key = st.key;
+    // a pick from the keyboard re-renders the popup under the focus: it stays on the same swatch
+    const focusAt = focusIndexIn(m);
     m.replaceChildren(finBox(st));
+    refocusAt(m, focusAt);
   }
   const floorLines = (r: Room): HTMLElement[] => finRow(() => floorState(r), 'room:' + r.id);
   m.anchor = () => {

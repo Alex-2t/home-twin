@@ -1599,5 +1599,10 @@
  "Straight": "Gerade",
  "Stripe": "Streifen",
  "The finish as it was": "Wie vorher",
- "Width": "Breite"
+ "Width": "Breite",
+ "Type the size": "Maße eingeben",
+ "Depth, cm": "Tiefe, cm",
+ "leave the plan": "Grundriss verlassen",
+ "Plan: room by its typed size": "Grundriss: Raum nach eingegebenen Maßen",
+ "move in a list or menu": "in Liste oder Menü bewegen"
 }

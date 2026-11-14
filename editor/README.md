@@ -45,6 +45,7 @@ src/editor/          editor UI
   icons.js           Lucide icons
   underlay.js        underlay (image in IndexedDB, position in localStorage)
   flows.js           start screen, “upload a plan” wizard, file and settings menus
+  keyboard.ts        the keyboard alone (D-NEXT): dialogs that hold the focus and give it back, menus' keys, long lists as one Tab stop, which input came last
   ai-build.js        the AI build: the start card, upload, progress as it goes; ai-review.js — the review with pins and their photos; ai-pins.js — what a pin is on and carries (D-073, D-074, D-076)
   ai-estimate.ts     what a build or a round of pins will about take, asked of the service before it starts: percent of a package, a warning when it is more than what is left (D-NEXT)
   history.js         edit history and autosave
@@ -70,7 +71,7 @@ assets/lucide-LICENSE.txt  icon license (ISC)
 - **Theme**: “system”, light or dark. Interface and drawing colors are CSS variables in `styles.css`; `draw.js` reads them when the theme changes. The underlay is processed like a scan (`inkMask` in `underlay.js`): photo lighting is evened out, paper becomes transparent, lines are dark on the light theme and light on the dark one. Icons are Lucide (ISC), `src/editor/icons.js`.
 - **The plan looks like a drawing.** Walls are cut at a height of 1.2 m and built from the same geometry as 3D (`wallsAt` in `core/geometry.js`). Windows are thin lines, doors up to 1.15 m have an opening arc, lamps glow. While rooms have an error, room outlines are drawn instead of walls.
 - **The main view fills the screen**, plan or 3D. **The second is a window in the bottom right corner:**
-  - clicking the window or pressing Tab swaps them;
+  - clicking the window or pressing Tab on the plan swaps them (Shift+Tab leaves the plan for the controls);
   - the window is resized by dragging its top left corner;
   - “–” collapses it into a button;
   - on a wide screen (from 1100 px) the second view is placed alongside, taking half the screen, with a movable divider.

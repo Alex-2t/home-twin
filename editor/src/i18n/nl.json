@@ -1599,5 +1599,10 @@
  "Straight": "Recht",
  "Stripe": "Streep",
  "The finish as it was": "Zoals het was",
- "Width": "Breedte"
+ "Width": "Breedte",
+ "Type the size": "Afmetingen invoeren",
+ "Depth, cm": "Diepte, cm",
+ "leave the plan": "plattegrond verlaten",
+ "Plan: room by its typed size": "Plattegrond: kamer met ingevoerde afmetingen",
+ "move in a list or menu": "door een lijst of menu bewegen"
 }
