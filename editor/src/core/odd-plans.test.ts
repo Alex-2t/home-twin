@@ -252,6 +252,8 @@ test('every catalog model builds itself, not a box, with a variant, colour or wo
 test("a light's unknown form, a door's unknown swing and a light without a height fall back to what the editor knows", () => {
   const light = {id: 'l', form: 'chandelier', h: 2.55, points: [], segments: []} as unknown as PlanLight;
   assert.equal(formFor(light), 'ceiling');
+  assert.equal(formFor({...light, name: 'Hall spots'}), 'spots');
+  assert.equal(formFor({...light, form: undefined, h: 1.6}), 'wall');
   assert.equal(heightOf({h: undefined}, 'pendant'), 2);
   assert.equal(heightOf({h: undefined, opt: 'table'}, 'lamp'), 0.75);
   assert.equal(swingOf({swing: 17}), SWING[0]);

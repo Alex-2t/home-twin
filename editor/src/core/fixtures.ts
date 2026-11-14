@@ -84,10 +84,16 @@ export const FORMS: Array<{id: LightForm; name: string; tip: string}> = [
 export const lineForm = (f: LightForm | null | undefined): boolean => f === 'line' || f === 'strip';
 // old plans without a form: a high point is a ceiling light, a low one a sconce; a strip is a strip
 // (no height counts as 0, as the comparison read it)
-// A form this editor draws; one it does not know (a newer editor's, a broken file's) is drawn as if the light had none.
+// A form this editor draws; one it does not know (a newer editor's, a broken file's) is guessed from the light's name, as the
+// lights panel guesses one for a light it places.
 export const isForm = (form: unknown): form is LightForm => FORMS.some(f => f.id === form);
-export const formFor = (L: Pick<PlanLight, 'form' | 'kind' | 'h'>): LightForm =>
-  isForm(L.form) ? L.form : L.kind === 'strip' ? 'strip' : (L.h ?? 0) > 2 ? 'ceiling' : 'wall';
+export const formFor = (
+  L: Pick<PlanLight, 'form' | 'kind' | 'h' | 'name' | 'entity' | 'model'>,
+): LightForm => {
+  if (isForm(L.form)) return L.form;
+  if (L.form != null) return guessForm(L).form;
+  return L.kind === 'strip' ? 'strip' : (L.h ?? 0) > 2 ? 'ceiling' : 'wall';
+};
 const CEIL = WALL.height;
 export const HEIGHTS = {
   ceiling: CEIL - 0.05,
