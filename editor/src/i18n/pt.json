@@ -1489,7 +1489,6 @@
  "Listing the furniture…": "Anotando os móveis…",
  "Measuring in 3D…": "Medindo em 3D…",
  "Noting the doors and windows": "Anotando portas e janelas",
- "Lights are added at the next stage": "A iluminação vem na próxima etapa",
  "{0} of {1} changes are made. The rest are pinned again, each with why.": "{0} de {1} alterações feitas. As restantes estão marcadas de novo, cada uma com o motivo.",
  "Waits for the plan": "Aguarda a planta",
  "Not on the plan: not built": "Não está na planta: não é construído",
@@ -1528,5 +1527,9 @@
  "The payment did not go through": "O pagamento não foi concluído",
  "Could not check the payment: {0}": "Não foi possível verificar o pagamento: {0}",
  "Could not open the payment: {0}": "Não foi possível abrir o pagamento: {0}",
- "Opening the payment…": "Abrindo o pagamento…"
+ "Opening the payment…": "Abrindo o pagamento…",
+ "Hanging the lamps from your video": "Pendurando as luminárias do seu vídeo",
+ "Putting each lamp where you showed it": "Cada luminária onde você a mostrou",
+ "Switching the lamps on": "Acendendo as luminárias",
+ "We could not place this lamp: point at another spot": "Não encontramos lugar para esta luminária: aponte outro local"
 }

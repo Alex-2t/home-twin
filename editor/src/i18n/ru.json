@@ -1489,7 +1489,6 @@
  "Listing the furniture…": "Записываем мебель…",
  "Measuring in 3D…": "Меряем в 3D…",
  "Noting the doors and windows": "Отмечаем двери и окна",
- "Lights are added at the next stage": "Свет добавим на следующем этапе",
  "{0} of {1} changes are made. The rest are pinned again, each with why.": "Сделано {0} из {1}. Остальные снова отмечены — под каждой причина.",
  "Waits for the plan": "Ждёт план",
  "Not on the plan: not built": "Нет на плане — не строим",
@@ -1528,5 +1527,9 @@
  "The payment did not go through": "Оплата не прошла",
  "Could not check the payment: {0}": "Не удалось проверить оплату: {0}",
  "Could not open the payment: {0}": "Не удалось открыть оплату: {0}",
- "Opening the payment…": "Открываем оплату…"
+ "Opening the payment…": "Открываем оплату…",
+ "Hanging the lamps from your video": "Вешаем светильники из вашего видео",
+ "Putting each lamp where you showed it": "Ставим каждую лампу туда, где вы её показали",
+ "Switching the lamps on": "Включаем свет",
+ "We could not place this lamp: point at another spot": "Не нашли места для этой лампы: укажите другое место"
 }

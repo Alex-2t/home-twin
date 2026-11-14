@@ -212,7 +212,7 @@ const STAGES: Stage[] = [
   },
   {
     key: 'assembly',
-    steps: ['assemble', 'check'],
+    steps: ['assemble', 'check', 'light'],
     label: N('Assembly'),
     note: N('Everything in its place, then checked'),
   },
@@ -237,6 +237,7 @@ type PhraseStep =
   | 'colours'
   | 'assemble'
   | 'check'
+  | 'light'
   | 'revise'
   | 'shot'
   | 'report';
@@ -333,6 +334,11 @@ const PHRASES: Record<PhraseStep, string[]> = {
     N('Reading your pins'),
     N('Moving things as you asked'),
     N('Checking the changes landed'),
+  ],
+  light: [
+    N('Hanging the lamps from your video'),
+    N('Putting each lamp where you showed it'),
+    N('Switching the lamps on'),
   ],
   shot: [N('Taking pictures of your home'), N('Opening your home in the editor'), N('Finding a good angle')],
   report: [
@@ -1053,6 +1059,7 @@ export function openAiBuild(
         return between(t('Changing: {0}', nameOf(inHalfTurn(checking))), 'revise');
       if (status.revising) return phrase('revise');
       if (stepRunning('assemble')) return phrase('assemble');
+      if (stepRunning('light')) return phrase('light');
       if (checking.length) return between(t('Second look: {0}', nameOf(inHalfTurn(checking))), 'check');
       return phrase('check');
     }
