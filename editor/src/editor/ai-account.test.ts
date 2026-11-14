@@ -286,3 +286,11 @@ test('a build waiting for money offers the top-up; one waiting for the service g
   assert.doesNotMatch(payments.html, /data-act/);
   assert.deepEqual(pausedCard(null, {offer: PAID}), {key: '', html: ''});
 });
+
+test('an empty balance beside the account reads in words, never a red "0% left" (a new account has used nothing)', async () => {
+  const {walletHtml} = await import('./ai-account-ui.ts');
+  assert.match(walletHtml({used: 0, left: 0, empty: true, bought: false}), /No package yet/);
+  assert.doesNotMatch(walletHtml({used: 0, left: 0, empty: true, bought: false}), /% left/);
+  assert.match(walletHtml({used: 1, left: 0, empty: true, bought: true}), /Nothing left on your account/);
+  assert.match(walletHtml({used: 0.4, left: 0.6, empty: false, bought: true}), /60% left/);
+});

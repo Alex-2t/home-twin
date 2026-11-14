@@ -280,6 +280,15 @@ export function openSignIn(host: HTMLElement, options: SignInOptions): SignInShe
   return {close};
 }
 
+/**
+ * The balance beside the account: the meter, or in words when nothing is left — a full red bar says little, and a new
+ * account has used nothing ("0% left" in red greeted every new account on the AI build's pages, staging 2026-11-14).
+ */
+export function walletHtml(balance: Account['balance']): string {
+  if (!balance.empty) return balanceMeter(balance);
+  return `<span class="aib-wallet">${icon('wallet', 14)}<span>${esc(emptyBalanceText(balance))}</span></span>`;
+}
+
 /** The account in a header: "Sign in" while signed out; signed in, its badge (and the balance's bar) with a menu. */
 export function accountBar(options: AccountBarOptions): AccountBar {
   const {meter, onSignIn, onBuy, onSignOut} = options;
@@ -305,10 +314,7 @@ export function accountBar(options: AccountBarOptions): AccountBar {
   }
 
   function openMenu(account: Account): void {
-    // Nothing left reads in words: a full red bar says little, and a new account has used nothing.
-    const balance = account.balance.empty
-      ? `<span class="aib-wallet">${icon('wallet', 14)}<span>${esc(emptyBalanceText(account.balance))}</span></span>`
-      : balanceMeter(account.balance);
+    const balance = walletHtml(account.balance);
     const buyInner = buyButtonInner(view.offer, {topUp: account.balance.bought});
     menu = el(`<div class="aib-account-menu menu glass" role="menu">
       <div class="aib-account-who"><span class="aib-avatar">${esc(initialOf(account.email))}</span><b>${esc(account.email)}</b></div>
@@ -334,7 +340,7 @@ export function accountBar(options: AccountBarOptions): AccountBar {
       element.innerHTML = `<button class="soft aib-sign-in" data-act="sign-in">${icon('user', 15)}<span>${esc(t('Sign in'))}</span></button>`;
       return;
     }
-    const bar = meter ? balanceMeter(account.balance) : '';
+    const bar = meter ? walletHtml(account.balance) : '';
     element.innerHTML = `${bar}<button class="aib-avatar" data-act="account" title="${esc(account.email)}" aria-haspopup="menu">${esc(initialOf(account.email))}</button>`;
   }
 
