@@ -17,7 +17,7 @@ New decisions are appended at the top of their section, old ones are not rewritt
 
 ## Decisions
 
-### D-NEXT. The review's "did not fit" notes are one short line that shows the thing; on a phone the tools no longer cover the title — **proposed** (2026-11-14)
+### D-099. The review's "did not fit" notes are one short line that shows the thing; on a phone the tools no longer cover the title — **proposed** (2026-11-14)
 - D-098's lines read long and technical: "We can’t do this yet: narrow cream base cabinet with drawer and door, white worktop: overlaps “cream base cabinet with drawer and door next to the bathroom door”" (an English build names things by the room call's long description). The hint rule (D-022): what to do, and that it is not scary.
 - **Now each note is a row like a pin's:** a warning mark, the thing's short name and its room in small ("Base cabinets · Kitchen"), and one phrase, **"Did not fit: move it in the editor"** (new, in every language). The reason (overlaps, blocks a door) is not told: the editor shows it in red where the owner moves the thing. Two things in each other stay one row.
 - **The short name** comes from the service, in the owner's language: our catalog's name of the thing's model, else of the closest model; in English else the room call's own short word for the thing ("Weight bench"); never the long description. In another language with no catalog name only the room is shown.
