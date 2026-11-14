@@ -5,7 +5,8 @@
 // tags: other search words; \u00ad in a name marks where to hyphenate a long word on the card. Kitchen modules are 60 cm wide with the plinth and countertop of “Base cabinets”: placed in a row they read as one kitchen.
 // colors: which colors the item comes in (the first in the list need not be the default, that one is in color); none means wood and white/graphite.
 // Besides these swatches an item can have any custom #rrggbb (color.js). color2: the item takes a second color from the same swatches
-// (a rug's border, f.color2); not set — a darker shade of the main one.
+// (a rug's border, f.color2); not set — a darker shade of the main one. pats: patterns of the two colours ([key, label], f.pat; none —
+// its own look, "Plain" in the panel).
 // foot: L-shaped on the plan (corner cabinet, corner sofa): an arm along the back of depth back and along the left side (mirrored: the right) of width side;
 // u: U-shaped (both side arms). run: along walls (built-in wardrobe, kitchen cabinets): stretches along the walls and around corners, its shape comes from the walls (runs.js);
 // also: which other catalog sections to show it in. round: a circle on the plan (true or a list of variants: ['round','oval']).
@@ -2014,6 +2015,12 @@ export const CATALOG: CatalogEntry[] = [
       ['round', N('Round')],
       ['oval', N('Oval')],
     ],
+    // a pattern of the field's and the second colour: a checker or a play mat's tiles, stripes, a distressed rug's patches
+    pats: [
+      ['tiles', N('Squares')],
+      ['stripes', N('Stripes')],
+      ['mottled', N('Mottled')],
+    ],
     soft: true,
     tags: N('rug carpet runner mat'),
     min: [0.5, 0.5, 0.005],
@@ -2244,7 +2251,7 @@ export const CATEGORIES: string[] = [
   N('Lighting & decor'),
   N('Garage & outdoor'),
 ];
-// Names, sections, search tags, variants and colors are in the UI language (D-036). The translation keys are the English strings above
+// Names, sections, search tags, variants, patterns and colors are in the UI language (D-036). The translation keys are the English strings above
 // (the scanner collects them from this whole file); the language is set before the module loads (i18n/boot.js).
 for (const c of CATALOG) {
   c.name = t(c.name);
@@ -2252,6 +2259,7 @@ for (const c of CATALOG) {
   if (c.also) c.also = c.also.map(x => t(x));
   if (c.tags) c.tags = t(c.tags);
   if (c.vars) for (const v of c.vars) v[1] = t(v[1]);
+  if (c.pats) for (const p of c.pats) p[1] = t(p[1]);
 }
 CATEGORIES.forEach((c, i) => {
   CATEGORIES[i] = t(c);

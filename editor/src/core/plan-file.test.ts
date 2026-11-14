@@ -133,6 +133,20 @@ test('furniture colors: named and custom #rrggbb (a rug also has a border color)
       assert.throws(() => readPlan(JSON.stringify(q)), `${k}: ${JSON.stringify(bad)}`);
     }
 });
+test("a rug's pattern is kept, one this editor does not know too (drawn as its own look); a pattern that is not text is rejected", () => {
+  const rug = {id: 'f', model: 'rug', x: 2, y: 2, w: 2, d: 1.4, h: 0.012, rot: 0};
+  const p = plan();
+  p.furniture = [
+    {...rug, pat: 'tiles', color2: '#3a4a6b'},
+    {...rug, id: 'g', pat: 'paisley'},
+  ];
+  assert.deepEqual(readPlan(JSON.stringify(p)), p);
+  for (const bad of [5, true, {}, ['tiles']]) {
+    // written as a file would have it: the plan's types do not allow it
+    const file = JSON.stringify({...plan(), furniture: [{...rug, pat: bad}]});
+    assert.throws(() => readPlan(file), `pat: ${JSON.stringify(bad)}`);
+  }
+});
 test('overlapping rooms can be opened and fixed; the file check does not replace the geometry check', () => {
   const p = plan();
   p.rooms.push({...p.rooms[0], id: 'overlap'});

@@ -17,6 +17,14 @@ New decisions are appended at the top of their section, old ones are not rewritt
 
 ## Decisions
 
+### D-NEXT. A rug can have a pattern of its two colours: squares, stripes or mottled — **proposed** (2026-11-14)
+- A rug had a field and a border (D-070), nothing else. The AI build measures two strong colours on many real rugs, from a patchwork foam play mat to a distressed grey rug, and could only draw them as a plain field with a thin border, sometimes a white border around a grey rug. The owner had put this aside on 2026-11-10 for "a pattern in the editor's rug model".
+- **The structure:** `pat` on a furniture item, a key of its model's catalog `pats`. Only the rug has them: `tiles` (a checker of squares about 33 cm, a whole number of them across the rug, with a thin darker seam: a foam play mat or a checked rug), `stripes` (a 24 cm band of the field, then a 12 cm band of the second colour, across its length), `mottled` (irregular patches of the second colour over about 40 %, like a distressed or abstract rug from a step away). The second colour is `color2`, the same field as the border. Without `color2` it is the border's darker shade.
+- **Drawn:** the body in the field colour, and a thin top over it showing the pattern, a picture made in code (`core/rug-pattern.ts`, the same on every run and device), on the rectangle, the circle and the ellipse alike. The plan view draws furniture without colours, so nothing changes there.
+- **Old files look exactly as before:** no `pat`, the rug is drawn as it was. A `pat` this editor does not know is drawn as plain (like an unknown variant); one that is not text is refused by the file check and dropped by the mending (D-095).
+- **By hand:** in the furniture panel a rug has a row of chips "Plain · Squares · Stripes · Mottled". With a pattern chosen, the "Border" row is called "Second color". New strings in all ten languages.
+- **Open:** whether these three cover enough real rugs (a Persian or a floral rug is drawn mottled); the AI build sets `pat` from the room call's label words today ("colourful … play mat", "distressed", "striped"), and from the room call's own `pattern` once its prompt asks for it.
+
 ### D-098. The review lists what the AI build could not place clear — **proposed** (2026-11-14)
 - A thing the AI build could not move clear of another, of a door's zone or of a wall (no spot that keeps what it is, too big to shrink a little) stays where it is, red in Furniture mode. The owner should not find it unexplained.
 - **In the review:** each such thing is one line under the round's line, in the owner's language, in D-083's words: "We can’t do this yet: Radiator: blocks a door". The thing's name and the editor's own reason for the red; two things in each other are one line. No new strings.

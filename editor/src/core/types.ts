@@ -320,6 +320,11 @@ export interface FurnitureItem {
   top?: string;
   /** A variant: a key of the model's catalog vars ('hinged', 'sliding', 'round'…). */
   v?: string;
+  /**
+   * A pattern of the item's two colours: a key of the model's catalog pats (a rug's 'tiles', 'stripes', 'mottled'); none, or one
+   * the model does not have — its own look (a rug's field and border).
+   */
+  pat?: string;
   /** Mirrored (models with mirror in the catalog: a corner sofa, a shower…). */
   mx?: boolean;
   /** Its own name (a custom item, an item from parts). */
@@ -369,6 +374,8 @@ export interface CatalogEntry {
   tags?: string;
   /** Variants: [key, name, extra]; extra is how far a sofa bed unfolds, or the variant's own sizes. */
   vars?: CatalogVariant[];
+  /** Patterns of its two colours (item.pat): [key, name]; its own look comes first in the panel, as "Plain". */
+  pats?: [key: string, name: string][];
   /** Its bottom above the floor, metres (wall cabinets, a TV on the wall). */
   lift?: number;
   /** A table: true, or its top's height in metres (a dressing table has a mirror above it). */

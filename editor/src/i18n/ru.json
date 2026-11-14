@@ -1607,5 +1607,9 @@
  "leave the plan": "уйти с плана",
  "Plan: room by its typed size": "План: комната по введённым размерам",
  "move in a list or menu": "перемещаться по списку или меню",
- "Unknown model “{0}”: drawn as a box": "Неизвестная модель «{0}»: показана простым блоком"
+ "Unknown model “{0}”: drawn as a box": "Неизвестная модель «{0}»: показана простым блоком",
+ "Plain": "Однотонный",
+ "Squares": "Клетка",
+ "Stripes": "Полоски",
+ "Mottled": "Разводы"
 }
