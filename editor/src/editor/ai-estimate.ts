@@ -24,8 +24,6 @@ export interface RoundSize {
   wholeHome: boolean;
 }
 
-// A video whose length the browser cannot tell in this long counts as unknown (the estimate is then a usual home's).
-const VIDEO_METADATA_MS = 5000;
 // The service's percents are whole numbers between these.
 const MOST_PERCENT = 1000;
 
@@ -74,37 +72,6 @@ export function roundSize(notes: PinNotes): RoundSize {
   const saying = notes.pins.filter(pin => pin.text.trim());
   const rooms = new Set(saying.map(pin => pin.room || ''));
   return {rooms: rooms.size, wholeHome: !!notes.text.trim()};
-}
-
-/** The length of a video file, seconds, as the browser reads it; null when it cannot tell. */
-export function videoLength(file: File): Promise<number | null> {
-  return new Promise(resolve => {
-    const video = document.createElement('video');
-    const url = URL.createObjectURL(file);
-    let done = false;
-    const finish = (seconds: number | null): void => {
-      if (done) return;
-      done = true;
-      clearTimeout(timer);
-      video.removeAttribute('src');
-      video.load();
-      URL.revokeObjectURL(url);
-      resolve(seconds);
-    };
-    const timer = setTimeout(() => finish(null), VIDEO_METADATA_MS);
-    video.preload = 'metadata';
-    video.muted = true;
-    video.onloadedmetadata = () => finish(Number.isFinite(video.duration) ? video.duration : null);
-    video.onerror = () => finish(null);
-    video.src = url;
-  });
-}
-
-/** The videos' length together, seconds; null when the browser cannot tell one of them. */
-export async function videosLength(files: File[]): Promise<number | null> {
-  const lengths = await Promise.all(files.map(videoLength));
-  if (lengths.some(seconds => seconds === null)) return null;
-  return lengths.reduce<number>((sum, seconds) => sum + (seconds as number), 0);
 }
 
 /** The estimate in words: "About 30–45% of your package", or "Up to 2% of your package" for a small one. */

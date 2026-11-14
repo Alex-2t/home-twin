@@ -56,7 +56,9 @@ import {
 import type {Account, Offer} from './ai-account.ts';
 import {accountBar, openSignIn, pausedCard} from './ai-account-ui.ts';
 import type {AccountBar, SignInReason, SignInSheet} from './ai-account-ui.ts';
-import {buildEstimate, estimateLine, roundEstimate, roundSize, videosLength} from './ai-estimate.ts';
+import {buildEstimate, estimateLine, roundEstimate, roundSize} from './ai-estimate.ts';
+import {totalSeconds, videoConcern, videoConcernText, videosFacts} from './video-note.ts';
+import type {VideoConcern} from './video-note.ts';
 import type {Estimate, RoundSize} from './ai-estimate.ts';
 import type {Outline, Plan} from '../core/types.ts';
 import type {Editor, EditorFlows} from './editor-types.ts';
@@ -1292,10 +1294,12 @@ export function openAiBuild(ed: Editor, options: AiBuildOptions = {}): AiBuildSc
             ${drop('plan', 'image', t('Floor plan'), t('A photo or scan'), 'image/*', false)}
             ${drop('video', 'video', t('Video of your home'), t('One walk through every room'), 'video/*', true)}
           </div>
-          <ul class="aib-tips">
-            <li>${icon('check', 14)}<span>${esc(t('Walk slowly and turn around once in every room.'))}</span></li>
-            <li>${icon('check', 14)}<span>${esc(t('Lights on. No need to tidy up.'))}</span></li>
+          <ul class="aib-tips" aria-label="${esc(t('How to film'))}">
+            <li>${icon('phoneSideways', 15)}<span>${esc(t('Hold the phone sideways'))}</span></li>
+            <li>${icon('bulb', 15)}<span>${esc(t('Lights on. No need to tidy up.'))}</span></li>
+            <li>${icon('rotate', 15)}<span>${esc(t('Walk slowly, turn around in each room'))}</span></li>
           </ul>
+          <p class="aib-video-note" role="status" hidden>${icon('info', 15)}<span></span></p>
           <div class="aib-go">
             <span class="aib-go-facts">
               <span class="aib-time">${icon('clock', 15)}<span>${esc(t('About 15 minutes. You can close the page meanwhile.'))}</span></span>
@@ -1314,6 +1318,12 @@ export function openAiBuild(ed: Editor, options: AiBuildOptions = {}): AiBuildSc
       const button = targetOf(e).closest<HTMLButtonElement>('[data-act=buy]');
       if (button) buy(button);
     });
+    // The line under the tips about the chosen video: hidden when there is nothing to say. It never blocks the build.
+    const showVideoConcern = (concern: VideoConcern | null): void => {
+      const note = find(root, '.aib-video-note');
+      note.hidden = !concern;
+      find(note, 'span').textContent = concern ? videoConcernText(concern) : '';
+    };
     const setFiles = (kind: string | undefined, list: File[]): void => {
       const label = find(root, `.aib-drop[data-kind=${kind}]`);
       const shownFile = find(label, '.aib-drop-file');
@@ -1327,12 +1337,15 @@ export function openAiBuild(ed: Editor, options: AiBuildOptions = {}): AiBuildSc
         const videos = list.filter(f => f.type.startsWith('video/'));
         if (!videos.length) return;
         chosen.videos = videos;
-        // The estimate follows the videos' length, once the browser has read it.
+        // The estimate follows the videos' length, once the browser has read it; a video likely to give a thin build
+        // gets a gentle line.
         chosenSeconds = null;
-        videosLength(videos).then(seconds => {
+        showVideoConcern(null);
+        videosFacts(videos).then(facts => {
           if (chosen.videos !== videos) return;
-          chosenSeconds = seconds;
+          chosenSeconds = totalSeconds(facts);
           askUploadEstimate();
+          showVideoConcern(videoConcern(facts));
         });
         const megabytes = videos.reduce((sum, f) => sum + f.size, 0) / 1e6;
         shownFile.innerHTML = `<video muted playsinline preload="metadata"></video><small></small>`;

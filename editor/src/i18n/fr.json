@@ -1368,7 +1368,6 @@
  "Uploading…": "Envoi…",
  "Uploading… {0}%": "Envoi… {0} %",
  "Video of your home": "Vidéo de votre logement",
- "Walk slowly and turn around once in every room.": "Marchez lentement et faites un tour sur vous-même dans chaque pièce.",
  "We change your home and show it again.": "Nous modifions votre logement et vous le montrons à nouveau.",
  "We show it again when it is done.": "Nous le montrons à nouveau une fois terminé.",
  "What is wrong here?": "Qu'est-ce qui ne va pas ici ?",
@@ -1627,5 +1626,10 @@
  "Custom": "Personnalisé",
  "Arrows move it: 1 cm, with Shift 10 cm": "Les flèches le déplacent : 1 cm, avec Shift 10 cm",
  "move the selected thing 1 cm (Shift: 10 cm)": "déplacer la sélection de 1 cm (Shift : 10 cm)",
- "Which of your lights is it?": "Laquelle de vos lumières est-ce ?"
+ "Which of your lights is it?": "Laquelle de vos lumières est-ce ?",
+ "How to film": "Comment filmer",
+ "Hold the phone sideways": "Tenez le téléphone à l’horizontale",
+ "Walk slowly, turn around in each room": "Marchez lentement, faites un tour dans chaque pièce",
+ "A short video: rooms it skips stay empty. Fine to go ahead.": "Vidéo courte : les pièces non filmées resteront vides. Vous pouvez continuer.",
+ "Filmed upright in low resolution: some things may be missed. Fine to go ahead.": "Filmée à la verticale en basse résolution : certains objets peuvent manquer. Vous pouvez continuer."
 }
