@@ -162,6 +162,91 @@ test('by hand: an air conditioner onto a wall, a cover only onto a window, a doo
   assert.equal(recOf(p, 'cover.k3'), null); // the item was deleted in “Furniture”: the device is not in the model
 });
 
+// A living room 4×3 with a window in its east wall and a glazed door (D-071) onto the balcony north of it, drawn from the
+// balcony's side (edge 0 of the balcony runs along the living room's north wall).
+const withBalcony = (window = true): Plan => ({
+  ...emptyPlan(),
+  rooms: [
+    {
+      id: 'l',
+      name: 'Living room',
+      area: 'living',
+      polygon: [
+        [0, 0],
+        [4, 0],
+        [4, 3],
+        [0, 3],
+      ],
+    },
+    {
+      id: 'b',
+      name: 'Balcony',
+      area: 'balcony',
+      polygon: [
+        [0, 3.1],
+        [4, 3.1],
+        [4, 4.5],
+        [0, 4.5],
+      ],
+    },
+  ],
+  openings: [
+    ...(window
+      ? [
+          {
+            id: 'w',
+            kind: 'window' as const,
+            at: {room: 'l', edge: 1, s0: 1, s1: 2.2, d: 0},
+            bottom: 0.85,
+            top: 2.4,
+          },
+        ]
+      : []),
+    {id: 'g', kind: 'door', at: {room: 'b', edge: 0, s0: 1, s1: 1.9, d: 0}, bottom: 0, top: 2.1, glass: true},
+  ],
+  devices: [],
+});
+const balconyBlind: HaDevice = {
+  entity: 'cover.balcony_door',
+  name: 'Balcony door blind',
+  area: 'living',
+  domain: 'cover',
+  cls: 'blind',
+};
+
+test('a blind goes onto a glazed door, hung indoors even when the door is drawn from the balcony; a plain door takes none', () => {
+  const p = withBalcony();
+  const rec = placeOn(p, balconyBlind, {opening: 'g'})!;
+  const blind = p.furniture.find(x => x.id === rec.furn)!;
+  assert.ok(blind.y < 3 && blind.y > 2.8, `in the living room, at the door's wall: ${blind.y}`);
+  assert.ok(blind.x > 1 && blind.x < 1.9, `across the door: ${blind.x}`);
+  assert.equal(blind.z, 0, "a door's glass from the floor");
+  assert.ok(moveTo(p, balconyBlind, {opening: 'w'}), 'and onto the window');
+  assert.ok(moveTo(p, balconyBlind, {opening: 'g'}), 'and back');
+  p.openings[1].glass = false;
+  assert.equal(moveTo(p, balconyBlind, {opening: 'g'}), false);
+  assert.equal(placeOn(p, {...balconyBlind, entity: 'cover.x'}, {opening: 'g'}), null);
+});
+
+test('auto: a blind already on the balcony door is bound to the device named for it; a room with only a glazed door gets its cover there', () => {
+  const p = withBalcony();
+  p.furniture.push(
+    {id: 'f1', model: 'blind', x: 1.45, y: 2.92, w: 0.9, d: 0.06, h: 2.2, z: 0, rot: 0},
+    {id: 'f2', model: 'blind', x: 3.92, y: 1.6, w: 1.2, d: 0.06, h: 1.6, z: 0.8, rot: 90},
+  );
+  autoPlace(p, [
+    {entity: 'cover.window', name: 'Living room blind', area: 'living', domain: 'cover', cls: 'blind'},
+    balconyBlind,
+  ]);
+  assert.equal(recOf(p, 'cover.balcony_door')!.furn, 'f1');
+  assert.equal(recOf(p, 'cover.window')!.furn, 'f2');
+  assert.equal(p.furniture.length, 2, 'no new blind');
+  const noWindow = withBalcony(false);
+  autoPlace(noWindow, [balconyBlind]);
+  const made = noWindow.furniture.find(x => x.id === recOf(noWindow, 'cover.balcony_door')!.furn)!;
+  assert.ok(made.y < 3 && made.x > 1 && made.x < 1.9, `on the glazed door, indoors: ${made.x}, ${made.y}`);
+});
+
 test('state: air conditioner, covers, opening, for 3D', () => {
   const p = plan();
   autoPlace(p, devs);

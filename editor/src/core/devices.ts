@@ -302,6 +302,38 @@ export const windowsOf = (plan: DevicePlan, r: Room): OpeningSide[] =>
     .filter(o => o.kind === 'window' && o.at.room === r.id)
     .map(o => openingSide(plan, o))
     .filter((W): W is OpeningSide => Boolean(W));
+// A curtain or a blind hangs at a window or at a glazed door (D-071: a balcony or terrace door).
+export const coverFits = (o: Opening): boolean => o.kind === 'window' || (o.kind === 'door' && !!o.glass);
+// Where a cover hangs at an opening: on its room's side; a glazed door drawn from the balcony's side is hung on the home's side
+// of its wall (a blind on a balcony door hangs indoors).
+function coverSide(plan: DevicePlan, o: Opening): OpeningSide | null {
+  const W = openingSide(plan, o);
+  if (!W || o.kind === 'window' || roomKind(W.r.name) !== 'balcony') return W;
+  let indoors: [Room, number] | undefined;
+  try {
+    indoors = wallInfo(plan, W.r, o.at.edge).B.find(([x]) => roomKind(x.name) !== 'balcony');
+  } catch {
+    // an opening whose wall cannot be read stays on its own room's side
+  }
+  if (!indoors) return W;
+  const [r, i] = indoors;
+  const e = edge(r, i);
+  const along = (q: Point): number => (q[0] - e.a[0]) * e.u[0] + (q[1] - e.a[1]) * e.u[1];
+  const ends = [along(W.c.a), along(W.c.b)];
+  return {o, r, e, c: W.c, s0: Math.min(...ends), s1: Math.max(...ends)};
+}
+// the room's glazed doors, hung from the room's side
+const glassDoorsOf = (plan: DevicePlan, r: Room): OpeningSide[] =>
+  plan.openings
+    .filter(o => o.kind === 'door' && o.glass)
+    .map(o => coverSide(plan, o))
+    .filter((W): W is OpeningSide => !!W && W.r === r);
+// whether a cover of the room has somewhere to hang: a window or a glazed door
+export const coverSpotsIn = (plan: DevicePlan, r: Room): boolean =>
+  windowsOf(plan, r).length > 0 || glassDoorsOf(plan, r).length > 0;
+// A device named for a door or a balcony (“Balcony door blind”): the cover on a glazed door is its.
+const DOOR_WORD = /двер|door|tür|porte|puerta|porta|deur|drzwi|门/i;
+const namedForDoor = (d: HaDevice): boolean => roomKind(d.name) === 'balcony' || DOOR_WORD.test(d.name || '');
 const rightOf = (W: OpeningSide): number => {
   const m = [(W.c.a[0] + W.c.b[0]) / 2, (W.c.a[1] + W.c.b[1]) / 2];
   return m[0] * -W.e.n[1] + m[1] * W.e.n[0];
@@ -369,7 +401,8 @@ function contactOpening(
 }
 
 // Automatically place everything not yet in the model: an air conditioner goes to its item in the room or onto a free upper wall;
-// covers go onto the room's windows (more covers than windows and a single window: as sections from left to right, in name order);
+// covers go onto the room's windows (more covers than windows and a single window: as sections from left to right, in name order),
+// a room with no window onto its glazed doors; a cover already at a glazed door takes the device named for a door or a balcony;
 // a contact sensor goes onto an opening. The room comes from the HA area. ent(e) is the HA state (a thermostat is told apart from an air conditioner
 // by its modes). → how many were placed.
 export function autoPlace(
@@ -419,10 +452,28 @@ export function autoPlace(
         .filter((f): f is FurnitureItem => !!f && f.model !== 'aircon')
         .map(f => f.id),
     );
-    const W = windowsOf(plan, r)
+    // A cover already hanging at a glazed door (placed in “Furniture”, or by the AI build) takes the device of its kind named
+    // for a door or a balcony, or the room's only device of that kind when no window has a free one.
+    for (const D of glassDoorsOf(plan, r)) {
+      for (const model of ['blind', 'curtains']) {
+        const f = coverNear(plan, D, model, usedF);
+        if (!f || busy.has(f.id)) continue;
+        const same = cs.filter(d => coverModel(d) === model);
+        const atWindow = windowsOf(plan, r).some(W => coverNear(plan, W, model, usedF));
+        const d = same.find(namedForDoor) ?? (same.length === 1 && !atWindow ? same[0] : undefined);
+        if (!d) continue;
+        cs.splice(cs.indexOf(d), 1);
+        usedF.add(f.id);
+        busy.add(f.id);
+        add(d, {furn: f.id});
+      }
+    }
+    // the covers go onto the windows; a room with no window, onto its glazed doors
+    const spots = windowsOf(plan, r).length ? windowsOf(plan, r) : glassDoorsOf(plan, r);
+    const W = spots
       .filter(W => !plan.furniture.some(f => busy.has(f.id) && coverNear(plan, W, f.model, new Set()) === f))
       .sort((a, b) => rightOf(a) - rightOf(b));
-    if (!W.length) continue;
+    if (!W.length || !cs.length) continue;
     // one window, more covers: sections; otherwise one per window (extra covers do not go onto the widest windows, they are placed by hand)
     const plan1 =
       W.length === 1 && cs.length > 1
@@ -453,7 +504,7 @@ export function autoPlace(
   return n;
 }
 
-// Place by hand: an air conditioner onto a room edge (at t along it), a cover onto a window, a sensor onto an opening.
+// Place by hand: an air conditioner onto a room edge (at t along it), a cover onto a window or a glazed door, a sensor onto an opening.
 // target: {room, edge, t} | {opening}. → the binding record, or null (does not fit).
 export function placeOn(plan: DevicePlan, d: HaDevice, target: DeviceTarget): PlanDevice | null {
   plan.devices ??= [];
@@ -481,8 +532,8 @@ export function placeOn(plan: DevicePlan, d: HaDevice, target: DeviceTarget): Pl
         return null;
       rec = {opening: o.id};
     } else if (k === 'cover') {
-      if (o.kind !== 'window') return null;
-      const W = openingSide(plan, o);
+      if (!coverFits(o)) return null;
+      const W = coverSide(plan, o);
       if (!W) return null;
       const it = coverItem(plan, coverModel(d), W);
       plan.furniture.push(it);
@@ -494,7 +545,7 @@ export function placeOn(plan: DevicePlan, d: HaDevice, target: DeviceTarget): Pl
   plan.devices.push(R);
   return R;
 }
-// Move (dragged on the plan): an air conditioner along the wall, the same item (color and size stay); a cover onto another window,
+// Move (dragged on the plan): an air conditioner along the wall, the same item (color and size stay); a cover onto another window or glazed door,
 // at its width; a sensor onto another opening of its kind. Not in the model: place it (placeOn). → true if moved.
 export function moveTo(plan: DevicePlan, d: HaDevice, target: DeviceTarget): boolean {
   const rec = recOf(plan, d.entity);
@@ -522,8 +573,8 @@ export function moveTo(plan: DevicePlan, d: HaDevice, target: DeviceTarget): boo
     rec.opening = o.id;
     return true;
   }
-  if (k === 'cover' && f && o.kind === 'window') {
-    const W = openingSide(plan, o);
+  if (k === 'cover' && f && coverFits(o)) {
+    const W = coverSide(plan, o);
     if (!W) return false;
     const it = coverItem(plan, f.model, W);
     Object.assign(f, {x: it.x, y: it.y, rot: it.rot, w: it.w, h: it.h});
