@@ -33,6 +33,7 @@ import {emptyPlan} from '../core/plan.ts';
 import {kindName, localRoomName, numberAlike} from '../core/overview.ts';
 import {byId} from '../core/catalog.ts';
 import {openReview} from './ai-review.ts';
+import type {UnplacedThing} from './ai-review.ts';
 import {changeCount, pinsToSend, pinsToRetry, refreshRetries} from './ai-pins.ts';
 import type {Pin, PinNotes, PinRetry, PinRound} from './ai-pins.ts';
 import {
@@ -152,6 +153,8 @@ interface BuildStatus {
   live?: BuildLive;
   lastRound?: PinRound | null;
   rounds?: PinRound[];
+  /** The things it could not place clear, each with one phrase in the owner's language. */
+  unplaced?: UnplacedThing[];
 }
 
 /** A failed answer says why in {error}. */
@@ -240,7 +243,7 @@ const STAGES: Stage[] = [
   },
   {
     key: 'assembly',
-    steps: ['assemble', 'check', 'light'],
+    steps: ['assemble', 'check', 'light', 'guard'],
     label: N('Assembly'),
     note: N('Everything in its place, then checked'),
   },
@@ -1973,6 +1976,7 @@ export function openAiBuild(ed: Editor, options: AiBuildOptions = {}): AiBuildSc
       pictureUrl: file => `${base()}/owner/${encodeURIComponent(file)}`,
       lastRound: status?.lastRound || null,
       pastRounds: status?.rounds || [],
+      unplaced: status?.unplaced || [],
       account: renderReviewAccount,
       // Only a pin that came back has the button (ai-review.ts report).
       onReport: pin =>

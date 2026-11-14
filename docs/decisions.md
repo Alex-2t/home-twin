@@ -17,6 +17,12 @@ New decisions are appended at the top of their section, old ones are not rewritt
 
 ## Decisions
 
+### D-NEXT. The review lists what the AI build could not place clear — **proposed** (2026-11-14)
+- A thing the AI build could not move clear of another, of a door's zone or of a wall (no spot that keeps what it is, too big to shrink a little) stays where it is, red in Furniture mode. The owner should not find it unexplained.
+- **In the review:** each such thing is one line under the round's line, in the owner's language, in D-083's words: "We can’t do this yet: Radiator: blocks a door". The thing's name and the editor's own reason for the red; two things in each other are one line. No new strings.
+- **Progress:** the service's last code step before the pictures belongs to the Assembly stage.
+- The service sends the lines with the build's status (`unplaced`: the thing, where it stands, the phrase); an older service sends none and the review is as before.
+
 ### D-097. Updating the panel and the card without restarting HA; the card offers non-administrators no settings — **proposed** (2026-11-14)
 - **What went stale.** Checked on a scratch HA 2026.11 with the new files copied in and no restart. The addresses carried `?v=<newest file time>`, worked out once at setup, so they did not change. The files had no `Cache-Control`. HA's service worker answers same-origin files stale first and fetches the new copy behind (stale-while-revalidate). On the first load after the update the card ran the old `card.js`. On the next load it ran the new `card.js` with the old `card-app.js`: old and new files mixed. Getting the new code took a third load.
 - **Now** (`custom_components/home_twin/serve.py`): every build is served at `/home_twin_static/<build>/<file>`. The id is a hash of the files' sha256, which the editor's build writes to `frontend/build.json`. Each address is cached for a year as immutable. A new build is taken up only when the files on disk match its `build.json`; files half replaced get “try again” (503). This happens within a minute (a look at the folder listing; the files are hashed only when it changes) or when a page asks. An old address of `panel.js`/`card.js` is redirected to the current build. An old `card-app.js` is not found. Files are sent gzip-compressed (panel 2.9 → 1.1 MB). card.js grows from 1.5 to 4 KB (the build watch and the notice in ten languages).

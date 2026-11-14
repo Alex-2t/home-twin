@@ -13,6 +13,15 @@ import {newPin, pinLabel, changeCount, MAX_PIN_PHOTOS, MISSED_REASON} from './ai
 import type {Pin, PinHit, PinNotes, PinRetry, PinRound, RoundPin} from './ai-pins.ts';
 import type {CanvasPoint, Editor, Pane} from './editor-types.ts';
 
+/** A thing the service could not place clear (it stands where the editor draws it red): where, and one phrase why. */
+export interface UnplacedThing {
+  id: string;
+  x: number;
+  y: number;
+  /** The thing and why, in the owner's language. */
+  say: string;
+}
+
 /** What openReview is given (see its comment). */
 export interface ReviewOptions {
   host: HTMLElement;
@@ -25,6 +34,7 @@ export interface ReviewOptions {
   pictureUrl?: ((name: string) => string) | null;
   lastRound?: PinRound | null;
   pastRounds?: PinRound[];
+  unplaced?: UnplacedThing[];
   onReport?: ((pin: Pin) => Promise<unknown>) | null;
   account?: ((slot: HTMLElement) => void) | null;
 }
@@ -87,7 +97,8 @@ const targetOf = (e: Event): Element => e.target as Element;
  * host — where the review's panels go; photo — the plan photo to compare with; notes — {pins, text}, changed in place;
  * onChange(notes) after each change; onBack() — back to the progress; onSend(notes) → a promise: the answer is on its way
  * (all right when there are no changes); upload(blob, 'view' | 'photo') → a promise of the picture's name at the service;
- * pictureUrl(name) → where to show it; lastRound — the service's last round (how many pins worked out); onReport(pin) → a
+ * pictureUrl(name) → where to show it; lastRound — the service's last round (how many pins worked out); unplaced — the things
+ * the service could not place clear, each listed as what it can't do yet (D-083's words); onReport(pin) → a
  * promise: a pin that came back is sent to the developer (what the app could not do, or did wrong); account(slot) fills the
  * account's place above the button that sends the changes (the balance, and a top-up once it is used up; ai-build.ts), and
  * fills it again itself when the account changes.
@@ -105,6 +116,7 @@ export function openReview(
     pictureUrl = null,
     lastRound = null,
     pastRounds = [],
+    unplaced = [],
     onReport = null,
     account = null,
   }: ReviewOptions,
@@ -152,6 +164,7 @@ export function openReview(
       <div class="aib-panel-body">
         <p class="aib-lead">${esc(t('Look around in 3D. Pin what is wrong and say what.'))}</p>
         <p class="aib-last" hidden></p>
+        <ul class="aib-cannot" hidden></ul>
         ${photo ? `<button class="aib-photo" data-act="photo"><img src="${photo}" alt=""><span>${icon('image', 14)}${esc(t('Your plan, side by side'))}</span></button>` : ''}
         <ol class="aib-notes"></ol>
         <details class="aib-past" hidden><summary></summary><ol class="aib-notes"></ol></details>
@@ -741,6 +754,15 @@ export function openReview(
         : t('{0} of {1} changes are made. The rest are pinned again, each with why.', done, pins.length);
   }
 
+  // The things the service could not place clear: each told once, in the words of what the app can't do yet (D-083).
+  function renderUnplaced(): void {
+    const list = find(box, '.aib-cannot');
+    list.hidden = !unplaced.length;
+    list.innerHTML = unplaced
+      .map(thing => `<li>${esc(t('We can’t do this yet: {0}', thing.say))}</li>`)
+      .join('');
+  }
+
   function renderSend(): void {
     const count = changeCount(notes);
     const button = find<HTMLButtonElement>(box, '[data-act=send]');
@@ -1064,6 +1086,7 @@ export function openReview(
   renderPins();
   renderNotes();
   renderLast();
+  renderUnplaced();
   renderPast();
   loop();
   return {close};
