@@ -17,7 +17,7 @@ New decisions are appended at the top of their section, old ones are not rewritt
 
 ## Decisions
 
-### D-NEXT. Common rooms have kinds of their own; a plan's other English words and cupboard letters name a kind — **accepted** (2026-11-14)
+### D-104. Common rooms have kinds of their own; a plan's other English words and cupboard letters name a kind — **accepted** (2026-11-14)
 - **Why:** the AI build found that the room kinds (`core/overview.ts`, `roomKind`) had no utility room, laundry, boiler room, dressing room, dining room or garage, and did not know "sitting room", "lounge", "landing", "box room" or a British plan's "C", "Cpd", "AC". A part of a name of no kind stays as written (`localRoomName`), so a Russian owner's build and the AI build's progress page showed "Utility room" and "Sitting room" in English. The owner left the decisions to us; the choices below are ours, written down so they can be changed.
 - **Five new kinds** with names in all ten languages (`KIND_NAME`), so the AI build and its progress page name them in the owner's language:
   - `utility` — "Utility room": a utility room and a laundry are one kind, because most of the ten languages use one word for both (Buanderie, Lavadero, Lavanderia, Pralnia, 洗衣房). Its Russian name is «Постирочная», the room British, Australian and American plans mean.
