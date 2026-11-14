@@ -111,13 +111,6 @@ export const LAMP: Record<string, {h: number; name: string}> = {
   floor: {h: 1.5, name: t('Floor lamp')},
   table: {h: 0.75, name: t('Table lamp')},
 };
-// A placed light's height, or where its form usually hangs when it has none (a broken file's): the 3D cannot place it otherwise.
-export function heightOf(L: Pick<PlanLight, 'h' | 'opt'>, form: LightForm): number {
-  if (L.h != null && Number.isFinite(L.h)) return L.h;
-  if (form === 'strip') return STRIP[L.opt === 'floor' ? 'floor' : 'top'].h;
-  if (form === 'lamp') return LAMP[L.opt === 'table' ? 'table' : 'floor'].h;
-  return HEIGHTS[form];
-}
 export const SPOTS: Record<string, string> = {grid: t('Grid'), row: t('Row'), ring: t('Perimeter')};
 export const LINES: Record<string, string> = {along: t('Along'), across: t('Across'), frame: t('Frame')};
 // A pendant's shade (L.shade): opal glass dome, black metal dome, glass globe, rattan bell. None set: guessed from the name, else the dome.

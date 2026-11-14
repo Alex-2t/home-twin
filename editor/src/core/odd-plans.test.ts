@@ -14,7 +14,7 @@ import {migrate, swingOf, SWING} from './plan.ts';
 import {mendPlan} from './plan-mend.ts';
 import {readPlan} from './plan-file.ts';
 import {syncRuns} from './runs.ts';
-import {formFor, heightOf, lampCell, shadeOf, syncFurnStrips} from './fixtures.ts';
+import {formFor, lampCell, shadeOf, syncFurnStrips} from './fixtures.ts';
 import {validate} from './geometry.ts';
 import {corners, footRects, furnitureConflicts, outline} from './layout.ts';
 import {drawableRooms, planFurniture, planSpots, planWalls, tryPlanWalls} from './plan-scene.ts';
@@ -117,7 +117,7 @@ function drawUnchecked(
   for (const light of drawn.lights)
     step(`light ${light.id}`, () => {
       lampCell(drawn, light);
-      heightOf(light, formFor(light));
+      formFor(light);
       shadeOf(light);
     });
   for (const room of drawn.rooms)
@@ -249,13 +249,11 @@ test('every catalog model builds itself, not a box, with a variant, colour or wo
   assert.deepEqual(boxes, []);
 });
 
-test("a light's unknown form, a door's unknown swing and a light without a height fall back to what the editor knows", () => {
+test("a light's unknown form and a door's unknown swing fall back to what the editor knows", () => {
   const light = {id: 'l', form: 'chandelier', h: 2.55, points: [], segments: []} as unknown as PlanLight;
   assert.equal(formFor(light), 'ceiling');
   assert.equal(formFor({...light, name: 'Hall spots'}), 'spots');
   assert.equal(formFor({...light, form: undefined, h: 1.6}), 'wall');
-  assert.equal(heightOf({h: undefined}, 'pendant'), 2);
-  assert.equal(heightOf({h: undefined, opt: 'table'}, 'lamp'), 0.75);
   assert.equal(swingOf({swing: 17}), SWING[0]);
   assert.equal(swingOf({swing: 2}), SWING[2]);
 });

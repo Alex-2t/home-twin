@@ -5,7 +5,7 @@ import {OrbitControls} from 'three/addons/controls/OrbitControls.js';
 import {RoomEnvironment} from 'three/addons/environments/RoomEnvironment.js';
 import {WALL, pointIn} from './geometry.ts';
 import {trimBoxes} from './trim.ts';
-import {formFor, heightOf, lineForm, shadeOf, housingOf} from './fixtures.ts';
+import {formFor, lineForm, shadeOf, housingOf} from './fixtures.ts';
 import {isHex, hexNum, shadeHex} from './color.ts';
 import {makeObject} from './furniture3d.ts';
 import {partsKey} from './parts.ts';
@@ -1271,14 +1271,12 @@ export function createView(host: HTMLElement): SceneView {
     const r = rooms.find(r => r.id === own.room);
     if (!r) return;
     const room = {id: r.id, polygon: r.polygon, center: centroid(r.polygon)};
+    // A placed lamp has its height; one without (a broken file's, a demo plan opened with another home's HA) has no place in 3D
+    // and is left out, as it was always drawn nowhere (its parts stood at NaN).
+    if (own.h == null || !Number.isFinite(own.h)) return;
     const form: LightForm = formFor(own);
-    // the view's lamps are placed: they have their height (one that lacks it, or its points, hangs as its form usually does)
-    const L: PlacedLamp = {
-      ...own,
-      h: heightOf(own, form),
-      points: own.points ?? [],
-      segments: own.segments ?? [],
-    };
+    // a lamp keeps no points or segments it does not have
+    const L: PlacedLamp = {...own, h: own.h, points: own.points ?? [], segments: own.segments ?? []};
     const mat = new THREE.MeshStandardMaterial({
       color: form === 'strip' ? 0xb4b7ba : 0xf4f1ea,
       emissive: 0x000000,
