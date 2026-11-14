@@ -285,6 +285,8 @@ export interface RoomsMode extends EditorMode {
   status(): string;
   dblclick(e: MouseEvent, p: Point): void;
   flipCut(): void;
+  /** The outline (or a room) from the keyboard: its width and depth are typed instead of two clicks. */
+  typeOutline(): void;
   tintRoom(): string | null;
   unnamed(room: Room): boolean;
   unnamedZone(room: Room): boolean;
@@ -612,6 +614,8 @@ export interface Editor {
   /** A guided step that stays until its button; null: none. */
   step(text: string | null, buttons?: BannerItem[], aim?: Aim | null, o?: WizardStepOptions): void;
   stepNow(): WizardStep | null;
+  /** Puts the keyboard focus on the card's main button (the step's way on). */
+  focusStep(): void;
   /** "Exit setup" and "Back" for a step's card, and a step's buttons with them. */
   exitBtn(): BannerButton;
   backBtn(): BannerButton;

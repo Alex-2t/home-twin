@@ -1580,5 +1580,10 @@
  "We could not place this lamp: point at another spot": "Не нашли места для этой лампы: укажите другое место",
  "Under the ceiling: cove, floating ceiling, niche — light down the walls": "Под потолком: карниз, парящий потолок, ниша — свет вниз по стенам",
  "Ceiling height": "Высота потолка",
- "For the whole home: ceiling lights, curtains and tall cabinets follow it": "Для всего дома: потолочные светильники, шторы и высокие шкафы следуют за ней"
+ "For the whole home: ceiling lights, curtains and tall cabinets follow it": "Для всего дома: потолочные светильники, шторы и высокие шкафы следуют за ней",
+ "Type the size": "Ввести размеры",
+ "Depth, cm": "Глубина, см",
+ "leave the plan": "уйти с плана",
+ "Plan: room by its typed size": "План: комната по введённым размерам",
+ "move in a list or menu": "перемещаться по списку или меню"
 }

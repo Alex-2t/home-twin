@@ -1580,5 +1580,10 @@
  "We could not place this lamp: point at another spot": "没找到放这盏灯的位置：请指出另一个地方",
  "Under the ceiling: cove, floating ceiling, niche — light down the walls": "天花板下：顶角线、悬浮吊顶、灯槽，光沿墙面向下",
  "Ceiling height": "天花板高度",
- "For the whole home: ceiling lights, curtains and tall cabinets follow it": "适用于整个住宅：吸顶灯、窗帘和高柜随之调整"
+ "For the whole home: ceiling lights, curtains and tall cabinets follow it": "适用于整个住宅：吸顶灯、窗帘和高柜随之调整",
+ "Type the size": "输入尺寸",
+ "Depth, cm": "深度（cm）",
+ "leave the plan": "离开平面图",
+ "Plan: room by its typed size": "平面图：按输入尺寸添加房间",
+ "move in a list or menu": "在列表或菜单中移动"
 }

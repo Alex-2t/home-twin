@@ -11,6 +11,9 @@ import {readPlan} from '../core/plan-file.ts';
 import {idb} from './underlay.ts';
 import {axisCursor} from './drag-gesture.ts';
 import {routeHash} from './route.ts';
+import {OUTLINE_LIVING_SHARE} from './wizard-state.ts';
+import {holdFocus, menuKeys, focusMenuStart} from './keyboard.ts';
+import type {HeldFocus} from './keyboard.ts';
 import type {Outline, Plan, PlanInput, Point, Room, UnderlayPlace} from '../core/types.ts';
 import type {Underlay} from './underlay.ts';
 import type {Route, RoutePage, Router} from './route.ts';
@@ -180,6 +183,9 @@ export function createFlows(
     }
     startScreen(canContinue);
   };
+  // The start screen covers the editor: while it is up, the editor under it sleeps (Tab goes through its choices only),
+  // and a keyboard user lands on its first choice.
+  let startHeld: HeldFocus | null = null;
   const startScreen = (canContinue: boolean): void => {
     coverDown();
     const box = $('start');
@@ -187,9 +193,13 @@ export function createFlows(
     find(box, '[data-a=continue]').hidden = !canContinue;
     syncPrev();
     f.syncRoute();
+    startHeld?.release();
+    startHeld = holdFocus(box);
   };
   const hideStart = (): void => {
     $('start').hidden = true;
+    startHeld?.release();
+    startHeld = null;
     f.syncRoute();
   };
   f.hideStart = hideStart;
@@ -584,12 +594,18 @@ export function createFlows(
     const form = find<HTMLFormElement>(box, 'form');
     if (ed.plan.docArea) inp.value = num(ed.plan.docArea);
     bal.checked = ed.plan.docBalcony ?? localStorage.getItem(BALC) === '1';
+    // a dialog: the editor under it sleeps while it is open
+    const held = holdFocus(box, {first: inp});
+    const closeBox = (): void => {
+      held.release();
+      box.remove();
+    };
     setTimeout(() => {
       inp.focus();
       inp.select();
     });
     const wall = (): void => {
-      box.remove();
+      closeBox();
       if (!photo) {
         if (!has) scratchStep();
         return;
@@ -601,7 +617,7 @@ export function createFlows(
     box.addEventListener('keydown', e => {
       if (e.key === 'Escape') {
         e.stopPropagation();
-        has ? box.remove() : wall();
+        has ? closeBox() : wall();
       }
     });
     inp.oninput = () => {
@@ -618,7 +634,7 @@ export function createFlows(
         inp.focus();
         return;
       }
-      box.remove();
+      closeBox();
       ed.plan.docArea = v;
       ed.plan.docBalcony = bal.checked;
       localStorage.setItem(BALC, bal.checked ? '1' : '0');
@@ -673,7 +689,7 @@ export function createFlows(
         !r.solid && (p.docBalcony || !OUT.test((r.name || '') + ' ' + (r.area ? ed.areaName(r.area) : ''))),
     );
     let S = rs.reduce((s, r) => s + (by === 'rect' ? Math.abs(area(r.polygon)) : net(r)), 0);
-    if (by === 'rect') S *= 0.8;
+    if (by === 'rect') S *= OUTLINE_LIVING_SHARE;
     if (S < 1) return 0;
     const k = Math.sqrt(A / S);
     p.scaleBy = by;
@@ -1327,7 +1343,9 @@ export function createFlows(
     [$('menu-btn'), $('menu')],
   ];
   const closeMenus = (): void => menus.forEach(([, m]) => (m.hidden = true));
-  for (const [btn, m] of menus)
+  // With the keyboard: the first item gets the focus, the arrows move, Escape closes and goes back to the button (keyboard.ts).
+  for (const [btn, m] of menus) {
+    menuKeys(m, btn, closeMenus);
     btn.onclick = e => {
       e.stopPropagation();
       const open = m.hidden;
@@ -1335,7 +1353,9 @@ export function createFlows(
       m.hidden = !open;
       ($('grid') as HTMLInputElement).checked = ed.grid; // the "Grid" checkbox
       ed.syncSettings?.();
+      if (open) focusMenuStart(m);
     };
+  }
   addEventListener('pointerdown', e => {
     // a pointer presses an element
     if (!(e.target as Element).closest('.menu,#brand-btn,#menu-btn')) closeMenus();
@@ -1365,6 +1385,9 @@ export function createFlows(
   document.querySelectorAll<HTMLElement>('.menu [data-a]').forEach(
     b =>
       (b.onclick = () => {
+        // an item chosen with the keyboard: the focus goes back to the menu's button, and a dialog the item opens returns it there
+        const opener = menus.find(([, m]) => m.contains(b))?.[0];
+        if (b.contains(document.activeElement)) opener?.focus({preventScroll: true});
         closeMenus();
         act[b.dataset.a!](); // the selector asks for data-a
       }),

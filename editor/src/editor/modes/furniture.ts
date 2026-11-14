@@ -325,6 +325,22 @@ export function furnitureMode(ed: Editor): FurnitureMode {
       },
     });
   }
+  // From the keyboard an item goes to the middle of the plan in view, placed as a click there would place it; R turns it,
+  // Delete removes it, the mouse moves it. The focus stays on its card, for the next one. An item that goes along a wall
+  // (kitchen cabinets) finds no wall there and is not placed, as with a click away from the walls.
+  function placeFromKeyboard(entry: Pick<Placing, 'c' | 'name'>): void {
+    const item = makeItem(entry);
+    place(item, v().W([v().w / 2, v().h / 2]), false, true);
+    ed.guides = [];
+    if (placeable(item)) {
+      plan().furniture.push(item);
+      sel().furn = item.id;
+      ed.commit();
+    }
+    $('side-body')
+      .querySelector<HTMLElement>(`.item[data-id="${CSS.escape(entry.c.id)}"]`)
+      ?.focus();
+  }
   m.down = (e, p) => {
     if (placing?.click) {
       const f = makeItem(placing);
@@ -759,18 +775,16 @@ export function furnitureMode(ed: Editor): FurnitureMode {
       holder.appendChild(grid);
       const card = (c: CatalogEntry, name?: string | null): void => {
         const it = el(
-          `<button type="button" class="item ${placing?.c === c ? 'on' : ''}" title="${t('Select an item, then click the plan. You can also drag it.')}" aria-label="${esc(name || c.name)}"><img src="${ed.thumbs?.[c.id] || ''}" draggable="false" alt="">${c.kind === 'gen' ? `<span class="rs" title="${t('Any size')}">${icon('resize', 12)}</span>` : ''}<b>${esc(name || c.name)}</b><small>${size(c)}</small></button>`,
+          `<button type="button" class="item ${placing?.c === c ? 'on' : ''}" data-id="${esc(c.id)}" title="${t('Select an item, then click the plan. You can also drag it.')}" aria-label="${esc(name || c.name)}"><img src="${ed.thumbs?.[c.id] || ''}" draggable="false" alt="">${c.kind === 'gen' ? `<span class="rs" title="${t('Any size')}">${icon('resize', 12)}</span>` : ''}<b>${esc(name || c.name)}</b><small>${size(c)}</small></button>`,
         );
         it.onpointerdown = e => {
           if (e.button !== 0) return;
           e.preventDefault();
           placing = {c, name, x: e.clientX, y: e.clientY};
         };
+        // Enter or Space on a card (a click without a pointer): the keyboard cannot point at the plan (D-NEXT)
         it.onclick = e => {
-          if (e.detail === 0) {
-            placing = {c, name, click: true};
-            m.refresh();
-          }
+          if (e.detail === 0) placeFromKeyboard({c, name});
         };
         grid.appendChild(it);
       };

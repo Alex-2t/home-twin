@@ -1580,5 +1580,10 @@
  "We could not place this lamp: point at another spot": "Geen plek gevonden voor deze lamp: wijs een andere plek aan",
  "Under the ceiling: cove, floating ceiling, niche — light down the walls": "Onder het plafond: koof, zwevend plafond, nis — licht langs de muren",
  "Ceiling height": "Plafondhoogte",
- "For the whole home: ceiling lights, curtains and tall cabinets follow it": "Voor de hele woning: plafondlampen, gordijnen en hoge kasten volgen mee"
+ "For the whole home: ceiling lights, curtains and tall cabinets follow it": "Voor de hele woning: plafondlampen, gordijnen en hoge kasten volgen mee",
+ "Type the size": "Afmetingen invoeren",
+ "Depth, cm": "Diepte, cm",
+ "leave the plan": "plattegrond verlaten",
+ "Plan: room by its typed size": "Plattegrond: kamer met ingevoerde afmetingen",
+ "move in a list or menu": "door een lijst of menu bewegen"
 }

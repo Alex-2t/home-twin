@@ -24,6 +24,8 @@
 // (paused: 'payments') and goes on by itself. Without the payments service (local work) there are no accounts.
 import {t, N, getLang} from '../i18n/i18n.ts';
 import {el, esc, find} from './ui.ts';
+import {holdFocus} from './keyboard.ts';
+import type {HeldFocus} from './keyboard.ts';
 import {icon} from './icons.ts';
 import {idb} from './idb.ts';
 import {readPlan} from '../core/plan-file.ts';
@@ -1096,10 +1098,17 @@ export function openAiBuild(ed: Editor, options: AiBuildOptions = {}): AiBuildSc
     ed.banner();
   }
 
-  // A full-screen page of the AI build is up: the 3D under it draws nothing.
+  // A full-screen page of the AI build is up: the 3D under it draws nothing, and the editor under it sleeps for the keyboard
+  // (Tab stays on the page, keyboard.ts). The review is not full-screen: the editor's views are part of it.
+  let held: HeldFocus | null = null;
   function cover(on: boolean): void {
     if (on) ed.view.pause?.();
     else ed.view.resume?.();
+    if (on && !held) held = holdFocus(root);
+    if (!on) {
+      held?.release();
+      held = null;
+    }
   }
 
   // ---------- notes kept while the owner looks (pins and words), per build ----------
@@ -1262,7 +1271,7 @@ export function openAiBuild(ed: Editor, options: AiBuildOptions = {}): AiBuildSc
       multiple: boolean,
     ): string => `
       <label class="aib-drop" data-kind="${kind}">
-        <input type="file" accept="${accept}" ${multiple ? 'multiple' : ''} hidden>
+        <input type="file" class="vh" accept="${accept}" ${multiple ? 'multiple' : ''}>
         <span class="aib-drop-ic">${icon(ic, 20)}</span>
         <span class="aib-drop-text"><b>${esc(title)}</b><small>${esc(note)}</small></span>
         <span class="aib-drop-file" hidden></span>

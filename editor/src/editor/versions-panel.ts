@@ -3,6 +3,8 @@
 // At the bottom — the “Previous plan” from the backup slot (flows.js), if there is one.
 import {t, N, locale, clock} from '../i18n/i18n.ts';
 import {el, esc, find} from './ui.ts';
+import {holdFocus} from './keyboard.ts';
+import type {HeldFocus} from './keyboard.ts';
 import {icon} from './icons.ts';
 import {pal, FONT} from './draw.ts';
 import {MAND, OPT} from './wizard-path.ts';
@@ -166,10 +168,13 @@ export function openVersions(ed: Editor): {close(): void} {
     // the plan as this editor kept it
     ...V.list().map(v => ({...v, plan: JSON.parse(v.plan) as Plan})),
   ];
+  let held: HeldFocus | null = null;
   const close = (): void => {
     box?.remove();
     box = null;
     removeEventListener('keydown', key, true);
+    held?.release();
+    held = null;
   };
   const key = (e: KeyboardEvent): void => {
     if (!box) return;
@@ -191,6 +196,8 @@ export function openVersions(ed: Editor): {close(): void} {
     dialog.querySelectorAll<HTMLElement>('.ver-row').forEach((b, j) => {
       b.classList.toggle('on', j === i);
       b.setAttribute('aria-selected', String(j === i));
+      // the list is one Tab stop, the selected version; the arrows move in it (key)
+      b.tabIndex = j === i ? 0 : -1;
       if (j === i && focus) b.focus();
     });
     find(dialog, '.ver-view b').textContent = r.now ? t('Now') : versionLabel(r);
@@ -267,6 +274,8 @@ export function openVersions(ed: Editor): {close(): void} {
   };
   document.body.append(box);
   addEventListener('keydown', key, true);
+  // a dialog: the editor under it sleeps, and the focus goes back to what opened it (keyboard.ts)
+  held = holdFocus(box);
   render();
   return {close};
 }

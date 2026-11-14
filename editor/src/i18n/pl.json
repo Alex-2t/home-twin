@@ -1580,5 +1580,10 @@
  "We could not place this lamp: point at another spot": "Nie znaleźliśmy miejsca na tę lampę: wskaż inne miejsce",
  "Under the ceiling: cove, floating ceiling, niche — light down the walls": "Pod sufitem: gzyms, sufit, wnęka — światło w dół ścian",
  "Ceiling height": "Wysokość sufitu",
- "For the whole home: ceiling lights, curtains and tall cabinets follow it": "Dla całego mieszkania: lampy sufitowe, zasłony i wysokie szafy dopasują się"
+ "For the whole home: ceiling lights, curtains and tall cabinets follow it": "Dla całego mieszkania: lampy sufitowe, zasłony i wysokie szafy dopasują się",
+ "Type the size": "Wpisz wymiary",
+ "Depth, cm": "Głębokość, cm",
+ "leave the plan": "opuścić plan",
+ "Plan: room by its typed size": "Plan: pokój o wpisanych wymiarach",
+ "move in a list or menu": "poruszać się po liście lub menu"
 }
