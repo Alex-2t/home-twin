@@ -106,6 +106,7 @@ export function readPlan(text: string): Plan {
     numbers(f, ['rot', 'z']);
     optional(f, 'top', str);
     optional(f, 'pat', str); // a pattern the model does not have is drawn as its own look
+    optional(f, 'patSpec', obj); // its own pattern: what is not well formed in it is left out when drawn (rugSpecOf)
   }
   // an item's color: a named one (catalog COLORS) or a custom #rrggbb; color2 — the second one (a rug's border)
   for (const f of objects(p.furniture))

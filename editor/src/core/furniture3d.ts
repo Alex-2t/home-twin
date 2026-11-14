@@ -7,8 +7,9 @@ import {mergeGeometries} from 'three/addons/utils/BufferGeometryUtils.js';
 import {CATALOG, COLORS, TOPS, isWorktop, byId, zOf, lArms, extOf, hexOf} from './catalog.ts';
 import {isHex} from './color.ts';
 import {runShape} from './runs.ts';
-import {isRugPattern, rugPatternTexture} from './rug-pattern.ts';
-import type {RugPattern} from './rug-pattern.ts';
+import {rugPatternTexture, rugSpecOf} from './rug-pattern.ts';
+import type {RugOutline} from './rug-pattern.ts';
+import type {RugSpec} from './rug-pattern-spec.ts';
 import {car as car3d} from './car3d.ts';
 import {checkItem, buildItem} from './parts.ts';
 import type {RunGeo, RunSide} from './runs.ts';
@@ -150,19 +151,20 @@ function box(
 // The patterned top lies this far over the rug's body (no flicker against it), this much smaller than the rug (its edge rounds off).
 const RUG_TOP_LIFT_METRES = 0.0006;
 const RUG_TOP_INSET_METRES = 0.004;
-// A rug's patterned top (rug-pattern.ts): one material per pattern, size and colours, kept like mat() keeps its own.
+// A rug's patterned top (rug-pattern.ts): one material per pattern spec, size, outline and colours, kept like mat() keeps its own.
 const rugMats = new Map<string, THREE.MeshStandardMaterial>();
 function rugPatternMat(
-  pattern: RugPattern,
+  spec: RugSpec,
   width: number,
   depth: number,
   field: number,
   second: number,
+  outline: RugOutline,
 ): THREE.MeshStandardMaterial {
-  const key = [pattern, width.toFixed(3), depth.toFixed(3), field, second].join(':');
+  const key = [JSON.stringify(spec), width.toFixed(3), depth.toFixed(3), field, second, outline].join(':');
   let material = rugMats.get(key);
   if (!material) {
-    const texture = rugPatternTexture(pattern, width, depth, field, second);
+    const texture = rugPatternTexture(spec, width, depth, field, second, outline);
     material = new THREE.MeshStandardMaterial({map: texture, roughness: 0.98});
     rugMats.set(key, material);
   }
@@ -173,12 +175,12 @@ function rugPatternMat(
 function rugPatterned(
   g: THREE.Object3D,
   {w, d, h, v}: Pick<FurnitureItem, 'w' | 'd' | 'h' | 'v'>,
-  pattern: RugPattern,
+  spec: RugSpec,
   field: number,
   second: number,
 ): void {
   const body = mat(field, 0.98);
-  const top = rugPatternMat(pattern, w, d, field, second);
+  const top = rugPatternMat(spec, w, d, field, second, v === 'rect' || !v ? 'rect' : 'ellipse');
   const lift = h + RUG_TOP_LIFT_METRES;
   if (v === 'rect' || !v) {
     part(g, w, h, d, body, 0, 0, 0, 0.003);
@@ -3705,12 +3707,14 @@ const GEN: Record<string, Generator> = {
   },
   // ---------- second batch: decor ----------
   // Rug: a border and lines in color2 (not set — a darker shade of the field), the field in color and a lighter center; rectangular,
-  // round or oval. With a pattern (pat), its top is a picture of the two colours instead (rugPatterned). Furniture stands on top of it.
-  rug(g, {w, d, h, color, color2, v, pat}) {
+  // round or oval. With a pattern (its own patSpec, else a named pat), its top is a picture instead (rugPatterned). Furniture
+  // stands on top of it.
+  rug(g, {w, d, h, color, color2, v, pat, patSpec}) {
     const c = hexOf(color);
     const second = color2 ? hexOf(color2, shade(c, 0.78)) : shade(c, 0.78);
-    if (isRugPattern(pat)) {
-      rugPatterned(g, {w, d, h, v}, pat, c, second);
+    const spec = rugSpecOf(pat, patSpec);
+    if (spec) {
+      rugPatterned(g, {w, d, h, v}, spec, c, second);
       return;
     }
     const b = mat(second, 0.98);

@@ -1612,5 +1612,12 @@
  "Plain": "Tinta unita",
  "Squares": "Quadri",
  "Stripes": "Righe",
- "Mottled": "Screziato"
+ "Mottled": "Screziato",
+ "Oriental": "Orientale",
+ "Lattice": "Losanghe",
+ "Chevron": "Zigzag",
+ "Dots": "Pois",
+ "Rings": "Anelli",
+ "Plaid": "Scozzese",
+ "Custom": "Personalizzato"
 }

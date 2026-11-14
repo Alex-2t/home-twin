@@ -1612,5 +1612,12 @@
  "Plain": "Liso",
  "Squares": "Cuadros",
  "Stripes": "Rayas",
- "Mottled": "Jaspeado"
+ "Mottled": "Jaspeado",
+ "Oriental": "Oriental",
+ "Lattice": "Celosía",
+ "Chevron": "Zigzag",
+ "Dots": "Lunares",
+ "Rings": "Anillos",
+ "Plaid": "Escocés",
+ "Custom": "Propio"
 }

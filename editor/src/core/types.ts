@@ -5,6 +5,7 @@
 // degrees unless a name says radians. A value from outside (a plan file, localStorage, Home Assistant) is checked before it
 // gets one of these types (plan-file.ts checks a plan file).
 import type {MultiPolygon as ClipMultiPolygon, Polygon as ClipPolygonType} from 'polygon-clipping';
+import type {RugSpec} from './rug-pattern-spec.ts';
 
 // ---------- small geometry ----------
 
@@ -321,10 +322,16 @@ export interface FurnitureItem {
   /** A variant: a key of the model's catalog vars ('hinged', 'sliding', 'round'…). */
   v?: string;
   /**
-   * A pattern of the item's two colours: a key of the model's catalog pats (a rug's 'tiles', 'stripes', 'mottled'); none, or one
+   * A pattern of the item's two colours: a key of the model's catalog pats (a rug's 'tiles', 'stripes', 'oriental'…); none, or one
    * the model does not have — its own look (a rug's field and border).
    */
   pat?: string;
+  /**
+   * A pattern of its own (a rug's, core/rug-pattern-spec.ts): layers of shapes in its two colours and up to four more. Drawn
+   * instead of `pat` when it is drawable; `pat` is then the nearest named pattern, for an editor that does not read this. As
+   * read from a file it is not cleaned yet: rug-pattern.ts rugSpecOf cleans it before drawing.
+   */
+  patSpec?: RugSpec;
   /** Mirrored (models with mirror in the catalog: a corner sofa, a shower…). */
   mx?: boolean;
   /** Its own name (a custom item, an item from parts). */

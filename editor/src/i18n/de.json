@@ -1612,5 +1612,12 @@
  "Plain": "Einfarbig",
  "Squares": "Karos",
  "Stripes": "Streifen",
- "Mottled": "Meliert"
+ "Mottled": "Meliert",
+ "Oriental": "Orientalisch",
+ "Lattice": "Gitter",
+ "Chevron": "Zickzack",
+ "Dots": "Punkte",
+ "Rings": "Ringe",
+ "Plaid": "Kariert",
+ "Custom": "Eigenes"
 }

@@ -235,6 +235,7 @@ test('every catalog model builds itself, not a box, with a variant, colour, work
   const odd: Array<Partial<Item3d>> = [
     {v: 'nope', color: 'plaid', color2: 'zz', top: 'nope', pat: 'paisley'},
     {v: 'toString', color: 'toString', top: 'toString', mx: true, pat: 'toString'},
+    {pat: 'oriental', patSpec: {layers: [{shape: 'paisley'}], colors: 'red'} as unknown as Item3d['patSpec']},
     {w: 0.01, d: 0.01, h: 0.01},
   ];
   const boxes: string[] = [];

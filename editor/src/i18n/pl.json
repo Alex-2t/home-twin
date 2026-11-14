@@ -1612,5 +1612,12 @@
  "Plain": "Gładki",
  "Squares": "Kratka",
  "Stripes": "Paski",
- "Mottled": "Melanż"
+ "Mottled": "Melanż",
+ "Oriental": "Orientalny",
+ "Lattice": "Kratka ukośna",
+ "Chevron": "Zygzak",
+ "Dots": "Kropki",
+ "Rings": "Pierścienie",
+ "Plaid": "Krata szkocka",
+ "Custom": "Własny"
 }

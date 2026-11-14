@@ -296,6 +296,7 @@ export class PlanMender {
     this.dropField(item, list, 'color2', isColourKey);
     this.dropField(item, list, 'top', isText);
     this.dropField(item, list, 'pat', isText);
+    this.dropField(item, list, 'patSpec', isObject);
     this.dropField(item, list, 'v', x => typeof x === 'string');
     this.dropField(item, list, 'name', x => typeof x === 'string');
     this.dropField(item, list, 'room', x => typeof x === 'string');

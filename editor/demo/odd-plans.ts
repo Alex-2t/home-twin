@@ -223,6 +223,29 @@ const CASES: OddCase[] = [
     },
   },
   {
+    id: 'pattern-spec-not-object',
+    what: "a rug's own pattern that is not an object",
+    file: 'rejected',
+    change: (plan, {rug}) => {
+      if (!rug) return;
+      (itemIn(plan, rug) as unknown as Record<string, unknown>).patSpec = 'oriental';
+      return furnitureEntry(rug);
+    },
+  },
+  {
+    id: 'pattern-spec-odd',
+    what: "a rug's own pattern with nothing drawable in it (an unknown shape, a colour out of the palette)",
+    file: 'opens',
+    change: (plan, {rug}) => {
+      if (!rug) return;
+      (itemIn(plan, rug) as unknown as Record<string, unknown>).patSpec = {
+        layers: [{shape: 'paisley'}, {shape: 'dots', color: 9}, 'frame'],
+        colors: ['red'],
+      };
+      return furnitureEntry(rug);
+    },
+  },
+  {
     id: 'top-unknown',
     what: 'a worktop the catalog does not have',
     file: 'opens',
