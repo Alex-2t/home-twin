@@ -62,7 +62,9 @@ test('an empty list and stages without an exact count do not prompt to finish', 
   for (const k of steps) assert.equal(stepReadyToFinish(p, k), false, k);
 });
 test('one insertion does not finish the whole stage; confirmation and deferral survive loading', () => {
-  const p: Plan = {...emptyPlan(), rooms: [room()], furniture: [{id: 'bed'} as FurnitureItem]};
+  // a whole item: migrate leaves out one without a model or a place (plan-mend.ts)
+  const bed: FurnitureItem = {id: 'bed', model: 'bed', x: 2, y: 2, w: 1.6, d: 2, h: 0.5, rot: 0};
+  const p: Plan = {...emptyPlan(), rooms: [room()], furniture: [bed]};
   assert.equal(stepStatus(p, 'furniture'), 'in_progress');
   recordStep(p, 'furniture', 'confirmed');
   recordStep(p, 'open', 'deferred');

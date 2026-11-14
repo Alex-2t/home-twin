@@ -352,12 +352,16 @@ export function openingCoords<Placed extends {at: OpeningAt}>(
   const b = p[(o.at.edge + 1) % p.length];
   const dx = b[0] - a[0];
   const dy = b[1] - a[1];
-  const l = Math.hypot(dx, dy) || 1;
+  const l = Math.hypot(dx, dy);
+  // an edge of no length (a corner given twice in a file) holds no opening: its ends would be one point
+  if (l < 1e-6) return null;
   const ux = dx / l;
   const uy = dy / l;
   // If the edge was shortened, the opening shrinks to fit within it.
   const clamp = (s: number): number => Math.max(0.02, Math.min(l - 0.02, s));
-  const pt = (s: number): Point => [a[0] + ux * clamp(s) - uy * o.at.d, a[1] + uy * clamp(s) + ux * o.at.d];
+  // a file may lack the offset across the wall (the file check lets it through): the middle of the edge's line
+  const across = o.at.d || 0;
+  const pt = (s: number): Point => [a[0] + ux * clamp(s) - uy * across, a[1] + uy * clamp(s) + ux * across];
   const s0 = clamp(o.at.s0);
   const s1 = clamp(o.at.s1);
   // The edge became shorter than the opening: the opening disappears, and the plan reports it.

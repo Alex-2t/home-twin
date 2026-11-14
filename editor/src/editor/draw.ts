@@ -6,7 +6,7 @@ import {outline, footRects, isRound} from '../core/layout.ts';
 import {isRun, runGeo} from '../core/runs.ts';
 import {zOf, nameOf} from '../core/catalog.ts';
 import {byId} from '../core/catalog.ts';
-import {SWING, zoneParts} from '../core/plan.ts';
+import {swingOf, zoneParts} from '../core/plan.ts';
 import {formFor, lineForm, isFurnStrip} from '../core/fixtures.ts';
 import type {RunSide} from '../core/runs.ts';
 import type {FurnitureItem, Outline, Plan, PlanLight, Point, Segment, Vector} from '../core/types.ts';
@@ -234,7 +234,7 @@ export function drawPlan(ed: Editor): void {
       if (o.glass) glass();
       // an opening without a door — just a hole in the wall; in old plans wide “doors” (over 1.15 m) are openings too
       if (o.leaf === false || (o.swing == null && L > 1.15)) continue;
-      const sw = SWING[o.swing || 0];
+      const sw = swingOf(o);
       const a = sw.hinge ? o.b : o.a;
       const u: Vector = sw.hinge
         ? [(o.a[0] - o.b[0]) / L, (o.a[1] - o.b[1]) / L]
@@ -266,8 +266,7 @@ export function drawPlan(ed: Editor): void {
   ctx.lineJoin = 'round';
   const flat = (f: FurnitureItem): number => (byId(f.model)?.soft && f.h < 0.05 ? 0 : 1); // a rug — below, the furniture on top of it
   for (const f of [...plan.furniture].sort((a, b) => flat(a) - flat(b))) {
-    const c = byId(f.model);
-    if (!c) continue;
+    // an item whose model this catalog does not have is drawn too, as its outline and name (catalog.ts modelOf)
     const isSel = mode === 'furniture' && f.id === sel.furn;
     const isBad = mode === 'furniture' && ed.conflicts.has(f.id);
     if (isRun(f)) {

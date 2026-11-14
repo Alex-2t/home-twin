@@ -1575,5 +1575,6 @@
  "An estimate: a bigger home or more furniture takes more": "Это оценка: большой дом или много мебели потребует больше",
  "More than is left: it pauses for a top-up": "Больше, чем осталось: работа встанет до пополнения",
  "Body color": "Цвет корпуса",
- "Default color": "Цвет по умолчанию"
+ "Default color": "Цвет по умолчанию",
+ "Unknown model “{0}”: drawn as a box": "Неизвестная модель «{0}»: показана простым блоком"
 }

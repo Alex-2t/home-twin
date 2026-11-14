@@ -8,6 +8,7 @@ import {roomAt, roomById, zoneParts} from '../../core/plan.ts';
 import {
   FORMS,
   formFor,
+  isForm,
   lineForm,
   guessForm,
   lampCell,
@@ -1162,7 +1163,7 @@ export function lightsMode(ed: Editor): LightsMode {
 
   // ---------- lamp from the list onto the plan ----------
   // A row of a lamp without a place is dragged: it lands with the shape that was chosen or guessed, in the room where it was released.
-  const formOfL = (L: PlanLight): LightForm => L.form || guessForm(L).form;
+  const formOfL = (L: PlanLight): LightForm => (isForm(L.form) ? L.form : guessForm(L).form);
   addEventListener('pointermove', e => {
     if (!placing) return;
     const r = v().cv.getBoundingClientRect();

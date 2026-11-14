@@ -1,7 +1,7 @@
 // Placement rules for furniture and lights: snapping to walls, overlap checks. No three.js.
 import {t} from '../i18n/i18n.ts';
 import {WALL, openingCoords, openingOut, pointIn, centroid} from './geometry.ts';
-import {roomEdges, roomAt, uniqueName, SWING} from './plan.ts';
+import {roomEdges, roomAt, uniqueName, swingOf} from './plan.ts';
 import {byId, zOf, lArms, nameOf} from './catalog.ts';
 import {isRun, runGeo} from './runs.ts';
 import type {
@@ -31,7 +31,7 @@ const grid = (v: number): number => Math.round(v / GRID) * GRID;
 // ---------- furniture ----------
 // An item's axes on the plan: ax runs along its width, fz is where its front faces (0° is south).
 export const axes = (f: FurnitureItem): [Vector, Vector] => {
-  const t = (f.rot * Math.PI) / 180;
+  const t = ((f.rot || 0) * Math.PI) / 180; // a file may lack the rotation: facing south
   return [
     [Math.cos(t), Math.sin(t)],
     [Math.sin(t), -Math.cos(t)],
@@ -325,7 +325,7 @@ export function furnitureConflicts(plan: Plan): Map<string, string> {
       const l = Math.hypot(o.b[0] - o.a[0], o.b[1] - o.a[1]) || 1;
       const n = openingOut(plan.rooms, o); // n points out of the opening's room
       const leaf = !(o.leaf === false || (o.swing == null && l > 1.15));
-      const inn = SWING[o.swing || 0].out ? n : [-n[0], -n[1]];
+      const inn = swingOf(o).out ? n : [-n[0], -n[1]];
       const f = leaf ? Math.min(l, 1) + 0.05 : 0.3;
       const b = 0.3;
       const poly: Outline = [

@@ -84,8 +84,10 @@ export const FORMS: Array<{id: LightForm; name: string; tip: string}> = [
 export const lineForm = (f: LightForm | null | undefined): boolean => f === 'line' || f === 'strip';
 // old plans without a form: a high point is a ceiling light, a low one a sconce; a strip is a strip
 // (no height counts as 0, as the comparison read it)
+// A form this editor draws; one it does not know (a newer editor's, a broken file's) is drawn as if the light had none.
+export const isForm = (form: unknown): form is LightForm => FORMS.some(f => f.id === form);
 export const formFor = (L: Pick<PlanLight, 'form' | 'kind' | 'h'>): LightForm =>
-  L.form || (L.kind === 'strip' ? 'strip' : (L.h ?? 0) > 2 ? 'ceiling' : 'wall');
+  isForm(L.form) ? L.form : L.kind === 'strip' ? 'strip' : (L.h ?? 0) > 2 ? 'ceiling' : 'wall';
 const CEIL = WALL.height;
 export const HEIGHTS = {
   ceiling: CEIL - 0.05,
@@ -103,6 +105,13 @@ export const LAMP: Record<string, {h: number; name: string}> = {
   floor: {h: 1.5, name: t('Floor lamp')},
   table: {h: 0.75, name: t('Table lamp')},
 };
+// A placed light's height, or where its form usually hangs when it has none (a broken file's): the 3D cannot place it otherwise.
+export function heightOf(L: Pick<PlanLight, 'h' | 'opt'>, form: LightForm): number {
+  if (L.h != null && Number.isFinite(L.h)) return L.h;
+  if (form === 'strip') return STRIP[L.opt === 'floor' ? 'floor' : 'top'].h;
+  if (form === 'lamp') return LAMP[L.opt === 'table' ? 'table' : 'floor'].h;
+  return HEIGHTS[form];
+}
 export const SPOTS: Record<string, string> = {grid: t('Grid'), row: t('Row'), ring: t('Perimeter')};
 export const LINES: Record<string, string> = {along: t('Along'), across: t('Across'), frame: t('Frame')};
 // A pendant's shade (L.shade): opal glass dome, black metal dome, glass globe, rattan bell. None set: guessed from the name, else the dome.

@@ -38,7 +38,9 @@ test('a custom color: every visible model in every variant builds and draws it',
         bad.push(`${c.id} ${v ?? ''}: ${(e as Error).message}`);
         continue;
       }
-      if (!colorsIn(g).has(0x3a7bd5)) bad.push(`${c.id} ${v ?? ''}: the color is not drawn`);
+      // makeObject draws a model whose generator fails as a plain box (in its colour): that is a failure here
+      if (g.userData.plainBox) bad.push(`${c.id} ${v ?? ''}: drawn as a plain box`);
+      else if (!colorsIn(g).has(0x3a7bd5)) bad.push(`${c.id} ${v ?? ''}: the color is not drawn`);
     }
   assert.deepEqual(bad, []);
 });

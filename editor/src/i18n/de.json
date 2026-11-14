@@ -1575,5 +1575,6 @@
  "An estimate: a bigger home or more furniture takes more": "Eine Schätzung: ein größeres Zuhause oder mehr Möbel brauchen mehr",
  "More than is left: it pauses for a top-up": "Mehr als übrig ist: es pausiert bis zum Aufladen",
  "Body color": "Gehäusefarbe",
- "Default color": "Standardfarbe"
+ "Default color": "Standardfarbe",
+ "Unknown model “{0}”: drawn as a box": "Unbekanntes Modell „{0}“: als Quader gezeichnet"
 }

@@ -1575,5 +1575,6 @@
  "An estimate: a bigger home or more furniture takes more": "Een schatting: een groter huis of meer meubels kosten meer",
  "More than is left: it pauses for a top-up": "Meer dan er over is: het pauzeert tot je bijvult",
  "Body color": "Kleur van de lamp",
- "Default color": "Standaardkleur"
+ "Default color": "Standaardkleur",
+ "Unknown model “{0}”: drawn as a box": "Onbekend model \"{0}\": als blok getekend"
 }
