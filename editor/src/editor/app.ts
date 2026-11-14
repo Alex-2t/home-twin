@@ -47,6 +47,7 @@ import {createLook} from './look.ts';
 import {liveScene} from '../core/devices.ts';
 import {planWalls, planFurniture, planSpots} from '../core/plan-scene.ts';
 import {createPath} from './wizard-path.ts';
+import {stepClipButton} from './wizard-clips.ts';
 import {stepReadyToFinish, areaOnPlan, lampWaits} from './wizard-state.ts';
 import {LANGS, getLang} from '../i18n/i18n.ts';
 import {readMode, saveMode, nextMode, isNight, tipWanted, onModeChange} from '../core/daynight.ts';
@@ -161,7 +162,7 @@ export function createApp({haLights, ha, photos}: AppOptions): Editor {
     banner(text, buttons);
     bn.classList.toggle('wizard-card', wizard);
     bn.classList.toggle('in-look', !!o.look);
-    bn.classList.remove('short', 'has-path');
+    bn.classList.remove('short', 'has-path', 'has-clip');
     document.body.dataset.wizard = phase || '';
     if (wizard) {
       const message = bn.querySelector(':scope>span') as HTMLElement; // banner() puts the text in a span
@@ -209,6 +210,12 @@ export function createApp({haLights, ha, photos}: AppOptions): Editor {
       // the outline is drawn with the mouse; from the keyboard its size is typed — a button only keyboard users meet
       if (phase === 'rect') actions.append(typeOutlineButton());
       bn.append(actions);
+      // the step's clip of its action (D-109), top left beside the path strip and the phrase
+      const clip = phase && phase !== 'fin' ? stepClipButton(phase) : null;
+      if (clip) {
+        say.before(clip);
+        bn.classList.add('has-clip');
+      }
     }
     if (text) keepCardFocus();
     syncFinishHint();
