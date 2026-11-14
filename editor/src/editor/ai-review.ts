@@ -923,9 +923,9 @@ export function openReview(
   let lit: Element | null = null;
   const light = (target: Element | null): void => {
     if (lit === target) return;
-    lit?.classList.remove('aib-drop');
+    lit?.classList.remove('aib-drop-over');
     lit = target;
-    lit?.classList.add('aib-drop');
+    lit?.classList.add('aib-drop-over');
   };
   // dataTransfer: carriesFiles saw it.
   function dragOver(e: DragEvent): void {

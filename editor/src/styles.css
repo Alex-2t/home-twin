@@ -678,9 +678,10 @@ button.aib-big{height:46px;padding:0 22px;border-radius:12px;font-size:15px;box-
 .aib-photo-err{color:var(--bad);font-size:12px}
 .aib-reading.aib-waiting .aib-scan i{animation-play-state:paused;opacity:.35}.aib-reading.aib-waiting .aib-scan img{opacity:.7}
 .aib-note-photos{display:flex;align-items:center;gap:3px;align-self:center;color:var(--mut);font-size:12px}
-.aib-drop{outline:2px dashed var(--acc);outline-offset:2px}
+/* a pin or the note being written while a file is dragged over it (ai-review.ts); not the upload page's .aib-drop */
+.aib-drop-over{outline:2px dashed var(--acc);outline-offset:2px}
 .aib-drop-tile{display:flex;align-items:center;justify-content:flex-start;gap:10px;width:100%;height:auto;min-height:52px;white-space:normal;padding:10px 12px;border:1.5px dashed var(--line2);border-radius:11px;background:none;color:var(--mut);font-size:12.5px;line-height:1.35;text-align:left;cursor:pointer}
-.aib-drop-tile:hover,.aib-pop.aib-drop .aib-drop-tile{border-color:var(--acc);color:var(--tx);background:var(--acc2)}.aib-drop-tile .ic{color:var(--acc);flex:none}
+.aib-drop-tile:hover,.aib-pop.aib-drop-over .aib-drop-tile{border-color:var(--acc);color:var(--tx);background:var(--acc2)}.aib-drop-tile .ic{color:var(--acc);flex:none}
 .aib-thumb.aib-add{display:grid;place-items:center;border:1.5px dashed var(--line2);background:none;color:var(--mut);cursor:pointer;padding:0}.aib-thumb.aib-add:hover{border-color:var(--acc);color:var(--acc)}
 .aib-pin.past{background:var(--panel-solid);color:var(--acc);opacity:.55;box-shadow:0 0 0 2px var(--acc),0 3px 10px rgba(0,0,0,.2)}.aib-pin.past:hover,.aib-pin.past.on{opacity:1}
 .aib-past summary{cursor:pointer;color:var(--mut);font-size:12.5px;padding:6px 8px;border-radius:9px;list-style-position:inside}.aib-past summary:hover{background:var(--hov)}
