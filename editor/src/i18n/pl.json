@@ -1639,5 +1639,7 @@
  "{0, plural, one {+# package} other {+# packages}}": "{0, plural, one {+# pakiet} few {+# pakiety} many {+# pakietów} other {+# pakietu}}",
  "{0, plural, one {# more package} other {# more packages}}": "{0, plural, one {jeszcze # pakiet} few {jeszcze # pakiety} many {jeszcze # pakietów} other {jeszcze # pakietu}}",
  "Current package": "Bieżący pakiet",
- "Your package": "Twój pakiet"
+ "Your package": "Twój pakiet",
+ "All examples": "Wszystkie przykłady",
+ "Fewer examples": "Mniej przykładów"
 }

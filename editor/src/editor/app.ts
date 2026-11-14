@@ -47,8 +47,15 @@ import {createLook} from './look.ts';
 import {liveScene} from '../core/devices.ts';
 import {planWalls, planFurniture, planSpots} from '../core/plan-scene.ts';
 import {createPath} from './wizard-path.ts';
-import {placeStepClip, showStepClip, stepClipCardPill, stepClipInset} from './wizard-clip-panel.ts';
-import type {ClipBox} from './wizard-clip-panel.ts';
+import {
+  DOCK_QUERY,
+  clipFoldButtons,
+  clipStillShown,
+  coachClip,
+  fitCoachPanel,
+  stepClipCardPill,
+} from './wizard-clip-panel.ts';
+import type {ClipBox, CoachFit} from './wizard-clip-panel.ts';
 import {stepReadyToFinish, areaOnPlan, lampWaits} from './wizard-state.ts';
 import {LANGS, getLang} from '../i18n/i18n.ts';
 import {readMode, saveMode, nextMode, isNight, tipWanted, onModeChange} from '../core/daynight.ts';
@@ -127,6 +134,11 @@ export function createApp({haLights, ha, photos}: AppOptions): Editor {
   // A wizard step (“Split into rooms…”) stays until its “Done” is pressed. A temporary hint goes on top of it
   // and, once closed, brings the step back. A step lives in its own mode: gone to “Furniture” — hidden, back — visible again.
   let step: WizardStep | null = null;
+  // the floating panels can be placed: the layout below has run once (the card is drawn before it only while starting)
+  let floatsReady = false;
+  // the step card docked on the left as the coach panel (D-111): its place, and its box when the plan was last fitted beside it
+  let dockPlace: {x: number; y: number} | null = null;
+  let dockedKey = '';
   // The wizard is pinned at the bottom; aim is used only for separate contextual hints outside the wizard.
   const coach = createCoach($('work'), $('banner'));
   const path = createPath(ed);
@@ -160,20 +172,29 @@ export function createApp({haLights, ha, photos}: AppOptions): Editor {
     // The id does not depend on the text, the counter or the language: the first edit does not restart the tutorial.
     const key = text && ed.plan.id + '|' + (o.id || phase || text.split('<small>')[0]);
     const bn = $('banner');
+    // the clip goes on where it was when the same step's card is only redrawn: asked before the card is emptied
+    const clipWasShown = clipStillShown();
     banner(text, buttons);
     bn.classList.toggle('wizard-card', wizard);
     bn.classList.toggle('in-look', !!o.look);
     bn.classList.remove('short', 'has-path');
     document.body.dataset.wizard = phase || '';
-    // the step's clip of its action beside the plan (D-110); none on other cards and on the final one
+    syncEarlyStage();
+    // the step's clip of its action in the card (D-110, D-111); none on other cards and on the final one
     const clipStep = phase && phase !== 'fin' ? phase : null;
-    showStepClip(bn.parentElement!, clipStep); // the card is in the work area
     if (wizard) {
       const message = bn.querySelector(':scope>span') as HTMLElement; // banner() puts the text in a span
       const full = message.innerHTML;
       const pe = path.el();
       if (pe) bn.prepend(pe);
       message.className = 'wizard-message';
+      // the clip under the progress line, and the buttons that fold and unfold it on the line (D-111); shown where the card
+      // is the panel on the left (styles.css: .docked), at the bottom its “Watch how” pill opens it instead
+      const clip = clipStep ? coachClip(clipStep, clipWasShown) : null;
+      if (clip && clipStep && pe) {
+        pe.append(...clipFoldButtons(clipStep, placeFloats));
+        pe.after(clip);
+      }
       // “Exit setup” — on the right of the path row, like the close button in a header; on a narrow screen — as a cross
       const ex = bn.querySelector<HTMLElement>(':scope>button.wizard-exit');
       if (ex && pe) {
@@ -213,8 +234,8 @@ export function createApp({haLights, ha, photos}: AppOptions): Editor {
       for (const b of [...bn.children]) if (b.tagName === 'BUTTON') actions.append(b);
       // the outline is drawn with the mouse; from the keyboard its size is typed — a button only keyboard users meet
       if (phase === 'rect') actions.append(typeOutlineButton());
-      // on a phone the clip has no room beside the plan: a “Watch how” pill on the card opens it full width
-      if (clipStep) actions.prepend(stepClipCardPill(clipStep));
+      // where the card is at the bottom (a phone, a tablet held upright) a “Watch how” pill on it opens the clip over the page
+      if (clip && clipStep) actions.prepend(stepClipCardPill(clipStep));
       bn.append(actions);
     }
     if (text) keepCardFocus();
@@ -228,12 +249,18 @@ export function createApp({haLights, ha, photos}: AppOptions): Editor {
         compact: wizard || o.compact,
       });
     else coach.hide();
-    // the clip panel keeps above the card: placed once the card has its place (placeFloats runs it too)
-    requestAnimationFrame(() => {
-      placeClip();
-      placeCtx();
-    });
+    // the card docks on the left or goes to the bottom, with its width and its clip's state (D-111)
+    if (floatsReady) placeFloats();
+    requestAnimationFrame(() => placeCtx());
   };
+  // Before the home has rooms of its own (the outline and rooms steps), the modes after the plan and Preview are dimmed and the
+  // lights count is left out (styles.css: .modes.early): there is nothing to do there yet (D-111). They still open.
+  function syncEarlyStage(): void {
+    const modesReady = !!ed.modes?.rooms && !!ed.modes.sensors;
+    const phase = modesReady ? path.cur() : null;
+    const early = !ed.plan.rooms.length || phase === 'rect' || phase === 'split';
+    $('modes').classList.toggle('early', early);
+  }
   // Keyboard focus and the card (D-096): pressing a card's button with the keyboard rebuilds the card for the next step, and
   // the focus would fall to the page's start (so would closing a dialog whose button is gone). Lost like that, it goes to the
   // new card's main button, so the path goes on with Enter. A focus that is somewhere, and a mouse user's, are left alone.
@@ -597,6 +624,9 @@ export function createApp({haLights, ha, photos}: AppOptions): Editor {
     badge.hidden = !L.length;
     badge.textContent = `${done}/${L.length}`;
     badge.classList.toggle('done', done === L.length);
+    syncEarlyStage();
+    // the 3D window waits for the first room (D-111): it comes and goes with the rooms
+    if (floatsReady && pipWaits() !== pipWaited) layout();
     ed.draw();
     ed.status();
     ed.applySide?.();
@@ -823,7 +853,10 @@ export function createApp({haLights, ha, photos}: AppOptions): Editor {
     const cr = ed.v.cv.getBoundingClientRect();
     const w = c.offsetWidth;
     const h = c.offsetHeight;
-    const sr = floatingOpen() ? side.getBoundingClientRect().right - cr.left + 8 : 6;
+    let sr = floatingOpen() ? side.getBoundingClientRect().right - cr.left + 8 : 6;
+    // the step card docked on the left (D-111) is a column of its own: the panel stays right of it
+    const card = dockedCardBox();
+    if (card) sr = Math.max(sr, card.left + card.width + 8 - (cr.left - work.getBoundingClientRect().left));
     // a collapsed left panel — the header under the logo: also at the top
     const bounds = (x: number): [number, number] => {
       const across = (id: string): DOMRect | null => {
@@ -875,13 +908,8 @@ export function createApp({haLights, ha, photos}: AppOptions): Editor {
       const bn = $('banner');
       const pill = $('pill');
       const pip = ed.role('3d') === 'win' ? rbox($('pane-3d').getBoundingClientRect()) : null;
-      // the step's clip panel or its pill (D-110) stays uncovered too
-      const clip = document.querySelector<HTMLElement>('.clip-panel:not([hidden]), .clip-pill:not([hidden])');
-      const hard = [
-        !bn.hidden && bn.getBoundingClientRect(),
-        !pill.hidden && pill.getBoundingClientRect(),
-        clip?.getBoundingClientRect(),
-      ]
+      // the step card stays uncovered, also docked on the left as the coach panel (D-111)
+      const hard = [!bn.hidden && bn.getBoundingClientRect(), !pill.hidden && pill.getBoundingClientRect()]
         .filter((r): r is DOMRect => Boolean(r))
         .map(rbox);
       const obs = [pip, ...hard].filter((o): o is PixelBox => Boolean(o));
@@ -1105,8 +1133,16 @@ export function createApp({haLights, ha, photos}: AppOptions): Editor {
   let bare: Pane | null = null;
   let bareRight = 0;
   let bareBottom = 0;
+  // While the plan has no rooms the 3D window is not shown (D-111): it would only say that rooms appear there. A 3D view chosen
+  // as the main one stays.
+  const pipWaits = (): boolean => !look && !bare && ui.main === 'plan' && !ed.plan.rooms.length;
+  let pipWaited = false;
   const pipMode = (): PaneRole =>
-    look || bare ? 'off' : ui.pip === 'dock' && (work.clientWidth || innerWidth) < 1100 ? 'win' : ui.pip;
+    look || bare || pipWaits()
+      ? 'off'
+      : ui.pip === 'dock' && (work.clientWidth || innerWidth) < 1100
+        ? 'win'
+        : ui.pip;
   ed.role = id =>
     bare
       ? id === bare
@@ -1146,8 +1182,9 @@ export function createApp({haLights, ha, photos}: AppOptions): Editor {
     root.setProperty('--view', ui.view + '%');
     root.setProperty('--pip-w', pw + 'px');
     root.setProperty('--pip-h', ph + 'px');
+    pipWaited = pipWaits();
     const show = $('pip-show');
-    show.hidden = pm !== 'off';
+    show.hidden = pm !== 'off' || pipWaited;
     show.innerHTML = ui.main === 'plan' ? icon('window') + '3D' : icon('plan') + t('Plan');
     show.title = t('Show as a small window');
     // The plan goes into the small window — fit it whole; it comes back — the same zoom and center as before.
@@ -1361,40 +1398,61 @@ export function createApp({haLights, ha, photos}: AppOptions): Editor {
     const top = Math.min(...ys);
     return {left, top, width: Math.max(...xs) - left, height: Math.max(...ys) - top};
   }
-  // The step's clip panel (D-110): on the left under the side panel's header, or right of the open side panel, kept above
-  // the step card, the toolbar and the test panel. The card's place is where it was put (style), as it may still be moving.
-  function placeClip(): void {
-    const open = !side.classList.contains('closed');
+  // The guided path's card as the coach panel on the left (D-111): under the side panel's header (under the logo while the side
+  // panel is hidden), or right of the open side panel; as wide as fitCoachPanel says, its clip open or folded, never reaching
+  // the toolbar or the test panel. Elsewhere (a phone, a tablet held upright, Preview, a card that is not a step of the path)
+  // the card is placed by the coach as before: at its area or at the bottom.
+  const dockMedia = matchMedia(DOCK_QUERY);
+  function placeCoach(): void {
     const bn = $('banner');
-    const boxOf = (e: HTMLElement | null): ClipBox | null => {
-      if (!e || e.hidden) return null;
-      const r = e.getBoundingClientRect();
-      const w = work.getBoundingClientRect();
-      return {left: r.left - w.left, top: r.top - w.top, width: r.width, height: r.height};
-    };
-    const card: ClipBox | null = bn.hidden
-      ? null
-      : {
-          left: parseFloat(bn.style.left || '0'),
-          top: parseFloat(bn.style.top || '0'),
-          width: bn.offsetWidth,
-          height: bn.offsetHeight,
-        };
-    const keepClear = [card, boxOf($('dock')), boxOf(document.querySelector<HTMLElement>('.dev'))].filter(
-      (box): box is ClipBox => !!box,
-    );
-    // a view still at its automatic fit is fitted again beside the panel below, so only a view the user set can be covered
-    const insetBefore = stepClipInset();
-    placeStepClip({
-      planBox: ed.v.fitted ? null : planScreenBox(),
-      left: open ? side.offsetLeft + side.offsetWidth + 12 : 12,
-      top: open ? side.offsetTop : side.offsetTop + side.offsetHeight + 10,
+    const docked = !bn.hidden && bn.classList.contains('wizard-card') && dockMedia.matches && !look;
+    bn.classList.toggle('docked', docked);
+    if (!docked) {
+      dockPlace = null;
+      bn.classList.remove('clip-open', 'clip-no-room');
+      bn.style.removeProperty('--dock-max-h');
+      return;
+    }
+    const sideShown = !side.hidden;
+    const sideOpen = sideShown && !side.classList.contains('closed');
+    const brand = $('brand');
+    const left = sideOpen ? side.offsetLeft + side.offsetWidth + 12 : 12;
+    let top = brand.offsetTop + brand.offsetHeight + 12;
+    if (sideOpen) top = side.offsetTop;
+    else if (sideShown) top = side.offsetTop + side.offsetHeight + 12;
+    // what the panel keeps above: the toolbar and the test panel, where they are across from its widest
+    const workBox = work.getBoundingClientRect();
+    const reach = left + 420 + 12;
+    let bottomLimit = work.clientHeight - 12;
+    for (const below of [$('dock'), document.querySelector<HTMLElement>('.dev')]) {
+      if (!below || below.hidden) continue;
+      const box = below.getBoundingClientRect();
+      const across = box.left - workBox.left < reach && box.right - workBox.left > left - 12;
+      if (across && box.width) bottomLimit = Math.min(bottomLimit, box.top - workBox.top - 12);
+    }
+    const clip = bn.querySelector<HTMLElement>('.coach-clip');
+    const clipNow = clip?.offsetHeight ? clip.offsetHeight + 8 : 0; // with the gap above it
+    const room = {
+      left,
+      top,
       containerWidth: work.clientWidth,
-      containerHeight: work.clientHeight,
-      keepClear,
-      hidden: look,
-    });
-    if (ed.v.fitted && stepClipInset() !== insetBefore) ed.fit();
+      bottomLimit,
+      cardHeight: bn.offsetHeight - clipNow,
+      planBox: ed.v.fitted ? null : planScreenBox(),
+    };
+    // a card without a clip (the summary, devices, sensors) is as wide as one with its clip folded
+    const fit: CoachFit = clip ? fitCoachPanel(room) : fitCoachPanel(room, 'closed');
+    bn.style.setProperty('--wiz-w', fit.width + 'px');
+    bn.style.setProperty('--dock-max-h', Math.max(160, bottomLimit - top) + 'px');
+    bn.classList.toggle('clip-open', fit.clip === 'open');
+    bn.classList.toggle('clip-no-room', fit.clip === 'no-room');
+    dockPlace = {x: left, y: top};
+  }
+  /** The docked card's box in the work area, or null where the card is not the panel on the left. */
+  function dockedCardBox(): ClipBox | null {
+    const bn = $('banner');
+    if (!dockPlace || bn.hidden) return null;
+    return {left: dockPlace.x, top: dockPlace.y, width: bn.offsetWidth, height: bn.offsetHeight};
   }
   // Floating panels centered in the free part of the screen: the modes and the bottom bar — between the edges of the main view,
   // badges — to the right of the open left panel; all — without running onto the 3D window, the title and the buttons on the right.
@@ -1453,6 +1511,7 @@ export function createApp({haLights, ha, photos}: AppOptions): Editor {
     const WIZ_MIN = 440;
     coach.env ??= {
       home: (w, h) => {
+        if (dockPlace) return {...dockPlace, docked: true};
         const {W, R, floatL, right, wide, pipT} = lane();
         let y = Math.max(110, $('dock').offsetTop - 8 - h);
         let left;
@@ -1496,9 +1555,11 @@ export function createApp({haLights, ha, photos}: AppOptions): Editor {
         document.querySelector<HTMLElement>('.dev')?.getBoundingClientRect(),
       ],
     };
-    // the wizard card's width (D-043: at 1024 px with the catalog open it covered the catalog's bottom): 680 px if the lane has them,
-    // else as wide as the lane (from 440 px; the buttons wrap below), else as wide as the room right of the panel (lifted above the 3D window)
-    {
+    placeCoach();
+    // the wizard card's width at the bottom (D-043: at 1024 px with the catalog open it covered the catalog's bottom): 680 px if the
+    // lane has them, else as wide as the lane (from 440 px; the buttons wrap below), else as wide as the room right of the panel
+    // (lifted above the 3D window); docked on the left, placeCoach has set it
+    if (!dockPlace) {
       const g = lane();
       const lane1 = g.right - g.floatL;
       const wide = g.wide - g.floatL;
@@ -1515,7 +1576,14 @@ export function createApp({haLights, ha, photos}: AppOptions): Editor {
       b.classList.toggle('tight', fit < 560);
     }
     coach.place();
-    placeClip();
+    // a view still at its automatic fit is fitted again beside the docked card when the card appears or changes its size,
+    // so only a view the user set can be covered
+    const cardBox = dockedCardBox();
+    const cardKey = cardBox ? [cardBox.left, cardBox.top, cardBox.width, cardBox.height].join() : '';
+    if (cardKey !== dockedKey) {
+      dockedKey = cardKey;
+      if (ed.v.fitted) ed.fit();
+    }
     placeCtx();
     const bn = $('banner');
     $('pill').style.bottom = 70 + (bn.hidden || !coach.bottom() ? 0 : bn.offsetHeight + 8) + 'px';
@@ -1605,10 +1673,13 @@ export function createApp({haLights, ha, photos}: AppOptions): Editor {
   // Pinned (📌) — a column on the left: the main view starts after it, nothing is covered. Collapsed — always a header on top.
   let sideState = '';
   ed.applySide = () => {
-    const open = ed.sideOpen();
-    const st = open + '|' + !!ui.pinned;
+    // the Plan mode's panel lists the rooms and the plan photo: with neither it is not shown (D-111)
+    const empty = ed.mode?.id === 'rooms' && !ed.plan.rooms.length && !ed.underlay?.ready;
+    const open = ed.sideOpen() && !empty;
+    const st = open + '|' + !!ui.pinned + '|' + empty;
     if (st === sideState) return;
     sideState = st;
+    side.hidden = empty;
     $('side-chev').innerHTML = icon(open ? 'up' : 'down', 15);
     side.classList.toggle('closed', !open);
     work.classList.toggle('side-open', open);
@@ -1639,7 +1710,7 @@ export function createApp({haLights, ha, photos}: AppOptions): Editor {
     find(side, '.c').textContent = c;
   };
   $('side-head').onclick = $('side-chev').onclick = () => ed.toggleSide();
-  const floatingOpen = (): boolean => !ui.pinned && !side.classList.contains('closed');
+  const floatingOpen = (): boolean => !ui.pinned && !side.hidden && !side.classList.contains('closed');
   function insets3d(): void {
     if (bare) {
       ed.view.setInsets(0, bareRight, bareBottom);
@@ -1688,18 +1759,35 @@ export function createApp({haLights, ha, photos}: AppOptions): Editor {
     let ins: {l: number; r?: number; t?: number; b?: number} = {
       l: innerWidth > 760 && r === 'main' && floatingOpen() ? side.offsetWidth + 24 : 0,
     };
-    // the step's clip panel on the left (D-110): the plan goes beside it
-    if (innerWidth > 760 && r === 'main') {
-      const canvasLeft = ed.v.cv.getBoundingClientRect().left - work.getBoundingClientRect().left;
-      ins.l = Math.max(ins.l, stepClipInset() - canvasLeft);
-    }
     // at the top — the title and the modes, at the bottom — the bottom bar
     ins.t = innerWidth <= 760 ? 176 : 60;
     ins.b = innerWidth <= 760 ? 110 : 64;
-    if (r === 'main' && pipMode() === 'win') {
-      const A = {...ins, r: pw + 24};
-      const B = {...ins, b: ph + 24};
-      ins = ed.v.fit(pts, 24, A) >= ed.v.fit(pts, 24, B) ? A : B;
+    // the guided path's card docked on the left (D-111): the plan goes beside it or below it, and beside or above the 3D
+    // window — whichever leaves it larger
+    let options = [ins];
+    const card = r === 'main' ? dockedCardBox() : null;
+    if (card) {
+      const canvas = ed.v.cv.getBoundingClientRect();
+      const area = work.getBoundingClientRect();
+      const besideCard = {
+        ...ins,
+        l: Math.max(ins.l, card.left + card.width + 12 - (canvas.left - area.left)),
+      };
+      const belowCard = {...ins, t: Math.max(ins.t, card.top + card.height + 12 - (canvas.top - area.top))};
+      options = [besideCard, belowCard];
+    }
+    if (r === 'main' && pipMode() === 'win')
+      options = options.flatMap(option => [
+        {...option, r: pw + 24},
+        {...option, b: ph + 24},
+      ]);
+    let bestScale = -Infinity;
+    for (const option of options) {
+      const scale = ed.v.fit(pts, 24, option);
+      if (scale > bestScale) {
+        bestScale = scale;
+        ins = option;
+      }
     }
     const pad = o.pad ?? (only ? 60 : 24);
     ed.v.fit(pts, pad, ins);
@@ -1723,6 +1811,7 @@ export function createApp({haLights, ha, photos}: AppOptions): Editor {
     ed.draw();
   };
   layout();
+  floatsReady = true;
 
   // ---------- mouse ----------
   // Pan the plan: “hand” (H), Space + mouse, the middle or right button, an empty spot; trackpad — two fingers.

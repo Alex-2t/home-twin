@@ -102,6 +102,8 @@ const EXAMPLE: Record<string, ExampleInfo> = {
   bungalow: {name: N('Bungalow'), kind: 'house'},
   house: {name: N('Detached house'), kind: 'house', note: N('ground floor')},
 };
+// The start screen's row of examples (D-111): a designer interior, three apartments of different sizes, a house
+const FEATURED_EXAMPLES: string[] = ['loft', 'studio', 'family', 'altbau', 'house'];
 const OUTDOOR = /балкон|лодж|террас|сад|balcon|terra|patio|garden|porch/i; // not counted in the example's area
 // a small outline of the rooms for an example's card (north up)
 function planThumb(plan: Pick<Plan, 'rooms'>): string {
@@ -391,12 +393,14 @@ export function createFlows(
     ed.setTool('rect');
     ed.step(DRAW_RECT, [], ed.aim.photo);
   };
-  // ---------- examples (D-062): two groups, apartments and houses; a click opens the home with its demo HA data ----------
+  // ---------- examples (D-062): a click opens the home with its demo HA data ----------
+  // The start screen shows one even row of them (D-111), the main choices above stay first; “All examples” opens the full
+  // list in its groups (designer interiors, apartments, houses).
   // Each example has its own lights, sensors and devices: another one than the loaded one — the page reloads with it (main.js) and opens it
   {
     const box = find($('start'), '.examples');
     box.hidden = !examples.length;
-    for (const x of examples) {
+    const tile = (x: RoomedExample): HTMLElement => {
       const info = EXAMPLE[x.id] || {name: x.id, kind: 'flat'};
       const m2 = x.plan.rooms
         .filter(r => !OUTDOOR.test(r.name + ' ' + r.id))
@@ -404,8 +408,10 @@ export function createFlows(
       const b = el(
         `<button class="ex glass" data-ex="${esc(x.id)}">${planThumb(x.plan)}<b></b><span></span></button>`,
       );
-      find(b, 'b').textContent = t(info.name);
+      const name = t(info.name);
+      find(b, 'b').textContent = name;
       find(b, 'span').textContent = num(m2, 0) + t(' m²') + (info.note ? ' · ' + t(info.note) : '');
+      b.title = name; // the name is on one line, cut short where it is long
       b.onclick = () => {
         coverUp(b.innerHTML);
         if (x.id === example) {
@@ -418,9 +424,29 @@ export function createFlows(
         shown = routeHash(r);
         reloadWith(x);
       };
-      find(box, `.ex-list[data-kind=${info.kind}]`).append(b);
+      return b;
+    };
+    for (const x of examples) {
+      const kind = (EXAMPLE[x.id] || {kind: 'flat'}).kind;
+      find(box, `.ex-list[data-kind=${kind}]`).append(tile(x));
     }
     box.querySelectorAll<HTMLElement>('.ex-group').forEach(g => (g.hidden = !g.querySelector('.ex')));
+    // the row: the chosen ones (a designer interior, apartments of different sizes, a house), filled up with the others in their
+    // order where one is missing, five at most
+    const featured = find(box, '.ex-featured');
+    const chosen = FEATURED_EXAMPLES.map(id => examples.find(e => e.id === id)).filter(x => x !== undefined);
+    const others = examples.filter(x => !chosen.includes(x));
+    for (const x of [...chosen, ...others].slice(0, FEATURED_EXAMPLES.length)) featured.append(tile(x));
+    const groups = find(box, '.ex-groups');
+    const all = find<HTMLButtonElement>(box, '.ex-all');
+    all.hidden = examples.length <= featured.children.length;
+    all.onclick = () => {
+      const open = groups.hidden;
+      groups.hidden = !open;
+      featured.hidden = open;
+      all.setAttribute('aria-expanded', String(open));
+      all.textContent = open ? t('Fewer examples') : t('All examples');
+    };
   }
   // “← Examples” by the file menu while an example is open: back to the start screen, at the examples
   const back = $('to-examples');

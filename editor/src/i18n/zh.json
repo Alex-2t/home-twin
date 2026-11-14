@@ -1639,5 +1639,7 @@
  "{0, plural, one {+# package} other {+# packages}}": "{0, plural, other {+# 个套餐}}",
  "{0, plural, one {# more package} other {# more packages}}": "{0, plural, other {还有 # 个套餐}}",
  "Current package": "当前套餐",
- "Your package": "你的套餐"
+ "Your package": "你的套餐",
+ "All examples": "全部示例",
+ "Fewer examples": "收起示例"
 }

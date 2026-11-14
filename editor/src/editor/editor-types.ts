@@ -426,8 +426,8 @@ export interface EditorFlows {
 export interface CoachEnv {
   /** The part free for the card. */
   free(): {l: number; r: number; t: number; b: number};
-  /** Where the card goes with no area: at the bottom above the toolbar. */
-  home(w: number, h: number): {x: number; y: number};
+  /** Where the card goes with no area: at the bottom above the toolbar, or (docked) the guided path's panel on the left. */
+  home(w: number, h: number): {x: number; y: number; docked?: boolean};
   /** What the card must not cover; null: that one is not shown. */
   avoid(): Array<ScreenRect | null | undefined>;
 }

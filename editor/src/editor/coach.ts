@@ -1,4 +1,5 @@
-// The step hint sits by what to do now (D-037). On a new step the card stands next to its area (the step's room,
+// The step hint sits by what to do now (D-037). The guided path's card is not placed by an area: env.home puts it at the bottom,
+// or on a desktop docks it on the left as the coach panel (D-111). On a new step the card stands next to its area (the step's room,
 // the catalog, the 3D window…), everything else is dimmed for a second and a half — so it is noticed and read; then only a frame
 // stays around the area. The card stays next to it until the step's action itself is done (the first plan edit — acted()) or Esc is pressed;
 // panning and zooming the plan do not move it away. Then the frame fades, the card moves down above the toolbar and does not cover
@@ -21,7 +22,7 @@ export interface Coach {
   /** No area (null or none): the card goes to the bottom. */
   show(key: string, aim: Aim | null | undefined, o?: StepOptions): void;
   hide(): void;
-  /** The card is at the bottom (not by an area). */
+  /** The card is at the bottom (not by an area, not docked on the left). */
   bottom(): boolean;
 }
 
@@ -33,8 +34,8 @@ interface Box {
   b: number;
 }
 
-/** Where the card stands: by a side of its area, or at the bottom. */
-type CardSide = 'right' | 'left' | 'below' | 'above' | 'bottom';
+/** Where the card stands: by a side of its area, at the bottom, or docked as the guided path's panel on the left (D-111). */
+type CardSide = 'right' | 'left' | 'below' | 'above' | 'bottom' | 'dock';
 
 export function createCoach(work: HTMLElement, b: HTMLElement): Coach {
   const spot = document.createElement('div');
@@ -154,9 +155,13 @@ export function createCoach(work: HTMLElement, b: HTMLElement): Coach {
             'px',
         );
     }
-    if (!at) at = env.home(w, h);
+    if (!at) {
+      const home = env.home(w, h);
+      at = {x: home.x, y: home.y};
+      if (home.docked) s = 'dock';
+    }
     b.dataset.side = s;
-    b.classList.toggle('att', s !== 'bottom');
+    b.classList.toggle('att', s !== 'bottom' && s !== 'dock');
     // a jump (a new step, moved down) — glides smoothly; panning and zooming the plan — follows without delay
     if (last && Math.hypot(at.x - last.x, at.y - last.y) > 40) glide();
     if (!last || at.x !== last.x || at.y !== last.y) {
