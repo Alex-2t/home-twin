@@ -195,6 +195,9 @@ export function tip(target: HTMLElement, text: string, info?: HTMLElement | null
 // A keyboard user lands on its first item, moves with the arrows, and Escape gives the focus back to the button (keyboard.ts).
 let pop: HTMLElement | null = null;
 let popAnchor: HTMLElement | null = null;
+// Which of the buttons with the popup button's label it was (the room's Walls and Floor palettes share one label), so the
+// focus finds the right one again after a pick re-rendered the panel.
+let popAnchorIndex = 0;
 export function closePop(): void {
   const hadFocus = !!pop?.contains(document.activeElement);
   pop?.remove();
@@ -203,17 +206,24 @@ export function closePop(): void {
   if (hadFocus && popAnchor) anchorNow(popAnchor)?.focus({preventScroll: true});
   popAnchor = null;
 }
-// A pick in a popup re-renders the panel its button is on: the same button is then a new element, found by its label.
+// The buttons of the same kind with this button's label, in the page's order.
+function sameLabelled(anchor: HTMLElement): HTMLElement[] {
+  const label = anchor.getAttribute('aria-label') || anchor.title;
+  if (!label) return [];
+  const sameKind = document.querySelectorAll<HTMLElement>(anchor.tagName);
+  return [...sameKind].filter(other => (other.getAttribute('aria-label') || other.title) === label);
+}
+// A pick in a popup re-renders the panel its button is on: the same button is then a new element, found by its label and
+// its place among the buttons with that label (2026-11-14: a pick on the walls' palette gave the focus to the floor's).
 function anchorNow(anchor: HTMLElement): HTMLElement | null {
   if (anchor.isConnected) return anchor;
-  const label = anchor.getAttribute('aria-label') || anchor.title;
-  if (!label) return null;
-  const sameKind = document.querySelectorAll<HTMLElement>(anchor.tagName);
-  return [...sameKind].find(other => (other.getAttribute('aria-label') || other.title) === label) || null;
+  const matches = sameLabelled(anchor);
+  return matches[popAnchorIndex] || matches[0] || null;
 }
 // The popup's keys and first focus, for both kinds of popup.
 function popKeys(m: HTMLElement, anchor: HTMLElement): void {
   popAnchor = anchor;
+  popAnchorIndex = Math.max(0, sameLabelled(anchor).indexOf(anchor));
   menuKeys(m, anchor, closePop);
   focusMenuStart(m);
 }
@@ -252,6 +262,18 @@ export function popover(anchor: HTMLElement, items: PopoverItem[]): void {
     }
   });
 }
+// A popup whose content grows while it is open (a finish with a wider pattern block) moves back inside the screen; it moves
+// only when it would stick out (2026-11-14: "Reset" and "Offset" were cut off at the screen's edge until it was reopened).
+function keepOnScreen(m: HTMLElement): void {
+  if (typeof ResizeObserver === 'undefined') return;
+  const observer = new ResizeObserver(() => {
+    if (!m.isConnected) return observer.disconnect();
+    const box = m.getBoundingClientRect();
+    if (box.right > innerWidth - 8) m.style.left = Math.max(8, innerWidth - box.width - 8) + 'px';
+    if (box.bottom > innerHeight - 8) m.style.top = Math.max(8, innerHeight - box.height - 8) + 'px';
+  });
+  observer.observe(m);
+}
 // Popup at a button with any content (all floor coverings): closes on an outside click and Escape. Returns the popup.
 export let popClosedAt = 0;
 export function panelPop(anchor: HTMLElement, content: Node, cls = ''): HTMLElement {
@@ -265,6 +287,7 @@ export function panelPop(anchor: HTMLElement, content: Node, cls = ''): HTMLElem
   const h = m.offsetHeight;
   m.style.left = Math.max(8, Math.min(innerWidth - w - 8, r.left - 8)) + 'px';
   m.style.top = (r.bottom + 6 + h > innerHeight - 8 ? Math.max(8, r.top - 6 - h) : r.bottom + 6) + 'px';
+  keepOnScreen(m);
   popKeys(m, anchor);
   const off = (e: PointerEvent): void => {
     if (!document.body.contains(m)) {
