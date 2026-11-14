@@ -3,6 +3,7 @@
 import {migrate, PLAN_VERSION} from './plan.ts';
 import {checkItem} from './parts.ts';
 import {isHex} from './color.ts';
+import {isPanelLayout} from './plan-mend.ts';
 import type {Plan, PlanInput, Point} from './types.ts';
 
 // A JSON object: its fields are unknown until checked.
@@ -26,22 +27,6 @@ const numbers = (o: JsonObject, ks: string[]): void => {
 const points = (x: unknown): x is Point[] => isList(x) && x.every(point);
 // The entries of a list the id check below has found to be objects (none: the list is missing).
 const objects = (list: unknown): JsonObject[] => (isList(list) ? list.filter(obj) : []);
-// the “Preview” dashboard layout (look/layout.js): {cards: [{id} | {id, type: 'entities', title, entities}], removed: [id]}
-const panel = (x: unknown): boolean =>
-  obj(x) &&
-  isList(x.cards) &&
-  x.cards.every(
-    c =>
-      obj(c) &&
-      str(c.id) &&
-      (c.type == null ||
-        (c.type === 'entities' &&
-          typeof (c.title ?? '') === 'string' &&
-          isList(c.entities) &&
-          c.entities.every(str))),
-  ) &&
-  (x.removed == null || (isList(x.removed) && x.removed.every(str)));
-
 export function readPlan(text: string): Plan {
   const p: unknown = JSON.parse(text);
   check(obj(p) && isList(p.rooms));
@@ -78,7 +63,7 @@ export function readPlan(text: string): Plan {
       check(obj(r.zone) && point(r.zone.a) && point(r.zone.b));
       optional(r.zone, 'area', str);
     }
-    optional(r, 'panel', panel); // the room screen layout
+    optional(r, 'panel', isPanelLayout); // the room screen layout
   }
   for (const o of objects(p.openings)) {
     check(o.kind === 'door' || o.kind === 'window');
@@ -154,7 +139,7 @@ export function readPlan(text: string): Plan {
         ),
     );
   }
-  optional(p, 'panel', panel); // the overview layout
+  optional(p, 'panel', isPanelLayout); // the overview layout
   if (p.view != null) {
     check(obj(p.view));
     check(isList(p.view.t) && p.view.t.length === 3 && p.view.t.every(Number.isFinite));
