@@ -17,6 +17,17 @@ New decisions are appended at the top of their section, old ones are not rewritt
 
 ## Decisions
 
+### D-105. The upload page says how to film in three short tips, and gently notes a very short or small upright video — **accepted** (2026-11-14)
+- **Why:** paid builds of eight new homes showed the result follows the video: a dark, upright 480p phone video of an empty flat gives few things and no lamps. Casual users film once, so the AI build's upload page is the one place to help. The owner left the decision to us; the choices below are ours, written down so they can be changed.
+- **Three tips in one row of pills** under the plan and the video (`ai-build.ts`, `.aib-tips`), each an icon and a few words: "Hold the phone sideways", "Lights on. No need to tidy up.", "Walk slowly, turn around in each room". Hints stay one short phrase each (D-022), and the second half of the lights tip keeps it from reading as homework. "Show the furniture" is left out: turning around in each room already shows it, and a fourth tip is too many (the casual-users rule: two or three at most). On a phone the pills become one panel of three rows. The older "Walk slowly and turn around once in every room." is replaced by the shorter third tip.
+- **A gentle line after a video is chosen** (`video-note.ts`): the browser reads each video's length and size (the length was read already for the estimate, D-094; now both in one read). One line under the tips, with an info icon in the accent colour, never a warning colour, and it never blocks the build:
+  - **short** — the videos together under 30 s (people film about 10–20 s a room): "A short video: rooms it skips stay empty. Fine to go ahead." It comes first, because rooms left out matter more than a small picture.
+  - **small and upright** — a video taller than wide whose shorter side is below 720 px: "Filmed upright in low resolution: some things may be missed. Fine to go ahead." An upright HD video (the usual phone video) and a sideways 480p one say nothing: the paid runs' weak homes were upright and small.
+  - What the browser cannot read (no length, no size) says nothing.
+- Brightness is not checked in the browser: it would mean decoding frames, and the lights tip covers it.
+- Tests: `src/editor/video-note.test.ts` (6): usual videos say nothing, the paid runs' 480×854 and 608×1080 upright videos get the line, a short pass comes first, several short clips adding up are not short, unknown facts say nothing, the length together. New strings in all ten languages.
+- Open, the owner's call if he disagrees: the 30 s and 720 px thresholds; whether "Hold the phone sideways" is right for owners whose upright HD videos built well.
+
 ### D-104. Common rooms have kinds of their own; a plan's other English words and cupboard letters name a kind — **accepted** (2026-11-14)
 - **Why:** the AI build found that the room kinds (`core/overview.ts`, `roomKind`) had no utility room, laundry, boiler room, dressing room, dining room or garage, and did not know "sitting room", "lounge", "landing", "box room" or a British plan's "C", "Cpd", "AC". A part of a name of no kind stays as written (`localRoomName`), so a Russian owner's build and the AI build's progress page showed "Utility room" and "Sitting room" in English. The owner left the decisions to us; the choices below are ours, written down so they can be changed.
 - **Five new kinds** with names in all ten languages (`KIND_NAME`), so the AI build and its progress page name them in the owner's language:
