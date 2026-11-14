@@ -17,6 +17,11 @@ New decisions are appended at the top of their section, old ones are not rewritt
 
 ## Decisions
 
+### D-NEXT. A pin that did not work out says which of our mistakes it was — **proposed** (2026-11-14)
+- "It did not work, our mistake: we try again" covered several different failures, and "Not clear where to move it: point at the spot" was shown even where the service had understood the spot. The service now tells them apart, and the review has words for each (D-079): **Our layout put it back: we try again** (the change was made, and the service's own layout put the thing back where it stood); **Moved too little to see: say how far**; **Width and depth mixed up: we try again**; **We leave such things out: add it in the editor** (a thing the service does not build, other than a light). Every language has them; the test that every reason has words still holds.
+- A move to where the thing already stood keeps "Not clear where to move it: point at the spot"; a thing with no room where it was asked keeps "Not enough room there: point at another spot".
+- Refines D-079.
+
 ### D-087. The editor is TypeScript, formatted by Prettier — **accepted** (2026-11-13)
 - The owner: “let's do it properly first: move everything to TS, and only then go on”. The editor had grown as plain JavaScript in a dense style, with no types at all, while the AI build that uses its core (the catalog, plan checks, rendering) was already TypeScript and had to describe the editor's modules by hand.
 - **Every hand-written file is `.ts`**: `src/`, the tests, the demo homes, `build.ts`, the tools. Strict `tsc`, no `any`; the shared data shapes (the plan file, Home Assistant's states, the UI's saved state) are in `src/core/types.ts`.
