@@ -1,9 +1,9 @@
 // The paper plan under the step clips (D-110): a phone photo of a printed floor plan, as people upload in step 0, drawn in code
 // from the repository's typical demo flat (demo/typical.ts, a three-room flat of about 78 m²; nobody's home). Thick black
-// walls, door swings, window marks, room names in the user's language, areas and a few dimensions, on slightly tilted paper
-// with uneven light and grain. It is one static picture (an SVG turned into an image once per language), so the clips'
+// walls, door swings, window marks, room names, areas and a few dimensions, on slightly tilted paper with uneven light and
+// grain. The plan is printed in English whatever the editor's language (the owner, 2026-11-14). It is one static picture
+// (an SVG turned into an image once), so the clips'
 // frames redraw only the editor's overlay above it, never the grain.
-import {t, num, locale} from '../i18n/i18n.ts';
 import {esc} from './ui.ts';
 import type {Point} from '../core/types.ts';
 
@@ -296,16 +296,16 @@ function doorSwing(opening: PaperOpening): string {
 
 // ---------- the photo ----------
 
-/** Room names as written on the plan, in the user's language. */
+/** Room names as written on the plan: in English, whatever the editor's language. */
 function roomNames(): Record<string, string> {
   return {
-    hall: t('Hallway'),
-    living: t('Living room'),
-    bedroom: t('Bedroom'),
-    kids: t("Kids' room"),
-    kitchen: t('Kitchen'),
-    bathroom: t('Bathroom'),
-    balcony: t('Balcony'),
+    hall: 'Hallway',
+    living: 'Living room',
+    bedroom: 'Bedroom',
+    kids: "Kids' room",
+    kitchen: 'Kitchen',
+    bathroom: 'Bathroom',
+    balcony: 'Balcony',
   };
 }
 
@@ -329,10 +329,10 @@ function roomWidth(room: PaperRoom): number {
 /** A room's name in capitals and its area below, as printed. */
 function roomLabel(room: PaperRoom, name: string): string {
   const [x, y] = toPaper(room.label);
-  const text = name.toLocaleUpperCase(locale());
+  const text = name.toUpperCase();
   const widthUnits = roomWidth(room) * SCALE * 0.84;
   const size = Math.min(5.6, widthUnits / Math.max(1, text.length * 0.64));
-  const area = num(polygonArea(room.polygon), 1) + t(' m²');
+  const area = `${polygonArea(room.polygon).toFixed(1)} m²`;
   return (
     `<text x="${fixed(x)}" y="${fixed(y)}" font-size="${size.toFixed(2)}" class="name">${esc(text)}</text>` +
     `<text x="${fixed(x)}" y="${fixed(y + 6.2)}" font-size="4.4" class="area">${esc(area)}</text>`
@@ -355,7 +355,7 @@ function dimensionLine(side: 'bottom' | 'left', stops: number[]): string {
   }
   for (let i = 0; i + 1 < stops.length; i++) {
     const middle = (stops[i] + stops[i + 1]) / 2;
-    const length = num(stops[i + 1] - stops[i], 2);
+    const length = (stops[i + 1] - stops[i]).toFixed(2);
     const [x, y] = toPaper(at(middle));
     const placed =
       side === 'bottom'
@@ -419,16 +419,11 @@ export function planPhotoMarkup(): string {
   );
 }
 
-// One picture per language (the names and numbers are written in it).
-const photoUrls = new Map<string, string>();
+// The picture, made once.
+let photoUrl: string | null = null;
 
-/** The photo as an image address, made once per language. */
+/** The photo as an image address. */
 export function planPhotoUrl(): string {
-  const key = locale();
-  let url = photoUrls.get(key);
-  if (!url) {
-    url = 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(planPhotoMarkup());
-    photoUrls.set(key, url);
-  }
-  return url;
+  photoUrl ??= 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(planPhotoMarkup());
+  return photoUrl;
 }
