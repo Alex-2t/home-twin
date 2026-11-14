@@ -17,6 +17,13 @@ New decisions are appended at the top of their section, old ones are not rewritt
 
 ## Decisions
 
+### D-NEXT. A curtain or a blind on a glazed door — **proposed** (2026-11-14)
+- A roller blind on the balcony door is common, and D-071 gave the editor glazed doors. In “Devices” (D-048) a cover still went onto windows only: the HA cover of such a blind could not be put on its door, and “Arrange automatically” made a new blind on the window instead of binding the one already hanging at the door (placed in Furniture, or by the AI build, which now hangs a blind the video shows on a balcony door at that door and marks the door glass).
+- **Now** (`core/devices.ts`): a cover goes onto a window or a glazed door (`opening.glass`) — clicked, dragged from the list or moved on the plan. On a door it hangs indoors: a glazed door drawn from the balcony's side is hung on the home's side of its wall. A roller blind on a door reaches from the floor to just over the door's head; curtains as at a window.
+- **Arrange automatically:** a cover already at a glazed door takes the room's device of its kind named for a door or a balcony (“Balcony door blind”, in the ten languages), or the room's only device of that kind when no window has a free one. New covers still go onto the windows; a room with no window gets them on its glazed doors. Rooms without glazed doors are arranged exactly as before.
+- A plain door still takes no cover. A curtain or a blind in a doorway was never red (soft, like a rug, in the editor's check); the AI build's audit allows a cover only on a glazed door's glass.
+- No new strings: the hint stays “Click a window”, the glazed door is highlighted under the pointer like a window. Owner's call: whether the hint should name the glass door too (a new string in ten languages).
+
 ### D-098. The review lists what the AI build could not place clear — **proposed** (2026-11-14)
 - A thing the AI build could not move clear of another, of a door's zone or of a wall (no spot that keeps what it is, too big to shrink a little) stays where it is, red in Furniture mode. The owner should not find it unexplained.
 - **In the review:** each such thing is one line under the round's line, in the owner's language, in D-083's words: "We can’t do this yet: Radiator: blocks a door". The thing's name and the editor's own reason for the red; two things in each other are one line. No new strings.

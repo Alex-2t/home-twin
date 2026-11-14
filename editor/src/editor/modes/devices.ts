@@ -21,7 +21,8 @@ import {
   acView,
   coverView,
   contactView,
-  windowsOf,
+  coverFits,
+  coverSpotsIn,
 } from '../../core/devices.ts';
 import type {DeviceKind, DeviceTarget} from '../../core/devices.ts';
 import {$, el, esc, section} from '../ui.ts';
@@ -158,9 +159,11 @@ export function devicesMode(ed: Editor): DevicesMode {
           ? t('Click a window')
           : t('Click a door');
   const fits = (d: HaDevice, o: Opening): boolean =>
-    kind(d) === 'cover' || d.cls === 'window'
-      ? o.kind === 'window'
-      : d.cls === 'opening' || o.kind === 'door';
+    kind(d) === 'cover'
+      ? coverFits(o)
+      : d.cls === 'window'
+        ? o.kind === 'window'
+        : d.cls === 'opening' || o.kind === 'door';
 
   // ---------- what is under the pointer ----------
   // the opening under the pointer (in screen pixels, up to 14 px) that suits the device
@@ -510,11 +513,9 @@ export function devicesMode(ed: Editor): DevicesMode {
         count: `${n}/${ds.length}`,
         open: !!room || !ar,
       });
-      // why it is not in the model: a curtain needs a window in its room
+      // why it is not in the model: a curtain needs a window (or a glazed door) in its room
       const why = (d: HaDevice): string =>
-        room && kind(d) === 'cover' && !windowsOf(plan(), room).length
-          ? t('no window')
-          : t('not in the model');
+        room && kind(d) === 'cover' && !coverSpotsIn(plan(), room) ? t('no window') : t('not in the model');
       if (!room)
         body.appendChild(
           el(`<p class="empty">${t('This area isn’t on the plan — click a device, then its spot.')}</p>`),
