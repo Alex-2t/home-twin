@@ -26,7 +26,7 @@ This is the current work list. The [decision journal](decisions.md) keeps the hi
 | AI build (paid, D-063) | The editor's side of the paid “build my home” service: the way in, the upload, the progress that keeps talking, the finished home with pins and their answers (D-072–D-079, D-081, D-083); what the build may set beyond the manual controls — items from parts, a custom colour on every model, pieces of finish, skirting and trim (D-069, D-070, D-080, D-084); the package shown in percent and its checkout (D-085, D-086). Sign-in with the balance on an account (D-088); before a build or a round of pins, about how much of the package it takes (D-094). The build itself runs on our server and is not in this repository | [ai-build.ts](../editor/src/editor/ai-build.ts), [ai-review.ts](../editor/src/editor/ai-review.ts), [ai-pins.ts](../editor/src/editor/ai-pins.ts) |
 | Code | TypeScript (strict), formatted by Prettier; `npm run check` runs the formatter's check, `tsc` and the tests (D-087) | [code-style.md](code-style.md) |
 
-2026-11-10: items from parts (`model: "parts"`, D-069) and a custom `#rrggbb` colour on every catalog model with a rug border colour (D-070). 2026-11-14: 446 tests pass.
+2026-11-10: items from parts (`model: "parts"`, D-069) and a custom `#rrggbb` colour on every catalog model with a rug border colour (D-070). 2026-11-14: 467 tests pass.
 
 The catalog on 2026-11-14: **134 entries, 129 visible**, including “Custom item”. All visible entries use their own generators; four old Kenney entries are hidden. 13 Kenney files are still included in the build. These numbers do not equal the 120 functional items of the [research](research/furniture-catalog.md): items and variants were counted differently there.
 
@@ -71,6 +71,6 @@ O-010 was withdrawn by D-041: furniture is before lights again. O-002 is effecti
 
 ## Verified and limitations
 
-The latest code run, **2026-11-14**: 446 tests passed (including the thirteen example homes, D-061, D-064), the build succeeded. Earlier: all thirteen homes looked at in Preview (overview and room close-ups) — 2026-11-09; the wizard card at 768–1366 px — 2026-11-08; browser checks of saving — in the [report](research/persistence-audit-2026-11-07.md). No new functional checks were made during this documentation review.
+The latest code run, **2026-11-14**: 467 tests passed (including the thirteen example homes, D-061, D-064), the build succeeded. Earlier: all thirteen homes looked at in Preview (overview and room close-ups) — 2026-11-09; the wizard card at 768–1366 px — 2026-11-08; browser checks of saving — in the [report](research/persistence-audit-2026-11-07.md). No new functional checks were made during this documentation review.
 
 The editor is single-floor, with one ceiling height per plan (D-090; not per room). JSON does not contain the photo. Real HA devices and public installation have not been verified yet. The ten typical homes are made-up plans checked by the editor's code and by eye, not by real users.

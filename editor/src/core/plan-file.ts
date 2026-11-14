@@ -121,6 +121,8 @@ export function readPlan(text: string): Plan {
     optional(l, 'shade', str);
     optional(l, 'body', isHex); // the fitting's own colour (fixtures.ts BODY_COLORS)
     optional(l, 'name', x => typeof x === 'string');
+    // the lamps the AI build saw that this HA light took the place of (light-place.ts): lights of their own
+    optional(l, 'seen', x => isList(x) && x.every(lamp => obj(lamp) && str(lamp.id)));
     if (l.was != null) {
       check(obj(l.was) && typeof l.was.s === 'string');
       const snap: unknown = JSON.parse(l.was.s);

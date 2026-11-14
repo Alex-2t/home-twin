@@ -341,6 +341,17 @@ export class PlanMender {
     this.dropField(light, list, 'body', isHex);
     this.dropField(light, list, 'color', x => typeof x === 'string');
     this.dropField(light, list, 'was', isSavedStep);
+    // the lamps the AI build saw whose place an HA light took (light-place.ts): each is mended as a light, one that is not
+    // one is left out
+    this.dropField(light, list, 'seen', x => Array.isArray(x));
+    if (Array.isArray(light.seen)) {
+      const held = light.seen.filter((lamp): lamp is JsonObject => isObject(lamp) && isText(lamp.id));
+      if (held.length !== light.seen.length)
+        this.note(list, light.id, 'seen lamps that are not ones left out');
+      for (const lamp of held) this.mendLightFields(lamp);
+      if (held.length) light.seen = held;
+      else delete light.seen;
+    }
   }
 
   private mendSensors(plan: JsonObject): void {

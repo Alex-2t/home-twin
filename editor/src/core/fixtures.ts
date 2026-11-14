@@ -1295,18 +1295,3 @@ export function relayout(plan: LightPlan, L: PlanLight, cell: LampCell, was?: st
     );
   else if (f === 'lamp') L.h = LAMP[L.opt ?? '']?.h ?? L.h;
 }
-// “Auto-place”: lights without a position go by guess, each into the cell of its own area. Returns how many were placed.
-export function autoPlace(plan: LightPlan & Pick<Plan, 'lights'>): number {
-  let n = 0;
-  for (const L of plan.lights) {
-    if (L.placed || L.skip) continue;
-    const cell = lampCell(plan, L);
-    if (!cell) continue;
-    const g = guessForm(L);
-    if (placeForm(plan, L, g.form, g.opt, cell)) {
-      L.auto = true;
-      n++;
-    }
-  }
-  return n;
-}

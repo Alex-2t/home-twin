@@ -12,9 +12,7 @@ import {
   lineForm,
   guessForm,
   lampCell,
-  placeForm,
   relayout,
-  autoPlace,
   snapWall,
   keepIn,
   clampRay,
@@ -45,11 +43,14 @@ import {
   furnGuess,
 } from '../../core/fixtures.ts';
 import type {Contour, LampCell, StripRuns} from '../../core/fixtures.ts';
+import {autoPlace, bindSeenLamp, placeLight} from '../../core/light-place.ts';
+import {giveSeenBack, isSeenLamp, settleSeen} from '../../core/seen-lamps.ts';
+import {moved, slideAlongWall} from '../nudge.ts';
 import {$, el, esc, parseLen, section, tip, tipHide} from '../ui.ts';
 import {icon} from '../icons.ts';
 import {cssHex, hexNum, isHex, snapColor} from '../../core/color.ts';
 import {FONT, alpha, dimLabel, pal, shiftSegs, shiftPoint} from '../draw.ts';
-import type {LightForm, Plan, PlanLight, Point, Segment, WallStrip} from '../../core/types.ts';
+import type {LightForm, Plan, PlanLight, Point, Segment, Vector, WallStrip} from '../../core/types.ts';
 import type {PlanView2d} from '../view2d.ts';
 import type {Editor, LightsMode, Selection} from '../editor-types.ts';
 
@@ -137,6 +138,12 @@ type Choices = Record<string, string | {name: string; tip?: string}>;
 type LightFields = PlanLight & Record<string, unknown>;
 
 const BODY: Record<string, number> = {ceiling: 0.2, pendant: 0.17, spots: 0.05, lamp: 0.17}; // body radius in the plan, m
+// A wall light keeps this far from the end of its wall (fixtures.ts snapWall), metres.
+const WALL_LIGHT_END_METRES = 0.15;
+// A light dropped this close to the lamp the AI build saw that it takes the place of lands on that lamp's spot, metres.
+const ON_SEEN_LAMP_METRES = 0.5;
+// How many of the owner's lights a seen lamp's panel offers as “which one it is”.
+const BIND_CHOICES = 8;
 // a choice is its name, or an object with its name
 const names = (o: Choices): Record<string, string> =>
   Object.fromEntries(Object.entries(o).map(([k, x]) => [k, (x as {name?: string}).name || (x as string)]));
@@ -347,9 +354,12 @@ export function lightsMode(ed: Editor): LightsMode {
   const revert = (L: PlanLight): void => {
     const o = Object.fromEntries(JSON.parse(L.was!.s));
     const on = L.on;
+    const heldBefore = L.seen;
     for (const x of Object.keys(L)) delete (L as LightFields)[x];
     Object.assign(L, o);
     L.on = on;
+    // a lamp the AI build saw whose place it had taken in the meantime is back, and one it held before is held again
+    settleSeen(plan().lights, L, heldBefore);
   };
   const discard = (k: string | null | undefined): void => {
     for (const L of mine(k)) revert(L);
@@ -367,7 +377,8 @@ export function lightsMode(ed: Editor): LightsMode {
   // snapshots not of this room (after “Undo”): a draft — without a place again, the rest — as is
   function clean(k: string | null | undefined): boolean {
     let ch = false;
-    for (const L of plan().lights)
+    // a copy: putting a lamp back can return a seen lamp to the list (settleSeen)
+    for (const L of [...plan().lights])
       if (L.was && L.was.k !== k) {
         if (L.draft) revert(L);
         delete L.was;
@@ -462,8 +473,8 @@ export function lightsMode(ed: Editor): LightsMode {
       const a = asking();
       const c = a && lampCell(plan(), a);
       const g = a && guessForm(a);
-      // c is there only with a, and g with it
-      if (c && placeForm(plan(), a, g!.form, g!.opt, c)) {
+      // c is there only with a, and g with it; a lamp of its kind the AI build saw there gives it its place
+      if (c && placeLight(plan(), a, g!.form, g!.opt, c)) {
         delete a!.skip;
         a!.auto = true;
         a!.draft = true;
@@ -889,6 +900,7 @@ export function lightsMode(ed: Editor): LightsMode {
     }
   };
   const lift = (L: PlanLight): void => {
+    giveSeenBack(plan().lights, L); // the lamp the AI build saw, whose place it had taken, stands there again
     L.points = [];
     L.segments = [];
     L.placed = false;
@@ -961,6 +973,60 @@ export function lightsMode(ed: Editor): LightsMode {
     ed.commit();
     blink(L.id);
   };
+  // The arrows (nudge.ts): the selected point or line (none selected: the whole lamp) moves by the step, within the rules of
+  // a drag: a wall light along its wall, another light's body inside its room, a line inside one room. A strip runs along
+  // its walls and is changed by its ends.
+  m.nudge = step => {
+    if (leaving || drag || placing) return false;
+    const L = find(sel().light);
+    if (!L?.placed || L.with) return false;
+    const form = formFor(L);
+    if (form === 'strip') return true;
+    const part = sel().part;
+    const changed = form === 'line' ? nudgeLines(L, step, part) : nudgePoints(L, form, step, part);
+    if (!changed) return true;
+    delete L.auto; // moved by hand: changing the room's area will not take it off
+    ed.commitNudge('light:' + L.id + ':' + (part ?? 'all'));
+    return true;
+  };
+  // The points that move: the selected one, or all of them.
+  const partsOf = (count: number, part: number | null | undefined): number[] =>
+    part != null && part >= 0 && part < count ? [part] : [...Array(count).keys()];
+  function nudgePoints(
+    L: PlanLight,
+    form: LightForm,
+    step: Vector,
+    part: number | null | undefined,
+  ): boolean {
+    let changed = false;
+    for (const i of partsOf(L.points.length, part)) {
+      const was = L.points[i];
+      const room = roomAt(plan(), was) || roomById(plan(), L.room);
+      let next: Point = moved(was, step);
+      // a wall light slides along the wall it is on, as far from it as it was, up to 15 cm from the wall's end (as a drag
+      // keeps it); another body stays inside the room
+      if (room && form === 'wall') next = slideAlongWall(room.polygon, was, step, WALL_LIGHT_END_METRES);
+      else if (room) next = keepIn(room.polygon, next, WALL.inner + BODY[form]) as Point;
+      if (next[0] === was[0] && next[1] === was[1]) continue;
+      L.points[i] = next;
+      changed = true;
+    }
+    if (changed && form === 'spots') L.opt = 'free';
+    return changed;
+  }
+  function nudgeLines(L: PlanLight, step: Vector, part: number | null | undefined): boolean {
+    let changed = false;
+    for (const i of partsOf(L.segments.length, part)) {
+      const [a, b] = L.segments[i].map(end => moved(end, step));
+      const room = roomAt(plan(), a);
+      // the line does not pass through a wall: it moves only while it stays inside one room
+      if (!room || !pointIn(b, room.polygon) || clampRay(room.polygon, a, b, 0) !== b) continue;
+      L.segments[i] = [a, b];
+      changed = true;
+    }
+    if (changed) L.opt = 'free';
+    return changed;
+  }
   m.key = e => {
     if (leaving) {
       if (e.key === 'Escape') {
@@ -1212,10 +1278,11 @@ export function lightsMode(ed: Editor): LightsMode {
     const g = guessForm(L);
     const f = formOfL(L);
     const s0 = snap(L);
-    placeForm(plan(), L, f, L.opt && L.form === f ? L.opt : f === g.form ? g.opt : undefined, cell);
+    // dropped in a room where the AI build saw a lamp of its kind: it takes that lamp's place, the nearest one to the drop
+    placeLight(plan(), L, f, L.opt && L.form === f ? L.opt : f === g.form ? g.opt : undefined, cell, p);
     if (pv.seg && f === 'strip')
       L.segments = stripOnEdge(plan(), cell, L.opt, p) as Segment[]; // fixtures.ts: [a, b] pieces
-    else if (L.points.length === 1) L.points = [pv.p!]; // a wall piece is a strip's preview: the line above
+    else if (L.points.length === 1 && !droppedOnSeen(L, p)) L.points = [pv.p!]; // a wall piece is a strip's preview: the line above
     delete L.auto;
     if (wizOn()) {
       L.draft = true;
@@ -1226,6 +1293,11 @@ export function lightsMode(ed: Editor): LightsMode {
     ed.commit();
     blink(L.id);
   });
+
+  // Dropped on the lamp it took the place of (or near it): it stands exactly where the video showed that lamp; farther, where
+  // it was dropped.
+  const droppedOnSeen = (L: PlanLight, p: Point): boolean =>
+    !!L.seen?.some(lamp => lamp.points?.some(q => dist2(q, p) < ON_SEEN_LAMP_METRES ** 2));
 
   // ---------- panels ----------
   const roomName = (cell: LampCell, L: PlanLight | null | undefined): string | null | undefined => {
@@ -1281,7 +1353,8 @@ export function lightsMode(ed: Editor): LightsMode {
   function choose(L: PlanLight, form: LightForm, opt: string | undefined): void {
     const cell = lampCell(plan(), L);
     if (!cell) return;
-    placeForm(plan(), L, form, opt, cell);
+    // a form the AI build saw a lamp of there: it takes that lamp's place; another form: the lamp it stood for is back
+    placeLight(plan(), L, form, opt, cell);
     delete L.auto;
     cur = null;
     merging = false;
@@ -1362,11 +1435,15 @@ export function lightsMode(ed: Editor): LightsMode {
     for (const H of hosts(L, cell)) {
       const b = el(`<button class="chip">${esc(H.name)}</button>`);
       b.onclick = () => {
-        L.with = H.id;
-        L.placed = true;
-        L.room = H.room;
-        L.points = [];
-        L.segments = [];
+        // a lamp the AI build saw has no entity of its own: this HA light is that lamp, and takes its place
+        if (isSeenLamp(H)) bindSeenLamp(plan(), L, H);
+        else {
+          L.with = H.id;
+          L.placed = true;
+          L.room = H.room;
+          L.points = [];
+          L.segments = [];
+        }
         delete L.skip;
         delete L.auto;
         delete L.draft;
@@ -1450,7 +1527,7 @@ export function lightsMode(ed: Editor): LightsMode {
     const line = el(
       list
         ? `<div class="line"><b>${esc(roomName(cell!, L))}</b></div>` // a room's list: the lamp has its cell
-        : `<div class="line"><b>${esc(L.name)}</b>${cell && wizOn() ? `<small>${esc(roomName(cell, L))}</small>` : ''}</div>`,
+        : `<div class="line"><b${formFor(L) === 'strip' ? '' : ` title="${t('Arrows move it: 1 cm, with Shift 10 cm')}"`}>${esc(L.name)}</b>${cell && wizOn() ? `<small>${esc(roomName(cell, L))}</small>` : ''}</div>`,
     );
     line.append(...flashBtn(L));
     if (hl) {
@@ -1600,7 +1677,38 @@ export function lightsMode(ed: Editor): LightsMode {
       colour.append(bodyColours(L));
       lines.push(colour);
     }
-    return [...lines, ...missingLine(cell), ...nextLine(L, cell)];
+    return [...lines, ...bindLine(L), ...missingLine(cell), ...nextLine(L, cell)];
+  }
+  // A lamp the AI build saw has no HA entity: the owner says which of their lights it is, and that light takes its place
+  // (light-place.ts). Offered: the lights not on the plan, those of this room's area first.
+  function bindLine(seen: PlanLight): HTMLElement[] {
+    if (!isSeenLamp(seen)) return [];
+    const here = roomById(plan(), seen.room)?.area;
+    const ofThisRoom = (x: PlanLight): number => (here && x.area === here ? 1 : 0);
+    const choices = plan()
+      .lights.filter(x => x.entity && !x.placed && !x.with)
+      .sort((a, b) => ofThisRoom(b) - ofThisRoom(a))
+      .slice(0, BIND_CHOICES);
+    if (!choices.length) return [];
+    const row = el(`<div class="line names"><small>${t('Which of your lights is it?')}</small></div>`);
+    for (const H of choices) {
+      const b = el(`<button class="chip">${esc(H.name)}</button>`);
+      b.onclick = () => {
+        const before = snap(H);
+        bindSeenLamp(plan(), H, seen);
+        delete H.auto;
+        if (wizOn()) {
+          H.draft = true;
+          if (!H.was) H.was = {k: cellKey(H), s: before};
+        }
+        cur = null;
+        sel().light = H.id;
+        ed.commit();
+        blink(H.id);
+      };
+      row.append(b);
+    }
+    return [row];
   }
   // A fitting's own colour (L.body, D-070 everywhere): as the form draws it, white, black, or any colour; a picked colour
   // practically white or black (ΔE below 3) is that swatch.
@@ -1819,10 +1927,11 @@ export function lightsMode(ed: Editor): LightsMode {
     const a = asking();
     // area switches that are not lamps yet: lights on a relay (Sonoff, Aqara) — in HA this is a switch, not a light
     const relays = (ed.ha.switches?.() || []).filter(w => !L0.some(l => l.entity === w.entity));
-    for (const ar of ed.sortAreas(
-      new Set([...L0.map(l => l.area || ''), ...relays.map(w => w.area || '')]),
-    )) {
-      const lamps = L0.filter(l => (l.area || '') === ar);
+    // a lamp the AI build saw has no HA area: it is listed with its room's lights, next to the one it may be
+    const listArea = (l: PlanLight): string =>
+      l.area || (isSeenLamp(l) ? roomById(plan(), l.room)?.area : '') || '';
+    for (const ar of ed.sortAreas(new Set([...L0.map(listArea), ...relays.map(w => w.area || '')]))) {
+      const lamps = L0.filter(l => listArea(l) === ar);
       const done = lamps.filter(l => !todo(l)).length;
       const away = !!ar && !ed.areaOnPlan(ar);
       const body = section(side, 'zone:' + ar, ar ? ed.areaName(ar) : t('No area'), {

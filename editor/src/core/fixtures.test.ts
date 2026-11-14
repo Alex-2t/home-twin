@@ -27,7 +27,6 @@ import {
   lampSpot,
   placeForm,
   relayout,
-  autoPlace,
   formFor,
   center,
   furnOpts,
@@ -36,6 +35,7 @@ import {
   housingOf,
 } from './fixtures.ts';
 import type {LampCell, StripRuns} from './fixtures.ts';
+import {autoPlace} from './light-place.ts';
 import type {FurnitureItem, Outline, Plan, PlanLight, Point, Room, Segment} from './types.ts';
 
 // (The ! below: each light's area has its room on these plans, and each run its ends.)

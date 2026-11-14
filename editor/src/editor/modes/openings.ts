@@ -18,6 +18,7 @@ import {
 import {openingCoords, ceilingOf, WALL} from '../../core/geometry.ts';
 import {dimLabel, outward, pal} from '../draw.ts';
 import {el} from '../ui.ts';
+import {stepAlong} from '../nudge.ts';
 import {icon} from '../icons.ts';
 import type {Opening, OpeningKind, Plan, Point, Room, Vector, WallStretch} from '../../core/types.ts';
 import type {PlanView2d} from '../view2d.ts';
@@ -53,6 +54,8 @@ export interface OpeningsTool {
   add(W: WallStretch, k: OpeningKind): void;
   /** The windows and doors step: the band of a future opening at tt (0–1 along the room side); q: the pulse's phase 0–1. */
   ghost(W: WallStretch, tt: number, q?: number | null): void;
+  /** An arrow press (nudge.ts): the selected opening slides along its wall by the step; false: none is selected. */
+  nudge(step: Vector): boolean;
   /** Removes the selected opening; false: none is selected. */
   del(): boolean;
   draw(): void;
@@ -231,6 +234,27 @@ export function openingsTool(ed: Editor): OpeningsTool {
     return true;
   };
 
+  // The arrows: the selected opening slides along its wall by exactly the step, never off the wall nor over its neighbours
+  // (as a drag); an arrow across the wall moves nothing.
+  T.nudge = step => {
+    const o = selected();
+    if (!o || drag) return false;
+    const r = roomById(plan(), o.at.room);
+    if (!r) return true;
+    const P = r.polygon;
+    const a = P[o.at.edge % P.length];
+    const b = P[(o.at.edge + 1) % P.length];
+    const ds = stepAlong(step, [b[0] - a[0], b[1] - a[1]]);
+    if (!ds) return true;
+    const [g0, g1] = openingGap(plan(), o) || [o.at.s0, o.at.s1];
+    const width = o.at.s1 - o.at.s0;
+    const s0 = +Math.max(g0, Math.min(g1 - width, o.at.s0 + ds)).toFixed(3);
+    if (s0 === o.at.s0) return true;
+    o.at = {...o.at, s0, s1: +(s0 + width).toFixed(3)};
+    ed.commitNudge('opening:' + o.id);
+    return true;
+  };
+
   // Place from the wall menu: W — the selected wall piece, k — 'door' | 'window'. try — only check whether it fits.
   const place = (W: WallStretch, k: OpeningKind, dry: boolean): Opening | null => {
     const r = W.room;
@@ -369,7 +393,7 @@ export function openingsTool(ed: Editor): OpeningsTool {
     const door = o.kind === 'door';
     const leaf = door && o.leaf !== false;
     const line = el(
-      `<div class="line"><b>${door ? (o.glass ? t('Glass door') : leaf ? t('Door') : t('Opening')) : t('Window')}</b></div>`,
+      `<div class="line"><b title="${t('Arrows move it: 1 cm, with Shift 10 cm')}">${door ? (o.glass ? t('Glass door') : leaf ? t('Door') : t('Opening')) : t('Window')}</b></div>`,
     );
     const lines = [line];
     const w = el(`<button class="soft" title="${t('Enter width')}">${t('{0} cm', cm(g.L))}</button>`);

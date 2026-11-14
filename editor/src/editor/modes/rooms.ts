@@ -1470,6 +1470,8 @@ export function roomsMode(ed: Editor): RoomsMode {
     ed.view.select(null);
     m.refresh();
   };
+  // The arrows (nudge.ts) slide the selected window or door along its wall; rooms and walls are not nudged.
+  m.nudge = step => ops.nudge(step);
   // Tab in "Split" rotates the line only on the plan itself: app.ts handles it there, and elsewhere Tab moves the focus.
   m.key = e => {
     if (e.key === 'Escape') {

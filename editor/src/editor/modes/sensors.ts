@@ -24,6 +24,7 @@ import {$, el, esc, section} from '../ui.ts';
 import {icon} from '../icons.ts';
 import {FONT, pal} from '../draw.ts';
 import {separatePlates} from '../sensor-plates.ts';
+import {moved, nearestOnOutline} from '../nudge.ts';
 import type {HaSensor, Plan, PlanSensor, Point, Room, SensorContext, Vector} from '../../core/types.ts';
 import type {PlanView2d} from '../view2d.ts';
 import type {PlacedSensor} from '../../core/sensors.ts';
@@ -627,6 +628,28 @@ export function sensorsMode(ed: Editor): SensorsMode {
       m.refresh();
     }
   };
+  // The arrows (nudge.ts): the selected reading slides along its room's walls and round its corners; one hanging below
+  // another moves its whole column (the top one moves). Its neighbours that stand in a row are pinned where they are, as a
+  // drag pins them.
+  m.nudge = step => {
+    if (drag) return false;
+    const S = find(sel().sensor);
+    if (!S) return false;
+    // up the column to its top (no further than there are readings, should a file have them in a ring)
+    let top = S;
+    for (let i = 0; i < plan().sensors.length && top.under; i++) top = find(top.under) || top;
+    const room = plan().rooms.find(r => r.id === top.room);
+    const spot = (ed.spots || []).find(q => q.id === top.id);
+    const from: Point | null =
+      top.at || (spot ? [spot.c[0] - spot.n[0] * WALL.inner, spot.c[1] - spot.n[1] * WALL.inner] : null);
+    if (!room || !from) return true;
+    const to = nearestOnOutline(room.polygon, moved(from, step));
+    if (Math.hypot(to[0] - from[0], to[1] - from[1]) < 1e-6) return true;
+    pin(top.room);
+    top.at = to;
+    ed.commitNudge('sensor:' + top.id);
+    return true;
+  };
   m.key = e => {
     const S = find(sel().sensor);
     if (!S) return;
@@ -702,7 +725,9 @@ export function sensorsMode(ed: Editor): SensorsMode {
       return;
     }
     const mt = metricOf(s);
-    const line = el(`<div class="line"><b>${esc(s.name)}</b><small>${esc(val(s))}</small></div>`);
+    const line = el(
+      `<div class="line"><b title="${t('Arrows move it: 1 cm, with Shift 10 cm')}">${esc(s.name)}</b><small>${esc(val(s))}</small></div>`,
+    );
     const k = S.k || 1;
     const i = SIZES.indexOf(k);
     const setK = (x: number): void => {

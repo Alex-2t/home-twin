@@ -12,7 +12,7 @@ import {validate, openingCoords, pointIn} from './geometry.ts';
 import {byId, colorsOf} from './catalog.ts';
 import {isHex} from './color.ts';
 import {furnitureConflicts, setRoomArea} from './layout.ts';
-import {autoPlace as autoLights} from './fixtures.ts';
+import {autoPlace as autoLights} from './light-place.ts';
 import {recommend, orphans, isClimate, fitsAuto, roomOfArea} from './sensors.ts';
 import {autoPlace as autoDevices, deviceKind, PLACEABLE, recOf, isCentral} from './devices.ts';
 import {planWalls, planSpots} from './plan-scene.ts';

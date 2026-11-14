@@ -78,6 +78,17 @@ export function editorKeyAllowed(target: KeyTarget, key: string): boolean {
   return true;
 }
 
+/**
+ * Whether an arrow press nudges what is selected (nudge.ts) with this focus. A field keeps its arrows (they move the caret),
+ * and so do a menu, a popup, and a list or grid walked with them (the left panel's rows, the catalog). A plain focused
+ * button does not use the arrows: they nudge, unless something on the way has used the press already (usedOnTheWay).
+ */
+export function nudgeKeyAllowed(target: KeyTarget, element: Element | null, usedOnTheWay: boolean): boolean {
+  if (target === 'field' || target === 'popup' || usedOnTheWay) return false;
+  if (target === 'control') return !inRovingGroup(element);
+  return true;
+}
+
 // ---------- a dialog that holds the focus ----------
 
 /** A dialog holding the focus; release() gives it back. */
@@ -218,6 +229,14 @@ export interface RovingOptions {
 // The groups that already listen for their keys (a group re-rendered keeps its listener).
 const rovingGroups = new WeakMap<HTMLElement, {selector: string; grid: boolean}>();
 
+/** The element is inside a group whose items the arrows walk (rovingFocus). */
+export function inRovingGroup(element: Element | null): boolean {
+  // a group is an HTMLElement, so any other element is simply not one of them
+  for (let node = element; node; node = node.parentElement)
+    if (rovingGroups.has(node as HTMLElement)) return true;
+  return false;
+}
+
 /** How many items of a grid stand in its first row. */
 function columnsOf(items: HTMLElement[]): number {
   const top = items[0]?.offsetTop;
@@ -350,6 +369,15 @@ export function keepFocusThroughRenders(container: HTMLElement, onRender?: () =>
   addEventListener('focusin', () => {
     focusAt = focusIndexIn(container);
   });
+  // A press outside (on the plan, in the 3D: they take no focus) moves the user elsewhere: a later render does not pull
+  // the focus back here, where the arrows would walk this list instead of nudging what was clicked.
+  addEventListener(
+    'pointerdown',
+    e => {
+      if (!container.contains(e.target as Node)) focusAt = -1;
+    },
+    true,
+  );
   new MutationObserver(() => {
     onRender?.();
     refocusAt(container, focusAt);
