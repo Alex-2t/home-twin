@@ -35,8 +35,33 @@ export interface Prism {
 
 // ---------- the plan file: rooms and openings ----------
 
-/** A finish on one edge of a room (room.wf[i]): a wall finish key (surfaces.ts WALL_KINDS) and an optional '#rrggbb' tint. */
-export interface EdgeFinish {
+/**
+ * A finish's pattern parameters (D-NEXT): the sizes and colours of its pattern, each optional (none: the finish's own). A
+ * finish uses only those that mean something for it (surfaces.ts patternSpec); the others are left out when drawn, and so is
+ * a value that is not well formed.
+ */
+export interface FinishPattern {
+  /**
+   * [width, height or length], metres: a tile, a brick, a slab, a plank (width × length), a herringbone slat, a slat or a
+   * stripe or a flute (width only: the second number is not used), a wallpaper's repeat, classic panels (a panel's width ×
+   * the dado rail's height).
+   */
+  tile?: [number, number];
+  /** The joint between tiles or bricks, the gap between slats, metres. */
+  joint?: number;
+  /** '#rrggbb': the colour of the joints (grout, mortar) or of the gap behind slats. */
+  grout?: string;
+  /** '#rrggbb': the second colour — a striped wallpaper's second stripe, a checkerboard's dark tiles, an art deco lattice. */
+  tint2?: string;
+  /** How tiles are laid: in a grid, or each row offset by half a tile. */
+  lay?: TileLayout;
+}
+
+/** How tiles are laid (FinishPattern.lay): straight in a grid, or each row offset by half a tile (a running bond). */
+export type TileLayout = 'grid' | 'bond';
+
+/** A finish on one edge of a room (room.wf[i]): a wall finish key (surfaces.ts WALL_KINDS), an optional '#rrggbb' tint and pattern. */
+export interface EdgeFinish extends FinishPattern {
   k: string;
   tint?: string | null;
 }
@@ -45,7 +70,7 @@ export interface EdgeFinish {
  * A piece of finish on a wall (room.wp[i][j], pieces.ts, D-084): part of one edge finished differently, later pieces on top.
  * Set by the AI build; by hand a finish covers a whole wall. A bad value inside one is skipped when drawn.
  */
-export interface WallPiece {
+export interface WallPiece extends FinishPattern {
   /** [from, to]: fractions of the edge from its start corner; none: all of it. */
   t?: [number, number];
   /** [bottom, top]: metres above the floor; none: floor to ceiling. */
@@ -54,14 +79,10 @@ export interface WallPiece {
   k: string;
   /** '#rrggbb' instead of the finish's own colour. */
   tint?: string;
-  /** The tile, brick, slat or panel: [width, height], metres. */
-  tile?: [number, number];
-  /** The joint between tiles, metres. */
-  joint?: number;
 }
 
 /** A piece of the floor finished differently (room.fp[j], pieces.ts, D-084), drawn only inside the room, later ones on top. */
-export interface FloorPiece {
+export interface FloorPiece extends FinishPattern {
   /** The piece's outline in plan metres. */
   poly: Outline;
   /** A floor finish key (surfaces.ts FLOOR_KINDS). */
@@ -114,10 +135,14 @@ export interface Room {
   wall?: string;
   /** '#rrggbb' instead of the wall finish's own colour. */
   wallTint?: string | null;
+  /** The wall finish's pattern parameters; used only with a `wall` of its own. */
+  wallPattern?: FinishPattern;
   /** The floor finish key (surfaces.ts FLOOR_KINDS); none: guessed from the name. */
   floor?: string;
   /** '#rrggbb' instead of the floor finish's own colour. */
   floorTint?: string | null;
+  /** The floor finish's pattern parameters; used only with a `floor` of its own. */
+  floorPattern?: FinishPattern;
   /** The room screen's dashboard layout in Preview (look/layout.ts). */
   panel?: PanelLayout;
   /** Readings used to live on the room (the first draft of D-033); migrate deletes them. */
@@ -720,11 +745,9 @@ export interface WallStrip {
 // ---------- pieces of finish (pieces.ts) ----------
 
 /** A finish to draw: its key and the overrides that are well formed. Tint null: the finish's own colour. */
-export interface Finish {
+export interface Finish extends FinishPattern {
   k: string;
   tint?: string | null;
-  tile?: [number, number];
-  joint?: number;
 }
 
 /** A well-formed wall piece: from and to along the edge (fractions), bottom and top (metres; Infinity: up to the ceiling). */
@@ -750,11 +773,13 @@ export interface EdgeRun {
   bands: FinishBand[];
 }
 
-/** A floor piece cut to its room: rings (the outer one first, then holes; not closed), the finish key and the tint. */
+/** A floor piece cut to its room: rings (the outer one first, then holes; not closed), the finish key, the tint, the pattern. */
 export interface FloorPieceShape {
   rings: Outline[];
   k: string;
   tint: string | null;
+  /** Its pattern parameters that are well formed; none when it has none. */
+  pattern?: FinishPattern;
 }
 
 // ---------- items from parts (parts.ts) ----------

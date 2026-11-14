@@ -197,6 +197,13 @@ body[data-main="3d"]:not([data-mode=lights]) .tools{display:none}
 .fpop button.floor{width:30px;height:30px;padding:0;border-radius:8px;background-size:cover;box-shadow:inset 0 0 0 1px var(--line2)}.fpop button.floor:hover{filter:brightness(1.08)}.fpop button.floor.on{box-shadow:0 0 0 2px var(--acc)}
 .fpop .own{display:flex;align-items:center;gap:8px;margin-top:10px;padding-top:10px;border-top:1px solid var(--line);font-size:12.5px;cursor:pointer}.fpop .own span{flex:1}
 .fpop input[type=color]{width:30px;height:30px;padding:0;border:0;background:none;border-radius:8px;cursor:pointer}.fpop .own button{height:26px;padding:0 10px;font-size:12px}
+/* a finish's pattern (D-NEXT): sizes, joint, colours, layout — compact rows under "Custom color" */
+.fpop .fpat{display:flex;flex-direction:column;gap:6px;margin-top:8px;padding-top:8px;border-top:1px solid var(--line);font-size:12.5px}
+.fpop .fpl{display:flex;align-items:center;gap:5px;flex-wrap:wrap}.fpop .fpl>span{color:var(--tx)}.fpop .fpl>i{font-style:normal;color:var(--mut)}
+.fpop .fpl small{color:var(--mut);font-size:11.5px}.fpop .fpl input[type=number]{width:52px;height:26px;padding:0 6px;font-variant-numeric:tabular-nums}
+.fpop .fcol{display:inline-flex;margin-left:2px}.fpop .fcol input[type=color]{width:26px;height:26px;border-radius:7px;box-shadow:inset 0 0 0 1px var(--line2)}
+.fpop .fpl .seg{margin-left:auto}.fpop .fpl .seg button{height:24px;font-size:12px}
+.fpop .fpl.foot{flex-wrap:nowrap;justify-content:space-between}.fpop .fpl.foot small{white-space:normal;max-width:220px;line-height:1.3}.fpop .fpl.foot button{height:24px;padding:0 10px;font-size:12px}
 .ctx .stack{display:inline-flex;gap:3px;padding:0 4px 0 2px}.ctx .stack .chip{font-weight:600}
 .ctx button.chip{height:26px;padding:0 10px;border-radius:99px;background:var(--chip);font-size:12px;display:inline-flex;align-items:center;gap:3px}
 .ctx button.chip:hover{background:var(--hov)}.ctx button.chip.on{background:var(--acc);color:var(--acc-tx)}

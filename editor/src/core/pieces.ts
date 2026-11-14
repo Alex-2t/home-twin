@@ -7,9 +7,10 @@
 //   [{t: [from, to] — fractions of the edge from its start corner (none: all of it),
 //     z: [bottom, top] — metres above the floor (none: floor to ceiling),
 //     k: a wall finish (surfaces.js WALL_KINDS), tint: '#rrggbb',
-//     tile: [width, height] — metres, the tile, brick, slat or panel; joint — metres}]
+//     and the pattern parameters (types.ts FinishPattern, D-NEXT): tile: [width, height] — metres, the tile, brick, slat or
+//     panel; joint — metres; grout, tint2: '#rrggbb'; lay: 'grid' | 'bond'}]
 // room.fp — pieces of the floor, later ones on top, drawn only inside the room:
-//   [{poly: [[x, y], …] — plan metres, k: a floor finish (surfaces.js FLOOR_KINDS), tint: '#rrggbb'}]
+//   [{poly: [[x, y], …] — plan metres, k: a floor finish (surfaces.js FLOOR_KINDS), tint: '#rrggbb', the pattern parameters}]
 import pc from 'polygon-clipping';
 import {poly} from './geometry.ts';
 import type {
@@ -17,6 +18,7 @@ import type {
   EdgeRun,
   Finish,
   FinishBand,
+  FinishPattern,
   FloorPiece,
   FloorPieceShape,
   MultiPolygon,
@@ -46,26 +48,59 @@ const isPoint = (point: unknown): point is Point =>
 
 const round = (value: number): number => +value.toFixed(4);
 
-/** The finish a piece gives: its key and those of its overrides that are well formed. */
-export function pieceFinish(piece: WallPiece): Finish {
-  const finish: Finish = {k: piece.k};
-  if (piece.tint && HEX.test(piece.tint)) finish.tint = piece.tint;
-  const tile = piece.tile;
+/**
+ * The pattern parameters of a finish (a piece, an edge's finish, a room's wallPattern or floorPattern, D-NEXT) that are well
+ * formed: a tile of two sizes within the limits, a joint within them, colours as '#rrggbb', a layout the editor knows. Which of
+ * them a finish uses is surfaces.ts's (usedPattern); here only their form.
+ */
+export function wellFormedPattern(fields: FinishPattern | null | undefined): FinishPattern {
+  const pattern: FinishPattern = {};
+  if (!fields || typeof fields !== 'object') return pattern;
+  const tile = fields.tile;
   const tileOk =
     Array.isArray(tile) &&
     tile.length === 2 &&
     tile.every(size => Number.isFinite(size) && size > 0 && size <= PIECE_LIMITS.tile);
-  if (tileOk) finish.tile = [...tile];
-  const joint = piece.joint;
+  if (tileOk) pattern.tile = [tile[0], tile[1]];
+  const joint = fields.joint;
   const jointOk =
     typeof joint === 'number' && Number.isFinite(joint) && joint >= 0 && joint <= PIECE_LIMITS.joint;
-  if (jointOk) finish.joint = joint;
-  return finish;
+  if (jointOk) pattern.joint = joint;
+  if (typeof fields.grout === 'string' && HEX.test(fields.grout)) pattern.grout = fields.grout;
+  if (typeof fields.tint2 === 'string' && HEX.test(fields.tint2)) pattern.tint2 = fields.tint2;
+  if (fields.lay === 'grid' || fields.lay === 'bond') pattern.lay = fields.lay;
+  return pattern;
 }
+
+/** Whether a pattern sets anything. */
+export const hasPattern = (pattern: FinishPattern | null | undefined): boolean =>
+  pattern != null && Object.keys(pattern).length > 0;
+
+/** The finish a piece gives: its key and those of its overrides that are well formed. */
+export function pieceFinish(piece: WallPiece): Finish {
+  const finish: Finish = {k: piece.k};
+  if (piece.tint && HEX.test(piece.tint)) finish.tint = piece.tint;
+  return {...finish, ...wellFormedPattern(piece)};
+}
+
+/** One string per distinct pattern: equal patterns share it; none set: ''. */
+export const patternKey = (pattern: FinishPattern): string =>
+  hasPattern(pattern)
+    ? [
+        pattern.tile ? pattern.tile.join('x') : '',
+        pattern.joint ?? '',
+        pattern.grout || '',
+        pattern.tint2 || '',
+        pattern.lay || '',
+      ].join('|')
+    : '';
 
 /** One string per distinct finish: equal finishes share it. */
 export const finishKey = (finish: Finish): string =>
-  [finish.k, finish.tint || '', finish.tile ? finish.tile.join('x') : '', finish.joint ?? ''].join('|');
+  [finish.k, finish.tint || '', finish.tile ? finish.tile.join('x') : '', finish.joint ?? ''].join('|') +
+  (finish.grout || finish.tint2 || finish.lay
+    ? `|${finish.grout || ''}|${finish.tint2 || ''}|${finish.lay || ''}`
+    : '');
 
 /**
  * The well-formed pieces on edge i of a room, in order: from and to along the edge, bottom and top (Infinity: up to the
@@ -172,11 +207,13 @@ export function floorPieces(
     } catch {
       continue;
     }
+    const pattern = wellFormedPattern(piece);
     for (const shape of shapes)
       pieces.push({
         rings: shape.map(ring => ring.slice(0, -1)),
         k: piece.k,
         tint: piece.tint && HEX.test(piece.tint) ? piece.tint : null,
+        ...(hasPattern(pattern) ? {pattern} : {}),
       });
   }
   return pieces;

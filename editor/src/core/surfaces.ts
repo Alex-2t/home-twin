@@ -4,14 +4,16 @@
 // almost free for weak tablets, unlike screen-space shading on every frame.
 import {t} from '../i18n/i18n.ts';
 import * as THREE from 'three';
-import {edgePieces, edgeRuns} from './pieces.ts';
+import {edgePieces, edgeRuns, hasPattern, patternKey, wellFormedPattern} from './pieces.ts';
 import type {
   Finish,
   FinishBand,
+  FinishPattern,
   MultiPolygon,
   Outline,
   Point,
   Room,
+  TileLayout,
   Vector,
   WallBand,
   WallPlan,
@@ -450,24 +452,45 @@ function canvas(): HTMLCanvasElement {
 const rgb = (c: RGB, k = 1, a = 1): string =>
   `rgba(${Math.round(Math.min(255, c[0] * k))},${Math.round(Math.min(255, c[1] * k))},${Math.round(Math.min(255, c[2] * k))},${a})`;
 
-// 20 cm oak planks, two planks per row with a random joint; each plank has its own shade and grain. The 2.4 m repeat is seamless.
-function wood(base: RGB = [178, 147, 114], seed = 11): HTMLCanvasElement {
+/** How planks lie in the 2.4 m repeat (plankLayout): rows of planks across it, planks in a row. */
+interface PlankLayout {
+  rows: number;
+  perRow: number;
+}
+// The planks of a row: where each starts and how long it is (pixels), from the row's random offset. Two a row (the planks'
+// own look) splits the row once, between 36 % and 64 %; more cut it evenly with as much play each.
+function rowPlanks(r: () => number, perRow: number): Array<[number, number]> {
+  const offset = r() * N;
+  if (perRow === 1) return [[offset, N]];
+  if (perRow === 2) {
+    const first = N * (0.36 + r() * 0.28);
+    return [
+      [offset, first],
+      [offset + first, N - first],
+    ];
+  }
+  const cuts = [0];
+  for (let i = 1; i < perRow; i++) cuts.push(N * (i / perRow + (r() - 0.5) * (0.56 / perRow)));
+  cuts.push(N);
+  return cuts.slice(1).map((end, i): [number, number] => [offset + cuts[i], end - cuts[i]]);
+}
+// Oak planks, 20 cm wide and two a row by default (a plank width and length change how many), a random joint in each row;
+// each plank has its own shade and grain. The 2.4 m repeat is seamless.
+function wood(
+  base: RGB = [178, 147, 114],
+  seed = 11,
+  {rows, perRow}: PlankLayout = {rows: 12, perRow: 2},
+): HTMLCanvasElement {
   const c = canvas();
   const g = c.getContext('2d')!;
   const r = rng(seed);
-  const rows = 12;
   const h = N / rows;
   g.fillStyle = rgb(base);
   g.fillRect(0, 0, N, N);
   const joints: Point[] = [];
   for (let i = 0; i < rows; i++) {
     const y = i * h;
-    const o = r() * N;
-    const L = N * (0.36 + r() * 0.28);
-    for (const [a, len] of [
-      [o, L],
-      [o + L, N - L],
-    ]) {
+    for (const [a, len] of rowPlanks(r, perRow)) {
       joints.push([a % N, y]);
       // plank parameters are chosen once: the plank is also drawn shifted by the texture width so the joint across the edge matches
       const k = 0.94 + r() * 0.11;
@@ -539,57 +562,100 @@ function wood(base: RGB = [178, 147, 114], seed = 11): HTMLCanvasElement {
     }
   return c;
 }
+/** How a floor's tiles are drawn (tiles, checker): the joints' colour and width across and along (pixels), the layout. */
+interface TileDrawing {
+  grout: string;
+  jointAcross?: number;
+  jointAlong?: number;
+  bond?: boolean;
+}
+// The joint the tile floors have always had: 3 px of the 1024 px repeat.
+const FLOOR_JOINT_PX = 3;
+// One tile: its own barely visible shade, soft blotches (marble, porcelain) and fine specks, all from r.
+function tileBody(
+  g: CanvasRenderingContext2D,
+  r: () => number,
+  [x0, y0, w, h]: [number, number, number, number],
+  base: RGB,
+  blots: number,
+): void {
+  const k = 0.975 + r() * 0.05;
+  g.fillStyle = rgb(base, k);
+  g.fillRect(x0, y0, w, h);
+  g.save();
+  g.beginPath();
+  g.rect(x0, y0, w, h);
+  g.clip();
+  for (let n = 0; n < blots; n++) {
+    const x = x0 + r() * w;
+    const y = y0 + r() * h;
+    const rad = 20 + r() * 120;
+    const l = r() < 0.5;
+    const gr = g.createRadialGradient(x, y, 0, x, y, rad);
+    gr.addColorStop(0, l ? 'rgba(255,255,255,.035)' : 'rgba(70,60,50,.03)');
+    gr.addColorStop(1, 'rgba(0,0,0,0)');
+    g.fillStyle = gr;
+    g.fillRect(x - rad, y - rad, rad * 2, rad * 2);
+  }
+  for (let n = 0; n < 900; n++) {
+    g.fillStyle = r() < 0.5 ? 'rgba(255,255,255,.07)' : 'rgba(60,55,50,.06)';
+    g.fillRect(x0 + r() * w, y0 + r() * h, 1.3, 1.3);
+  }
+  g.restore();
+}
 // Tile: squares or rectangles with a thin joint, each with a barely visible color variation, like porcelain stoneware.
+// In a running bond every other row is offset by half a tile; the tile cut by the repeat's edge is drawn on both sides.
 function tiles(
   base: RGB,
   cols: number,
   rows: number,
   seed: number,
-  {blots = 0, grout}: {blots?: number; grout: string},
+  {
+    blots = 0,
+    grout,
+    jointAcross = FLOOR_JOINT_PX,
+    jointAlong = FLOOR_JOINT_PX,
+    bond = false,
+  }: TileDrawing & {blots?: number},
 ): HTMLCanvasElement {
   const c = canvas();
   const g = c.getContext('2d')!;
   const r = rng(seed);
   const w = N / cols;
   const h = N / rows;
-  for (let i = 0; i < cols; i++)
-    for (let j = 0; j < rows; j++) {
-      const k = 0.975 + r() * 0.05;
-      g.fillStyle = rgb(base, k);
-      g.fillRect(i * w, j * h, w, h);
-      g.save();
-      g.beginPath();
-      g.rect(i * w, j * h, w, h);
-      g.clip();
-      for (let n = 0; n < blots; n++) {
-        const x = i * w + r() * w;
-        const y = j * h + r() * h;
-        const rad = 20 + r() * 120;
-        const l = r() < 0.5;
-        const gr = g.createRadialGradient(x, y, 0, x, y, rad);
-        gr.addColorStop(0, l ? 'rgba(255,255,255,.035)' : 'rgba(70,60,50,.03)');
-        gr.addColorStop(1, 'rgba(0,0,0,0)');
-        g.fillStyle = gr;
-        g.fillRect(x - rad, y - rad, rad * 2, rad * 2);
-      }
-      for (let n = 0; n < 900; n++) {
-        g.fillStyle = r() < 0.5 ? 'rgba(255,255,255,.07)' : 'rgba(60,55,50,.06)';
-        g.fillRect(i * w + r() * w, j * h + r() * h, 1.3, 1.3);
-      }
-      g.restore();
+  if (!bond) {
+    for (let i = 0; i < cols; i++)
+      for (let j = 0; j < rows; j++) tileBody(g, r, [i * w, j * h, w, h], base, blots);
+    // the joint is drawn along the edge of every tile (half on each side), so it stays whole at the repeat boundary
+    g.fillStyle = grout;
+    for (let i = 0; i <= cols; i++) g.fillRect(i * w - jointAcross / 2, 0, jointAcross, N);
+    for (let j = 0; j <= rows; j++) g.fillRect(0, j * h - jointAlong / 2, N, jointAlong);
+    return c;
+  }
+  for (let j = 0; j < rows; j++) {
+    const shift = j % 2 ? w / 2 : 0;
+    for (let i = 0; i < cols; i++) {
+      const x = i * w + shift;
+      // each tile its own random numbers, so the part past the edge is the same tile again on the other side
+      const tileSeed = seed * 7919 + j * 131 + i;
+      tileBody(g, rng(tileSeed), [x, j * h, w, h], base, blots);
+      if (x + w > N) tileBody(g, rng(tileSeed), [x - N, j * h, w, h], base, blots);
     }
-  // the joint is drawn along the edge of every tile (half on each side), so it stays whole at the repeat boundary
+  }
   g.fillStyle = grout;
-  for (let i = 0; i <= cols; i++) g.fillRect(i * w - 1.5, 0, 3, N);
-  for (let j = 0; j <= rows; j++) g.fillRect(0, j * h - 1.5, N, 3);
+  for (let j = 0; j < rows; j++) {
+    const shift = j % 2 ? w / 2 : 0;
+    for (let i = 0; i <= cols; i++) g.fillRect(i * w + shift - jointAcross / 2, j * h, jointAcross, h);
+  }
+  for (let j = 0; j <= rows; j++) g.fillRect(0, j * h - jointAlong / 2, N, jointAlong);
   return c;
 }
 // Herringbone: 4:1 slats, axes along the walls (in 3D it is rotated along the room). “Horizontal–vertical” chains run
 // diagonally and repeat every 2n slats on both axes, so the texture is seamless; a slat's tone depends on its place in the repeat.
-function herringbone(base: RGB = [176, 141, 106]): HTMLCanvasElement {
+// A slat is n times as long as it is wide (4 by default; a slat's width and length change it).
+function herringbone(base: RGB = [176, 141, 106], n = 4): HTMLCanvasElement {
   const c = canvas();
   const g = c.getContext('2d')!;
-  const n = 4;
   const P = 2 * n;
   const u = N / P;
   g.fillStyle = rgb(base);
@@ -783,6 +849,7 @@ function gravel(base: RGB = [176, 168, 154]): HTMLCanvasElement {
   return c;
 }
 // Marble: slabs with soft clouds and thin veins (also drawn shifted by the width, so there is no seam at the repeat).
+// The veins are laid over the whole repeat; a slab size changes only how many slabs it holds.
 function marble(base: RGB, cols: number, rows: number, seed: number): HTMLCanvasElement {
   const c = tiles(base, cols, rows, seed, {
     blots: 6,
@@ -814,40 +881,305 @@ function marble(base: RGB, cols: number, rows: number, seed: number): HTMLCanvas
   }
   return c;
 }
-// Checker: tiles of two alternating colors.
-function checker(base: RGB, alt: RGB, cols: number, seed: number): HTMLCanvasElement {
+// The checkerboard's joints by default: a mid grey, half see-through.
+const CHECKER_GROUT = 'rgba(120,120,116,.5)';
+// Checker: tiles of two alternating colors, cols × rows in the repeat (both even, so it repeats).
+function checker(
+  base: RGB,
+  alt: RGB,
+  cols: number,
+  seed: number,
+  {
+    rows = cols,
+    grout = CHECKER_GROUT,
+    jointAcross = FLOOR_JOINT_PX,
+    jointAlong = FLOOR_JOINT_PX,
+  }: Partial<TileDrawing> & {rows?: number} = {},
+): HTMLCanvasElement {
   const c = canvas();
   const g = c.getContext('2d')!;
   const r = rng(seed);
   const w = N / cols;
+  const h = N / rows;
   for (let i = 0; i < cols; i++)
-    for (let j = 0; j < cols; j++) {
+    for (let j = 0; j < rows; j++) {
       const col = (i + j) % 2 ? alt : base;
       const k = 0.98 + r() * 0.04;
       g.fillStyle = rgb(col, k);
-      g.fillRect(i * w, j * w, w, w);
+      g.fillRect(i * w, j * h, w, h);
       for (let n = 0; n < 500; n++) {
         g.fillStyle = r() < 0.5 ? 'rgba(255,255,255,.05)' : 'rgba(40,40,40,.05)';
-        g.fillRect(i * w + r() * w, j * w + r() * w, 1.3, 1.3);
+        g.fillRect(i * w + r() * w, j * h + r() * h, 1.3, 1.3);
       }
     }
-  g.fillStyle = 'rgba(120,120,116,.5)';
-  for (let i = 0; i <= cols; i++) {
-    g.fillRect(i * w - 1.5, 0, 3, N);
-    g.fillRect(0, i * w - 1.5, N, 3);
+  g.fillStyle = grout;
+  for (let i = 0; i <= Math.max(cols, rows); i++) {
+    if (i <= cols) g.fillRect(i * w - jointAcross / 2, 0, jointAcross, N);
+    if (i <= rows) g.fillRect(0, i * h - jointAlong / 2, N, jointAlong);
   }
   return c;
 }
-// Draw a covering: a custom color (tint) replaces the base one; the tile joint is derived from the color.
-function drawFloor(kind: string, tint?: string | null): HTMLCanvasElement {
+// ---------- pattern parameters (D-NEXT) ----------
+// A finish may have its pattern set like the real one: a plank's width and length, a tile's size, joint, grout colour and
+// layout, a stripe's width and second colour, a brick's size and mortar. Each finish takes only those that mean something for
+// how it is drawn (patternSpec); none set: the finish's own look, exactly as before. The AI build sets them from the video;
+// by hand they are set in the finish popup.
+
+/** One size a pattern takes (PatternSpec): what the panel calls it, the range it offers and the finish's own, metres. */
+export interface PatternSize {
+  label: string;
+  min: number;
+  max: number;
+  own: number;
+}
+
+/**
+ * The pattern parameters a finish uses (D-NEXT), with their own values: tile[0] (width), tile[1] (height; its own label when
+ * it is not the second side of the same thing — the dado rail of classic panels), the joint, the joint's and the second
+ * colour, the layout of tiles.
+ */
+export interface PatternSpec {
+  width?: PatternSize;
+  height?: PatternSize & {named?: boolean};
+  joint?: PatternSize;
+  /** The joints' own colour ('#rrggbb', near what is drawn). */
+  grout?: string;
+  /** The second colour's own ('#rrggbb'). */
+  tint2?: string;
+  /** How its tiles lie by default. */
+  lay?: TileLayout;
+}
+
+const size = (label: string, min: number, max: number, own: number): PatternSize => ({label, min, max, own});
+const shade = (c: RGB, k: number): string => hex(c.map(v => Math.min(255, v * k)));
+// The floors' default joint: base × 0.62 at 55 % over the tile — about base × 0.79.
+const FLOOR_GROUT_SHADE = 0.45 + 0.62 * 0.55;
+
+/** The pattern parameters a floor finish uses, with its own values. */
+function floorSpec(K: FloorKind): PatternSpec {
+  switch (K.pattern) {
+    case 'planks':
+      return {width: size(t('Plank'), 0.06, 0.4, 0.2), height: size(t('Plank'), 0.4, 2.4, 1.2)};
+    case 'herringbone':
+      return {width: size(t('Plank'), 0.05, 0.2, 0.1), height: size(t('Plank'), 0.2, 0.9, 0.4)};
+    case 'tile':
+      return {
+        width: size(t('Tile'), 0.05, 1.6, K.size / K.cols),
+        height: size(t('Tile'), 0.05, 1.6, K.size / K.rows),
+        joint: size(t('Joint'), 0, 0.015, (FLOOR_JOINT_PX / N) * K.size), // as drawn: 3 px of the repeat
+        grout: shade(K.base, FLOOR_GROUT_SHADE),
+        lay: 'grid',
+      };
+    case 'marble':
+      return {
+        width: size(t('Slab'), 0.3, 1.6, K.size / K.cols),
+        height: size(t('Slab'), 0.3, 1.6, K.size / K.rows),
+      };
+    case 'checker':
+      return {
+        width: size(t('Tile'), 0.1, 0.6, K.size / K.cols),
+        height: size(t('Tile'), 0.1, 0.6, K.size / K.cols),
+        grout: '#bdbdba',
+        tint2: hex(K.alt),
+      };
+    default:
+      return {};
+  }
+}
+
+/** The pattern parameters a wall finish uses, with its own values. */
+function wallSpec(K: WallKind): PatternSpec {
+  switch (K.pattern) {
+    case 'grid':
+    case 'bond':
+      return {
+        width: size(t('Tile'), 0.02, 1.6, K.w),
+        height: size(t('Tile'), 0.02, 1.6, K.h),
+        joint: size(t('Joint'), 0, 0.015, K.joint),
+        grout: shade(K.base, 0.74),
+        lay: K.pattern,
+      };
+    case 'zellige':
+      return {
+        width: size(t('Tile'), 0.04, 0.3, K.w),
+        height: size(t('Tile'), 0.04, 0.3, K.h),
+        joint: size(t('Joint'), 0, 0.015, K.joint),
+        grout: shade(K.base, 0.84),
+      };
+    case 'brick':
+      return {
+        width: size(t('Brick'), 0.1, 0.5, K.w),
+        height: size(t('Brick'), 0.03, 0.2, K.h),
+        joint: size(t('Joint'), 0, 0.03, K.joint),
+        grout: '#adaa9e',
+      };
+    case 'slats':
+      return {
+        width: size(t('Slat'), 0.01, 0.4, K.w),
+        joint: size(t('Gap'), 0, 0.05, K.joint),
+        grout: shade(K.base, 0.3),
+      };
+    case 'stripes':
+      return {width: size(t('Stripe'), 0.01, 0.5, K.w), tint2: shade(K.base, 0.86)};
+    case 'fluted':
+      return {width: size(t('Flute'), 0.01, 0.15, K.w)};
+    case 'deco':
+      return {
+        width: size(t('Repeat'), 0.1, 1, K.w),
+        height: size(t('Repeat'), 0.1, 1, K.h),
+        tint2: '#bd9c63',
+      };
+    case 'boiserie':
+      return {
+        width: size(t('Panel|wall'), 0.3, 2, K.w),
+        height: {...size(t('Rail'), 0.5, 1.5, K.h), named: true},
+      };
+    case 'marble':
+      return {
+        width: size(t('Slab'), 0.3, 2.5, K.w),
+        height: size(t('Slab'), 0.3, 2.5, K.h),
+      };
+    default:
+      return {};
+  }
+}
+
+/** The pattern parameters a finish uses (floor: FLOOR_KINDS, wall: WALL_KINDS); none for a key the editor does not have. */
+export function patternSpec(type: 'floor' | 'wall', key: string): PatternSpec {
+  if (type === 'floor') return isFloorKind(key) ? floorSpec(FLOOR_KINDS[key]) : {};
+  return isWallKind(key) ? wallSpec(WALL_KINDS[key]) : {};
+}
+
+/** Of a pattern, the well-formed parameters (pieces.ts wellFormedPattern) the finish uses; the others are left out. */
+export function usedPattern(
+  type: 'floor' | 'wall',
+  key: string,
+  fields: FinishPattern | null | undefined,
+): FinishPattern {
+  const spec = patternSpec(type, key);
+  const wellFormed = wellFormedPattern(fields);
+  const used: FinishPattern = {};
+  if (spec.width && wellFormed.tile) used.tile = wellFormed.tile;
+  if (spec.joint && wellFormed.joint != null) used.joint = wellFormed.joint;
+  if (spec.grout && wellFormed.grout) used.grout = wellFormed.grout;
+  if (spec.tint2 && wellFormed.tint2) used.tint2 = wellFormed.tint2;
+  if (spec.lay && wellFormed.lay) used.lay = wellFormed.lay;
+  return used;
+}
+
+/** A room's floor to draw: its key, tint and the pattern it uses (only with a floor of its own: a guess has the guess's look). */
+export function roomFloor(room: Room | null | undefined): Finish {
+  const k = floorKind(room);
+  const finish: Finish = {k, tint: room?.floorTint || null};
+  if (!isFloorKind(room?.floor)) return finish;
+  return {...finish, ...usedPattern('floor', k, room.floorPattern)};
+}
+
+// ---------- the floor's layout in its repeat ----------
+// A floor texture is one 1024 px repeat laid along the room (floorUV). Its own sizes come from the finish (size, cols,
+// rows); a pattern's sizes change how many planks or tiles the repeat holds and, for tiles, how big the repeat is.
+
+/** How a floor finish fills its repeat (floorLayout): the repeat's size along and across (metres), and its pieces. */
+interface FloorLayout {
+  repeat: [number, number];
+  /** Tiles, slabs, checker squares: how many along and across. */
+  cols: number;
+  rows: number;
+  /** Planks: rows across the repeat and planks in a row. */
+  planks: PlankLayout;
+  /** Herringbone: a slat's length in widths. */
+  slatRatio: number;
+}
+// A tile floor's repeat holds tiles up to about this long (metres), so a texture pixel stays a few millimetres.
+const TILE_REPEAT_METRES = 1.2;
+// At most this many tiles or plank rows along one side of a repeat (the joints would be thinner than a pixel).
+const MOST_PER_REPEAT = 48;
+const clampCount = (value: number, least: number): number =>
+  Math.max(least, Math.min(MOST_PER_REPEAT, Math.round(value)));
+const evenCount = (value: number): number => 2 * Math.max(1, Math.round(clampCount(value, 1) / 2));
+
+/** How the floor finish fills its repeat with these pattern parameters (only well-formed, used ones: usedPattern). */
+function floorLayout(kind: string, pattern: FinishPattern = {}): FloorLayout {
+  const K = FLOOR_KINDS[kind];
+  const cols = K.cols ?? 1;
+  const own: FloorLayout = {
+    repeat: [K.size, K.size],
+    cols,
+    rows: K.pattern === 'checker' ? cols : (K.rows ?? 1),
+    planks: {rows: 12, perRow: 2},
+    slatRatio: 4,
+  };
+  const tile = pattern.tile;
+  if (!tile) {
+    if (pattern.lay === 'bond') own.rows = evenCount(own.rows);
+    return own;
+  }
+  const [width, length] = tile;
+  if (K.pattern === 'planks')
+    return {
+      ...own,
+      planks: {rows: clampCount(K.size / width, 2), perRow: clampCount(K.size / length, 1)},
+    };
+  if (K.pattern === 'herringbone') {
+    const slatRatio = Math.max(2, Math.min(10, Math.round(length / width)));
+    const side = 2 * slatRatio * width;
+    return {...own, slatRatio, repeat: [side, side]};
+  }
+  // tiles, slabs, a checkerboard: whole tiles along the repeat; a checkerboard and a running bond need even counts to repeat
+  const even = K.pattern === 'checker' || pattern.lay === 'bond';
+  const along = clampCount(TILE_REPEAT_METRES / width, 1);
+  const across = clampCount(TILE_REPEAT_METRES / length, 1);
+  const tilesAlong = K.pattern === 'checker' ? evenCount(along) : along;
+  const tilesAcross = even ? evenCount(across) : across;
+  return {
+    ...own,
+    cols: tilesAlong,
+    rows: tilesAcross,
+    repeat: [tilesAlong * width, tilesAcross * length],
+  };
+}
+
+/** How many metres one repeat of a floor's texture covers along and across the room (floorUV). */
+export const floorRepeat = (kind: string, pattern?: FinishPattern): [number, number] =>
+  floorLayout(kind, pattern).repeat;
+
+/** A joint in metres as pixels of a repeat side: at least one pixel, so a thin joint still shows. */
+const jointPixels = (joint: number, side: number): number =>
+  joint > 0 ? Math.max(1, (joint / side) * N) : 0;
+
+/**
+ * How the tiles' joints are drawn: the default, or the pattern's joint width, colour and layout. A tile size set without a
+ * joint keeps the finish's own joint in millimetres (ownJoint), not in pixels of the new repeat.
+ */
+function tileDrawing(
+  layout: FloorLayout,
+  pattern: FinishPattern,
+  grout: string,
+  ownJoint: number,
+): TileDrawing {
+  const drawing: TileDrawing = {grout: pattern.grout ? rgb(unhex(pattern.grout)!) : grout};
+  const joint = pattern.joint ?? (pattern.tile ? ownJoint : null);
+  if (joint != null) {
+    drawing.jointAcross = jointPixels(joint, layout.repeat[0]);
+    drawing.jointAlong = jointPixels(joint, layout.repeat[1]);
+  }
+  if (pattern.lay === 'bond') drawing.bond = true;
+  return drawing;
+}
+
+// Draw a covering: a custom color (tint) replaces the base one; the tile joint is derived from the color; the pattern's
+// parameters (used ones only) change the sizes, the joints and the second colour.
+function drawFloor(kind: string, tint?: string | null, pattern: FinishPattern = {}): HTMLCanvasElement {
   const K = FLOOR_KINDS[kind];
   const base = unhex(tint) || K.base;
   const grout = `rgba(${base.map(v => (v * 0.62) | 0).join(',')},.55)`;
+  const layout = floorLayout(kind, pattern);
+  const ownJoint = (FLOOR_JOINT_PX / N) * K.size;
   switch (K.pattern) {
     case 'planks':
-      return wood(base, K.seed);
+      return wood(base, K.seed, layout.planks);
     case 'herringbone':
-      return herringbone(base);
+      return herringbone(base, layout.slatRatio);
     case 'concrete':
       return concrete(base);
     case 'carpet':
@@ -857,39 +1189,55 @@ function drawFloor(kind: string, tint?: string | null): HTMLCanvasElement {
     case 'gravel':
       return gravel(base);
     case 'marble':
-      return marble(base, K.cols, K.rows, K.seed);
+      return marble(base, layout.cols, layout.rows, K.seed);
     case 'checker':
-      return checker(base, K.alt, K.cols, K.seed);
+      return checker(base, unhex(pattern.tint2) || K.alt, layout.cols, K.seed, {
+        ...tileDrawing(layout, pattern, CHECKER_GROUT, ownJoint),
+        rows: layout.rows,
+      });
     default:
-      return tiles(base, K.cols, K.rows, K.seed, {blots: K.blots || 0, grout});
+      return tiles(base, layout.cols, layout.rows, K.seed, {
+        blots: K.blots || 0,
+        ...tileDrawing(layout, pattern, grout, ownJoint),
+      });
   }
 }
 const texCache = new Map<string, THREE.CanvasTexture>();
 const swCache = new Map<string, string>();
 const drawn = new Map<string, HTMLCanvasElement>();
+// One string per floor finish drawn: the key, the tint and the pattern (none: as before the patterns).
+const floorCacheKey = (kind: string, tint?: string | null, pattern?: FinishPattern): string =>
+  kind + '|' + (tint || '') + (pattern && hasPattern(pattern) ? '|' + patternKey(pattern) : '');
 // (Each cache's get! below: the entry was set just before.)
-const drawOnce = (kind: string, tint?: string | null): HTMLCanvasElement => {
-  const k = kind + '|' + (tint || '');
-  if (!drawn.has(k)) drawn.set(k, drawFloor(kind, tint));
+const drawOnce = (kind: string, tint?: string | null, pattern?: FinishPattern): HTMLCanvasElement => {
+  const k = floorCacheKey(kind, tint, pattern);
+  if (!drawn.has(k)) drawn.set(k, drawFloor(kind, tint, pattern));
   return drawn.get(k)!;
 }; // drawn once, both for 3D and for the swatch
-// A floor swatch for the room panel: a ~60 cm piece of the texture, 48 px.
-export function floorSwatch(kind: string, tint?: string | null): string {
-  const key = kind + '|' + (tint || '');
+// A floor swatch for the room panel: a ~60 cm piece of the texture, 48 px. pattern: only the used, well-formed parameters.
+export function floorSwatch(kind: string, tint?: string | null, pattern?: FinishPattern): string {
+  const key = floorCacheKey(kind, tint, pattern);
   if (!swCache.has(key)) {
-    const src = drawOnce(kind, tint);
+    const src = drawOnce(kind, tint, pattern);
     const c = document.createElement('canvas');
     c.width = c.height = 48;
-    const k = Math.min(1, 0.6 / FLOOR_KINDS[kind].size);
-    c.getContext('2d')!.drawImage(src, 0, 0, N * k, N * k, 0, 0, 48, 48);
+    const [along, across] = floorRepeat(kind, pattern);
+    const shareAlong = Math.min(1, 0.6 / along);
+    const shareAcross = Math.min(1, 0.6 / across);
+    c.getContext('2d')!.drawImage(src, 0, 0, N * shareAlong, N * shareAcross, 0, 0, 48, 48);
     swCache.set(key, c.toDataURL());
   }
   return swCache.get(key)!;
 }
-export function floorTexture(kind: string, anisotropy = 8, tint?: string | null): THREE.CanvasTexture {
-  const key = kind + '|' + (tint || '');
+export function floorTexture(
+  kind: string,
+  anisotropy = 8,
+  tint?: string | null,
+  pattern?: FinishPattern,
+): THREE.CanvasTexture {
+  const key = floorCacheKey(kind, tint, pattern);
   if (!texCache.has(key)) {
-    const t = new THREE.CanvasTexture(drawOnce(kind, tint));
+    const t = new THREE.CanvasTexture(drawOnce(kind, tint, pattern));
     t.colorSpace = THREE.SRGBColorSpace;
     t.wrapS = t.wrapT = THREE.RepeatWrapping;
     t.anisotropy = anisotropy;
@@ -898,7 +1246,13 @@ export function floorTexture(kind: string, anisotropy = 8, tint?: string | null)
   return texCache.get(key)!;
 }
 // Floor UV mapping: plan meters rotated along the longest edge of the room (planks run along the room, tiles square with the walls).
-export function floorUV(geometry: THREE.BufferGeometry, polygon: Outline, size: number): void {
+// size: the metres one repeat covers, or along and across when they differ (a tile's pattern: floorRepeat).
+export function floorUV(
+  geometry: THREE.BufferGeometry,
+  polygon: Outline,
+  size: number | [number, number],
+): void {
+  const [sizeAlong, sizeAcross] = typeof size === 'number' ? [size, size] : size;
   let best = 0;
   let ang = 0;
   for (let i = 0; i < polygon.length; i++) {
@@ -918,7 +1272,7 @@ export function floorUV(geometry: THREE.BufferGeometry, polygon: Outline, size: 
   for (let i = 0; i < pos.count; i++) {
     const x = pos.getX(i);
     const y = -pos.getZ(i);
-    uv.setXY(i, (x * c - y * s) / size, (x * s + y * c) / size);
+    uv.setXY(i, (x * c - y * s) / sizeAlong, (x * s + y * c) / sizeAcross);
   }
   uv.needsUpdate = true;
 }
@@ -1144,23 +1498,30 @@ export const WALL_GROUPS = [WP, WPL, WWP, WT, WB, WW, WO].map((g): [string, stri
 ]);
 export const wallGuess = (room: Room | null | undefined): string =>
   BATH.test(`${room?.name || ''} ${room?.id || ''}`.toLowerCase()) ? 'tileWhite' : 'paintWarm';
-// the finish of the room and of edge i: {k, tint, own: the edge has its own setting}
-export const roomWall = (room: Room | null | undefined): Finish => ({
-  k: isWallKind(room?.wall) ? room.wall : wallGuess(room),
-  tint: isWallKind(room?.wall) ? room.wallTint : null,
-});
+// the finish of the room and of edge i: {k, tint, the pattern it uses, own: the edge has its own setting}
+export function roomWall(room: Room | null | undefined): Finish {
+  if (!isWallKind(room?.wall)) return {k: wallGuess(room), tint: null};
+  return {k: room.wall, tint: room.wallTint, ...usedPattern('wall', room.wall, room.wallPattern)};
+}
 export function sideWall(room: Room | null | undefined, i: number): WallFinish {
   const o = room?.wf?.[i];
-  return o && isWallKind(o.k) ? {k: o.k, tint: o.tint || null, own: true} : {...roomWall(room), own: false};
+  if (!o || !isWallKind(o.k)) return {...roomWall(room), own: false};
+  return {k: o.k, tint: o.tint || null, ...usedPattern('wall', o.k, o), own: true};
 }
 export const wallBase = (k: string, tint?: string | null): string => hex(unhex(tint) || WALL_KINDS[k].base);
-// A finish swatch, 48 px ≈ 60 cm of wall (the same pattern as in the shader).
+// A finish swatch, 48 px ≈ 60 cm of wall (the same pattern as in the shader). pattern: only the used, well-formed parameters.
 const wsCache = new Map<string, string>();
-export function wallSwatch(k: string, tint?: string | null): string {
-  const key = k + '|' + (tint || '');
+export function wallSwatch(k: string, tint?: string | null, pattern: FinishPattern = {}): string {
+  const key = k + '|' + (tint || '') + (hasPattern(pattern) ? '|' + patternKey(pattern) : '');
   if (wsCache.has(key)) return wsCache.get(key)!;
   const K = WALL_KINDS[k];
   const base = unhex(tint) || K.base;
+  const width = pattern.tile?.[0] ?? K.w ?? 0;
+  const height = pattern.tile?.[1] ?? K.h ?? 0;
+  const joint = pattern.joint ?? K.joint ?? 0;
+  const grout = unhex(pattern.grout);
+  const second = unhex(pattern.tint2);
+  const tiles = K.pattern === 'grid' || K.pattern === 'bond' ? (pattern.lay ?? K.pattern) : K.pattern;
   const c = document.createElement('canvas');
   c.width = c.height = 48;
   const g = c.getContext('2d')!;
@@ -1169,16 +1530,16 @@ export function wallSwatch(k: string, tint?: string | null): string {
   g.fillStyle = rgb(base);
   g.fillRect(0, 0, 48, 48);
   if (K.pattern === 'grid' || K.pattern === 'bond' || K.pattern === 'brick') {
-    const w = K.w * px;
-    const h = K.h * px;
-    const j = Math.max(1, K.joint * px);
+    const w = width * px;
+    const h = height * px;
+    const j = Math.max(1, joint * px);
     for (let y = 0, row = 0; y < 48; y += h, row++)
-      for (let x = -(K.pattern !== 'grid' && row % 2 ? w / 2 : 0); x < 48; x += w) {
+      for (let x = -(tiles !== 'grid' && row % 2 ? w / 2 : 0); x < 48; x += w) {
         g.fillStyle = rgb(base, K.pattern === 'brick' ? 0.88 + r() * 0.22 : 0.97 + r() * 0.06);
         g.fillRect(x + j / 2, y + j / 2, w - j, h - j);
       }
     g.globalCompositeOperation = 'destination-over';
-    g.fillStyle = K.pattern === 'brick' ? 'rgb(170,166,158)' : rgb(base, 0.72);
+    g.fillStyle = grout ? rgb(grout) : K.pattern === 'brick' ? 'rgb(170,166,158)' : rgb(base, 0.72);
     g.fillRect(0, 0, 48, 48);
     g.globalCompositeOperation = 'source-over';
     if (K.panel) {
@@ -1186,9 +1547,9 @@ export function wallSwatch(k: string, tint?: string | null): string {
       g.fillRect(0, 0, 48, 16);
     }
   } else if (K.pattern === 'slats') {
-    const w = K.w * px;
-    const j = Math.max(1, K.joint * px);
-    g.fillStyle = rgb(base, 0.35);
+    const w = width * px;
+    const j = Math.max(1, joint * px);
+    g.fillStyle = grout ? rgb(grout) : rgb(base, 0.35);
     g.fillRect(0, 0, 48, 48);
     for (let x = 0; x < 48; x += w + j) {
       g.fillStyle = rgb(base, 0.9 + r() * 0.18);
@@ -1217,14 +1578,14 @@ export function wallSwatch(k: string, tint?: string | null): string {
         g.fillRect(0, i, 48, 1);
       }
   } else if (K.pattern === 'stripes') {
-    const w = K.w * px;
+    const w = width * px;
     for (let x = w; x < 48; x += 2 * w) {
-      g.fillStyle = rgb(base, 0.86);
+      g.fillStyle = second ? rgb(second) : rgb(base, 0.86);
       g.fillRect(x, 0, w, 48);
     }
   } else if (K.pattern === 'deco') {
-    const w = K.w * px * 1.6;
-    g.strokeStyle = 'rgb(194,158,97)';
+    const w = width * px * 1.6;
+    g.strokeStyle = second ? rgb(second) : 'rgb(194,158,97)';
     g.lineWidth = 1;
     g.beginPath();
     for (let x = -48; x < 96; x += w) {
@@ -1242,7 +1603,7 @@ export function wallSwatch(k: string, tint?: string | null): string {
     g.fillStyle = rgb(base, 0.86);
     g.fillRect(0, 28, 48, 2);
   } else if (K.pattern === 'fluted') {
-    const w = Math.max(3, K.w * px);
+    const w = Math.max(3, width * px);
     for (let x = 0; x < 48; x += w) {
       const gr = g.createLinearGradient(x, 0, x + w, 0);
       gr.addColorStop(0, rgb(base, 0.62));
@@ -1262,11 +1623,16 @@ export function wallSwatch(k: string, tint?: string | null): string {
       g.stroke();
     }
   } else if (K.pattern === 'zellige') {
-    const w = K.w * px;
-    for (let y = 0; y < 48; y += w)
+    const w = width * px;
+    const h = height * px;
+    if (grout) {
+      g.fillStyle = rgb(grout);
+      g.fillRect(0, 0, 48, 48);
+    }
+    for (let y = 0; y < 48; y += h)
       for (let x = 0; x < 48; x += w) {
         g.fillStyle = rgb(base, 0.82 + r() * 0.34);
-        g.fillRect(x + 0.5, y + 0.5, w - 1, w - 1);
+        g.fillRect(x + 0.5, y + 0.5, w - 1, h - 1);
       }
   }
   const u = c.toDataURL();
@@ -1298,22 +1664,33 @@ const FIN_PAT: Record<WallKind['pattern'], number> = {
 const TABLE_SIZE = 256; // finishes and stacks per home; number 0 is none
 const BAND_STEP = 0.02; // stack heights in steps of 2 cm (up to 5.1 m)
 
-/** The finish table: one entry per distinct finish (key, tint, tile size, joint). */
+// The finish table's rows: colour and pattern; sizes; the joints' colour (D-NEXT); the second colour (D-NEXT).
+const FINISH_ROWS = 4;
+// A colour in the table's last two rows: its RGB and this in alpha when it is set (0: the finish's own, as before).
+const COLOUR_SET = 255;
+
+/** The finish table: one entry per distinct finish (key, tint, tile size, joint, joint colour, second colour, layout). */
 function finishTable(): {data: Uint8Array; idOf: (finish: Finish) => number; count: () => number} {
-  const data = new Uint8Array(TABLE_SIZE * 2 * 4);
+  const data = new Uint8Array(TABLE_SIZE * FINISH_ROWS * 4);
   const ids = new Map<string, number>();
   const idOf = (finish: Finish): number => {
     const kind = WALL_KINDS[finish.k];
     const width = finish.tile?.[0] ?? kind.w ?? 0;
     const height = finish.tile?.[1] ?? kind.h ?? 0;
     const joint = finish.joint ?? kind.joint ?? 0;
-    const key = [finish.k, finish.tint || '', width, height, joint].join('|');
+    // tiles laid in a grid or offset by half: the grid's or the bond's pattern
+    const tiled = kind.pattern === 'grid' || kind.pattern === 'bond';
+    const pattern = tiled && finish.lay ? finish.lay : kind.pattern;
+    const grout = unhex(finish.grout);
+    const second = unhex(finish.tint2);
+    const colours = grout || second ? ['', finish.grout || '', finish.tint2 || ''] : [];
+    const key = [finish.k, finish.tint || '', width, height, joint, ...colours, pattern].join('|');
     if (ids.has(key)) return ids.get(key)!;
     if (ids.size >= TABLE_SIZE - 1) return 0;
     const id = ids.size + 1;
     const base = unhex(finish.tint) || kind.base;
     ids.set(key, id);
-    data.set([base[0], base[1], base[2], FIN_PAT[kind.pattern]], id * 4);
+    data.set([base[0], base[1], base[2], FIN_PAT[pattern]], id * 4);
     data.set(
       [
         Math.round(width * 100),
@@ -1323,6 +1700,8 @@ function finishTable(): {data: Uint8Array; idOf: (finish: Finish) => number; cou
       ],
       (TABLE_SIZE + id) * 4,
     );
+    if (grout) data.set([grout[0], grout[1], grout[2], COLOUR_SET], (2 * TABLE_SIZE + id) * 4);
+    if (second) data.set([second[0], second[1], second[2], COLOUR_SET], (3 * TABLE_SIZE + id) * 4);
     return id;
   };
   return {data, idOf, count: () => ids.size};
@@ -1420,16 +1799,16 @@ export function bakeFinish(
   const tex = new THREE.DataTexture(map, W, H);
   tex.magFilter = tex.minFilter = THREE.NearestFilter;
   tex.needsUpdate = true;
-  const table = (data: Uint8Array): THREE.DataTexture => {
-    const t = new THREE.DataTexture(data, TABLE_SIZE, 2);
+  const table = (data: Uint8Array, rows: number): THREE.DataTexture => {
+    const t = new THREE.DataTexture(data, TABLE_SIZE, rows);
     t.magFilter = t.minFilter = THREE.NearestFilter;
     t.needsUpdate = true;
     return t;
   };
   return {
     tex,
-    tab: table(finishes.data),
-    stk: table(stacks.data),
+    tab: table(finishes.data, FINISH_ROWS),
+    stk: table(stacks.data, 2),
     box: [x0, y0, 1 / (W * px), 1 / (H * px)],
     count: finishes.count(),
   };
@@ -1463,7 +1842,10 @@ void htFinish(inout vec4 dc){
   // the stack: up to four finishes bottom to top and the heights where the next ones start (pieces of finish, D-084)
   vec4 S=floor(texture2D(htFinStk,vec2((stack+0.5)/256.0,0.25))*255.0+0.5),Z=floor(texture2D(htFinStk,vec2((stack+0.5)/256.0,0.75))*255.0+0.5)*0.02;
   float id=S.r;if(htPos.y>=Z.r)id=S.g;if(htPos.y>=Z.g)id=S.b;if(htPos.y>=Z.b)id=S.a;if(id<0.5)return;
-  vec4 A=texture2D(htFinTab,vec2((id+0.5)/256.0,0.25)),B=texture2D(htFinTab,vec2((id+0.5)/256.0,0.75));
+  // the finish: colour and pattern, sizes, and its own joint colour and second colour when set (alpha 1; D-NEXT)
+  vec4 A=texture2D(htFinTab,vec2((id+0.5)/256.0,0.125)),B=texture2D(htFinTab,vec2((id+0.5)/256.0,0.375)),
+    C=texture2D(htFinTab,vec2((id+0.5)/256.0,0.625)),D=texture2D(htFinTab,vec2((id+0.5)/256.0,0.875));
+  bool ownJoint=C.a>0.5,ownSecond=D.a>0.5;
   float pat=floor(A.a*255.0+0.5);vec3 col=htLin(A.rgb);
   float u=dot(pl,vec2(-np.y,np.x)),v=htPos.y,tw=max(0.01,B.r*2.55),th=max(0.01,B.g*2.55),panel=B.b*2.55,jt=B.a*0.255,aa=max(fwidth(u),fwidth(v))+1e-4;
   if(panel>0.0&&v>panel){dc.rgb=htLin(vec3(0.941,0.925,0.898));return;}
@@ -1472,20 +1854,21 @@ void htFinish(inout vec4 dc){
     vec2 f=vec2(uu-cx*tw,v-row*th);float j=min(min(f.x,tw-f.x),min(f.y,th-f.y)),m=1.0-smoothstep(jt*0.5-aa,jt*0.5+aa,j);
     vec3 tc=col*(1.0+(htHash(vec2(cx,row))-0.5)*(brick?0.22:zel?0.34:0.05));if(brick)tc*=0.9+0.18*htNoise(vec2(u,v)*60.0);
     if(zel)tc*=0.86+0.18*htNoise(f/tw*2.2+vec2(cx,row)*3.1)+0.1*smoothstep(0.0,0.35*tw,j); // handmade glaze: uneven, lighter in the middle
-    col=mix(tc,brick?htLin(vec3(0.68,0.66,0.62)):col*(zel?0.84:0.74),m);}
+    col=mix(tc,ownJoint?htLin(C.rgb):brick?htLin(vec3(0.68,0.66,0.62)):col*(zel?0.84:0.74),m);}
   else if(abs(P-3.0)<0.5){float per=tw+jt,cx=floor(u/per),f=u-cx*per,g=smoothstep(tw-aa,tw+aa,f)*(1.0-smoothstep(per-aa,per,f));
-    col=mix(col*(0.92+0.16*htHash(vec2(cx,3.0))),col*0.3,g);}
+    col=mix(col*(0.92+0.16*htHash(vec2(cx,3.0))),ownJoint?htLin(C.rgb):col*0.3,g);}
   else if(abs(P-4.0)<0.5)col*=(0.9+0.2*htNoise(vec2(u,v)*2.5))*(0.96+0.08*htNoise(vec2(u,v)*28.0));
   // Venetian plaster: soft clouds and diagonal trowel strokes
   else if(abs(P-6.0)<0.5){float c=htFbm(vec2(u,v)*1.3),k=htNoise(vec2(u*2.6+v*1.1,v*7.0-u*1.7));col*=0.84+0.26*c+0.08*(k-0.5);}
   // limewash, clay: brushed clouds, a faint vertical brush
   else if(abs(P-7.0)<0.5)col*=0.9+0.15*htFbm(vec2(u*0.8,v*1.3))+0.05*(htNoise(vec2(u*16.0,v*2.2))-0.5);
   // striped wallpaper: two tones and a fine line between them
-  else if(abs(P-8.0)<0.5){float f=mod(u,tw*2.0);col*=mix(1.0,0.86,smoothstep(tw-aa,tw+aa,f)*(1.0-smoothstep(2.0*tw-aa,2.0*tw,f)));
+  else if(abs(P-8.0)<0.5){float f=mod(u,tw*2.0),second=smoothstep(tw-aa,tw+aa,f)*(1.0-smoothstep(2.0*tw-aa,2.0*tw,f));
+    if(ownSecond)col=mix(col,htLin(D.rgb),second);else col*=mix(1.0,0.86,second);
     col=mix(col,col*0.72,(1.0-smoothstep(0.0015,0.0015+aa,abs(f-tw)))*0.6);}
   // art deco wallpaper: a brass lattice of diamonds with a dot in each
   else if(abs(P-9.0)<0.5){vec2 g=fract(vec2(u/tw,v/th))-0.5;float a2=aa/tw,l=1.0-smoothstep(0.008,0.008+a2*1.5,abs(abs(g.x)+abs(g.y)-0.5)),d=1.0-smoothstep(0.03,0.03+a2*1.5,length(g));
-    col=mix(col,htLin(vec3(0.74,0.61,0.39)),max(l,d)*0.7);}
+    col=mix(col,ownSecond?htLin(D.rgb):htLin(vec3(0.74,0.61,0.39)),max(l,d)*0.7);}
   // classic panels (boiserie): framed panels below and above a dado rail, a skirting; the frames lit from above
   else if(abs(P-10.0)<0.5){float dado=th,cx=floor(u/tw),fx=u-cx*tw;bool lo=v<dado;
     float y0=lo?0.16:dado+0.14,y1=lo?dado-0.1:2.38,x0=0.09,x1=tw-0.09,dx=min(fx-x0,x1-fx),dy=min(v-y0,y1-v),d=min(dx,dy);
