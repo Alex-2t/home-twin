@@ -6,6 +6,7 @@ import {liveHA, hassPlans, hassPhotos} from './editor/ha-live.ts';
 import {browserPhotos} from './editor/underlay.ts';
 import {t, setFormats} from './i18n/i18n.ts';
 import {haRouter} from './editor/route.ts';
+import {buildOf, reloadPanel, watchBuild} from './frontend-build.ts';
 import type {Hass} from './core/types.ts';
 import type {Editor} from './editor/editor-types.ts';
 import type {PanelRoute, PanelRouter} from './editor/route.ts';
@@ -48,10 +49,19 @@ export async function start(panel: PanelHost): Promise<PanelApp> {
         () => {
           plans.keepMine();
           ed!.banner(); // this banner is shown only once the editor is up
+          if (updated) showUpdated();
         },
         true,
       ],
     ]);
+  };
+  // HA serves a newer build of the panel (an update without a restart, D-NEXT): this one keeps working — the integration does not
+  // move an open panel — and “Reload” brings the new one. A conflict's question comes first: this is shown after it is answered.
+  let updated = false;
+  const showUpdated = (): void => {
+    updated = true;
+    if (!ed || plans.state() === 'conflict') return;
+    ed.banner(t('Home Twin was updated'), [[t('Reload'), () => reloadPanel(hass()), true]]);
   };
   const status = (): void => ed?.syncSave?.();
   const plans = hassPlans(hass, {onConflict: ask, onStatus: status});
@@ -77,10 +87,13 @@ export async function start(panel: PanelHost): Promise<PanelApp> {
   };
   status();
   if (asked) ask();
+  // the subscription is made on HA's page's connection, which outlives this iframe: it is ended when the panel closes (below)
+  const stopWatchingBuild = watchBuild(hass(), buildOf(import.meta.url), showUpdated, {panel: true});
   addEventListener('pagehide', () => {
     plans.flush();
     photos.flush();
     ed.history.flush();
+    stopWatchingBuild();
   });
   let online = panel.hass?.connected;
   return {

@@ -5,6 +5,7 @@
 // screen's examples (D-062).
 // Each generated module gets a .d.ts beside it, in the shared types, so the typed code can import it (D-087).
 import fs from 'node:fs';
+import crypto from 'node:crypto';
 import * as esbuild from 'esbuild';
 import {execFile} from 'node:child_process';
 import type {DemoHomeModule} from './demo/kit.ts';
@@ -129,6 +130,30 @@ function shellGen(): void {
   );
 }
 shellGen();
+
+// The words of the “Home Twin was updated · Reload” notice in every language, for the card's small loader (card.ts), which cannot
+// carry the dictionaries. The panel says the same through t(), so the translation check covers these words too.
+const UPDATE_NOTICE_KEYS = {text: 'Home Twin was updated', reload: 'Reload'};
+function updateNoticeGen(): void {
+  const notice: Record<string, {text: string; reload: string}> = {en: UPDATE_NOTICE_KEYS};
+  for (const file of fs.readdirSync('src/i18n')) {
+    if (!/^[a-z]{2}\.json$/.test(file)) continue;
+    // a language file: the English text → its translation
+    const dictionary = JSON.parse(fs.readFileSync('src/i18n/' + file, 'utf8')) as Record<string, string>;
+    notice[file.slice(0, 2)] = {
+      text: dictionary[UPDATE_NOTICE_KEYS.text] || UPDATE_NOTICE_KEYS.text,
+      reload: dictionary[UPDATE_NOTICE_KEYS.reload] || UPDATE_NOTICE_KEYS.reload,
+    };
+  }
+  fs.writeFileSync('src/gen/update-notice.gen.js', `export const UPDATE_NOTICE=${JSON.stringify(notice)};\n`);
+  writeGenTypes(
+    'update-notice',
+    '/** The update notice in every language: language → its text and the reload button. */\n' +
+      'export declare const UPDATE_NOTICE: Record<string, {text: string; reload: string}>;\n',
+  );
+}
+updateNoticeGen();
+
 fs.mkdirSync('../custom_components/home_twin/frontend', {recursive: true});
 const panelOpts = {
   ...opts,
@@ -137,9 +162,30 @@ const panelOpts = {
   write: true,
 } satisfies esbuild.BuildOptions;
 const panelDone = (): void => console.log('panel.js', (fs.statSync(PANEL).size / 1024).toFixed(0), 'KB');
-// The dashboard card (D-059): card.js — a small file HA loads on every page (no imports); card-app.js — the 3D and the home panel,
+// The dashboard card (D-059): card.js — a small file HA loads on every page; card-app.js — the 3D and the home panel,
 // loaded only where a card is shown
 const FRONT = '../custom_components/home_twin/frontend/';
+// --serve rebuilds the files one at a time: build.json is written again after each
+const watching = process.argv.includes('--serve');
+
+// build.json beside the files: every file's sha256 and the build id made from them. The integration serves each build at its own
+// address and takes a new one up only once the files on disk match this list, so an update half done is never served (serve.py,
+// D-NEXT). The id is made the way serve.py makes it: the sha256 of the "name:sha256" lines in name order, its first 12 characters.
+const FRONTEND_FILE = /^[a-z0-9][a-z0-9-]*\.js$/;
+const BUILD_ID_LENGTH = 12;
+const sha256 = (data: string | Buffer): string => crypto.createHash('sha256').update(data).digest('hex');
+function writeBuildManifest(): void {
+  const names = fs
+    .readdirSync(FRONT)
+    .filter(name => FRONTEND_FILE.test(name))
+    .sort();
+  const files: Record<string, string> = {};
+  for (const name of names) files[name] = sha256(fs.readFileSync(FRONT + name));
+  const lines = names.map(name => `${name}:${files[name]}\n`).join('');
+  const build = sha256(lines).slice(0, BUILD_ID_LENGTH);
+  fs.writeFileSync(FRONT + 'build.json', JSON.stringify({build, files}, null, 1) + '\n');
+  console.log('build.json', build);
+}
 const cardOpts = ['card', 'card-app'].map((n): esbuild.BuildOptions => ({
   ...opts,
   entryPoints: [`src/${n}.ts`],
@@ -150,14 +196,15 @@ const cardOpts = ['card', 'card-app'].map((n): esbuild.BuildOptions => ({
       name: 'done',
       setup(b) {
         b.onEnd(r => {
-          if (!r.errors.length)
-            console.log(n + '.js', (fs.statSync(FRONT + n + '.js').size / 1024).toFixed(0), 'KB');
+          if (r.errors.length) return;
+          console.log(n + '.js', (fs.statSync(FRONT + n + '.js').size / 1024).toFixed(0), 'KB');
+          if (watching) writeBuildManifest();
         });
       },
     },
   ],
 }));
-if (process.argv.includes('--serve')) {
+if (watching) {
   const ctx = await esbuild.context({
     ...opts,
     plugins: [
@@ -182,7 +229,9 @@ if (process.argv.includes('--serve')) {
         name: 'done',
         setup(b) {
           b.onEnd(r => {
-            if (!r.errors.length) panelDone();
+            if (r.errors.length) return;
+            panelDone();
+            writeBuildManifest();
           });
         },
       },
@@ -217,4 +266,5 @@ if (process.argv.includes('--serve')) {
   await esbuild.build(panelOpts);
   panelDone();
   for (const o of cardOpts) await esbuild.build(o);
+  writeBuildManifest();
 }
