@@ -1604,5 +1604,6 @@
  "Depth, cm": "Profondeur, cm",
  "leave the plan": "quitter le plan",
  "Plan: room by its typed size": "Plan : pièce aux dimensions saisies",
- "move in a list or menu": "se déplacer dans une liste ou un menu"
+ "move in a list or menu": "se déplacer dans une liste ou un menu",
+ "Unknown model “{0}”: drawn as a box": "Modèle inconnu « {0} » : dessiné comme un bloc"
 }

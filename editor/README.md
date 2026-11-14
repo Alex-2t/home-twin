@@ -21,6 +21,8 @@ The plan is saved after edits, undo and redo. A new plan from the start screen o
 
 The JSON contains the plan, including light drafts, but not the underlay image. The photo is stored separately in IndexedDB; its position is rolled back together with the scale and rotation of the plan. When another project is opened, the previous photo is removed. An invalid file or an unknown version is rejected before the current plan is replaced. [Save and import checks](../docs/research/persistence-audit-2026-11-07.md).
 
+A plan that arrives without that check (from Home Assistant, the history, the browser's save, an older or newer editor) is mended on load by the same rules (`src/core/plan-mend.ts`): an entry that cannot mean anything is left out, a field that is not one goes back to its default, and a value that is well formed but unknown here is kept and drawn plainly — an unknown furniture model as a box of its size, flagged in its panel (D-NEXT). `demo/odd-plans.ts` holds a plan with one odd value of each kind; `src/core/odd-plans.test.ts` checks them on every typical home.
+
 ## What is where
 ```
 src/main.js          standalone app: demo data, plan in the browser
@@ -30,6 +32,7 @@ src/core/            core — no UI, will move into HA later
   geometry.js        walls from room outlines, plan validation, openings
   plan.js            the plan and its operations: rooms, corners, shared walls, side length
   plan-file.js       JSON validation before import
+  plan-mend.ts       a plan that arrives unchecked (HA, history, the browser) mended on load: what cannot be drawn left out or set to its default (D-NEXT)
   layout.js          snapping furniture and lamps to walls, overlap checks
   fixtures.js        what kind of light it is (lamp shape), guessing by name, default position
   catalog.js         furniture catalog (data)

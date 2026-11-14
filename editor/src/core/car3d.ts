@@ -286,7 +286,8 @@ const flat = (c: number, r: number, m = 0, e = 0): THREE.Material =>
 const se = (t: number, n: number): number => Math.sign(t) * Math.pow(Math.abs(t), 2 / n);
 
 export function car(g: THREE.Group, {w, d, h, color, v}: CarItem): void {
-  const S = (v && SPEC[v]) || SPEC.sedan;
+  // a body this catalog does not have (also a name every object has, like 'toString') is the sedan
+  const S = (v && Object.hasOwn(SPEC, v) && SPEC[v]) || SPEC.sedan;
   const L = d;
   const hl = L / 2;
   const sh = h / S.H;

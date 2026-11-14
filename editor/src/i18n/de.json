@@ -1604,5 +1604,6 @@
  "Depth, cm": "Tiefe, cm",
  "leave the plan": "Grundriss verlassen",
  "Plan: room by its typed size": "Grundriss: Raum nach eingegebenen Maßen",
- "move in a list or menu": "in Liste oder Menü bewegen"
+ "move in a list or menu": "in Liste oder Menü bewegen",
+ "Unknown model “{0}”: drawn as a box": "Unbekanntes Modell „{0}“: als Quader gezeichnet"
 }

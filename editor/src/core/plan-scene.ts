@@ -1,5 +1,5 @@
 // The plan in the 3D view: the parts the editor (editor/app.js) and the dashboard card (card-main.js) both hand to it.
-import {buildPlan2d, ceilingOf, openingCoords} from './geometry.ts';
+import {buildPlan2d, ceilingOf, openingCoords, validate} from './geometry.ts';
 import {wallDefaults} from './plan.ts';
 import {isRun, runGeo} from './runs.ts';
 import {layoutSensors} from './sensors.ts';
@@ -7,7 +7,7 @@ import {sideWall, wallBase} from './surfaces.ts';
 import type {LiveScene} from './devices.ts';
 import type {RunGeo} from './runs.ts';
 import type {PlacedSensor} from './sensors.ts';
-import type {FurnitureItem, Plan, PlacedOpening, SensorContext, Vector, WallPlan} from './types.ts';
+import type {FurnitureItem, Plan, PlacedOpening, Room, SensorContext, Vector, WallPlan} from './types.ts';
 
 /** The walls for the 3D view (planWalls): the 2D wall plan, the openings that fit a wall, how many do not. */
 export interface PlanWalls {
@@ -18,6 +18,20 @@ export interface PlanWalls {
 /** An item as the 3D view takes it: a built-in run with its shape, a cover as open as HA says (0–1). */
 export type SceneItem = FurnitureItem & {geo?: RunGeo | null; open?: number};
 
+// The rooms the dashboard card can build walls for: a room the plan check finds a problem in (its outline crosses itself, a side
+// under 5 cm, it overlaps another) is left out, so one room drawn wrong does not hide the whole home (the editor says what is
+// wrong and holds its 3D until it is fixed). Overlapping rooms: the later one is left out, as the check names it.
+export function drawableRooms(rooms: Room[]): Room[] {
+  let kept = rooms;
+  // leaving rooms out can only clear problems, so a few rounds settle it; each round leaves out at least one room
+  for (let round = 0; round < rooms.length; round++) {
+    const problems = validate(kept);
+    if (!problems.length) return kept;
+    const bad = new Set(problems.map(problem => problem.room));
+    kept = kept.filter(room => !bad.has(room.id));
+  }
+  return kept;
+}
 // walls: the 2D wall plan, the openings that fit a wall, how many do not (hidden); the walls go up to the plan's ceiling
 export function planWalls(plan: Pick<Plan, 'rooms' | 'openings' | 'wall'>): PlanWalls {
   const all = plan.openings.map(o => openingCoords(plan.rooms, o));
@@ -29,6 +43,16 @@ export function planWalls(plan: Pick<Plan, 'rooms' | 'openings' | 'wall'>): Plan
   };
 }
 
+// The walls, or null when they fail to build (polygon-clipping gives up on some outlines a file can hold, an outline that crosses
+// itself in a way the plan check does not see): the caller keeps what it has and the rest of the home is still drawn.
+export function tryPlanWalls(plan: Pick<Plan, 'rooms' | 'openings' | 'wall'>): PlanWalls | null {
+  try {
+    return planWalls(plan);
+  } catch (error) {
+    console.warn('Home Twin: the walls failed to build', error);
+    return null;
+  }
+}
 // furniture as the view takes it: built-in runs with their shape, curtains and doors as open as HA says (live — devices.js: liveScene)
 export const planFurniture = (
   plan: Pick<Plan, 'rooms' | 'furniture'>,

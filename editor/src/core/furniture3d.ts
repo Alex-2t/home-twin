@@ -4919,39 +4919,57 @@ function runObject(item: Item3d, c: Entry): THREE.Group {
   }
   return out;
 }
+// ---------- a plain box ----------
+// What an item is drawn as when what it says it is cannot be built: a box of the item's size in its colour, slightly rounded
+// (an unknown model, parts that do not pass checkItem, a model whose generator failed on this item's values).
+const PLAIN_SIZE_METRES = 0.5;
+function plainBox(item: Item3d): THREE.Group {
+  const sizeOr = (size: number | undefined): number =>
+    Number.isFinite(size) && size! > 0 ? size! : PLAIN_SIZE_METRES;
+  const w = sizeOr(item.w);
+  const d = sizeOr(item.d);
+  const h = sizeOr(item.h);
+  const inner = new THREE.Group();
+  part(inner, w, h, d, finish(item.color || 'white'), 0, 0, 0, Math.min(0.015, w / 4, d / 4, h / 4));
+  const g = new THREE.Group();
+  const b = bake(inner);
+  b.position.y = zOf(item);
+  g.add(b);
+  // the tests tell a plain box from the model it stands in for
+  g.userData.plainBox = true;
+  return g;
+}
 // ---------- an item from parts (model 'parts', parts.js) ----------
 // The parts describe the item at its own size (parts.w/d/h); resized on the plan, it is stretched to the item's w/d/h along each axis.
 // Shared materials (mat) and merged by material, like a generated item. Parts that do not pass checkItem (a plan from HA or the history
 // is not checked by plan-file.js) — a plain box of the item's size.
 function partsObject(item: Item3d): THREE.Group {
   const P = item.parts;
-  const {w = P?.w, d = P?.d, h = P?.h} = item;
+  if (!P || checkItem(P).length) return plainBox(item);
+  const {w = P.w, d = P.d, h = P.h} = item;
   const inner = new THREE.Group();
-  if (P && !checkItem(P).length) {
-    inner.add(buildItem(P, m => mat(m.color, m.rough ?? 0.6, m.metal ?? 0)));
-    // checked parts have their size, so an item without one takes theirs
-    inner.scale.set(w! / P.w, h! / P.h, d! / P.d);
-  } else
-    part(
-      inner,
-      w || 0.5,
-      h || 0.5,
-      d || 0.5,
-      finish(item.color || 'white'),
-      0,
-      0,
-      0,
-      Math.min(0.015, (w || 0.5) / 4, (d || 0.5) / 4, (h || 0.5) / 4),
-    );
+  inner.add(buildItem(P, m => mat(m.color, m.rough ?? 0.6, m.metal ?? 0)));
+  // checked parts have their size, so an item without one takes theirs
+  inner.scale.set(w / P.w, h / P.h, d / P.d);
   const g = new THREE.Group();
   const b = bake(inner);
   b.position.y = zOf(item);
   g.add(b);
   return g;
 }
+// An item in 3D, by its model. One item must not take the whole home down (D-NEXT, 2026-11-14): a model this catalog does not
+// have, or one whose generator fails on this item's values (a variant or a colour from a newer editor), is a plain box of its size.
 export function makeObject(item: Item3d): THREE.Group {
-  // an item's model is a catalog id (an unknown one fails here)
-  const c = byId(item.model)!;
+  const c = byId(item.model);
+  if (!c) return plainBox(item);
+  try {
+    return modelObject(item, c);
+  } catch (error) {
+    console.warn(`Home Twin: furniture "${item.id}" (${item.model}) drawn as a box:`, error);
+    return plainBox(item);
+  }
+}
+function modelObject(item: Item3d, c: Entry): THREE.Group {
   if (c.run) return runObject(item, c);
   // loadKenney has loaded every Kenney model before the first item is drawn
   if (c.kind === 'kenney') return kenney.get(c.id)!.clone(true);

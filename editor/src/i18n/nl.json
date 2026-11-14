@@ -1604,5 +1604,6 @@
  "Depth, cm": "Diepte, cm",
  "leave the plan": "plattegrond verlaten",
  "Plan: room by its typed size": "Plattegrond: kamer met ingevoerde afmetingen",
- "move in a list or menu": "door een lijst of menu bewegen"
+ "move in a list or menu": "door een lijst of menu bewegen",
+ "Unknown model “{0}”: drawn as a box": "Onbekend model \"{0}\": als blok getekend"
 }

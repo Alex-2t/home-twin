@@ -9,6 +9,8 @@ import {
   TOPS,
   isWorktop,
   byId,
+  modelOf,
+  UNKNOWN_KIND,
   zOf,
   colorsOf,
   nameOf,
@@ -190,8 +192,7 @@ export function furnitureMode(ed: Editor): FurnitureMode {
         continue;
       }
       const [lx, lz] = localXY(f, p);
-      // an item's model is always in the catalog (a custom item and one from parts too)
-      if (f.id === sel().furn && byId(f.model)!.kind === 'gen') {
+      if (f.id === sel().furn && modelOf(f).kind === 'gen') {
         const H = handlesOf(f);
         if (Math.hypot(lx - H.w[0], lz - H.w[1]) < tol * 1.2) return {f, handle: 'w'};
         if (Math.hypot(lx - H.d[0], lz - H.d[1]) < tol * 1.2) return {f, handle: 'd'};
@@ -207,7 +208,7 @@ export function furnitureMode(ed: Editor): FurnitureMode {
     // furniture at the wall (fridge, tall cabinet, hood); no wall nearby — it is not placed
     if (isRun(f)) {
       const z = zOf(f);
-      const r = runAt(plan(), p, byId(f.model)!.w, f.d, {z0: z, z1: z + f.h});
+      const r = runAt(plan(), p, modelOf(f).w, f.d, {z0: z, z1: z + f.h});
       if (r) runSet(plan(), f, r.room, r.R, r.sa, r.L);
       else {
         delete f.a;
@@ -218,7 +219,7 @@ export function furnitureMode(ed: Editor): FurnitureMode {
     }
     const snap = Math.min(0.25, v().tol(12));
     let s = snapToWall(plan(), f, p, free, snap);
-    const c = byId(f.model)!;
+    const c = modelOf(f);
     if (fit && c.fit && s.win) {
       f.w = +Math.max(c.min[0], Math.min(c.max[0], s.win + c.fit)).toFixed(3);
       s = snapToWall(plan(), f, p, free, snap);
@@ -410,7 +411,7 @@ export function furnitureMode(ed: Editor): FurnitureMode {
     }
     if (drag.kind === 'move') place(f, [p[0] + drag.off[0], p[1] + drag.off[1]], free);
     else {
-      const c = byId(f.model)!;
+      const c = modelOf(f);
       const o = drag.orig;
       const [ax, fz] = axes(o);
       const q = (x: number): number => (free ? x : Math.round(x / GRID) * GRID);
@@ -478,7 +479,7 @@ export function furnitureMode(ed: Editor): FurnitureMode {
     if (run(f))
       drawRunSel(f!); // run() is true only for an item
     else if (f) {
-      if (byId(f.model)!.kind === 'gen') {
+      if (modelOf(f).kind === 'gen') {
         const [ax, fz] = axes(f);
         const H = handlesOf(f);
         for (const [x, z] of [H.w, H.d])
@@ -548,7 +549,7 @@ export function furnitureMode(ed: Editor): FurnitureMode {
     if (dr.end === 'none') return;
     if (dr.end === 'rd') {
       const h = dr.dh!; // the depth handle was pressed: the run has its handles
-      const c = byId(f.model)!;
+      const c = modelOf(f);
       const x = p[0] * h.n[0] + p[1] * h.n[1] - h.ref;
       f.d = +Math.max(c.min[1], Math.min(c.max[1], free ? x : Math.round(x / GRID) * GRID)).toFixed(3);
       syncRun(plan(), f);
@@ -819,7 +820,7 @@ export function furnitureMode(ed: Editor): FurnitureMode {
       for (const f of plan().furniture) {
         const c = byId(f.model);
         const row = el(
-          `<div class="row ${f.id === sel().furn ? 'sel' : ''} ${ed.conflicts.has(f.id) ? 'warn' : ''}"><span class="name">${esc(nameOf(f))}</span><small>${Math.round(f.w * 100)}×${Math.round(f.d * 100)}</small><button class="x ib" title="${t('Delete')}">${icon('x', 14)}</button></div>`,
+          `<div class="row ${f.id === sel().furn ? 'sel' : ''} ${ed.conflicts.has(f.id) || !c ? 'warn' : ''}"><span class="name">${esc(nameOf(f))}</span><small>${Math.round(f.w * 100)}×${Math.round(f.d * 100)}</small><button class="x ib" title="${t('Delete')}">${icon('x', 14)}</button></div>`,
         );
         row.onclick = () => ed.select('furn', f.id);
         // the button is in the row's markup
@@ -889,7 +890,7 @@ export function furnitureMode(ed: Editor): FurnitureMode {
       ed.showCtx(null);
       return;
     }
-    const c = byId(f.model)!;
+    const c = modelOf(f);
     const cm = (x: number): number => Math.round(x * 100);
     const line = el(`<div class="line"><b>${esc(c.name)}</b></div>`);
     // a custom item and one from parts (the AI build) have their own name instead of the catalog one
@@ -958,6 +959,13 @@ export function furnitureMode(ed: Editor): FurnitureMode {
       line.append(mb);
     }
     const lines = [line];
+    // a model this catalog does not have (a newer editor's, a broken file's): it is a plain box, and says so
+    if (c.kind === UNKNOWN_KIND)
+      lines.push(
+        el(
+          `<div class="line opts"><small class="warn">${esc(t('Unknown model “{0}”: drawn as a box', f.model))}</small></div>`,
+        ),
+      );
     if (c.color2) {
       const bl = el(`<div class="line opts"><small>${t('Border')}</small></div>`);
       bl.append(...swatches(f, c, 'color2'));

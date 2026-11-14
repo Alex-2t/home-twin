@@ -11,7 +11,7 @@ import {
   openingGap,
   setOpeningWidth,
   turnDoor,
-  SWING,
+  swingOf,
   MIN_OPENING,
   OPENING,
 } from '../../core/plan.ts';
@@ -153,7 +153,7 @@ export function openingsTool(ed: Editor): OpeningsTool {
         if (o.kind !== 'door' || o.leaf === false) continue;
         const g = geo(o);
         if (!g) continue;
-        const sw = SWING[o.swing || 0];
+        const sw = swingOf(o);
         const h = sw.hinge ? g.b : g.a;
         const uu = sw.hinge ? [-g.u[0], -g.u[1]] : g.u;
         const dir = sw.out ? g.n : [-g.n[0], -g.n[1]];

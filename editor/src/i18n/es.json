@@ -1604,5 +1604,6 @@
  "Depth, cm": "Fondo, cm",
  "leave the plan": "salir del plano",
  "Plan: room by its typed size": "Plano: habitación con las medidas escritas",
- "move in a list or menu": "moverse por una lista o menú"
+ "move in a list or menu": "moverse por una lista o menú",
+ "Unknown model “{0}”: drawn as a box": "Modelo desconocido «{0}»: se dibuja como un bloque"
 }

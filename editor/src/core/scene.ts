@@ -822,7 +822,8 @@ export function createView(host: HTMLElement): SceneView {
         o.userData.tall = false;
       } else {
         o.position.set(it.x, 0, -it.y);
-        o.rotation.y = THREE.MathUtils.degToRad(it.rot);
+        // a file may lack the rotation (the file check lets it through): facing south, as the plan draws it
+        o.rotation.y = THREE.MathUtils.degToRad(it.rot || 0);
         o.userData.tall = zOf(it) + it.h > 1.5 && !byId(it.model)?.free;
       }
       keep.add(it.id);
@@ -1258,91 +1259,112 @@ export function createView(host: HTMLElement): SceneView {
       });
     }
     devs = [];
+    // One lamp must not take the others down (D-NEXT, 2026-11-14): a lamp that fails to build is left out, with what it had added.
     for (const L0 of list) {
-      const host = L0.with && list.find(x => x.id === L0.with);
-      // the view's lamps are placed: they have their height
-      const L = (host ? {...host, id: L0.id, on: L0.on, color: L0.color} : L0) as PlacedLamp;
-      const r = rooms.find(r => r.id === L.room);
-      if (!r) continue;
-      const room = {id: r.id, polygon: r.polygon, center: centroid(r.polygon)};
-      const form: LightForm = formFor(L);
-      const mat = new THREE.MeshStandardMaterial({
-        color: form === 'strip' ? 0xb4b7ba : 0xf4f1ea,
-        emissive: 0x000000,
-        roughness: 0.4,
-        metalness: form === 'strip' ? 0.3 : 0,
-        side: THREE.DoubleSide,
-      });
-      const meshes = fixtureMeshes(L, form, mat, r.polygon);
-      meshes.forEach(m => {
-        if (host) m.userData.off = true;
-        else if (form === 'strip' || form === 'wall') {
-          m.userData.probe = [r.polygon, Math.min(L.h, lightsCeiling - PROBE_UNDER_CEILING)];
-          m.userData.side = fixtureSide(m, ...(m.userData.probe as FixtureProbe));
+      const drawnBefore = fixtures.children.length;
+      try {
+        addLamp(L0, list, rooms, was);
+      } catch (error) {
+        for (const o of fixtures.children.slice(drawnBefore)) {
+          fixtures.remove(o);
+          if (isMesh(o)) o.geometry.dispose();
         }
-        m.visible = !host;
-        fixtures.add(m);
-      });
-      fixtures.updateMatrixWorld(true);
-      const glow = meshes.filter(m => m.material === mat);
-      const point = !lineForm(form);
-      const lift = form === 'pendant' ? -0.12 : 0;
-      const tint = '#' + new THREE.Color(L.color || '#ffce87').lerp(WHITE, LAMP_TINT).getHexString();
-      const device: LightDevice = {
-        id: L.id,
-        kind: point ? 'ceiling' : L.h >= 1.8 ? 'cove' : 'strip',
-        color: tint,
-        down: form === 'line',
-        positions: point ? L.points.map((p): Vec3 => [p[0], L.h + lift, -p[1]]) : [],
-        ...(point ? {} : {intensity: L.h < 0.5 ? STRIP_POWER / 2 : STRIP_POWER}),
-      };
-      // for a strip, light comes from segments of 30 cm or more (a short step in a corner glows but gets no source of its own: each costs ms per frame)
-      const lit = point
-        ? glow
-        : (() => {
-            // a strip's pieces are boxes
-            const g = glow.filter(m => ((m.geometry as THREE.BoxGeometry).parameters?.width ?? 1) >= 0.3);
-            return g.length ? g : glow.slice(0, 1);
-          })();
-      const table = form === 'lamp' && (L.opt ? L.opt !== 'floor' : L.h < 1.1);
-      const lights = point
-        ? pointLights(form, device.positions, tint, table)
-        : buildDeviceLights(device, lit, room);
-      const halos =
-        point && !host
-          ? L.points.map(q =>
-              halo(
-                tint,
-                [
-                  q[0],
-                  L.h + (form === 'pendant' ? -0.06 : form === 'spots' || form === 'ceiling' ? -0.03 : 0),
-                  -q[1],
-                ],
-                HALO.size[table ? 'table' : form] ?? 0.6,
-                m => {
-                  if (form === 'wall') {
-                    m.userData.probe = [r.polygon, Math.min(L.h, lightsCeiling - PROBE_UNDER_CEILING)];
-                    m.userData.side = fixtureSide(m, ...(m.userData.probe as FixtureProbe));
-                  }
-                },
-              ),
-            )
-          : [];
-      devs.push({
-        L: L0,
-        src: L,
-        form,
-        device,
-        lights,
-        meshes,
-        glow,
-        halos,
-        room,
-        on: L.on,
-        blink: null,
-        solo: was.get(L0.id) ?? soloOf({L: L0, room}),
-      });
+        console.warn(`Home Twin: light "${L0.id}" left out of the 3D:`, error);
+      }
     }
+    lightsAdopted();
+  }
+  // One lamp in the 3D: its fitting, its glow and its light sources (taken from the fixed set by lightsAdopted).
+  function addLamp(L0: PlanLight, list: PlanLight[], rooms: Room[], was: Map<string, number>): void {
+    const host = L0.with && list.find(x => x.id === L0.with);
+    const own = host ? {...host, id: L0.id, on: L0.on, color: L0.color} : L0;
+    const r = rooms.find(r => r.id === own.room);
+    if (!r) return;
+    const room = {id: r.id, polygon: r.polygon, center: centroid(r.polygon)};
+    // A placed lamp has its height; one without (a broken file's, a demo plan opened with another home's HA) has no place in 3D
+    // and is left out, as it was always drawn nowhere (its parts stood at NaN).
+    if (own.h == null || !Number.isFinite(own.h)) return;
+    const form: LightForm = formFor(own);
+    // a lamp keeps no points or segments it does not have
+    const L: PlacedLamp = {...own, h: own.h, points: own.points ?? [], segments: own.segments ?? []};
+    const mat = new THREE.MeshStandardMaterial({
+      color: form === 'strip' ? 0xb4b7ba : 0xf4f1ea,
+      emissive: 0x000000,
+      roughness: 0.4,
+      metalness: form === 'strip' ? 0.3 : 0,
+      side: THREE.DoubleSide,
+    });
+    const meshes = fixtureMeshes(L, form, mat, r.polygon);
+    meshes.forEach(m => {
+      if (host) m.userData.off = true;
+      else if (form === 'strip' || form === 'wall') {
+        m.userData.probe = [r.polygon, Math.min(L.h, lightsCeiling - PROBE_UNDER_CEILING)];
+        m.userData.side = fixtureSide(m, ...(m.userData.probe as FixtureProbe));
+      }
+      m.visible = !host;
+      fixtures.add(m);
+    });
+    fixtures.updateMatrixWorld(true);
+    const glow = meshes.filter(m => m.material === mat);
+    const point = !lineForm(form);
+    const lift = form === 'pendant' ? -0.12 : 0;
+    const tint = '#' + new THREE.Color(L.color || '#ffce87').lerp(WHITE, LAMP_TINT).getHexString();
+    const device: LightDevice = {
+      id: L.id,
+      kind: point ? 'ceiling' : L.h >= 1.8 ? 'cove' : 'strip',
+      color: tint,
+      down: form === 'line',
+      positions: point ? L.points.map((p): Vec3 => [p[0], L.h + lift, -p[1]]) : [],
+      ...(point ? {} : {intensity: L.h < 0.5 ? STRIP_POWER / 2 : STRIP_POWER}),
+    };
+    // for a strip, light comes from segments of 30 cm or more (a short step in a corner glows but gets no source of its own: each costs ms per frame)
+    const lit = point
+      ? glow
+      : (() => {
+          // a strip's pieces are boxes
+          const g = glow.filter(m => ((m.geometry as THREE.BoxGeometry).parameters?.width ?? 1) >= 0.3);
+          return g.length ? g : glow.slice(0, 1);
+        })();
+    const table = form === 'lamp' && (L.opt ? L.opt !== 'floor' : L.h < 1.1);
+    const lights = point
+      ? pointLights(form, device.positions, tint, table)
+      : buildDeviceLights(device, lit, room);
+    const halos =
+      point && !host
+        ? L.points.map(q =>
+            halo(
+              tint,
+              [
+                q[0],
+                L.h + (form === 'pendant' ? -0.06 : form === 'spots' || form === 'ceiling' ? -0.03 : 0),
+                -q[1],
+              ],
+              HALO.size[table ? 'table' : form] ?? 0.6,
+              m => {
+                if (form === 'wall') {
+                  m.userData.probe = [r.polygon, Math.min(L.h, lightsCeiling - PROBE_UNDER_CEILING)];
+                  m.userData.side = fixtureSide(m, ...(m.userData.probe as FixtureProbe));
+                }
+              },
+            ),
+          )
+        : [];
+    devs.push({
+      L: L0,
+      src: L,
+      form,
+      device,
+      lights,
+      meshes,
+      glow,
+      halos,
+      room,
+      on: L.on,
+      blink: null,
+      solo: was.get(L0.id) ?? soloOf({L: L0, room}),
+    });
+  }
+  function lightsAdopted(): void {
     // fresh sources are only a calculation: the scene gets objects from the fixed set
     const fresh = devs.flatMap(d => d.lights.map((l, j) => ({fresh: l, key: d.L.id + ':' + j})));
     const got = adopt(fresh);

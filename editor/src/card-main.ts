@@ -12,7 +12,7 @@ import {syncRuns} from './core/runs.ts';
 import {syncFurnStrips} from './core/fixtures.ts';
 import {liveScene} from './core/devices.ts';
 import {ceilingOf, validate} from './core/geometry.ts';
-import {planWalls, planFurniture, planSpots} from './core/plan-scene.ts';
+import {tryPlanWalls, planFurniture, planSpots, drawableRooms} from './core/plan-scene.ts';
 import {loadKenney} from './core/furniture3d.ts';
 import {MODELS} from './gen/models.gen.js';
 import {liveHA} from './editor/ha-live.ts';
@@ -244,7 +244,9 @@ export async function createCard(card: CardHost, hass0: Hass, config0: CardConfi
     const plan = ed.plan;
     syncRuns(plan);
     syncFurnStrips(plan);
-    const ok = plan.rooms.length > 0 && !validate(plan.rooms).length;
+    // a room drawn wrong is left out of the walls, the rest of the home is drawn (drawableRooms)
+    const rooms = validate(plan.rooms).length ? drawableRooms(plan.rooms) : plan.rooms;
+    const ok = rooms.length > 0;
     empty(!ok);
     if (ok) framed = true;
     const vk = JSON.stringify(plan.view || null);
@@ -263,15 +265,20 @@ export async function createCard(card: CardHost, hass0: Hass, config0: CardConfi
     const wk = JSON.stringify([plan.rooms, plan.openings, plan.wall]);
     if (wk !== keys.walls) {
       keys.walls = wk;
-      if (ok) {
-        const {g, ops} = planWalls(plan);
-        view.set(g, plan.rooms, ops, null);
-      } else view.set(null);
+      if (ok) buildWalls({...plan, rooms});
+      else view.set(null);
     }
     if (keys.mask !== lk) {
       keys.mask = lk;
       view.applyMask(plan.rooms.filter(r => !r.solid));
     }
+  }
+  // The walls, as the editor builds them (editor/app.ts): if they fail to build, the card keeps the ones it has (tryPlanWalls
+  // says why in the console), instead of stopping everything after them (the lights' room mask).
+  function buildWalls(drawn: Pick<Plan, 'rooms' | 'openings' | 'wall'>): void {
+    const walls = tryPlanWalls(drawn);
+    if (walls) view.set(walls.g, drawn.rooms, walls.ops, null);
+    else keys.walls = '';
   }
   // what changes with HA states: curtains and doors open, air conditioners blow, readings on the walls
   function live(): void {

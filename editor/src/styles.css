@@ -194,6 +194,7 @@ body[data-main="3d"]:not([data-mode=lights]) .tools{display:none}
 .ctx button{height:30px}.ctx .ib{width:30px}.ctx select{height:30px}
 .ctx label{display:flex;align-items:center;gap:4px;color:var(--mut);font-size:12px;font-weight:500;padding-left:4px}
 .ctx .sep{height:20px}
+.ctx small.warn{color:var(--warn)}
 .ctx .line.names{flex-wrap:wrap;gap:4px;max-width:440px;padding:5px 2px 1px;border-top:1px solid var(--line)}
 .ctx .line.floors{gap:4px;padding-top:2px}.ctx button.floor{width:26px;min-width:26px;height:26px;padding:0;border-radius:7px;background-size:cover;box-shadow:inset 0 0 0 1px var(--line2)}.ctx button.floor:hover{filter:brightness(1.08)}
 .ctx button.floor.on{box-shadow:0 0 0 2px var(--acc)}.ctx .floor-more{margin-left:2px}.ctx .line.floors>small:first-child{width:42px}.ctx .line.floors .same{height:26px;padding:0 9px;font-size:12px;margin-left:2px}

@@ -14,6 +14,7 @@ import {
   edgeThickness,
 } from './geometry.ts';
 import pc from 'polygon-clipping';
+import {mendPlan} from './plan-mend.ts';
 import {
   splitPieces,
   joinPieces,
@@ -61,7 +62,13 @@ export const emptyPlan = (): Plan => ({
 });
 // A list from a file that should be one: anything else becomes empty.
 const listOr = <Entry>(value: Entry[]): Entry[] => (Array.isArray(value) ? value : []);
-// Bring old and incomplete plans up to the current shape.
+// What mendPlan changed in a plan is told in the console, once per plan: a developer looking at a plan that draws oddly sees why.
+function tellMended(notes: ReturnType<typeof mendPlan>): void {
+  if (!notes.length || typeof console === 'undefined') return;
+  const lines = notes.map(n => `${n.list}${n.id ? ' ' + n.id : ''}: ${n.what}`);
+  console.warn(`Home Twin: the plan had values it cannot draw, mended:\n  ${lines.join('\n  ')}`);
+}
+// Bring old, incomplete and damaged plans up to the current shape (damaged: plan-mend.ts).
 export function migrate(p: PlanInput): Plan {
   const plan = {...emptyPlan(), ...p};
   plan.rooms = listOr(plan.rooms);
@@ -71,6 +78,7 @@ export function migrate(p: PlanInput): Plan {
   plan.sensors = listOr(plan.sensors);
   plan.sensorSkip = listOr(plan.sensorSkip);
   plan.devices = listOr(plan.devices);
+  tellMended(mendPlan(plan as Plan));
   for (const r of plan.rooms) delete r.sens; // readings used to live on the room (first draft of D-033); now they are plan.sensors
   plan.version = PLAN_VERSION;
   // Openings from a file may be stored as plain coordinates: attach them to room edges.
@@ -938,6 +946,9 @@ export const SWING: Array<{hinge: 0 | 1; out: boolean}> = [
   {hinge: 1, out: true},
   {hinge: 0, out: true},
 ];
+// A door's leaf: a swing this editor does not know (a newer editor's, a broken file's) opens as the first one.
+export const swingOf = (o: Pick<Opening, 'swing'>): {hinge: 0 | 1; out: boolean} =>
+  SWING[o.swing || 0] ?? SWING[0];
 export function openingId(plan: {openings: ReadonlyArray<{id?: string}>}): string {
   const ids = new Set(plan.openings.map(o => o.id));
   let k = plan.openings.length + 1;

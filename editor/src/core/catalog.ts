@@ -2260,6 +2260,29 @@ for (const v of [...Object.values(COLORS), ...Object.values(CAR_COLORS), ...Obje
   v[0] = t(v[0]);
 export const byId = (id: string | null | undefined): CatalogEntry | undefined =>
   CATALOG.find(c => c.id === id);
+// The kind of an item whose model this catalog does not have (modelOf).
+export const UNKNOWN_KIND = 'unknown';
+// The smallest and the largest size an unknown item may be given by hand, metres: it has no catalog limits of its own.
+const UNKNOWN_MIN = 0.01;
+const UNKNOWN_MAX = 20;
+/**
+ * An item's model; one this catalog does not have (a newer editor's, a broken file's) gets a stand-in of kind 'unknown', so the
+ * item is still drawn (a plain box of its size, furniture3d.ts), keeps its name, and can be moved, turned and removed (D-NEXT).
+ */
+export const modelOf = (f: Pick<FurnitureItem, 'model' | 'name' | 'w' | 'd' | 'h'>): CatalogEntry =>
+  byId(f.model) ?? {
+    id: f.model,
+    cat: '',
+    name: f.name || f.model,
+    kind: UNKNOWN_KIND,
+    w: f.w,
+    d: f.d,
+    h: f.h,
+    min: [UNKNOWN_MIN, UNKNOWN_MIN, UNKNOWN_MIN],
+    max: [UNKNOWN_MAX, UNKNOWN_MAX, UNKNOWN_MAX],
+    color: 'white',
+    hidden: true,
+  };
 export const nameOf = (f: Pick<FurnitureItem, 'name' | 'model'>): string =>
   (f.name || byId(f.model)?.name || f.model).replace(/\u00ad/g, ''); // a custom item uses its own name
 // Frequent items come first in “All” and at the top of their category (the owner: scrolling through 111 cards is inconvenient).
