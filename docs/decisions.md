@@ -17,7 +17,7 @@ New decisions are appended at the top of their section, old ones are not rewritt
 
 ## Decisions
 
-### D-NEXT. The review lists what the AI build could not place clear — **proposed** (2026-11-14)
+### D-098. The review lists what the AI build could not place clear — **proposed** (2026-11-14)
 - A thing the AI build could not move clear of another, of a door's zone or of a wall (no spot that keeps what it is, too big to shrink a little) stays where it is, red in Furniture mode. The owner should not find it unexplained.
 - **In the review:** each such thing is one line under the round's line, in the owner's language, in D-083's words: "We can’t do this yet: Radiator: blocks a door". The thing's name and the editor's own reason for the red; two things in each other are one line. No new strings.
 - **Progress:** the service's last code step before the pictures belongs to the Assembly stage.
