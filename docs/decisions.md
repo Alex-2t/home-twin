@@ -17,7 +17,7 @@ New decisions are appended at the top of their section, old ones are not rewritt
 
 ## Decisions
 
-### D-NEXT. The upload page says how to film in three short tips, and gently notes a very short or small upright video — **accepted** (2026-11-14)
+### D-105. The upload page says how to film in three short tips, and gently notes a very short or small upright video — **accepted** (2026-11-14)
 - **Why:** paid builds of eight new homes showed the result follows the video: a dark, upright 480p phone video of an empty flat gives few things and no lamps. Casual users film once, so the AI build's upload page is the one place to help. The owner left the decision to us; the choices below are ours, written down so they can be changed.
 - **Three tips in one row of pills** under the plan and the video (`ai-build.ts`, `.aib-tips`), each an icon and a few words: "Hold the phone sideways", "Lights on. No need to tidy up.", "Walk slowly, turn around in each room". Hints stay one short phrase each (D-022), and the second half of the lights tip keeps it from reading as homework. "Show the furniture" is left out: turning around in each room already shows it, and a fourth tip is too many (the casual-users rule: two or three at most). On a phone the pills become one panel of three rows. The older "Walk slowly and turn around once in every room." is replaced by the shorter third tip.
 - **A gentle line after a video is chosen** (`video-note.ts`): the browser reads each video's length and size (the length was read already for the estimate, D-094; now both in one read). One line under the tips, with an info icon in the accent colour, never a warning colour, and it never blocks the build:
