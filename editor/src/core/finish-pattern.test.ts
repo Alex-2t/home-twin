@@ -205,6 +205,9 @@ test('wall table: a joint colour, a second colour and a layout reach the shader;
     [16, 32, 48, 255],
     'the joint colour, set',
   );
+  // a pattern without its own joint colour: the joints are filtered by distance, the colour stays the finish's own (alpha 128)
+  const sized = finishes(room({wall: 'tileSquare', wallPattern: {tile: [0.1, 0.1], joint: 0.002}}));
+  assert.deepEqual([...sized.slice((512 + 1) * 4, (512 + 1) * 4 + 4)], [0, 0, 0, 128]);
   const stripes = finishes(room({wall: 'wallpaperStripe', wallPattern: {tint2: '#ff8000'}}));
   assert.deepEqual(
     [...stripes.slice((768 + 1) * 4, (768 + 1) * 4 + 4)],

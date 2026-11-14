@@ -1668,6 +1668,10 @@ const BAND_STEP = 0.02; // stack heights in steps of 2 cm (up to 5.1 m)
 const FINISH_ROWS = 4;
 // A colour in the table's last two rows: its RGB and this in alpha when it is set (0: the finish's own, as before).
 const COLOUR_SET = 255;
+// The joints' row of a finish with a pattern but its own joint colour: the shader filters its joints by distance (see
+// htJoint in FINISH_GLSL) without taking a colour from the row. A finish without a pattern keeps 0 and the old joints, so an
+// old file draws as it did.
+const FILTERED_JOINTS = 128;
 
 /** The finish table: one entry per distinct finish (key, tint, tile size, joint, joint colour, second colour, layout). */
 function finishTable(): {data: Uint8Array; idOf: (finish: Finish) => number; count: () => number} {
@@ -1683,7 +1687,8 @@ function finishTable(): {data: Uint8Array; idOf: (finish: Finish) => number; cou
     const pattern = tiled && finish.lay ? finish.lay : kind.pattern;
     const grout = unhex(finish.grout);
     const second = unhex(finish.tint2);
-    const colours = grout || second ? ['', finish.grout || '', finish.tint2 || ''] : [];
+    const patterned = Boolean(finish.tile || finish.joint != null || grout || second || finish.lay);
+    const colours = patterned ? ['', finish.grout || '', finish.tint2 || '', 'filtered'] : [];
     const key = [finish.k, finish.tint || '', width, height, joint, ...colours, pattern].join('|');
     if (ids.has(key)) return ids.get(key)!;
     if (ids.size >= TABLE_SIZE - 1) return 0;
@@ -1701,6 +1706,7 @@ function finishTable(): {data: Uint8Array; idOf: (finish: Finish) => number; cou
       (TABLE_SIZE + id) * 4,
     );
     if (grout) data.set([grout[0], grout[1], grout[2], COLOUR_SET], (2 * TABLE_SIZE + id) * 4);
+    else if (patterned) data.set([0, 0, 0, FILTERED_JOINTS], (2 * TABLE_SIZE + id) * 4);
     if (second) data.set([second[0], second[1], second[2], COLOUR_SET], (3 * TABLE_SIZE + id) * 4);
     return id;
   };
@@ -1834,6 +1840,11 @@ float htHash(vec2 c){return fract(sin(dot(c,vec2(127.1,311.7)))*43758.5453);}
 float htNoise(vec2 p){vec2 i=floor(p),f=fract(p);f=f*f*(3.0-2.0*f);return mix(mix(htHash(i),htHash(i+vec2(1.,0.)),f.x),mix(htHash(i+vec2(0.,1.)),htHash(i+vec2(1.,1.)),f.x),f.y);}
 vec3 htLin(vec3 c){return pow(c,vec3(2.2));}
 float htFbm(vec2 p){return 0.5*htNoise(p)+0.3*htNoise(p*2.03+7.1)+0.2*htNoise(p*4.11+3.7);}
+// The share of a pixel's footprint along one axis (d wide, round x) covered by joints jt wide every p, centred on multiples of
+// p: a box filter in closed form, so joints thinner than a pixel fade to their real share of the wall instead of a hatch of
+// half-dark lines (D-NEXT: the joints of a set pattern; seen steeply, a wall's height is squeezed and only v's footprint grows).
+float htJoint(float x,float p,float jt,float d){d=max(d,1e-5);float a=x+jt*0.5+d*0.5,b=a-d;
+  return clamp(((floor(a/p)*jt+min(mod(a,p),jt))-(floor(b/p)*jt+min(mod(b,p),jt)))/d,0.0,1.0);}
 void htFinish(inout vec4 dc){
   vec3 n=normalize(htNrm);if(abs(n.y)>0.5)return;
   vec2 pl=vec2(htPos.x,-htPos.z),np=normalize(vec2(n.x,-n.z)),uv=(pl+np*0.09-htFinBox.xy)*htFinBox.zw;
@@ -1845,17 +1856,19 @@ void htFinish(inout vec4 dc){
   // the finish: colour and pattern, sizes, and its own joint colour and second colour when set (alpha 1; D-NEXT)
   vec4 A=texture2D(htFinTab,vec2((id+0.5)/256.0,0.125)),B=texture2D(htFinTab,vec2((id+0.5)/256.0,0.375)),
     C=texture2D(htFinTab,vec2((id+0.5)/256.0,0.625)),D=texture2D(htFinTab,vec2((id+0.5)/256.0,0.875));
-  bool ownJoint=C.a>0.5,ownSecond=D.a>0.5;
+  bool ownJoint=C.a>0.75,filtered=C.a>0.25,ownSecond=D.a>0.5;
   float pat=floor(A.a*255.0+0.5);vec3 col=htLin(A.rgb);
-  float u=dot(pl,vec2(-np.y,np.x)),v=htPos.y,tw=max(0.01,B.r*2.55),th=max(0.01,B.g*2.55),panel=B.b*2.55,jt=B.a*0.255,aa=max(fwidth(u),fwidth(v))+1e-4;
+  float u=dot(pl,vec2(-np.y,np.x)),v=htPos.y,tw=max(0.01,B.r*2.55),th=max(0.01,B.g*2.55),panel=B.b*2.55,jt=B.a*0.255,aa=max(fwidth(u),fwidth(v))+1e-4,fu=fwidth(u),fv=fwidth(v);
   if(panel>0.0&&v>panel){dc.rgb=htLin(vec3(0.941,0.925,0.898));return;}
   float P=pat;bool brick=abs(P-5.0)<0.5,zel=abs(P-13.0)<0.5;
   if((P>0.5&&P<2.5)||brick||zel){float row=floor(v/th),uu=u+((P>1.5&&!zel&&mod(row,2.0)>0.5)?tw*0.5:0.0),cx=floor(uu/tw);
     vec2 f=vec2(uu-cx*tw,v-row*th);float j=min(min(f.x,tw-f.x),min(f.y,th-f.y)),m=1.0-smoothstep(jt*0.5-aa,jt*0.5+aa,j);
+    if(filtered)m=1.0-(1.0-htJoint(uu,tw,jt,fu))*(1.0-htJoint(v,th,jt,fv)); // each axis by its own footprint
     vec3 tc=col*(1.0+(htHash(vec2(cx,row))-0.5)*(brick?0.22:zel?0.34:0.05));if(brick)tc*=0.9+0.18*htNoise(vec2(u,v)*60.0);
     if(zel)tc*=0.86+0.18*htNoise(f/tw*2.2+vec2(cx,row)*3.1)+0.1*smoothstep(0.0,0.35*tw,j); // handmade glaze: uneven, lighter in the middle
     col=mix(tc,ownJoint?htLin(C.rgb):brick?htLin(vec3(0.68,0.66,0.62)):col*(zel?0.84:0.74),m);}
   else if(abs(P-3.0)<0.5){float per=tw+jt,cx=floor(u/per),f=u-cx*per,g=smoothstep(tw-aa,tw+aa,f)*(1.0-smoothstep(per-aa,per,f));
+    if(filtered)g=htJoint(u-tw-jt*0.5,per,jt,fu);
     col=mix(col*(0.92+0.16*htHash(vec2(cx,3.0))),ownJoint?htLin(C.rgb):col*0.3,g);}
   else if(abs(P-4.0)<0.5)col*=(0.9+0.2*htNoise(vec2(u,v)*2.5))*(0.96+0.08*htNoise(vec2(u,v)*28.0));
   // Venetian plaster: soft clouds and diagonal trowel strokes
