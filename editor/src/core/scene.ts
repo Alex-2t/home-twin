@@ -1023,7 +1023,12 @@ export function createView(host: HTMLElement): SceneView {
         }
         // floor and table lamp: an open shade with a bulb inside; a floor lamp has a stand and a disc base, a table lamp a ceramic base
         else if (form === 'lamp') {
-          const tall = L.opt ? L.opt === 'floor' : L.h > 1.1; // a table lamp on a desk stands at 1.17 m: still a table lampat(cyl(tall?.12:.085,tall?.17:.125,tall?.26:.17,36,true),p,L.h);at(new THREE.SphereGeometry(tall?.04:.03,14,10),p,L.h-.03);
+          // a table lamp on a desk stands at 1.17 m: still a table lamp
+          const tall = L.opt ? L.opt === 'floor' : L.h > 1.1;
+          // the shade and the bulb in it (from 2026-11-10 to the colour check of 2026-11-14 they sat inside the comment above,
+          // so a floor or table lamp drew only its stand)
+          at(cyl(tall ? 0.12 : 0.085, tall ? 0.17 : 0.125, tall ? 0.26 : 0.17, 36, true), p, L.h);
+          at(new THREE.SphereGeometry(tall ? 0.04 : 0.03, 14, 10), p, L.h - 0.03);
           if (tall) {
             const pole = L.h - 0.12;
             at(cyl(0.011, 0.011, pole, 10), p, L.h - 0.12 - pole / 2, darkMat);
