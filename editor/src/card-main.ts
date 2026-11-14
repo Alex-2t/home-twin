@@ -18,6 +18,7 @@ import {MODELS} from './gen/models.gen.js';
 import {liveHA} from './editor/ha-live.ts';
 import {haPlanLights, mergePlanLights} from './editor/ha.ts';
 import {createLook} from './editor/look.ts';
+import {NOT_ADMIN_CSS} from './look/roles.ts';
 import {t} from './i18n/i18n.ts';
 import {readMode, saveMode, nextMode, isNight, onModeChange} from './core/daynight.ts';
 import type {SceneView} from './core/scene.ts';
@@ -84,9 +85,8 @@ ha-card{position:relative;display:block;height:100%;overflow:hidden;isolation:is
 .open:hover{background:var(--card-background-color,#1c1c1c)}:host([compact]) .open{display:grid}`;
 const EXPAND =
   '<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 3h6v6M9 21H3v-6M21 3l-7 7M3 21l7-7"/></svg>';
-// inside the panel (look.js): it is as tall as the card, not as the browser window; settings buttons — administrators only
+// inside the panel (look.js): it is as tall as the card, not as the browser window; settings buttons — administrators only (look/roles.ts)
 const IN_CARD = ':host(.embedded) .shell{height:100%;min-height:0}';
-const NOT_ADMIN = '.layout-open,[data-action=scene-edit]{display:none!important}';
 // compact: the model fills the card, “Now” lies over its top, the room strip — over its bottom, nothing else of the panel
 const COMPACT = `:host(.compact) .main{padding:0!important}:host(.compact) .workspace{display:block!important;position:relative;height:100%}
 :host(.compact) .map-card{position:absolute!important;inset:0;height:auto!important;border:0;border-radius:0}
@@ -149,7 +149,7 @@ export async function createCard(card: CardHost, hass0: Hass, config0: CardConfi
   const adminCss = document.createElement('style');
   lookRoot?.append(adminCss);
   const roles = (): void => {
-    adminCss.textContent = IN_CARD + COMPACT + (hass.user?.is_admin ? '' : NOT_ADMIN);
+    adminCss.textContent = IN_CARD + COMPACT + (hass.user?.is_admin ? '' : NOT_ADMIN_CSS);
   };
   roles();
 

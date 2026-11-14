@@ -1,6 +1,17 @@
 // The Home Twin card for dashboards (D-059): <home-twin-card>, “Home Twin” in HA's card picker. The integration has HA load this
 // small file on every page, so nothing has to be set up by hand; the 3D and the home panel (card-app.js, a few MB) load only when
-// a card is actually shown. No imports here — this file must stay small (type imports are erased).
+// a card is actually shown. This file must stay small: it imports only the build watch and the notice's words (type imports are erased).
+// When HA starts serving a newer build (an update without a restart), the cards on the page say so and offer a reload; an old card
+// never loads the new build's card-app.js (D-NEXT).
+import {
+  UPDATE_NOTICE_CSS,
+  buildOf,
+  createUpdateNotice,
+  noticeLang,
+  reloadPage,
+  watchBuild,
+} from './frontend-build.ts';
+import {UPDATE_NOTICE} from './gen/update-notice.gen.js';
 import type {CardApp, CardConfig, CardHost} from './card-main.ts';
 import type {Hass} from './core/types.ts';
 
@@ -20,8 +31,25 @@ declare global {
   }
 }
 
-const APP = new URL('./card-app.js' + new URL(import.meta.url).search, import.meta.url).href; // the same ?v= as this file: a new build — a new address
+const APP = new URL('./card-app.js', import.meta.url).href; // beside this file: the same build's folder (serve.py)
 const BOARD = 'home-twin-3d'; // the Home Twin dashboard the editor creates (editor/ha-live.js: board)
+const OURS = buildOf(import.meta.url);
+// the notice over the card (over the 3D's top edge), or in its place when the 3D could not load
+const NOTICE_PLACE = `.ht-updated{position:absolute;top:10px;left:50%;transform:translateX(-50%);z-index:9}
+ha-card.ht-alone{display:block;position:relative;min-height:64px}`;
+
+// One watch per page for every card: HA tells when it serves a newer build than this file's.
+const shownCards = new Set<HomeTwinCard>();
+let newerBuild = false;
+let watching = false;
+function watchOnce(hass: Hass): void {
+  if (watching) return;
+  watching = true;
+  watchBuild(hass, OURS, () => {
+    newerBuild = true;
+    for (const card of shownCards) card._showUpdated();
+  });
+}
 
 class HomeTwinCard extends HTMLElement implements CardHost {
   // the card's own state; declared only, so nothing extra is set up on the element
@@ -39,6 +67,7 @@ class HomeTwinCard extends HTMLElement implements CardHost {
   }
   set hass(h: Hass) {
     this._hass = h;
+    watchOnce(h);
     if (this._app) this._app.update(h);
     else this._load();
   }
@@ -68,11 +97,13 @@ class HomeTwinCard extends HTMLElement implements CardHost {
   // taken off the page: HA may put it back (another dashboard and back, edit mode), or it is gone for good — HA does not say which.
   // At once the 3D stops drawing; not back within a minute — everything is let go, and put back later it starts anew
   connectedCallback(): void {
+    shownCards.add(this);
     clearTimeout(this._bye);
     if (this._app) this._app.resume();
     else this._load();
   }
   disconnectedCallback(): void {
+    shownCards.delete(this);
     this._app?.pause();
     clearTimeout(this._bye);
     this._bye = setTimeout(() => {
@@ -90,10 +121,29 @@ class HomeTwinCard extends HTMLElement implements CardHost {
       const {mount}: typeof import('./card-app.ts') = await import(APP);
       this._app = await mount(this, this._hass, this._config || {});
       if (!this.isConnected) this._app.pause();
+      // the mount drew the card anew: the notice goes back over it
+      if (newerBuild) this._showUpdated();
     } catch (e) {
+      // after an update without a restart this build's card-app.js is gone: the notice says so once HA has told which build it serves
       console.error('Home Twin card:', e);
       this._loading = false;
+      if (newerBuild) this._showUpdated();
     }
+  }
+  // “Home Twin was updated · Reload”: over the card, or in its place when the 3D did not load
+  _showUpdated(): void {
+    const root = this.shadowRoot ?? this.attachShadow({mode: 'open'});
+    if (root.querySelector('.ht-updated')) return;
+    let box = root.querySelector('ha-card');
+    if (!box) {
+      box = document.createElement('ha-card');
+      box.className = 'ht-alone';
+      root.append(box);
+    }
+    const words = UPDATE_NOTICE[noticeLang(this._hass?.language, Object.keys(UPDATE_NOTICE))];
+    const style = document.createElement('style');
+    style.textContent = UPDATE_NOTICE_CSS + NOTICE_PLACE;
+    box.append(style, createUpdateNotice(words, reloadPage));
   }
 }
 if (!customElements.get('home-twin-card')) {

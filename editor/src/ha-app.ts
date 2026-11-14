@@ -6,6 +6,7 @@ import {liveHA, hassPlans, hassPhotos} from './editor/ha-live.ts';
 import {browserPhotos} from './editor/underlay.ts';
 import {t, setFormats} from './i18n/i18n.ts';
 import {haRouter} from './editor/route.ts';
+import {UPDATE_NOTICE_CSS, buildOf, createUpdateNotice, reloadPanel, watchBuild} from './frontend-build.ts';
 import type {Hass} from './core/types.ts';
 import type {Editor} from './editor/editor-types.ts';
 import type {PanelRoute, PanelRouter} from './editor/route.ts';
@@ -53,6 +54,21 @@ export async function start(panel: PanelHost): Promise<PanelApp> {
       ],
     ]);
   };
+  // HA serves a newer build of the panel (an update without a restart, D-NEXT): this one keeps working — the integration does not
+  // move an open panel — and “Reload” brings the new one. Its own notice, not the banner: the coach reuses the banner, and the start
+  // screen covers it. It stays awake over dialogs (keyboard.ts: data-awake).
+  const showUpdated = (): void => {
+    if (document.querySelector('.ht-updated')) return;
+    const style = document.createElement('style');
+    style.textContent =
+      UPDATE_NOTICE_CSS +
+      '.ht-updated{position:fixed;top:68px;left:50%;transform:translateX(-50%);z-index:2147483000}';
+    const words = {text: t('Home Twin was updated'), reload: t('Reload')};
+    const notice = createUpdateNotice(words, () => reloadPanel(hass()));
+    notice.setAttribute('data-awake', '');
+    document.head.append(style);
+    document.body.append(notice);
+  };
   const status = (): void => ed?.syncSave?.();
   const plans = hassPlans(hass, {onConflict: ask, onStatus: status});
   const photos = hassPhotos(hass, {local: browserPhotos, onStatus: status});
@@ -77,10 +93,13 @@ export async function start(panel: PanelHost): Promise<PanelApp> {
   };
   status();
   if (asked) ask();
+  // the subscription is made on HA's page's connection, which outlives this iframe: it is ended when the panel closes (below)
+  const stopWatchingBuild = watchBuild(hass(), buildOf(import.meta.url), showUpdated, {panel: true});
   addEventListener('pagehide', () => {
     plans.flush();
     photos.flush();
     ed.history.flush();
+    stopWatchingBuild();
   });
   let online = panel.hass?.connected;
   return {

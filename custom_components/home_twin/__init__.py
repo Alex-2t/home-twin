@@ -13,13 +13,20 @@ placement on the plan are kept with the plan (home_twin/photo/get, home_twin/pho
 The dashboard card (D-059): frontend/card.js is a small file HA loads on every page (add_extra_js_url), so “Home Twin” is in the card
 picker without setup; the 3D itself (frontend/card-app.js) loads only where a card is shown. The card follows the plan with
 home_twin/plan/subscribe: the plan now and after every write.
+
+The panel and the card are served build by build (serve.py, D-NEXT): a new editor build put into frontend/ (an update) is taken up
+without restarting HA — within a minute, or as soon as a page asks for it — and panels and cards already open are told
+(home_twin/frontend/subscribe) so they offer a reload; an open editor is never reloaded by itself. A change to this Python code still
+needs a restart, as with any integration.
 """
 
 from __future__ import annotations
 
+from datetime import datetime, timedelta
 import hashlib
 from http import HTTPStatus
 import json
+import logging
 import os
 from pathlib import Path
 from typing import Any
@@ -28,12 +35,13 @@ from aiohttp import web
 import voluptuous as vol
 
 from homeassistant.components import frontend, panel_custom, websocket_api
-from homeassistant.components.http import KEY_HASS_USER, HomeAssistantView, StaticPathConfig
+from homeassistant.components.http import KEY_HASS_USER, HomeAssistantView
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant, callback
 from homeassistant.exceptions import Unauthorized
 from homeassistant.helpers import config_validation as cv
 from homeassistant.helpers.dispatcher import async_dispatcher_connect, async_dispatcher_send
+from homeassistant.helpers.event import async_track_time_interval
 from homeassistant.helpers.storage import Store
 from homeassistant.helpers.typing import ConfigType
 
@@ -50,17 +58,39 @@ from .const import (
     STORE_KEY,
     STORE_VERSION,
 )
+from .serve import Build, FrontendFiles, FrontendView
+
+_LOGGER = logging.getLogger(__name__)
 
 FRONTEND = Path(__file__).parent / "frontend"
 SIGNAL_PLAN = f"{DOMAIN}_plan"  # the plan was written
+SIGNAL_FRONTEND = f"{DOMAIN}_frontend"  # a new build of the panel and the card is in frontend/
+DATA_FILES = f"{DOMAIN}_files"  # the frontend/ folder (serve.FrontendFiles): lives from HA start to stop, like the view serving it
+NO_BUILD = "none"  # the build in the addresses while frontend/ holds none (its address answers “try again” until one is there)
+# how often frontend/ is looked at for a new build (only the folder listing; the files are hashed again only when it changes)
+FRONTEND_CHECK_INTERVAL = timedelta(seconds=60)
 CONFIG_SCHEMA = cv.config_entry_only_config_schema(DOMAIN)
 
 
 async def async_setup(hass: HomeAssistant, config: ConfigType) -> bool:
     """Once per HA start: serve frontend/, the photo address and the websocket commands (they can't be unregistered — they live until restart)."""
-    await hass.http.async_register_static_paths([StaticPathConfig(STATIC_URL, str(FRONTEND), False)])
+    files = hass.data[DATA_FILES] = FrontendFiles(FRONTEND)
+
+    async def take_up(build: Build) -> None:
+        await _async_take_up(hass, build)
+
+    hass.http.register_view(FrontendView(hass, STATIC_URL, files, take_up))
     hass.http.register_view(PhotoView(hass))
-    for command in (ws_plan_get, ws_plan_save, ws_plan_subscribe, ws_photo_get, ws_photo_place, ws_photo_delete):
+    for command in (
+        ws_plan_get,
+        ws_plan_save,
+        ws_plan_subscribe,
+        ws_photo_get,
+        ws_photo_place,
+        ws_photo_delete,
+        ws_frontend_subscribe,
+        ws_frontend_update_panel,
+    ):
         websocket_api.async_register_command(hass, command)
     return True
 
@@ -70,25 +100,18 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     store: Store[dict[str, Any]] = Store(hass, STORE_VERSION, STORE_KEY)
     data = await store.async_load() or {}
     # data is what goes to disk: plan, rev and, once a photo has been sent, photo (null — it was removed)
-    hass.data[DOMAIN] = {"store": store, "data": {**data, "plan": data.get("plan"), "rev": int(data.get("rev", 0))}}
-    # ?v= — so the browser loads the new build after an update instead of the old one from cache
-    stamp = await hass.async_add_executor_job(_stamp)
-    hass.data[DOMAIN]["card_url"] = card_url = f"{STATIC_URL}/card.js?v={stamp}"
-    frontend.add_extra_js_url(hass, card_url)
-    await panel_custom.async_register_panel(
-        hass,
-        webcomponent_name=PANEL_ELEMENT,
-        frontend_url_path=PANEL_URL,
-        module_url=f"{STATIC_URL}/panel.js?v={stamp}",
-        sidebar_title="Home Twin",
-        sidebar_icon="mdi:floor-plan",
-        require_admin=True,
-        # also the integration's config panel: the “Configure” button on its page opens it
-        config_panel_domain=DOMAIN,
-        # in its own iframe: the editor has its own document and styles — like the standalone app
-        embed_iframe=True,
-        config={},
-    )
+    hass.data[DOMAIN] = d = {"store": store, "data": {**data, "plan": data.get("plan"), "rev": int(data.get("rev", 0))}}
+    files: FrontendFiles = hass.data[DATA_FILES]
+    build = await hass.async_add_executor_job(files.current)
+    d["build"] = build.id if build else NO_BUILD
+    d["open_panels"] = 0
+    _set_card(hass, d, d["build"])
+    await _async_register_panel(hass, d, d["build"])
+
+    async def look(now: datetime) -> None:
+        await _async_look_at_frontend(hass)
+
+    entry.async_on_unload(async_track_time_interval(hass, look, FRONTEND_CHECK_INTERVAL))
     return True
 
 
@@ -101,9 +124,121 @@ async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     return True
 
 
-def _stamp() -> int:
-    """The newest build file's time: the panel and the card change together."""
-    return max((int(f.stat().st_mtime) for f in FRONTEND.glob("*.js")), default=0)
+# ---------- the panel and the card, build by build (serve.py) ----------
+# d["build"] — the newest complete build in frontend/: card.js in every page HA sends, the build open pages are told about.
+# d["panel_build"] — the build in the panel's address. HA rebuilds an open panel whenever its registration changes, so while an
+# editor is open (d["open_panels"]: its subscription is open) the panel keeps its address: the editor is never reloaded under the
+# user's hands — it offers a reload (home_twin/frontend/update_panel) — and the panel moves on once no editor is open.
+
+
+async def _async_register_panel(hass: HomeAssistant, d: dict[str, Any], build_id: str) -> None:
+    """The panel at the address of this build. Changing it, HA tells every page to read the panel list again (panels_updated)."""
+    if d.get("panel_build") is not None:
+        frontend.async_remove_panel(hass, PANEL_URL)
+    d["panel_build"] = build_id
+    await panel_custom.async_register_panel(
+        hass,
+        webcomponent_name=PANEL_ELEMENT,
+        frontend_url_path=PANEL_URL,
+        module_url=f"{STATIC_URL}/{build_id}/panel.js",
+        sidebar_title="Home Twin",
+        sidebar_icon="mdi:floor-plan",
+        require_admin=True,
+        # also the integration's config panel: the “Configure” button on its page opens it
+        config_panel_domain=DOMAIN,
+        # in its own iframe: the editor has its own document and styles — like the standalone app
+        embed_iframe=True,
+        config={},
+    )
+
+
+def _set_card(hass: HomeAssistant, d: dict[str, Any], build_id: str) -> None:
+    """card.js of this build in every page HA sends from now on (pages already open keep theirs)."""
+    if d.get("card_url") is not None:
+        frontend.remove_extra_js_url(hass, d["card_url"])
+    d["card_url"] = f"{STATIC_URL}/{build_id}/card.js"
+    frontend.add_extra_js_url(hass, d["card_url"])
+
+
+async def _async_take_up(hass: HomeAssistant, build: Build) -> None:
+    """A complete build found in frontend/: a new one gets the card at once and the panel once no editor is open; open panels
+    and cards are told."""
+    d = hass.data.get(DOMAIN)
+    if d is None or d["build"] == build.id:
+        return
+    _LOGGER.info("Home Twin frontend build %s is now served (was %s)", build.id, d["build"])
+    # set before anything that waits: a second look running meanwhile then sees this build as taken up
+    d["build"] = build.id
+    _set_card(hass, d, build.id)
+    if d["open_panels"] == 0:
+        await _async_register_panel(hass, d, build.id)
+    async_dispatcher_send(hass, SIGNAL_FRONTEND)
+
+
+async def _async_look_at_frontend(hass: HomeAssistant) -> None:
+    """Whether frontend/ holds a new complete build (an update put new files there): take it up."""
+    build = await hass.async_add_executor_job(hass.data[DATA_FILES].current)
+    if build is not None:
+        await _async_take_up(hass, build)
+
+
+async def _async_panel_to_newest(hass: HomeAssistant) -> None:
+    """The panel at the newest build's address, if it is not there yet."""
+    d = hass.data.get(DOMAIN)
+    if d is not None and d["panel_build"] != d["build"]:
+        await _async_register_panel(hass, d, d["build"])
+
+
+@websocket_api.websocket_command(
+    {vol.Required("type"): "home_twin/frontend/subscribe", vol.Optional("panel", default=False): bool}
+)
+@callback
+def ws_frontend_subscribe(hass: HomeAssistant, connection: websocket_api.ActiveConnection, msg: dict[str, Any]) -> None:
+    """The newest build of the panel and the card, now and whenever it changes (events {build}): an open panel or card running an
+    older build offers a reload. Any signed-in user (the card). panel: true — the editor is open (the panel keeps its address
+    meanwhile, see above); when its subscription ends (the editor closed, the page reloaded) the panel moves on."""
+    if (d := _loaded(hass, connection, msg)) is None:
+        return
+
+    @callback
+    def forward() -> None:
+        if (d := hass.data.get(DOMAIN)) is not None:
+            connection.send_message(websocket_api.event_message(msg["id"], {"build": d["build"]}))
+
+    stop_forwarding = async_dispatcher_connect(hass, SIGNAL_FRONTEND, forward)
+    is_panel = msg["panel"]
+    if is_panel:
+        d["open_panels"] += 1
+
+    @callback
+    def end() -> None:
+        stop_forwarding()
+        # counted where it was added: the integration may have been reloaded since (a new count)
+        if not is_panel or hass.data.get(DOMAIN) is not d:
+            return
+        d["open_panels"] -= 1
+        if d["open_panels"] == 0:
+            hass.async_create_task(_async_panel_to_newest(hass))
+
+    connection.subscriptions[msg["id"]] = end
+    connection.send_result(msg["id"])
+    forward()
+    # a page has just opened: whether the files changed since the last look (no need to wait for the next one)
+    hass.async_create_task(_async_look_at_frontend(hass))
+
+
+@websocket_api.require_admin
+@websocket_api.websocket_command({vol.Required("type"): "home_twin/frontend/update_panel"})
+@websocket_api.async_response
+async def ws_frontend_update_panel(
+    hass: HomeAssistant, connection: websocket_api.ActiveConnection, msg: dict[str, Any]
+) -> None:
+    """The editor's “Reload”: the panel moves to the newest build now, even with editors open (HA then rebuilds open panels).
+    Answers {build}: the build the panel is at."""
+    if (d := _loaded(hass, connection, msg)) is None:
+        return
+    await _async_panel_to_newest(hass)
+    connection.send_result(msg["id"], {"build": d["panel_build"]})
 
 
 def _save(d: dict[str, Any]) -> None:

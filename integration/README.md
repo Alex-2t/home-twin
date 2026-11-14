@@ -6,7 +6,8 @@ The editor from [`editor/`](../editor/README.md) inside Home Assistant, with the
 ```
 custom_components/home_twin/
   manifest.json      domain home_twin, one entry (single_config_entry); version is set by the release
-  __init__.py        panel (panel_custom, in its own iframe), serving frontend/, plan and photo commands, the photo address
+  __init__.py        panel (panel_custom, in its own iframe), plan and photo commands, the photo address, taking up a new build
+  serve.py           serving frontend/ build by build: /home_twin_static/<build>/<file>
   config_flow.py     one-button setup
   const.py           addresses and names
   translations/      en, ru — texts of the setup flow and the “Done” dialog with a link to the editor
@@ -15,6 +16,7 @@ custom_components/home_twin/
     panel.js           the editor panel
     card.js            the dashboard card's small loader, on every HA page
     card-app.js        the card's 3D and home panel, loaded where a card is shown
+    build.json         every file's sha256 and the build id made from them
 hacs.json            for the catalog: install from the release archive home_twin.zip, HA from 2024.7
 ```
 - **Where the editor is.** In the sidebar — “Home Twin” (`mdi:floor-plan`), admins only, like other floor-plan integrations (NeonPlan 3D, NextFloor); a user who doesn't need it hides it with HA's own sidebar editing. The panel is also the integration's configuration panel (`config_panel_domain`): the “Configure” button on Home Twin in “Settings → Devices & services” opens it, and the dialog after adding links to it (“Draw your home”). Address — `/home-twin`. Later the dashboard card will link to it too (D-054, D-056).
@@ -23,6 +25,7 @@ hacs.json            for the catalog: install from the release archive home_twin
 - **No connection.** While HA is unreachable the editor says “Not saved”, keeps the plan and the photo in the browser with a mark of what was not sent, and sends them when HA is back or at the next start (if another window wrote in between — “Load from HA / Keep mine”).
 - **Removal.** If you remove the integration, the panel disappears but the plan and the photo stay: install it again and they are back. To delete them completely, remove the files `.storage/home_twin.plan` and `.storage/home_twin.photo`.
 - **The panel** is `panel_custom` with `embed_iframe`: the editor has its own document, so its styles and `document.getElementById` work as in a standalone app. HA creates `<home-twin-panel>` and sets `hass`; [ha-panel.js](../editor/src/ha-panel.js) inserts the shell and starts the editor once the HA registries have arrived. Language, number and time formats (the HA profile’s “Number format” and “Time format”, D-055) and dark theme follow HA. There is no demo apartment in the panel.
+- **Updating without a restart** (D-NEXT). Each build is served at its own address, `/home_twin_static/<build>/<file>`. The build id comes from the files' sha256, listed in `frontend/build.json`. The browser and HA's service worker may keep that address for a year, because it never gets other content. An update (HACS or a new zip) only replaces the files. Within a minute, or as soon as a page asks, the integration takes up the new build once the files on disk match its `build.json`. Until then it answers “try again”, so files half replaced are never served. From then on card.js of the new build is in every page HA sends. Open cards and an open editor show “Home Twin was updated · Reload” (`home_twin/frontend/subscribe`). An open editor is never reloaded by itself: the panel keeps its address while an editor is open (HA rebuilds a panel whose address changes). It moves on when the editor closes, or when its “Reload” is pressed (`home_twin/frontend/update_panel`). An old page's address of `panel.js` or `card.js` is redirected to the current build. An old card's `card-app.js` is not found, so the old card offers the reload and never runs half old, half new. **A change to the integration's Python code still needs an HA restart**, as with any integration: HACS asks for one, and until then the frontend files are already served new.
 - **The HA layer** is [ha-live.js](../editor/src/editor/ha-live.js): the same interface as the demo (`editor/ha.js`), built from `hass` — registries, states (events within a frame are merged), commands, history, statistics, weather with an hourly forecast, the HA entity card.
 - Area for a lamp: for an entity without a name of its own, HA 2026.11 does not accept an area on the entity itself — it is written to its device.
 
@@ -30,7 +33,7 @@ hacs.json            for the catalog: install from the release archive home_twin
 - **The Home Twin dashboard** (D-060): “Add to dashboard” at the end of the wizard or in the plan menu creates `home-twin-3d` (`lovelace/dashboards/create`, `lovelace/config/save`): in everyone's sidebar, one panel view with the card. While it exists, a card on any other dashboard is compact (3D, “Now”, rooms); a tap opens the dashboard, a room — with `?room=<id>`. `compact: false` keeps a card whole.
 
 ## Releasing a version
-A GitHub release tagged `v0.1.0` → [release.yml](../.github/workflows/release.yml) builds the editor, runs the tests, puts `0.1.0` into `manifest.json` and attaches `home_twin.zip` (the contents of `custom_components/home_twin` together with `frontend/panel.js`). The catalog installs exactly that (`hacs.json`: `zip_release`, `hide_default_branch` — it cannot be installed from a branch without a build). [validate.yml](../.github/workflows/validate.yml) on every push: hassfest, the HACS check (works only for a public repository), editor build and tests.
+A GitHub release tagged `v0.1.0` → [release.yml](../.github/workflows/release.yml) builds the editor, runs the tests, puts `0.1.0` into `manifest.json` and attaches `home_twin.zip` (the contents of `custom_components/home_twin` together with the built `frontend/`: `panel.js`, `card.js`, `card-app.js`, `build.json`). The catalog installs exactly that (`hacs.json`: `zip_release`, `hide_default_branch` — it cannot be installed from a branch without a build). [validate.yml](../.github/workflows/validate.yml) on every push: hassfest, the HACS check (works only for a public repository), editor build and tests.
 
 To build the same archive locally: `cd editor && npm run build && cd ../custom_components/home_twin && zip -r /tmp/home_twin.zip . -x '__pycache__/*'`.
 
@@ -51,4 +54,4 @@ node tools/ha-dev.ts onboard   # user dev / devdevdev, language en, token in dev
 node tools/ha-dev.ts seed      # five areas, demo entities in them, the home_twin integration
 node tools/ha-dev.ts ws '{"type":"home_twin/plan/get"}'
 ```
-`dev/config/configuration.yaml` has `demo:` (fake lights, climate, covers, sensors, taps, a camera, weather). `dev/` is not in git. Building the panel: `cd editor && npm run build` (or `npm run dev` — rebuilds on changes); then refresh the HA page. `node tools/ha-dev.ts tokens` — tokens for the browser (`localStorage.hassTokens`), to log in without the form during checks.
+`dev/config/configuration.yaml` has `demo:` (fake lights, climate, covers, sensors, taps, a camera, weather). `dev/` is not in git. Building the panel: `cd editor && npm run build` (or `npm run dev` — rebuilds on changes and rewrites `build.json`); then refresh the HA page. No HA restart is needed for frontend changes; Python changes need one. `node tools/ha-dev.ts tokens` — tokens for the browser (`localStorage.hassTokens`), to log in without the form during checks.
