@@ -1565,5 +1565,9 @@
  "Test payments: no real money": "Pagamentos de teste: sem dinheiro real",
  "test|payments": "teste",
  "The payment was not found": "Pagamento não encontrado",
- "This payment is not for a package here": "Este pagamento não é de um pacote daqui"
+ "This payment is not for a package here": "Este pagamento não é de um pacote daqui",
+ "Up to {0}% of your package": "Até {0}% do seu pacote",
+ "About {0}–{1}% of your package": "Cerca de {0}–{1}% do seu pacote",
+ "An estimate: a bigger home or more furniture takes more": "É uma estimativa: uma casa maior ou mais móveis gastam mais",
+ "More than is left: it pauses for a top-up": "Mais do que resta: pausa até você recarregar"
 }

@@ -17,6 +17,7 @@
 //   POST <api>/api/builds/<id>/answer             {at: 'final', action: 'confirm' | 'correct', text?, pins?}
 //   POST <api>/api/builds/<id>/resume             start a stopped build again
 //   POST <api>/api/builds/<id>/feedback           {round, n}: a pin that came back goes to the developer
+//   GET  <api>/api/estimate | <api>/api/builds/<id>/estimate   what a build or a round of pins will about take (ai-estimate.ts)
 // Accounts (D-088; ai-account.ts): a build is started by a signed-in account with something left of what it bought, is
 // charged to it, and is shown only to it (another browser gets 404, as for a build that is not there). A build whose balance
 // runs out waits (paused: 'balance') and goes on after a top-up; one whose payments service does not answer waits too
@@ -52,6 +53,8 @@ import {
 import type {Account, Offer} from './ai-account.ts';
 import {accountBar, openSignIn, pausedCard} from './ai-account-ui.ts';
 import type {AccountBar, SignInReason, SignInSheet} from './ai-account-ui.ts';
+import {buildEstimate, estimateLine, roundEstimate, roundSize, videosLength} from './ai-estimate.ts';
+import type {Estimate, RoundSize} from './ai-estimate.ts';
 import type {Outline, Plan} from '../core/types.ts';
 import type {Editor, EditorFlows} from './editor-types.ts';
 
@@ -209,6 +212,8 @@ const NOTES = 'home-twin-editor:ai-notes:';
 const FOLLOWED = 'home-twin-editor:ai-build';
 // A step works for minutes between the things it finds: meanwhile what it does is named in turn, a new line this often.
 const PHRASE_SECONDS = 5;
+// The review asks for the round's estimate once the pins have stopped changing for this long.
+const ROUND_ESTIMATE_WAIT_MS = 400;
 
 // What the owner sees as stages; each is a few of the build's own steps (the harness's tools/steps.ts). The plan runs beside
 // the rooms, so two stages can run at once.
@@ -828,6 +833,15 @@ export function openAiBuild(ed: Editor, options: AiBuildOptions = {}): AiBuildSc
   // How many polls since the account was asked last: the balance is asked again every few.
   let pollsSinceAccount = 0;
   let pausedBefore: BuildStatus['paused'] = null;
+  // What the action at hand will about take (D-NEXT): a new build on the upload page, the round of pins in the review.
+  let uploadEstimate: Estimate | null = null;
+  // The chosen videos' length together, seconds (null: none chosen, or the browser cannot tell).
+  let chosenSeconds: number | null = null;
+  // Each ask for an estimate has a number: an answer to an older ask is dropped.
+  let estimateAsks = 0;
+  let reviewEstimate: Estimate | null = null;
+  let reviewSize: RoundSize | null = null;
+  let reviewEstimateTimer: ReturnType<typeof setTimeout> | number = 0;
   const accountReady = refreshAccount();
 
   async function refreshAccount(): Promise<void> {
@@ -849,11 +863,56 @@ export function openAiBuild(ed: Editor, options: AiBuildOptions = {}): AiBuildSc
       setTimeout(() => !closed && refreshAccount(), ACCOUNT_RETRY_MS);
   }
 
-  // The account drawn on every place of the page shown.
+  // The account drawn on every place of the page shown. What is left changed: the estimates are asked again (they say
+  // whether it is enough).
   function renderAccount(): void {
     headBar?.update({offer, account});
-    if (screen === 'upload') renderGo();
+    if (screen === 'upload') {
+      renderGo();
+      askUploadEstimate();
+    }
     if (screen === 'progress') renderProgress();
+    if (reviewSlot) {
+      renderReviewAccount(reviewSlot);
+      if (reviewSize) askReviewEstimate(reviewSize);
+    }
+  }
+
+  // ---------- the estimates before an action (D-NEXT) ----------
+
+  // What a new build of the chosen videos will about take; before a video is chosen, a usual home's.
+  async function askUploadEstimate(): Promise<void> {
+    const ask = ++estimateAsks;
+    const estimate = await buildEstimate(api, {
+      seconds: chosenSeconds,
+      videos: Math.max(1, chosen.videos.length),
+    });
+    if (ask !== estimateAsks || screen !== 'upload') return;
+    uploadEstimate = estimate;
+    renderUploadEstimate();
+  }
+
+  function renderUploadEstimate(): void {
+    const slot = root.querySelector<HTMLElement>('.aib-go-cost');
+    if (slot) slot.innerHTML = estimateLine(uploadEstimate);
+  }
+
+  // The review's pins changed: the round's estimate is asked again once they rest, if what it counts changed.
+  function noteRound(notes: PinNotes): void {
+    const size = roundSize(notes);
+    if (reviewSize && size.rooms === reviewSize.rooms && size.wholeHome === reviewSize.wholeHome) return;
+    reviewSize = size;
+    clearTimeout(reviewEstimateTimer);
+    reviewEstimateTimer = setTimeout(() => askReviewEstimate(size), ROUND_ESTIMATE_WAIT_MS);
+  }
+
+  // What a round of these pins will about take; nothing to send, nothing to tell.
+  async function askReviewEstimate(size: RoundSize): Promise<void> {
+    const ask = ++estimateAsks;
+    const nothing = !size.rooms && !size.wholeHome;
+    const estimate = nothing ? null : await roundEstimate(base(), size);
+    if (ask !== estimateAsks || screen !== 'review') return;
+    reviewEstimate = estimate;
     if (reviewSlot) renderReviewAccount(reviewSlot);
   }
 
@@ -996,18 +1055,20 @@ export function openAiBuild(ed: Editor, options: AiBuildOptions = {}): AiBuildSc
   }
 
   // The account's place in the review: the balance, and a top-up once it is used up (the changes wait for one).
+  // Under them, what the round of pins will about take.
   function renderReviewAccount(slot: HTMLElement): void {
     reviewSlot = slot;
     const balance = account?.balance;
+    const cost = estimateLine(reviewEstimate);
     if (!offer || !balance) {
-      slot.innerHTML = '';
+      slot.innerHTML = cost;
       return;
     }
     const topUp = balance.empty
       ? `<button class="soft" data-act="top-up">${buyButtonInner(offer, {topUp: true})}</button>`
       : '';
     const line = accountLine ? `<small class="aib-wallet-err">${esc(accountLine)}</small>` : '';
-    slot.innerHTML = balanceMeter(balance) + topUp + line;
+    slot.innerHTML = balanceMeter(balance) + topUp + line + cost;
     const button = slot.querySelector<HTMLButtonElement>('[data-act=top-up]');
     if (button) button.onclick = () => buy(button);
   }
@@ -1184,6 +1245,8 @@ export function openAiBuild(ed: Editor, options: AiBuildOptions = {}): AiBuildSc
     cover(true);
     setAddress('upload');
     chosen = {plan: null, videos: []};
+    chosenSeconds = null;
+    uploadEstimate = null;
     const drop = (
       kind: string,
       ic: string,
@@ -1216,7 +1279,10 @@ export function openAiBuild(ed: Editor, options: AiBuildOptions = {}): AiBuildSc
             <li>${icon('check', 14)}<span>${esc(t('Lights on. No need to tidy up.'))}</span></li>
           </ul>
           <div class="aib-go">
-            <span class="aib-time">${icon('clock', 15)}<span>${esc(t('About 15 minutes. You can close the page meanwhile.'))}</span></span>
+            <span class="aib-go-facts">
+              <span class="aib-time">${icon('clock', 15)}<span>${esc(t('About 15 minutes. You can close the page meanwhile.'))}</span></span>
+              <span class="aib-go-cost"></span>
+            </span>
             <span class="aib-go-account"></span>
             <button class="primary aib-big" data-act="start" disabled>${icon('sparkles', 16)}${esc(t('Build my home'))}</button>
             <small class="aib-go-line" role="status" hidden></small>
@@ -1243,6 +1309,13 @@ export function openAiBuild(ed: Editor, options: AiBuildOptions = {}): AiBuildSc
         const videos = list.filter(f => f.type.startsWith('video/'));
         if (!videos.length) return;
         chosen.videos = videos;
+        // The estimate follows the videos' length, once the browser has read it.
+        chosenSeconds = null;
+        videosLength(videos).then(seconds => {
+          if (chosen.videos !== videos) return;
+          chosenSeconds = seconds;
+          askUploadEstimate();
+        });
         const megabytes = videos.reduce((sum, f) => sum + f.size, 0) / 1e6;
         shownFile.innerHTML = `<video muted playsinline preload="metadata"></video><small></small>`;
         find<HTMLVideoElement>(shownFile, 'video').src = URL.createObjectURL(videos[0]) + '#t=1';
@@ -1866,11 +1939,18 @@ export function openAiBuild(ed: Editor, options: AiBuildOptions = {}): AiBuildSc
     closeSignIn();
     root.innerHTML = '';
     headBar = null;
+    const reviewNotes = notesWithRetries();
+    reviewSize = null;
+    reviewEstimate = null;
+    noteRound(reviewNotes);
     review = openReview(ed, {
       host: root,
       photo: shown().has?.photo ? `${base()}/photo` : null,
-      notes: notesWithRetries(),
-      onChange: saveNotes,
+      notes: reviewNotes,
+      onChange: notes => {
+        saveNotes(notes);
+        noteRound(notes);
+      },
       onBack: showProgress,
       onSend: answer,
       upload: uploadPicture,
@@ -1888,6 +1968,7 @@ export function openAiBuild(ed: Editor, options: AiBuildOptions = {}): AiBuildSc
     review?.close();
     review = null;
     reviewSlot = null;
+    clearTimeout(reviewEstimateTimer);
   }
 
   // The owner's answer: changes go to the build and the progress shows them being made; "all right" opens the home.

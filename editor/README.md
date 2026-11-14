@@ -46,6 +46,7 @@ src/editor/          editor UI
   underlay.js        underlay (image in IndexedDB, position in localStorage)
   flows.js           start screen, “upload a plan” wizard, file and settings menus
   ai-build.js        the AI build: the start card, upload, progress as it goes; ai-review.js — the review with pins and their photos; ai-pins.js — what a pin is on and carries (D-073, D-074, D-076)
+  ai-estimate.ts     what a build or a round of pins will about take, asked of the service before it starts: percent of a package, a warning when it is more than what is left (D-NEXT)
   history.js         edit history and autosave
   ha.js              interface to HA and the demo (mockHA); ha-live.js — the same interface on a real hass (D-053)
   history.js, versions.js, versions-panel.js, idb.js  undo (survives reload), version history, IndexedDB storage (D-051)

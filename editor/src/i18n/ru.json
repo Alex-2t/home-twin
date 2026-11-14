@@ -1565,5 +1565,9 @@
  "Test payments: no real money": "Тестовые платежи: без настоящих денег",
  "test|payments": "тест",
  "The payment was not found": "Платёж не найден",
- "This payment is not for a package here": "Этот платёж не за пакет здесь"
+ "This payment is not for a package here": "Этот платёж не за пакет здесь",
+ "Up to {0}% of your package": "До {0}% вашего пакета",
+ "About {0}–{1}% of your package": "Примерно {0}–{1}% вашего пакета",
+ "An estimate: a bigger home or more furniture takes more": "Это оценка: большой дом или много мебели потребует больше",
+ "More than is left: it pauses for a top-up": "Больше, чем осталось: работа встанет до пополнения"
 }

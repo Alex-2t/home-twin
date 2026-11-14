@@ -1565,5 +1565,9 @@
  "Test payments: no real money": "测试支付：不扣真实费用",
  "test|payments": "测试",
  "The payment was not found": "未找到这笔付款",
- "This payment is not for a package here": "这笔付款不是本站的套餐"
+ "This payment is not for a package here": "这笔付款不是本站的套餐",
+ "Up to {0}% of your package": "最多占套餐的 {0}%",
+ "About {0}–{1}% of your package": "约占套餐的 {0}–{1}%",
+ "An estimate: a bigger home or more furniture takes more": "这是估算：房屋越大、家具越多，用量越多",
+ "More than is left: it pauses for a top-up": "超过剩余额度：将暂停，直到充值"
 }

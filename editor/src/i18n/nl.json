@@ -1565,5 +1565,9 @@
  "Test payments: no real money": "Testbetalingen: geen echt geld",
  "test|payments": "test",
  "The payment was not found": "De betaling is niet gevonden",
- "This payment is not for a package here": "Deze betaling is niet voor een pakket hier"
+ "This payment is not for a package here": "Deze betaling is niet voor een pakket hier",
+ "Up to {0}% of your package": "Tot {0}% van je pakket",
+ "About {0}–{1}% of your package": "Ongeveer {0}–{1}% van je pakket",
+ "An estimate: a bigger home or more furniture takes more": "Een schatting: een groter huis of meer meubels kosten meer",
+ "More than is left: it pauses for a top-up": "Meer dan er over is: het pauzeert tot je bijvult"
 }
