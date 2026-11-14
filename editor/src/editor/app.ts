@@ -36,8 +36,11 @@ import {
   focusIndexIn,
   refocusAt,
   keepFocusThroughRenders,
+  nudgeKeyAllowed,
 } from './keyboard.ts';
 import type {HeldFocus} from './keyboard.ts';
+import {arrowOf, burstGoesOn, nudgeStep, PLAN_AXES} from './nudge.ts';
+import type {NudgeBurst, ScreenAxes} from './nudge.ts';
 import {createCoach} from './coach.ts';
 import {createViewDemo} from './view-demo.ts';
 import {createLook} from './look.ts';
@@ -406,14 +409,30 @@ export function createApp({haLights, ha, photos}: AppOptions): Editor {
     if (fit) ed.fit();
     ed.update();
   };
-  ed.commit = () => {
+  // An edit is done: what follows the plan is brought along, then the history keeps it — a new step, or the current one
+  // changed (a burst of arrow presses).
+  const finishEdit = (keep: (plan: Plan) => void): void => {
     closeOuterOpen(ed.plan);
     syncFurnStrips(ed.plan);
-    ed.history.commit(ed.plan);
+    keep(ed.plan);
     ed.versions.tick();
     ed.update();
     ed.mode.refresh?.();
     coach.acted();
+  };
+  ed.commit = () => finishEdit(plan => ed.history.commit(plan));
+  // The arrows (nudge.ts): the first press of a burst makes a history step, the next ones on the same thing change it, so one
+  // ⌘Z takes the whole burst back.
+  // The pause is counted from when the last press was done to when the next key went down (its event's time): on a slow
+  // machine held keys queue up while a press is drawn, and they are still one burst.
+  let nudgeBurst: NudgeBurst | null = null;
+  let nudgePressedAt: number | null = null;
+  ed.commitNudge = what => {
+    const pressedAt = nudgePressedAt ?? performance.now();
+    if (burstGoesOn(nudgeBurst, what, ed.history.step(), pressedAt))
+      finishEdit(plan => ed.history.amend(plan));
+    else ed.commit();
+    nudgeBurst = {what, step: ed.history.step(), at: performance.now()};
   };
   // restoring a version is an edit: ⌘Z brings it back. Scene settings and the dashboard layout stay current (as with undo);
   // HA lamps — reconciled with the current list, the photo position — from that version, if the photo is the same
@@ -1960,6 +1979,10 @@ export function createApp({haLights, ha, photos}: AppOptions): Editor {
   addEventListener('keydown', e => {
     // A field takes the typing and a popup its own keys; a focused button keeps Enter, Space, Tab and the arrows (keyboard.ts).
     const target = e.target as Element; // an element or the document
+    if (arrowOf(e.key)) {
+      nudgeByKey(e, target);
+      return;
+    }
     if (!editorKeyAllowed(keyTargetOf(target), e.key)) return;
     // Delete removes what is selected: on a list row that is not the selected one it would remove something else
     if ((e.key === 'Delete' || e.key === 'Backspace') && target.closest?.('.row:not(.sel)')) return;
@@ -2031,6 +2054,30 @@ export function createApp({haLights, ha, photos}: AppOptions): Editor {
     }
     ed.mode.key?.(e);
   });
+  // The arrows nudge what is selected (nudge.ts), from the plan, the 3D or a focused button; a field, a menu, a list or the
+  // catalog keeps them. They never move the camera: a press a mode takes does not reach the page either.
+  function nudgeByKey(e: KeyboardEvent, target: Element): void {
+    if (!nudgeKeyAllowed(keyTargetOf(target), target, e.defaultPrevented)) return;
+    if (look || ed.drag || ed.capture) return; // no edits in “Preview”; a drag or a tool has the plan
+    const step = nudgeStep(e, ui.main === '3d' ? cameraAxes() : PLAN_AXES);
+    if (!step) return;
+    nudgePressedAt = e.timeStamp;
+    if (ed.mode.nudge?.(step)) e.preventDefault();
+    nudgePressedAt = null;
+  }
+  // In 3D, where the screen's right and up point on the floor: the camera's right, and its view along the floor
+  // (the plan's y is the scene's −z).
+  function cameraAxes(): ScreenAxes {
+    const camera = ed.view.camera;
+    camera.updateMatrixWorld();
+    // the camera's matrix is column-major: its first column is its right, its third points back from the view
+    const matrix = camera.matrixWorld.elements;
+    const rightX = matrix[0];
+    const rightZ = matrix[2];
+    const backX = matrix[8];
+    const backZ = matrix[10];
+    return {right: [rightX, -rightZ], up: [-backX, backZ]};
+  }
   // When the layout or the window size changes, the plan center stays in place.
   new ResizeObserver(() => {
     const first = !ed.v.w;

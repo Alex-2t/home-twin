@@ -1619,5 +1619,8 @@
  "Dots": "Lunares",
  "Rings": "Anillos",
  "Plaid": "Escocés",
- "Custom": "Propio"
+ "Custom": "Propio",
+ "Arrows move it: 1 cm, with Shift 10 cm": "Las flechas lo mueven: 1 cm, con Shift 10 cm",
+ "move the selected thing 1 cm (Shift: 10 cm)": "mover lo seleccionado 1 cm (Shift: 10 cm)",
+ "Which of your lights is it?": "¿Cuál de tus luces es?"
 }

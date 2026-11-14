@@ -51,6 +51,7 @@ import type {
 import type {PlanView2d} from '../view2d.ts';
 import type {Editor, FurnitureMode, PlanBox, Selection} from '../editor-types.ts';
 import {cleanRugSpec} from '../../core/rug-pattern-spec.ts';
+import {moved} from '../nudge.ts';
 
 // The pattern chip that stands for an item's own pattern (patSpec): no named pattern has this key.
 const CUSTOM_PATTERN = ' custom';
@@ -479,6 +480,16 @@ export function furnitureMode(ed: Editor): FurnitureMode {
       sel().furn = null;
       ed.commit();
     }
+  };
+  // The arrows (nudge.ts): the selected item moves by exactly the step, as a typed distance does, without the pull to the
+  // walls. A built-in run follows its walls by its ends and is not nudged.
+  m.nudge = step => {
+    const f = find(sel().furn);
+    if (!f || placing || drag) return false;
+    if (isRun(f)) return true;
+    [f.x, f.y] = moved([f.x, f.y], step);
+    ed.commitNudge('furn:' + f.id);
+    return true;
   };
   m.draw = () => {
     const f = find(sel().furn);
@@ -922,7 +933,9 @@ export function furnitureMode(ed: Editor): FurnitureMode {
     }
     const c = modelOf(f);
     const cm = (x: number): number => Math.round(x * 100);
-    const line = el(`<div class="line"><b>${esc(c.name)}</b></div>`);
+    // the arrows' key is in the name's tooltip (D-022); a built-in run follows its walls and is not nudged
+    const nudgeTip = isRun(f) ? '' : ` title="${t('Arrows move it: 1 cm, with Shift 10 cm')}"`;
+    const line = el(`<div class="line"><b${nudgeTip}>${esc(c.name)}</b></div>`);
     // a custom item and one from parts (the AI build) have their own name instead of the catalog one
     if (named(c)) {
       const nm = el<HTMLInputElement>(

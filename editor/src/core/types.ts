@@ -481,7 +481,15 @@ export interface PlanLight {
    * own fields as JSON of [key, value] pairs (s).
    */
   was?: {k?: string | null; s: string};
+  /**
+   * The lamps the AI build saw (lights without an entity, D-091) whose place this HA light took (light-place.ts), as they
+   * were: they come back when it leaves that place.
+   */
+  seen?: SeenLamp[];
 }
+
+/** A lamp the AI build saw, kept inside the HA light that took its place (PlanLight.seen). */
+export type SeenLamp = Omit<PlanLight, 'seen' | 'was' | 'draft'>;
 
 // ---------- the plan file: sensors and devices ----------
 

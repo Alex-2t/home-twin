@@ -30,6 +30,7 @@ import type {
   SensorContext,
   Segment,
   UiState,
+  Vector,
   WallBand,
   WizardProgress,
 } from '../core/types.ts';
@@ -230,6 +231,11 @@ export interface EditorMode {
   /** An empty spot was pressed. */
   deselect(): void;
   key(e: KeyboardEvent): void;
+  /**
+   * An arrow press: moves what is selected by step (plan metres, nudge.ts); true: the press was this mode's (something is
+   * selected that the arrows move, even if a wall stopped it). None: the arrows do nothing in this mode.
+   */
+  nudge?(step: Vector): boolean;
   /** Draws the mode's handles over the plan. */
   draw(): void;
   /** Rebuilds the mode's tools, side panel and the panel above the selection. */
@@ -467,6 +473,11 @@ export interface Editor {
   commit(): void;
   /** Changes the current history step instead of adding one. */
   amend(): void;
+  /**
+   * An arrow press moved what (an id the mode names): an edit like commit(), but a burst of presses on the same thing is
+   * one history step (nudge.ts).
+   */
+  commitNudge(what: string): void;
   undo(): void;
   redo(): void;
   /** Validation, the problems badge, the plan drawn, and the 3D in the next frame. */

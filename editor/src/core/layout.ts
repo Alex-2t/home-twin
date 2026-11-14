@@ -4,6 +4,7 @@ import {WALL, openingCoords, openingOut, pointIn, centroid} from './geometry.ts'
 import {roomEdges, roomAt, uniqueName, swingOf} from './plan.ts';
 import {byId, zOf, lArms, nameOf} from './catalog.ts';
 import {isRun, runGeo} from './runs.ts';
+import {giveSeenBack} from './seen-lamps.ts';
 import type {
   CatalogEntry,
   FootRect,
@@ -470,8 +471,10 @@ export function setRoomArea(
   name: string,
 ): void {
   if (room.area && room.area !== area)
-    for (const L of plan.lights)
+    // a copy: a lamp given back joins the list
+    for (const L of [...plan.lights])
       if (L.auto && L.area === room.area && L.room === room.id) {
+        giveSeenBack(plan.lights, L); // the lamp the AI build saw there stays in the room
         L.placed = false;
         L.points = [];
         L.segments = [];

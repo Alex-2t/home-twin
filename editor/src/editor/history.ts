@@ -48,6 +48,8 @@ export interface PlanHistory<SavedPlan extends HistoryPlan = Plan> {
   flush(): Promise<void>;
   /** When the current step was made, ms; null: none. */
   lastAt(): number | null;
+  /** The current step's number: another one after any commit, amend, undo or redo; null: none. */
+  step(): number | null;
   size(): {steps: number; pos: number};
   /** Saves the plan in this browser; false: it failed. */
   save(plan: SavedPlan): boolean;
@@ -250,6 +252,7 @@ export function createHistory<SavedPlan extends HistoryPlan = Plan>(
     ready: Promise.resolve(),
     flush,
     lastAt: () => stack[pos]?.at ?? null,
+    step: () => stack[pos]?.n ?? null,
     size: () => ({steps: stack.length, pos}),
     save(plan) {
       try {
