@@ -18,11 +18,13 @@ import {RectAreaLightUniformsLib} from 'three/addons/lights/RectAreaLightUniform
 import {buildDeviceLights, setDeviceLighting} from './card/lighting.ts';
 import {installRoomLightMask} from './card/room-light-mask.ts';
 import {
-  floorKind,
   FLOOR_KINDS,
   isFloorKind,
+  floorRepeat,
   floorTexture,
   floorUV,
+  roomFloor,
+  usedPattern,
   bakeAO,
   bakeFinish,
   aoUniforms,
@@ -598,15 +600,16 @@ export function createView(host: HTMLElement): SceneView {
     // FLOOR_KINDS: a floor finish key → the finish; any other key is none
     for (const piece of floorPieces(room, isFloorKind)) {
       const kind = FLOOR_KINDS[piece.k];
+      const pattern = usedPattern('floor', piece.k, piece.pattern);
       const toVectors = (ring: Outline): THREE.Vector2[] => ring.map(([x, y]) => new THREE.Vector2(x, y));
       const shape = new THREE.Shape(toVectors(piece.rings[0]));
       for (const hole of piece.rings.slice(1)) shape.holes.push(new THREE.Path(toVectors(hole)));
       const geometry = new THREE.ShapeGeometry(shape);
       geometry.rotateX(-Math.PI / 2);
-      floorUV(geometry, room.polygon, kind.size);
+      floorUV(geometry, room.polygon, floorRepeat(piece.k, pattern));
       const material = withAO(
         new THREE.MeshStandardMaterial({
-          map: floorTexture(piece.k, aniso, piece.tint),
+          map: floorTexture(piece.k, aniso, piece.tint, pattern),
           roughness: kind.rough,
           emissive: 0x2f6fd0,
           emissiveIntensity: selected ? 0.35 : 0,
@@ -672,14 +675,15 @@ export function createView(host: HTMLElement): SceneView {
     };
     for (const r of roomList) {
       if (r.solid) continue;
-      const kind = floorKind(r);
+      // the room's floor: its key, colour and pattern (D-NEXT)
+      const {k: kind, tint, ...pattern} = roomFloor(r);
       const K = FLOOR_KINDS[kind];
       const g = new THREE.ShapeGeometry(new THREE.Shape(r.polygon.map(([x, y]) => new THREE.Vector2(x, y))));
       g.rotateX(-Math.PI / 2);
-      floorUV(g, r.polygon, K.size);
+      floorUV(g, r.polygon, floorRepeat(kind, pattern));
       const m = withAO(
         new THREE.MeshStandardMaterial({
-          map: floorTexture(kind, aniso, r.floorTint),
+          map: floorTexture(kind, aniso, tint, pattern),
           roughness: K.rough,
           emissive: 0x2f6fd0,
           emissiveIntensity: r.id === selected ? 0.35 : 0,

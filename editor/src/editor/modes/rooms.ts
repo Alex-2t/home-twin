@@ -9,6 +9,7 @@ import {
   hasFloorPieces,
   clearWallPieces,
   clearFloorPieces,
+  hasPattern,
   mapFloorPieces,
 } from '../../core/pieces.ts';
 import {
@@ -27,7 +28,10 @@ import {
   wallSwatch,
   wallBase,
   isWallKind,
+  patternSpec,
+  roomFloor,
 } from '../../core/surfaces.ts';
+import {patternBlock} from '../finish-pattern.ts';
 import {GRID} from '../../core/layout.ts';
 import {
   addRoom,
@@ -63,6 +67,7 @@ import type {OpeningHit, OpeningsTool} from './openings.ts';
 import type {
   EdgeFinish,
   EdgeRef,
+  FinishPattern,
   FloorPiece,
   MultiPolygon,
   OpeningKind,
@@ -293,13 +298,13 @@ interface FinishCatalog {
   kinds: Record<string, FinishKind>;
   quick: string[];
   groups: Array<[group: string, kinds: string[]]>;
-  swatch(kind: string, tint?: string | null): string;
+  swatch(kind: string, tint?: string | null, pattern?: FinishPattern): string;
   base(kind: string, tint?: string | null): string;
 }
 
 /**
  * A row of finish swatches (floorState, wallState, sideState): what is chosen now (auto: guessed, autoTip says how), whether the
- * AI build put pieces there, and what a pick, a custom colour, a reset and "Same as room" do.
+ * AI build put pieces there, and what a pick, a custom colour, a pattern (D-NEXT), a reset and "Same as room" do.
  */
 interface FinishState {
   type: 'floor' | 'wall';
@@ -308,6 +313,10 @@ interface FinishState {
   cur: string;
   /** The custom colour; null or none: the finish's own. */
   tint: string | null | undefined;
+  /** The pattern parameters set for the chosen finish (only those it uses); none set: its own look. */
+  pattern: FinishPattern;
+  /** Set the pattern; an empty one goes back to the finish's own. */
+  setPattern(pattern: FinishPattern): void;
   auto: boolean;
   autoTip: string;
   ai: boolean;
@@ -2419,18 +2428,27 @@ export function roomsMode(ed: Editor): RoomsMode {
       clearFloorPieces(r);
       ed.commit();
     };
+    const {k: cur, tint, ...pattern} = roomFloor(r);
     return {
       type: 'floor',
       key: 'floor:' + r.id,
       title: t('Floor'),
-      cur: floorKind(r),
-      tint: r.floorTint || null,
+      cur,
+      tint: tint || null,
+      pattern,
       auto: !isFloorKind(r.floor),
       autoTip: t('from room name'),
       ai: hasFloorPieces(r),
       pick: k => {
         r.floor = k;
         delete r.floorTint;
+        delete r.floorPattern;
+        done();
+      },
+      setPattern: next => {
+        r.floor = cur;
+        if (hasPattern(next)) r.floorPattern = next;
+        else delete r.floorPattern;
         done();
       },
       setTint: h => {
@@ -2447,7 +2465,7 @@ export function roomsMode(ed: Editor): RoomsMode {
   // the room's walls: the sides without a finish of their own
   const roomSides = (r: Room): number[] => r.polygon.map((_, i) => i).filter(i => !sideWall(r, i).own);
   const wallState = (r: Room): FinishState => {
-    const w = roomWall(r);
+    const {k: cur, tint, ...pattern} = roomWall(r);
     const done = () => {
       clearWallPieces(r, roomSides(r));
       ed.commit();
@@ -2456,18 +2474,26 @@ export function roomsMode(ed: Editor): RoomsMode {
       type: 'wall',
       key: 'wall:' + r.id,
       title: t('Walls'),
-      cur: w.k,
-      tint: w.tint || null,
+      cur,
+      tint: tint || null,
+      pattern,
       auto: !isWallKind(r.wall),
       autoTip: t('from room name'),
       ai: hasWallPieces(r, roomSides(r)),
       pick: k => {
         r.wall = k;
         delete r.wallTint;
+        delete r.wallPattern;
+        done();
+      },
+      setPattern: next => {
+        r.wall = cur;
+        if (hasPattern(next)) r.wallPattern = next;
+        else delete r.wallPattern;
         done();
       },
       setTint: h => {
-        r.wall = w.k;
+        r.wall = cur;
         r.wallTint = h;
         done();
       },
@@ -2479,9 +2505,10 @@ export function roomsMode(ed: Editor): RoomsMode {
   };
   // a wall side: for room r — sides js (a wall shared with a neighbour may consist of several pieces); “same as room” — remove its own
   const sideState = (r: Room, js: number[], title: string): FinishState => {
-    const w = sideWall(r, js[0]);
+    const {k: cur, tint, own, ...pattern} = sideWall(r, js[0]);
+    // each edge its own copy: the edges of one wall are edited together but stored apart
     const set = (v: EdgeFinish | null): void => {
-      for (const j of js) setWf(r, j, v);
+      for (const j of js) setWf(r, j, v && structuredClone(v));
       clearWallPieces(r, js);
       ed.commit();
     };
@@ -2489,15 +2516,17 @@ export function roomsMode(ed: Editor): RoomsMode {
       type: 'wall',
       key: 'side:' + r.id + ':' + js.join(','),
       title,
-      cur: w.k,
-      tint: w.tint,
-      auto: !w.own,
+      cur,
+      tint,
+      pattern,
+      auto: !own,
       autoTip: t('same as room'),
       ai: hasWallPieces(r, js),
       pick: k => set({k}),
-      setTint: h => set({k: w.k, tint: h}),
-      reset: () => set(w.own ? {k: w.k} : null),
-      same: w.own ? () => set(null) : null,
+      setTint: h => set({k: cur, tint: h, ...pattern}),
+      setPattern: next => set({k: cur, ...(tint ? {tint} : {}), ...next}),
+      reset: () => set(own ? {k: cur, ...pattern} : null),
+      same: own ? () => set(null) : null,
     };
   };
   let finPop: FinishPopup | null = null; // the open popup: {key, owner — whose panel, get — fresh state}
@@ -2505,10 +2534,10 @@ export function roomsMode(ed: Editor): RoomsMode {
     const K = F.kinds[k];
     const on = k === st.cur;
     const b = el(
-      `<button class="floor ${on ? 'on' : ''}" title="${esc(K.label)}${on && st.auto ? ' — ' + st.autoTip : ''}" style="background-image:url(${F.swatch(k, on ? st.tint : null)})"></button>`,
+      `<button class="floor ${on ? 'on' : ''}" title="${esc(K.label)}${on && st.auto ? ' — ' + st.autoTip : ''}" style="background-image:url(${F.swatch(k, on ? st.tint : null, on ? st.pattern : undefined)})"></button>`,
     );
     b.onclick = () => {
-      if (on && !st.tint && !st.auto) return;
+      if (on && !st.tint && !hasPattern(st.pattern) && !st.auto) return;
       st.pick(k);
     };
     return b;
@@ -2573,6 +2602,9 @@ export function roomsMode(ed: Editor): RoomsMode {
       own.append(rs);
     }
     box.append(own);
+    // the chosen finish's pattern: sizes, joints, the second colour (D-NEXT); none for a finish without one
+    const pattern = patternBlock(st.type, patternSpec(st.type, st.cur), st.pattern, st.setPattern);
+    if (pattern) box.append(pattern);
     return box;
   }
   function openFin(get: () => FinishState, owner: string, anchor: HTMLElement): void {

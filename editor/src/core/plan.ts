@@ -598,19 +598,13 @@ const outN = (room: Room, i: number): Vector => {
   const s = area(p) > 0 ? 1 : -1;
   return [((b[1] - a[1]) / l) * s, (-(b[0] - a[0]) / l) * s];
 };
-// A room's finish that the new part of a split room gets too.
-const FINISH_KEYS: Array<'wall' | 'wallTint' | 'floor' | 'floorTint'> = [
-  'wall',
-  'wallTint',
-  'floor',
-  'floorTint',
-];
-function copyFinish<Key extends 'wall' | 'wallTint' | 'floor' | 'floorTint'>(
-  from: Room,
-  to: Room,
-  key: Key,
-): void {
-  if (from[key] != null) to[key] = from[key];
+/** The fields of a room's own finish (FINISH_KEYS). */
+type FinishField = 'wall' | 'wallTint' | 'wallPattern' | 'floor' | 'floorTint' | 'floorPattern';
+// A room's finish that the new part of a split room gets too, with its pattern (D-NEXT).
+const FINISH_KEYS: FinishField[] = ['wall', 'wallTint', 'wallPattern', 'floor', 'floorTint', 'floorPattern'];
+// A copy, not the same object: the two rooms' patterns are edited apart.
+function copyFinish<Key extends FinishField>(from: Room, to: Room, key: Key): void {
+  if (from[key] != null) to[key] = structuredClone(from[key]);
 }
 // Split a room: two rooms flush along the split (with the default partition between them). The larger part stays this room
 // (name, HA area); the smaller one is new. Openings and lights go to the part they are in.
