@@ -37,6 +37,7 @@ Found by the homes check and by the agents who built the plans; not done yet:
 - **Zones in auto-placement.** In a room with two HA areas, covers go onto the room's windows by name order and sensor labels share one row across the zone boundary; both should follow the zone.
 - **A TV backlight behind the TV** — a strip variant on the TV, like “Under cabinets” on wall cabinets; now it becomes a ceiling strip on the longest wall.
 - **A catalog floor lamp as the body of an HA floor lamp.** Now the HA lamp draws its own floor lamp: placed next to a catalog one, there are two.
+- **An HA light takes the place of a lamp seen in the video** (D-NEXT, 2026-11-14). A plan from the AI build has lights without an entity, where the video showed them. When the owner's HA lights are placed (the wizard, “Auto-place”), one of the same form in that room could take the seen lamp's place, form, height and shade, instead of a second lamp beside it.
 - **Contacts and covers:** a window contact in a room with several windows (by a direction word in the name: “east”, “south”); a roller shutter on a terrace door (covers go only onto windows); a garage door in the model.
 - **Doors:** double doors (now one leaf as wide as both, or no leaf from 1.15 m); a door from a file in the middle of a thin wall attaches to one of the two rooms by rounding — a side or swing in the file would make it exact.
 - **A sensor label on a glazed balcony:** when glazing takes every wall, the label could sit on the parapet below it.

@@ -1489,7 +1489,6 @@
  "Listing the furniture…": "Anotando los muebles…",
  "Measuring in 3D…": "Midiendo en 3D…",
  "Noting the doors and windows": "Anotando puertas y ventanas",
- "Lights are added at the next stage": "La iluminación se añade en la siguiente etapa",
  "{0} of {1} changes are made. The rest are pinned again, each with why.": "{0} de {1} cambios hechos. Los demás vuelven a estar marcados, cada uno con el motivo.",
  "Waits for the plan": "Espera el plano",
  "Not on the plan: not built": "No está en el plano: no se construye",
@@ -1575,5 +1574,9 @@
  "An estimate: a bigger home or more furniture takes more": "Es una estimación: una casa más grande o más muebles gastan más",
  "More than is left: it pauses for a top-up": "Más de lo que queda: se pausa hasta que recargues",
  "Body color": "Color de la lámpara",
- "Default color": "Color predeterminado"
+ "Default color": "Color predeterminado",
+ "Hanging the lamps from your video": "Colgamos las lámparas de su vídeo",
+ "Putting each lamp where you showed it": "Cada lámpara donde usted la mostró",
+ "Switching the lamps on": "Encendemos las lámparas",
+ "We could not place this lamp: point at another spot": "No encontramos sitio para esta lámpara: señale otro lugar"
 }

@@ -134,7 +134,7 @@ export const MISSED_REASON = {
   'left-out': N('We leave such things out: add it in the editor'),
   box: N('We could not draw it yet: we try again'),
   'no-room': N('The pin is outside the home'),
-  light: N('Lights are added at the next stage'),
+  light: N('We could not place this lamp: point at another spot'),
   still: N('From where you looked it still looks wrong: we try again'),
   cannot: N('We can’t do this yet'),
   unclear: N('Not understood: say it another way or add a photo'),
