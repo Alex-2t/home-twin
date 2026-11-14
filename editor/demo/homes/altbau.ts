@@ -1,7 +1,7 @@
 // Typical home 7 (docs/research/typical-homes.md, D-030): an apartment in an older building (Altbau, Stalin-era), about 103 m² —
 // a large living room with a bay window, bedroom, an irregular corner dining room (L-shaped with a cut corner and one window, the “Berliner Zimmer”),
 // kitchen with a gas stove and a gas boiler, a long bathroom, hallway. Made up: nobody's apartment. The real ceilings would be 3–3.5 m;
-// the editor's wall height is fixed. Metres, x east, y north, 10 cm interior walls; the editor adds the exterior walls.
+// the example keeps the usual 2.6 m walls (a plan may set its own, plan.wall.height). Metres, x east, y north, 10 cm interior walls; the editor adds the exterior walls.
 // Design concept, “Parisian classic”: warm white boiserie panels and honey herringbone floors, walnut antiques, navy and olive velvet,
 // gilt-framed pictures. The big rooms are zoned so they feel furnished: the living room has a seating group under a salon gallery wall,
 // a reading corner at the bookcases, a writing desk in the bay among plants and an upright piano by the door; the bedroom has a deep navy
