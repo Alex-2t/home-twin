@@ -8,7 +8,8 @@
 // The address names the page: ?ai=new the upload, ?build=<id> a build; a sign-in or the checkout comes back to it.
 // The service is private; the editor talks to its API only (locally the harness's tools/build-server.ts serves this page):
 //   GET  <api>/api/health                         answers: the start screen offers the AI build
-//   POST <api>/api/builds                         ← multipart: plan, video… → {id}; 401 SIGNED_OUT, 402 BALANCE_EMPTY
+//   POST <api>/api/uploads …                      the plan photo and the videos in chunks, then the build starts → {id};
+//                                                 401 SIGNED_OUT, 402 BALANCE_EMPTY before any byte (ai-upload.ts)
 //   GET  <api>/api/builds/<id>                    the status: steps, rooms, what the calls found so far (live), time left
 //   GET  <api>/api/builds/<id>/plan | home        the plan as read; the home
 //   GET  <api>/api/builds/<id>/photo | shot | frame/<room>   the plan photo; the home in 3D; a frame of a room
@@ -59,6 +60,8 @@ import type {AccountBar, SignInReason, SignInSheet} from './ai-account-ui.ts';
 import {buildEstimate, estimateLine, roundEstimate, roundSize} from './ai-estimate.ts';
 import {totalSeconds, videoConcern, videoConcernText, videosFacts} from './video-note.ts';
 import type {VideoConcern} from './video-note.ts';
+import {UploadFailed, browserTransport, uploadBuild} from './ai-upload.ts';
+import type {UploadJob} from './ai-upload.ts';
 import type {Estimate, RoundSize} from './ai-estimate.ts';
 import type {Outline, Plan} from '../core/types.ts';
 import type {Editor, EditorFlows} from './editor-types.ts';
@@ -190,6 +193,12 @@ interface SavedNotes {
 interface ChosenFiles {
   plan: File | null;
   videos: File[];
+}
+
+/** Whether two choices are the same files: an upload stopped midway goes on only with the files it started with. */
+function sameFiles(a: ChosenFiles, b: ChosenFiles): boolean {
+  if (a.plan !== b.plan || a.videos.length !== b.videos.length) return false;
+  return a.videos.every((video, i) => video === b.videos[i]);
 }
 
 /** The AI build over the editor (openAiBuild). */
@@ -799,6 +808,8 @@ export function openAiBuild(ed: Editor, options: AiBuildOptions = {}): AiBuildSc
   let planRead: PlanRead | null = null;
   // The files chosen on the upload page.
   let chosen: ChosenFiles = {plan: null, videos: []};
+  // The upload of the files chosen, once started: pressed again after a stop, the build button goes on with it.
+  let uploading: {files: ChosenFiles; job: UploadJob} | null = null;
   // The build's own pages are asked for once it has its id.
   const base = (): string => `${api}/api/builds/${encodeURIComponent(buildId as string)}`;
   // The status the progress shows: it is drawn only once there is one (renderProgress stops before without it), and the
@@ -1394,9 +1405,10 @@ export function openAiBuild(ed: Editor, options: AiBuildOptions = {}): AiBuildSc
     renderGo();
   }
 
-  // The files go up with a progress bar (fetch reports no upload progress); then the build's progress. A build that cannot
-  // start says why: signed out (the sign-in opens), or nothing left (the package to buy).
-  function send(files: ChosenFiles): void {
+  // The files go up in chunks with a progress bar (ai-upload.ts: the tunnel refuses a request over 100 MB); then the build's
+  // progress. A build that cannot start says why: signed out (the sign-in opens), or nothing left (the package to buy).
+  // Stopped midway (the connection stayed away), the button goes on from what the service has, while the files are the same.
+  async function send(files: ChosenFiles): Promise<void> {
     const sending = find(root, '.aib-sending');
     const bar = find(sending, '.aib-meter>i');
     const line = find(sending, 'span');
@@ -1409,39 +1421,26 @@ export function openAiBuild(ed: Editor, options: AiBuildOptions = {}): AiBuildSc
     accountLine = null;
     accountLineIsHint = false;
     renderGo();
-    const form = new FormData();
-    // The language the owner reads: the build names the rooms and the furniture in it.
-    form.append('lang', getLang());
-    // There is a plan: the button is on only with one (syncStart).
-    form.append('plan', files.plan as File);
-    for (const video of files.videos) form.append('video', video);
-    const xhr = new XMLHttpRequest();
-    xhr.open('POST', `${api}/api/builds`);
-    xhr.upload.onprogress = e => {
-      if (!e.lengthComputable) return;
-      const share = e.loaded / e.total;
-      bar.style.width = `${Math.round(share * 100)}%`;
-      line.textContent = t('Uploading… {0}%', Math.round(share * 100));
+    if (!uploading || !sameFiles(uploading.files, files)) uploading = {files: {...files}, job: {id: null}};
+    const showShare = (share: number): void => {
+      bar.style.width = `${(share * 100).toFixed(1)}%`;
+      line.textContent = t('Uploading… {0}%', Math.floor(share * 100));
     };
     const stopped = (): void => {
       delete start.dataset.sending;
       syncStart();
     };
-    const failed = (message: string): void => {
-      sending.classList.add('err');
-      line.textContent = t('Could not upload: {0}', message);
-      stopped();
-    };
-    xhr.onerror = () => failed(t('no connection'));
-    xhr.onload = async () => {
-      let data: {id?: string} & ServiceError = {};
-      try {
-        data = JSON.parse(xhr.responseText) as {id?: string} & ServiceError;
-      } catch {}
-      if (xhr.status === 401 || xhr.status === 402) {
+    let buildStarted: string;
+    try {
+      // There is a plan: the button is on only with one (syncStart).
+      const request = {api, plan: files.plan as File, videos: files.videos, lang: getLang()};
+      buildStarted = await uploadBuild(request, uploading.job, browserTransport(), showShare);
+    } catch (error) {
+      const failure = error instanceof UploadFailed ? error : new UploadFailed(0, null, String(error));
+      if (failure.status === 401 || failure.status === 402) {
         sending.hidden = true;
         stopped();
-        if (xhr.status === 401) {
+        if (failure.status === 401) {
           account = null;
           renderAccount();
           askSignIn('build', null, true);
@@ -1451,19 +1450,22 @@ export function openAiBuild(ed: Editor, options: AiBuildOptions = {}): AiBuildSc
         sayEmptyStart();
         return;
       }
-      if (xhr.status >= 300 || !data.id) return failed(data.error || xhr.statusText);
-      // A new home: the plan open now is kept aside ("Restore previous plan"), the editor starts clean.
-      await flows?.keepPrev?.();
-      await ed.underlay.clear();
-      ed.setPlan(emptyPlan(), {fit: false});
-      quietSetup();
-      buildId = data.id;
-      follow(buildId);
-      setAddress({build: buildId});
-      showProgress();
-      poll();
-    };
-    xhr.send(form);
+      sending.classList.add('err');
+      line.textContent = t('Could not upload: {0}', failure.status ? failure.message : t('no connection'));
+      stopped();
+      return;
+    }
+    uploading = null;
+    // A new home: the plan open now is kept aside ("Restore previous plan"), the editor starts clean.
+    await flows?.keepPrev?.();
+    await ed.underlay.clear();
+    ed.setPlan(emptyPlan(), {fit: false});
+    quietSetup();
+    buildId = buildStarted;
+    follow(buildId);
+    setAddress({build: buildId});
+    showProgress();
+    poll();
   }
 
   // ---------- the progress ----------

@@ -51,6 +51,7 @@ src/editor/          editor UI
   keyboard.ts        the keyboard alone (D-096): dialogs that hold the focus and give it back, menus' keys, long lists as one Tab stop, which input came last
   ai-build.js        the AI build: the start card, upload, progress as it goes; ai-review.js — the review with pins and their photos; ai-pins.js — what a pin is on and carries (D-073, D-074, D-076)
   ai-estimate.ts     what a build or a round of pins will about take, asked of the service before it starts: percent of a package, a warning when it is more than what is left (D-094)
+  ai-upload.ts       the AI build's upload in 16 MB chunks with a SHA-256 each, sent again when one breaks and resumed from what the service has (the tunnel refuses a request over 100 MB; D-NEXT)
   video-note.ts      what the browser reads off a chosen video (length, size) and the one gentle line under the upload page's tips for a very short or small upright one (D-105)
   history.js         edit history and autosave
   ha.js              interface to HA and the demo (mockHA); ha-live.js — the same interface on a real hass (D-053)
