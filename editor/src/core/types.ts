@@ -840,7 +840,21 @@ export interface TrimBox extends Prism {
 
 /** A room's kind, from its name: for its icon and what the AI build calls it. */
 export type RoomKind =
-  'bath' | 'kids' | 'bed' | 'kitchen' | 'living' | 'hall' | 'balcony' | 'office' | 'storage' | 'room';
+  | 'bath'
+  | 'kids'
+  | 'bed'
+  | 'kitchen'
+  | 'living'
+  | 'hall'
+  | 'balcony'
+  | 'office'
+  | 'dining'
+  | 'dressing'
+  | 'storage'
+  | 'utility'
+  | 'boiler'
+  | 'garage'
+  | 'room';
 
 /**
  * A quantity a sensor shows (sensors.ts METRICS for room air, metricOf for the rest): its key ('t', 'h', 'co2', 'pm'; for other
