@@ -73,4 +73,4 @@ O-010 was withdrawn by D-041: furniture is before lights again. O-002 is effecti
 
 The latest code run, **2026-11-14**: 362 tests passed (including the thirteen example homes, D-061, D-064), the build succeeded. Earlier: all thirteen homes looked at in Preview (overview and room close-ups) — 2026-11-09; the wizard card at 768–1366 px — 2026-11-08; browser checks of saving — in the [report](research/persistence-audit-2026-11-07.md). No new functional checks were made during this documentation review.
 
-The editor is single-floor, and the wall height is fixed in the code. JSON does not contain the photo. Real HA devices and public installation have not been verified yet. The ten typical homes are made-up plans checked by the editor's code and by eye, not by real users.
+The editor is single-floor, with one ceiling height per plan (D-NEXT; not per room). JSON does not contain the photo. Real HA devices and public installation have not been verified yet. The ten typical homes are made-up plans checked by the editor's code and by eye, not by real users.

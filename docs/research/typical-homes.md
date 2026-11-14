@@ -45,7 +45,7 @@ Not there yet — minor for furniture, important for lights and devices:
 The furniture for the ten homes now exists. What is missing is the editor itself:
 
 1. **Floors** (houses 8–10, two-level apartments). Right now the plan is single-floor. Without floors a house can only be drawn floor by floor in different projects. NeonPlan supports floors ([competitors.md](competitors.md)). For the HA audience, where houses are at least as common as apartments, this is the main gap of the first version.
-2. **Ceiling height** per plan, or better per room (house 7, attics, basements, US — 2.4–2.7 m). Right now it is 2.6 m everywhere (`WALL.height`).
+2. **Ceiling height** per plan, or better per room (house 7, attics, basements, US — 2.4–2.7 m). Per plan since D-NEXT (settings → "Ceiling height"; none set: 2.6 m, `WALL.height`); per room waits for floors and attics.
 3. **Attic slopes** (8, 10) — rooms under the roof with a low wall.
 4. **Terrace and garden** (8–10) — an open area without walls next to the house; right now it can only be drawn as a room with walls.
 

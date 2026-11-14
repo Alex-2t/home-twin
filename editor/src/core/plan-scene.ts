@@ -1,5 +1,5 @@
 // The plan in the 3D view: the parts the editor (editor/app.js) and the dashboard card (card-main.js) both hand to it.
-import {buildPlan2d, openingCoords} from './geometry.ts';
+import {buildPlan2d, ceilingOf, openingCoords} from './geometry.ts';
 import {wallDefaults} from './plan.ts';
 import {isRun, runGeo} from './runs.ts';
 import {layoutSensors} from './sensors.ts';
@@ -18,12 +18,12 @@ export interface PlanWalls {
 /** An item as the 3D view takes it: a built-in run with its shape, a cover as open as HA says (0–1). */
 export type SceneItem = FurnitureItem & {geo?: RunGeo | null; open?: number};
 
-// walls: the 2D wall plan, the openings that fit a wall, how many do not (hidden)
+// walls: the 2D wall plan, the openings that fit a wall, how many do not (hidden); the walls go up to the plan's ceiling
 export function planWalls(plan: Pick<Plan, 'rooms' | 'openings' | 'wall'>): PlanWalls {
   const all = plan.openings.map(o => openingCoords(plan.rooms, o));
   const ops = all.filter((o): o is PlacedOpening => Boolean(o));
   return {
-    g: buildPlan2d(plan.rooms, ops, {outer: wallDefaults(plan).outer}),
+    g: buildPlan2d(plan.rooms, ops, {outer: wallDefaults(plan).outer, height: ceilingOf(plan)}),
     ops,
     hidden: all.length - ops.length,
   };
@@ -40,7 +40,7 @@ export const planFurniture = (
 
 // readings on the walls (D-033): ctx — sensors, areas, state (editor/app.js: sensorCtx); cam — the home view direction; moving — the one being dragged
 export const planSpots = (
-  plan: Pick<Plan, 'rooms' | 'openings' | 'furniture' | 'lights'> & Partial<Pick<Plan, 'sensors'>>,
+  plan: Pick<Plan, 'rooms' | 'openings' | 'furniture' | 'lights'> & Partial<Pick<Plan, 'sensors' | 'wall'>>,
   ctx: Pick<SensorContext, 'sensors' | 'state'>,
   {cam, moving}: {cam?: Vector | null; moving?: string} = {},
 ): PlacedSensor[] =>

@@ -17,7 +17,8 @@ import {
 } from '../../core/catalog.ts';
 import {isHex, cssHex, shadeHex, snapColor} from '../../core/color.ts';
 import {GRID, axes, corners, localXY, snapToWall, inFoot, stackOf} from '../../core/layout.ts';
-import {WALL, pointIn} from '../../core/geometry.ts';
+import {WALL, ceilingOf, pointIn} from '../../core/geometry.ts';
+import {fitNewItem, heightLimit} from '../../core/ceiling.ts';
 import {
   isRun,
   runGeo,
@@ -611,18 +612,23 @@ export function furnitureMode(ed: Editor): FurnitureMode {
     dimLabel(v(), X, Math.max(Y, Y2) + 16, `${Math.round(f.w * 100)} × ${Math.round(f.d * 100)}`);
   }
   // ---------- catalog ----------
-  const makeItem = ({c, name}: Pick<Placing, 'c' | 'name'>): FurnitureItem => ({
-    id: 'f' + Date.now().toString(36),
-    model: c.id,
-    w: c.w,
-    d: c.d,
-    h: c.h,
-    color: c.color,
-    rot: 0,
-    x: 0,
-    y: 0,
-    ...(name ? {name} : {}),
-  });
+  // (under the plan's own ceiling, curtains reach it and nothing goes over it: fitNewItem)
+  const makeItem = ({c, name}: Pick<Placing, 'c' | 'name'>): FurnitureItem =>
+    fitNewItem(
+      {
+        id: 'f' + Date.now().toString(36),
+        model: c.id,
+        w: c.w,
+        d: c.d,
+        h: c.h,
+        color: c.color,
+        rot: 0,
+        x: 0,
+        y: 0,
+        ...(name ? {name} : {}),
+      },
+      plan(),
+    );
   addEventListener('pointermove', e => {
     if (!placing || ed.mode !== m) return;
     const r = v().cv.getBoundingClientRect();
@@ -1040,7 +1046,9 @@ export function furnitureMode(ed: Editor): FurnitureMode {
           const x = lab.querySelector('input')!; // in the markup above
           x.onkeydown = e => e.stopPropagation();
           x.onchange = () => {
-            const val = +Math.max(c.min[i], Math.min(c.max[i], (+x.value || 0) / 100)).toFixed(3);
+            // the height: up to the model's limit, and a floor-to-ceiling one up to the plan's own ceiling (heightLimit)
+            const most = i === 2 ? heightLimit(c, plan()) : c.max[i];
+            const val = +Math.max(c.min[i], Math.min(most, (+x.value || 0) / 100)).toFixed(3);
             // for a built-in cabinet the width is the length along the walls: the end goes further along the outline (and around the corner)
             if (isRun(f) && k === 'w') {
               const g: RunGeo | null = runGeo(plan(), f);
@@ -1060,7 +1068,7 @@ export function furnitureMode(ed: Editor): FurnitureMode {
           const x = lab.querySelector('input')!; // in the markup above
           x.onkeydown = e => e.stopPropagation();
           x.onchange = () => {
-            const z = +Math.max(0, Math.min(2.6 - f.h, (+x.value || 0) / 100)).toFixed(3);
+            const z = +Math.max(0, Math.min(ceilingOf(plan()) - f.h, (+x.value || 0) / 100)).toFixed(3);
             // 'lift' in c (above)
             if (Math.abs(z - c.lift!) < 0.001) delete f.z;
             else f.z = z;

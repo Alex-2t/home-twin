@@ -15,7 +15,7 @@ import {
   MIN_OPENING,
   OPENING,
 } from '../../core/plan.ts';
-import {openingCoords, WALL} from '../../core/geometry.ts';
+import {openingCoords, ceilingOf, WALL} from '../../core/geometry.ts';
 import {dimLabel, outward, pal} from '../draw.ts';
 import {el} from '../ui.ts';
 import {icon} from '../icons.ts';
@@ -430,7 +430,11 @@ export function openingsTool(ed: Editor): OpeningsTool {
   };
   // Window: regular (85 cm sill) or panoramic — from the floor almost to the ceiling; height above the floor and window height — as numbers.
   // Panoramic is one that starts at the floor (up to 10 cm): this way the switch tells the truth even after a manual edit.
-  const PANO = {bottom: 0, top: WALL.height - 0.1};
+  // (its top 10 cm under the plan's ceiling)
+  const panoramic = (): {bottom: number; top: number} => ({
+    bottom: 0,
+    top: +(ceilingOf(plan()) - 0.1).toFixed(2),
+  });
   const isPano = (o: Opening): boolean => (o.bottom ?? OPENING.window.bottom) <= 0.1;
   function windowLine(o: Opening): HTMLElement {
     const ln = el(`<div class="line opts"></div>`);
@@ -444,7 +448,7 @@ export function openingsTool(ed: Editor): OpeningsTool {
       const b = el(`<button class="chip ${pano === k ? 'on' : ''}">${name}</button>`);
       b.onclick = () => {
         if (pano === k) return;
-        Object.assign(o, k ? PANO : {bottom: OPENING.window.bottom, top: OPENING.window.top});
+        Object.assign(o, k ? panoramic() : {bottom: OPENING.window.bottom, top: OPENING.window.top});
         ed.commit();
       };
       ln.append(b);
@@ -475,14 +479,15 @@ export function openingsTool(ed: Editor): OpeningsTool {
       return lab;
     };
     // the sill moves, the window top (lintel) stays; the top is not above the wall, the window is not lower than 30 cm
+    const ceiling = ceilingOf(plan());
     ln.append(
       num(t('Sill'), t('Sill height from the floor'), b0, v => {
-        o.bottom = +Math.max(0, Math.min(WALL.height - 0.3, v)).toFixed(2);
-        o.top = +Math.min(WALL.height, Math.max(t0, o.bottom + 0.3)).toFixed(2);
+        o.bottom = +Math.max(0, Math.min(ceiling - 0.3, v)).toFixed(2);
+        o.top = +Math.min(ceiling, Math.max(t0, o.bottom + 0.3)).toFixed(2);
       }),
       num(t('Height'), t('Window height'), t0 - b0, v => {
         o.bottom = b0;
-        o.top = +Math.min(WALL.height, b0 + Math.max(0.3, v)).toFixed(2);
+        o.top = +Math.min(ceiling, b0 + Math.max(0.3, v)).toFixed(2);
       }),
     );
     return ln;

@@ -5,7 +5,6 @@
  "10 cm: baseboard, under the bed, stairs — light onto the floor": "10 cm: rodapié, bajo la cama, escalones — luz al suelo",
  "12 cm": "12 cm",
  "15 cm": "15 cm",
- "2.5 m: cove, floating ceiling, niche — light down the walls": "2,5 m: cornisa, falso techo, nicho — luz por las paredes",
  "25 cm": "25 cm",
  "30 cm": "30 cm",
  "38 cm": "38 cm",
@@ -1578,5 +1577,8 @@
  "Hanging the lamps from your video": "Colgamos las lámparas de su vídeo",
  "Putting each lamp where you showed it": "Cada lámpara donde usted la mostró",
  "Switching the lamps on": "Encendemos las lámparas",
- "We could not place this lamp: point at another spot": "No encontramos sitio para esta lámpara: señale otro lugar"
+ "We could not place this lamp: point at another spot": "No encontramos sitio para esta lámpara: señale otro lugar",
+ "Under the ceiling: cove, floating ceiling, niche — light down the walls": "Bajo el techo: cornisa, falso techo, nicho — luz por las paredes",
+ "Ceiling height": "Altura del techo",
+ "For the whole home: ceiling lights, curtains and tall cabinets follow it": "Para toda la vivienda: las lámparas de techo, las cortinas y los armarios altos la siguen"
 }

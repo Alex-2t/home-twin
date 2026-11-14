@@ -3,6 +3,7 @@
 import {migrate, PLAN_VERSION} from './plan.ts';
 import {checkItem} from './parts.ts';
 import {isHex} from './color.ts';
+import {CEILING_RANGE} from './geometry.ts';
 import type {Plan, PlanInput, Point} from './types.ts';
 
 // A JSON object: its fields are unknown until checked.
@@ -41,6 +42,16 @@ const panel = (x: unknown): boolean =>
           c.entities.every(str))),
   ) &&
   (x.removed == null || (isList(x.removed) && x.removed.every(str)));
+
+// The ceiling height (wall.height, geometry.ts ceilingOf): none is the usual walls; one outside the range is not a home's.
+function ceilingInRange(height: unknown): void {
+  if (height === undefined) return;
+  const [lowest, highest] = CEILING_RANGE;
+  if (isNumber(height) && height >= lowest && height <= highest) return;
+  throw new Error(
+    `Invalid plan file: the ceiling height ${String(height)} m is not within ${lowest}–${highest} m`,
+  );
+}
 
 export function readPlan(text: string): Plan {
   const p: unknown = JSON.parse(text);
@@ -140,7 +151,8 @@ export function readPlan(text: string): Plan {
   numbers(p, ['docArea']);
   if (p.wall != null) {
     check(obj(p.wall));
-    numbers(p.wall, ['outer', 'inner']);
+    numbers(p.wall, ['outer', 'inner', 'height']);
+    ceilingInRange(p.wall.height);
   }
   if (p.onboarding != null) {
     check(obj(p.onboarding) && obj(p.onboarding.steps));

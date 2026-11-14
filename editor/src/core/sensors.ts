@@ -8,7 +8,7 @@
 // the area's sensors excluding diagnostic, hidden and “not room air” ones; out of several, the one whose device measures
 // several quantities (a climate sensor) and has a plausible value.
 import {t, num} from '../i18n/i18n.ts';
-import {WALL, area} from './geometry.ts';
+import {WALL, area, ceilingOf} from './geometry.ts';
 import {zOf} from './catalog.ts';
 import {formFor} from './fixtures.ts';
 import type {
@@ -480,6 +480,8 @@ export function wallSpot(
 // env: {openings, baseOf(room, i): the wall color, cam: the home view, moving: the id of the sensor being moved}.
 export const VGAP = 0.06;
 export const TOP_MAX = 2.45;
+// Under a low ceiling of the plan's own the labels' top is this far under it (2.45 m is 15 cm under the usual 2.6 m).
+const TOP_UNDER_CEILING = WALL.height - TOP_MAX;
 export function stackOf<Entry extends {S: Pick<PlanSensor, 'id' | 'under'>}>(list: Entry[]): Entry[][] {
   // columns: [[top, below it, …], …]; loops and missing “under” targets are broken
   const ids = new Set(list.map(x => x.S.id));
@@ -514,11 +516,12 @@ export function stackOf<Entry extends {S: Pick<PlanSensor, 'id' | 'under'>}>(lis
   return cols;
 }
 export function layoutSensors(
-  plan: Pick<Plan, 'rooms' | 'furniture' | 'lights'> & Partial<Pick<Plan, 'sensors'>>,
+  plan: Pick<Plan, 'rooms' | 'furniture' | 'lights'> & Partial<Pick<Plan, 'sensors' | 'wall'>>,
   ctx: Pick<SensorContext, 'sensors' | 'state'>,
   env: SensorEnv = {},
 ): PlacedSensor[] {
   const out: PlacedSensor[] = [];
+  const highestTop = Math.min(TOP_MAX, ceilingOf(plan) - TOP_UNDER_CEILING);
   const byRoom = new Map<Room, SensorEntry[]>();
   const P = LABEL.pad;
   for (const S of plan.sensors || []) {
@@ -551,7 +554,7 @@ export function layoutSensors(
     const row = (cs: Column[]): Row => {
       const W = cs.reduce((a, c) => a + c.w, 0) + LABEL.gap * (cs.length - 1) + 2 * P;
       const H = Math.max(...cs.map(c => c.h));
-      const top = Math.min(TOP_MAX, LABEL.y + Math.max(...cs.map(c => c.hs[0])) / 2);
+      const top = Math.min(highestTop, LABEL.y + Math.max(...cs.map(c => c.hs[0])) / 2);
       const items: RowItem[] = [];
       let x = -W / 2 + P;
       cs.forEach((c, k) => {

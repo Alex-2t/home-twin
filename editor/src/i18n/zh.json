@@ -5,7 +5,6 @@
  "10 cm: baseboard, under the bed, stairs — light onto the floor": "10 cm：踢脚线、床底、台阶，光照向地面",
  "12 cm": "12 cm",
  "15 cm": "15 cm",
- "2.5 m: cove, floating ceiling, niche — light down the walls": "2.5 m：顶角线、悬浮吊顶、灯槽，光沿墙面向下",
  "25 cm": "25 cm",
  "30 cm": "30 cm",
  "38 cm": "38 cm",
@@ -1578,5 +1577,8 @@
  "Hanging the lamps from your video": "正在挂上视频里的灯具",
  "Putting each lamp where you showed it": "把每盏灯放到您拍到的位置",
  "Switching the lamps on": "正在开灯",
- "We could not place this lamp: point at another spot": "没找到放这盏灯的位置：请指出另一个地方"
+ "We could not place this lamp: point at another spot": "没找到放这盏灯的位置：请指出另一个地方",
+ "Under the ceiling: cove, floating ceiling, niche — light down the walls": "天花板下：顶角线、悬浮吊顶、灯槽，光沿墙面向下",
+ "Ceiling height": "天花板高度",
+ "For the whole home: ceiling lights, curtains and tall cabinets follow it": "适用于整个住宅：吸顶灯、窗帘和高柜随之调整"
 }

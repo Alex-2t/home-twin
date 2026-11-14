@@ -5,7 +5,6 @@
  "10 cm: baseboard, under the bed, stairs — light onto the floor": "10 cm: plint, onder bed, treden — licht op de vloer",
  "12 cm": "12 cm",
  "15 cm": "15 cm",
- "2.5 m: cove, floating ceiling, niche — light down the walls": "2,5 m: koof, zwevend plafond, nis — licht langs de muren",
  "25 cm": "25 cm",
  "30 cm": "30 cm",
  "38 cm": "38 cm",
@@ -1578,5 +1577,8 @@
  "Hanging the lamps from your video": "We hangen de lampen uit uw video op",
  "Putting each lamp where you showed it": "Elke lamp komt waar u hem liet zien",
  "Switching the lamps on": "We doen de lampen aan",
- "We could not place this lamp: point at another spot": "Geen plek gevonden voor deze lamp: wijs een andere plek aan"
+ "We could not place this lamp: point at another spot": "Geen plek gevonden voor deze lamp: wijs een andere plek aan",
+ "Under the ceiling: cove, floating ceiling, niche — light down the walls": "Onder het plafond: koof, zwevend plafond, nis — licht langs de muren",
+ "Ceiling height": "Plafondhoogte",
+ "For the whole home: ceiling lights, curtains and tall cabinets follow it": "Voor de hele woning: plafondlampen, gordijnen en hoge kasten volgen mee"
 }

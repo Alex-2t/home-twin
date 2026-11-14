@@ -5,7 +5,6 @@
  "10 cm: baseboard, under the bed, stairs — light onto the floor": "10 см: плинтус, под кроватью, ступени — свет на пол",
  "12 cm": "12 см",
  "15 cm": "15 см",
- "2.5 m: cove, floating ceiling, niche — light down the walls": "2,5 м: карниз, парящий потолок, ниша — свет вниз по стенам",
  "25 cm": "25 см",
  "30 cm": "30 см",
  "38 cm": "38 см",
@@ -1578,5 +1577,8 @@
  "Hanging the lamps from your video": "Вешаем светильники из вашего видео",
  "Putting each lamp where you showed it": "Ставим каждую лампу туда, где вы её показали",
  "Switching the lamps on": "Включаем свет",
- "We could not place this lamp: point at another spot": "Не нашли места для этой лампы: укажите другое место"
+ "We could not place this lamp: point at another spot": "Не нашли места для этой лампы: укажите другое место",
+ "Under the ceiling: cove, floating ceiling, niche — light down the walls": "Под потолком: карниз, парящий потолок, ниша — свет вниз по стенам",
+ "Ceiling height": "Высота потолка",
+ "For the whole home: ceiling lights, curtains and tall cabinets follow it": "Для всего дома: потолочные светильники, шторы и высокие шкафы следуют за ней"
 }

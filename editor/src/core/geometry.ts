@@ -19,7 +19,18 @@ import type {
   WallPlan,
 } from './types.ts';
 
+// height: the ceiling of a plan that sets none of its own (plan.wall.height, ceilingOf below), as every plan had before.
 export const WALL = {inner: 0.05, outer: 0.25, height: 2.6};
+// The ceiling heights a plan may set, metres: an attic room or a basement at the low end, a loft or a grand old flat at the top.
+export const CEILING_RANGE: [number, number] = [2.1, 4.5];
+// The plan's ceiling height, metres: its own (plan.wall.height), or the editor's usual walls when it sets none. A value that is not a
+// number gives the usual walls too (a plan from Home Assistant or the history is not checked like a file); one outside the range
+// is brought into it.
+export function ceilingOf(plan: {wall?: {height?: number}}): number {
+  const own = plan.wall?.height;
+  if (typeof own !== 'number' || !Number.isFinite(own)) return WALL.height;
+  return Math.min(CEILING_RANGE[1], Math.max(CEILING_RANGE[0], own));
+}
 // A railing in place of a wall at a room edge (room.rail[i] = its height): an open balcony, a terrace. The usual height, m.
 export const RAIL = 1.1;
 // A glass railing (room.railGlass: every railing of that room, D-075): a low kerb along the edge, a pane of glass standing on it.
@@ -369,7 +380,12 @@ export function openingCoords<Placed extends {at: OpeningAt}>(
 // polygon-clipping occasionally fails to close an outline (about 0.1% of edited plans in fuzz.mjs).
 // Then we build again with 2 and 5 mm rounding: there is no visible difference.
 // opts.outer is the default exterior wall thickness (m); a room edge can have its own, room.wt[i]: a number is the thickness, 0 means no wall.
-export function buildPlan2d(rooms: Room[], openings: WallOpening[], opts: {outer?: number} = {}): WallPlan {
+// opts.height is how high the walls go: the plan's ceiling (ceilingOf), none: the usual walls.
+export function buildPlan2d(
+  rooms: Room[],
+  openings: WallOpening[],
+  opts: {outer?: number; height?: number} = {},
+): WallPlan {
   let err: unknown;
   for (const step of [1000, 500, 200]) {
     STEP = step;
@@ -483,7 +499,7 @@ function railStrip(r: Room, i: number, outer: number): ClipPolygon | null {
   ]);
 }
 // A glass railing's pane: along the middle of its strip, from the kerb up to the railing's height.
-function railPane(r: Room, i: number, outer: number, h: number): GlassRail | null {
+function railPane(r: Room, i: number, outer: number, h: number, ceiling: number): GlassRail | null {
   const f = railFrame(r, i, outer);
   if (!f) return null;
   const {A, B, n, inside, out} = f;
@@ -492,13 +508,13 @@ function railPane(r: Room, i: number, outer: number, h: number): GlassRail | nul
     a: [A[0] + n[0] * c, A[1] + n[1] * c],
     b: [B[0] + n[0] * c, B[1] + n[1] * c],
     bottom: KERB,
-    top: Math.min(h, WALL.height),
+    top: Math.min(h, ceiling),
   };
 }
 function buildRaw(
   rooms: Room[],
   openings: WallOpening[],
-  {outer = OUTER}: {outer?: number} = {},
+  {outer = OUTER, height = WALL.height}: {outer?: number; height?: number} = {},
 ): Omit<WallPlan, 'step'> {
   // room.solid is a shaft, column or boxing: not cut out of the walls, it stays a solid mass at full height
   const insetRooms = rooms.filter(r => !r.solid).map(r => poly(offset(r.polygon, -WALL.inner)));
@@ -526,7 +542,7 @@ function buildRaw(
       if (h == null || !(h > 0)) return;
       const q = railStrip(r, i, outer);
       if (!q) return;
-      const k = r.railGlass ? KERB : Math.min(h, WALL.height);
+      const k = r.railGlass ? KERB : Math.min(h, height);
       let strips = railBy.get(k);
       if (!strips) {
         strips = [];
@@ -534,7 +550,7 @@ function buildRaw(
       }
       strips.push(q);
       if (r.railGlass) {
-        const pane = railPane(r, i, outer, h);
+        const pane = railPane(r, i, outer, h, height);
         if (pane) glassRails.push(pane);
       }
     });
@@ -586,10 +602,10 @@ function buildRaw(
   const hs = [
     ...new Set([
       0,
-      WALL.height,
+      height,
       ...ops
         .flatMap(o => [o.bottom, o.top])
-        .filter((h): h is number => h !== undefined && h > 0 && h < WALL.height),
+        .filter((h): h is number => h !== undefined && h > 0 && h < height),
     ]),
   ].sort((a, b) => a - b);
   // Height bands: each one subtracts the openings that span it.
@@ -618,6 +634,7 @@ function buildRaw(
     rails,
     glassRails,
     openingSide,
+    height,
   };
 }
 // Where a face points: the nearest of the four cardinal directions (x is east, y is north).
