@@ -227,13 +227,16 @@ function popKeys(m: HTMLElement, anchor: HTMLElement): void {
   menuKeys(m, anchor, closePop);
   focusMenuStart(m);
 }
-/** A menu item: its icon, its label, what it does and its button's classes. */
-export type PopoverItem = [icon: string, label: string, action: () => void, cls?: string];
-export function popover(anchor: HTMLElement, items: PopoverItem[]): void {
+/** A menu item: its icon, its label, what it does, its button's classes and its tooltip. */
+export type PopoverItem = [icon: string, label: string, action: () => void, cls?: string, tip?: string];
+/** align 'start': the menu's left edge at the button's (it opens over what is right of it, not over the panel the button is
+ * on); 'end' (by default): its right edge at the button's, for buttons at the screen's right. */
+export function popover(anchor: HTMLElement, items: PopoverItem[], align: 'start' | 'end' = 'end'): void {
   closePop();
   const m = el(`<div class="menu glass pop"></div>`);
-  for (const [ic, label, fn, cls] of items) {
+  for (const [ic, label, fn, cls, tip] of items) {
     const b = el(`<button class="${cls || ''}">${icon(ic)}${esc(label)}</button>`);
+    if (tip) b.title = tip;
     b.onclick = () => {
       closePop();
       fn();
@@ -243,7 +246,8 @@ export function popover(anchor: HTMLElement, items: PopoverItem[]): void {
   document.body.appendChild(m);
   pop = m;
   const r = anchor.getBoundingClientRect();
-  m.style.left = Math.max(8, Math.min(innerWidth - m.offsetWidth - 8, r.right - m.offsetWidth)) + 'px';
+  const left = align === 'start' ? r.left : r.right - m.offsetWidth;
+  m.style.left = Math.max(8, Math.min(innerWidth - m.offsetWidth - 8, left)) + 'px';
   m.style.top = Math.min(innerHeight - m.offsetHeight - 8, r.bottom + 6) + 'px';
   popKeys(m, anchor);
   const off = (e: PointerEvent): void => {

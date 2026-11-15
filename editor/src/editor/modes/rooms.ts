@@ -60,6 +60,7 @@ import {
 } from '../../core/plan.ts';
 import {setRoomArea} from '../../core/layout.ts';
 import {$, el, esc, fmtArea, popover, panelPop, closePop, popClosedAt} from '../ui.ts';
+import type {PopoverItem} from '../ui.ts';
 import {icon} from '../icons.ts';
 import {FONT, dimLabel, labelAt, pal} from '../draw.ts';
 import {openingsTool} from './openings.ts';
@@ -2063,7 +2064,8 @@ export function roomsMode(ed: Editor): RoomsMode {
       syncFin(null);
       return;
     }
-    // the selected wall menu: length (click to type it), remove the wall; thickness — under “⋯”, only if enabled in the settings
+    // the selected wall menu: “+” (a window or a door), remove the wall between rooms; under “⋯” the length, a railing and the
+    // thickness (only if enabled in the settings)
     const W = selWall();
     if (W) {
       // just “Wall” (or Railing, Room boundary): where it stands is seen on the plan and in its buttons; each finish row below says
@@ -2081,7 +2083,7 @@ export function roomsMode(ed: Editor): RoomsMode {
             `<button class="soft ctx-ic" title="${t('Enter length')}">${icon('pencil', 13)}<span>${t('{0} cm', cm(len(W.a, W.b)))}</span></button>`,
           )
         : el(`<small title="${t('Segment length')}">${t('{0} cm', cm(len(W.a, W.b)))}</small>`);
-      L.onclick = () => {
+      const askLength = (): void => {
         const [X, Y] = v().S([(W.a[0] + W.b[0]) / 2, (W.a[1] + W.b[1]) / 2]);
         ed.ask(X, Y, t('Length, cm'), cm(len(W.a, W.b)), {
           type: 'len',
@@ -2094,6 +2096,7 @@ export function roomsMode(ed: Editor): RoomsMode {
           },
         });
       };
+      L.onclick = askLength;
       const tog = el(
         `<button class="soft ${W.open ? '' : 'bad'}" title="${W.open ? t('Put the wall back') : t('Merges the two rooms')}">${W.open ? t('Restore wall') : t('Remove wall')}</button>`,
       );
@@ -2154,17 +2157,75 @@ export function roomsMode(ed: Editor): RoomsMode {
         return b;
       };
       const guided = wiz?.at === 'open';
+      // “+”: a window or a door, picked in a small menu (the owner: one button instead of two; the guided step keeps both)
+      const fits = (['window', 'door'] as const).filter(k => ops.can(W, k));
+      const add = el<HTMLButtonElement>(
+        `<button class="ib" title="${t('Add a window or door')}" aria-haspopup="menu">${icon('plus', 15)}</button>`,
+      );
+      if (!fits.length) {
+        add.disabled = true;
+        add.title = t("Doesn't fit here");
+      }
+      add.onclick = () =>
+        popover(
+          add,
+          fits.map((k): PopoverItem => {
+            const door = k === 'door';
+            const tip = door
+              ? t('Add a door where you clicked the wall')
+              : t('Add a window where you clicked the wall');
+            return [
+              door ? 'door' : 'grid',
+              door ? t('Door') : t('Window'),
+              () => ops.add(selWall()!, k),
+              '',
+              tip,
+            ];
+          }),
+          'start',
+        );
+      // “⋯”: what is rarely needed — the length, a railing instead of the wall, the thickness (when set to vary per wall)
+      const rare: PopoverItem[] = [];
+      if (whole)
+        rare.push([
+          'pencil',
+          t('Length: {0}', t('{0} cm', cm(len(W.a, W.b)))),
+          askLength,
+          '',
+          t('Enter length'),
+        ]);
+      if (!W.interior && !W.rail)
+        rare.push([
+          'wall',
+          t('Railing instead of the wall'),
+          () => rail.click(),
+          '',
+          t('Open balcony or terrace: a railing instead of the wall'),
+        ]);
+      if (each())
+        rare.push([
+          'sliders',
+          t("This wall's thickness"),
+          () => {
+            thickMore = !thickMore;
+            m.refresh();
+          },
+        ]);
+      const more = el<HTMLButtonElement>(
+        `<button class="ib ${thickMore && each() ? 'on' : ''}" title="${t('More')}" aria-haspopup="menu">${icon('more', 15)}</button>`,
+      );
+      more.onclick = () => popover(more, rare, 'start');
+      const moreIfAny = rare.length ? [more] : [];
       line.append(
         ...(W.open
           ? [tog, ...(W.interior ? [mg] : [])]
           : guided
             ? [put('window'), put('door')]
             : W.rail
-              ? [L, glass, rail]
-              : [
-                  L,
-                  ...(W.interior ? [put('door'), put('window'), tog] : [put('window'), put('door'), rail]),
-                ]),
+              ? [glass, rail, ...moreIfAny]
+              : W.interior
+                ? [add, tog, ...moreIfAny]
+                : [add, ...moreIfAny]),
       );
       const extra = guided
         ? el(`<details class="ctx-extra"><summary>${t('Finishes and dimensions')}</summary></details>`)
@@ -2177,14 +2238,6 @@ export function roomsMode(ed: Editor): RoomsMode {
         lines.push(extra);
       }
       if (each() && !W.open) {
-        const mb = el(
-          `<button class="ib ${thickMore ? 'on' : ''}" title="${t("This wall's thickness")}">${icon('more', 15)}</button>`,
-        );
-        mb.onclick = () => {
-          thickMore = !thickMore;
-          m.refresh();
-        };
-        line.append(mb);
         if (thickMore) {
           const ml = el(
             `<div class="line more"><label>${t('Thickness')}<input type="number" step="1" min="${W.interior ? 10 : 8}" max="${W.interior ? 54 : 100}" value="${cm(W.t)}"></label><small>${t('cm')}</small></div>`,
