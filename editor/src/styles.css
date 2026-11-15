@@ -84,6 +84,8 @@ input[type=range],input[type=checkbox]{accent-color:var(--acc)}
 .modes.early em{display:none}
 /* one “?” on the screen during the guided path: the step card's (D-111); the shortcuts stay in the ⋯ menu and on the ? key */
 body[data-wizard]:not([data-wizard=""]) :is(#help,.help-sep){display:none}
+/* the showcase (?show, D-116): Preview only — no file menu, no modes, no editor tools, no way back to the start screen */
+body[data-showcase] :is(#brand,#modes,#topr,#side,#help,.help-sep,.gal-back){display:none!important}
 .modes em{font-style:normal;font-size:11px;font-weight:600;padding:1px 7px;border-radius:99px;background:var(--warn-bg);color:var(--warn)}.modes em.done{background:var(--chip);color:var(--mut)}
 .topr{right:12px;top:12px;z-index:22;display:flex;align-items:center;gap:2px;padding:6px}
 .saved{display:inline-flex;align-items:center;gap:5px;color:var(--mut);font-size:12px;padding:0 8px;font-weight:500}

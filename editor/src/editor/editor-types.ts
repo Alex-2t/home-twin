@@ -547,6 +547,8 @@ export interface Editor {
   dayMode(): DayNightMode;
   /** Steps auto → day → night. */
   toggleNight(): void;
+  /** The evening a home is shown in (D-116): night, and only a couple of rooms lit (core/evening.ts). */
+  showEvening(): void;
   reducedMotion(): boolean;
   /** Preview (D-047): 3D full screen with the home panel. */
   look(): boolean;

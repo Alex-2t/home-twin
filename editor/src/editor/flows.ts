@@ -15,6 +15,7 @@ import {OUTLINE_LIVING_SHARE} from './wizard-state.ts';
 import {holdFocus, menuKeys, focusMenuStart} from './keyboard.ts';
 import {cardPicture, factsLine, fetchGallery, galleryView, homeFacts} from './gallery.ts';
 import {EXAMPLE, GALLERY_KIND} from './example-info.ts';
+import {SHOWCASE} from './showcase.ts';
 import type {ExampleInfo} from './example-info.ts';
 import type {GalleryHome, GalleryView} from './gallery.ts';
 import type {HeldFocus} from './keyboard.ts';
@@ -282,7 +283,9 @@ export function createFlows(
     const x = r?.ex ? examples.find(e => e.id === r.ex) : null;
     if (!r || (r.ex && !x) || (!r.ex && !canContinue)) {
       ed.hold = false;
-      startScreen(canContinue);
+      // the showcase has no start screen: its homes are the gallery's
+      if (SHOWCASE && examples.length) showGallery();
+      else startScreen(canContinue);
       return;
     }
     if (x && exampleOf(ed.plan) !== x) {
@@ -290,7 +293,7 @@ export function createFlows(
         reloadWith(x, coverCard(exampleHome(x)));
         return;
       }
-      await openExample(x, r.page);
+      await openExample(x, SHOWCASE ? 'preview' : r.page);
       return;
     }
     // your plan's page while an example is open (Back from it): your plan comes back from the backup slot
@@ -300,7 +303,9 @@ export function createFlows(
       ed.update();
     } // the example in the address is the plan already open (a reload): it stays as it is
     $('start').hidden = true;
-    setPage(r.page);
+    // the showcase is Preview only, in the evening (D-116)
+    setPage(SHOWCASE ? 'preview' : r.page);
+    if (SHOWCASE) ed.showEvening();
     coverDown();
   }
   // an address from outside: once its page is open, the address is written as it is now (a wrong one is cleaned, a refused mode corrected)
@@ -585,9 +590,11 @@ export function createFlows(
       ed.mode.refresh?.();
       ed.fit();
       setPage(page);
+      // the showcase presents every home in the evening (D-116)
+      if (SHOWCASE) ed.showEvening();
       // a home is most often opened “just to look” — say right away that your own plan is safe
       // shown in “Preview” too: the home opens in it
-      if (kept)
+      if (kept && !SHOWCASE)
         ed.banner(
           t('“{0}” is open. Your plan is saved.', name),
           [

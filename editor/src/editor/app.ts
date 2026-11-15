@@ -44,6 +44,9 @@ import type {NudgeBurst, ScreenAxes} from './nudge.ts';
 import {createCoach} from './coach.ts';
 import {createViewDemo} from './view-demo.ts';
 import {createLook} from './look.ts';
+import {SHOWCASE} from './showcase.ts';
+import {eveningRooms} from '../core/evening.ts';
+import {NOT_ADMIN_CSS} from '../look/roles.ts';
 import {liveScene} from '../core/devices.ts';
 import {planWalls, planFurniture, planSpots} from '../core/plan-scene.ts';
 import {createPath, fitProgressLine} from './wizard-path.ts';
@@ -64,7 +67,7 @@ import {stepReadyToFinish, areaOnPlan, lampWaits} from './wizard-state.ts';
 import {LANGS, getLang} from '../i18n/i18n.ts';
 import {readMode, saveMode, nextMode, isNight, tipWanted, onModeChange} from '../core/daynight.ts';
 import {dayNightTip} from './daynight-tip.ts';
-import type {HaLayer, Lang, Plan, PlanLight, Point, UiState} from '../core/types.ts';
+import type {DayNightMode, HaLayer, Lang, Plan, PlanLight, Point, UiState} from '../core/types.ts';
 
 /** Safari's trackpad gesture: the two fingers' rotation in degrees and the pinch's scale. */
 interface GestureEvent extends UIEvent {
@@ -1164,6 +1167,13 @@ export function createApp({haLights, ha, photos}: AppOptions): Editor {
   // “Preview” (D-047, look.js): 3D full screen, the home panel on the right; no plan and no small window, the ui layout does not change
   let look = false;
   const lookUI = createLook(ed, work);
+  // the showcase (?show): the home panel offers nothing that changes the plan, and the editor's tools are hidden (styles.css)
+  if (SHOWCASE) {
+    const notAdmin = document.createElement('style');
+    notAdmin.textContent = NOT_ADMIN_CSS;
+    $('look').shadowRoot?.append(notAdmin);
+    document.body.dataset.showcase = 'on';
+  }
   // “Bare” (the AI build's review, ai-review.js): one view alone, 'plan' or '3d', full screen, without the editor's tools; the
   // review's own panel covers bareRight pixels on the right (bareBottom at the bottom on a phone). The ui layout does not change.
   let bare: Pane | null = null;
@@ -2355,6 +2365,8 @@ export function createApp({haLights, ha, photos}: AppOptions): Editor {
   ed.setLook = v => {
     v = !!v;
     if (v === look) return;
+    // the showcase is Preview only
+    if (SHOWCASE && !v) return;
     if (v) {
       if (ed.modes.lights.guardLeave?.(() => ed.setLook(true))) return;
       ed.cancelDrag?.();
@@ -2619,7 +2631,8 @@ export function createApp({haLights, ha, photos}: AppOptions): Editor {
   // always night (core/daynight.js). The button steps auto → day → night; the label says the mode, the icon what is shown now.
   // The sun: ha.sunDown (sun.sun in HA, the weather profile in the demo), checked on HA changes and once a minute (the demo has no sun events)
   let night: boolean | null = null;
-  let dayMode = readMode();
+  // the showcase opens at night (the evening, D-116), and a viewer's choice there is not kept for the editor
+  let dayMode: DayNightMode = SHOWCASE ? 'night' : readMode();
   const dnButtons = (): void => {
     const label = dayMode === 'auto' ? t('Auto') : night ? t('Night') : t('Day');
     const title = t('Day / night') + ': ' + label;
@@ -2645,8 +2658,21 @@ export function createApp({haLights, ha, photos}: AppOptions): Editor {
   ed.dayMode = () => dayMode;
   ed.toggleNight = () => {
     dayMode = nextMode(dayMode);
-    saveMode(dayMode);
+    if (!SHOWCASE) saveMode(dayMode);
     showNight(true);
+  };
+  // The evening a home is shown in (D-116): night for now (not kept), and only the lamps of a couple of rooms on. In the demo a
+  // lamp's state is the plan's (ha.ts), so the home panel and the 3D see the same.
+  ed.showEvening = () => {
+    const lit = eveningRooms(ed.plan.rooms, ed.plan.lights);
+    for (const lamp of ed.plan.lights) {
+      const on = !!lamp.room && lit.has(lamp.room);
+      lamp.on = on;
+      ed.view.setLightOn(lamp.id, on);
+    }
+    dayMode = 'night';
+    showNight(true);
+    if (look) lookUI.refresh();
   };
   $('daynight').onclick = $('daynight-pip').onclick = e => {
     e.stopPropagation();
