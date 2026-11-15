@@ -13,6 +13,8 @@ import {axisCursor} from './drag-gesture.ts';
 import {routeHash} from './route.ts';
 import {OUTLINE_LIVING_SHARE} from './wizard-state.ts';
 import {holdFocus, menuKeys, focusMenuStart} from './keyboard.ts';
+import {cardPicture, factsLine, fetchGallery, galleryView, homeFacts} from './gallery.ts';
+import type {GalleryHome, GalleryKind, GalleryView} from './gallery.ts';
 import type {HeldFocus} from './keyboard.ts';
 import type {Outline, Plan, PlanInput, Point, Room, UnderlayPlace} from '../core/types.ts';
 import type {Underlay} from './underlay.ts';
@@ -25,11 +27,12 @@ interface ExamplePhoto {
   match: [Point, Point, Point, Point];
 }
 
-/** A start screen example (main.ts): its id, its plan and its plan photo (none: null). */
+/** A start screen example (main.ts): its id, its plan, its plan photo (none: null) and its 3D render (D-113; none: null). */
 export interface FlowsExample {
   id: string;
   plan: PlanInput;
   underlay?: unknown;
+  render?: string | null;
 }
 
 /** An example whose plan has its rooms, as every generated example has. */
@@ -40,6 +43,8 @@ export interface FlowsOptions {
   /** The example whose HA data are loaded; null: none. */
   example?: string | null;
   router?: Router | null;
+  /** The address of the list of homes the server publishes for the gallery (D-113); none: the examples alone. */
+  gallery?: string | null;
 }
 
 /** How an example is called on its card and which group it is in. */
@@ -104,7 +109,18 @@ const EXAMPLE: Record<string, ExampleInfo> = {
 };
 // The start screen's row of examples (D-111): a designer interior, three apartments of different sizes, a house
 const FEATURED_EXAMPLES: string[] = ['loft', 'studio', 'family', 'altbau', 'house'];
-const OUTDOOR = /балкон|лодж|террас|сад|balcon|terra|patio|garden|porch/i; // not counted in the example's area
+// An example's group as the gallery's filter chips name it (D-113).
+const GALLERY_KIND: Record<ExampleInfo['kind'], GalleryKind> = {
+  flat: 'apartment',
+  style: 'designer',
+  house: 'house',
+};
+// Homes opened from the gallery that are not examples (D-113): their rooms' fingerprints, so playing with one is not taken
+// for your own work (the backup slot below), as with an example. A few dozen at most.
+const PUBLISHED_OPENED = 'home-twin-editor:gallery-opened';
+const PUBLISHED_OPENED_MAX = 40;
+// How long a published home's plan is waited for.
+const PUBLISHED_PLAN_TIMEOUT_MS = 20000;
 // a small outline of the rooms for an example's card (north up)
 function planThumb(plan: Pick<Plan, 'rooms'>): string {
   const P = plan.rooms.map(r => r.polygon);
@@ -122,7 +138,7 @@ function planThumb(plan: Pick<Plan, 'rooms'>): string {
 // router — the address (route.js, D-066): hashRouter in the standalone editor, haRouter in the HA panel; absent — the address is not used
 export function createFlows(
   ed: Editor,
-  {examples: givenExamples = [], example = null, router = null}: FlowsOptions,
+  {examples: givenExamples = [], example = null, router = null, gallery = null}: FlowsOptions,
 ): EditorFlows {
   // the generated examples' plans always have their rooms
   const examples = givenExamples as RoomedExample[];
@@ -174,9 +190,12 @@ export function createFlows(
   // ---------- start screen ----------
   // the first call is the start of the editor: the page in the address opens instead, if there is one
   let started = false;
+  // whether the start screen offers "Continue" when the gallery goes back to it: as last shown, at first as boot.ts said
+  let startCanContinue = true;
   f.showStart = ({canContinue}) => {
     if (!started) {
       started = true;
+      startCanContinue = canContinue;
       go(r0, {canContinue}).finally(() => {
         quiet--;
         writeRoute(false);
@@ -189,7 +208,9 @@ export function createFlows(
   // and a keyboard user lands on its first choice.
   let startHeld: HeldFocus | null = null;
   const startScreen = (canContinue: boolean): void => {
+    startCanContinue = canContinue;
     coverDown();
+    hideGallery();
     const box = $('start');
     box.hidden = false;
     find(box, '[data-a=continue]').hidden = !canContinue;
@@ -198,10 +219,12 @@ export function createFlows(
     startHeld?.release();
     startHeld = holdFocus(box);
   };
+  // a plan opens: the start screen and the gallery go
   const hideStart = (): void => {
     $('start').hidden = true;
     startHeld?.release();
     startHeld = null;
+    hideGallery();
     f.syncRoute();
   };
   f.hideStart = hideStart;
@@ -230,10 +253,11 @@ export function createFlows(
   let queued = false;
   let shown: string | undefined = routeHash(r0);
   let leaving = false;
-  const routeNow = (): Route | null =>
-    $('start').hidden
-      ? {ex: exampleOf(ed.plan)?.id || null, page: ed.look?.() ? 'preview' : PAGE[ed.mode.id] || 'plan'}
-      : null;
+  const routeNow = (): Route | null => {
+    if (!galleryBox.hidden) return {ex: null, page: 'gallery'};
+    if (!$('start').hidden) return null;
+    return {ex: exampleOf(ed.plan)?.id || null, page: ed.look?.() ? 'preview' : PAGE[ed.mode.id] || 'plan'};
+  };
   const pageOf = (h: string): string => h.replace(/^#\/example\/[\w-]+/, '#') || 'start';
   function writeRoute(push: boolean | null = null): void {
     queued = false;
@@ -261,9 +285,8 @@ export function createFlows(
   };
   // another example than the one whose HA data are loaded: the page reloads with it (main.js reads the address)
   // (the address already names it; under its card from the start screen)
-  const reloadWith = (x: FlowsExample): void => {
+  const reloadWith = (x: FlowsExample, card: string): void => {
     leaving = true;
-    const card = $('start').querySelector(`.ex[data-ex="${x.id}"]`)?.innerHTML;
     if (card) {
       coverUp(card);
       try {
@@ -277,6 +300,13 @@ export function createFlows(
   };
   // the address → the page: at the start, after Back / Forward, a typed or followed link
   async function go(r: Route | null, {canContinue = true}: {canContinue?: boolean} = {}): Promise<void> {
+    // the gallery (D-113): only where there are examples (not in Home Assistant)
+    if (r?.page === 'gallery') {
+      ed.hold = false;
+      if (examples.length) showGallery();
+      else startScreen(canContinue);
+      return;
+    }
     const x = r?.ex ? examples.find(e => e.id === r.ex) : null;
     if (!r || (r.ex && !x) || (!r.ex && !canContinue)) {
       ed.hold = false;
@@ -285,7 +315,7 @@ export function createFlows(
     }
     if (x && exampleOf(ed.plan) !== x) {
       if (x.id !== example) {
-        reloadWith(x);
+        reloadWith(x, coverCard(exampleHome(x)));
         return;
       }
       await openExample(x, r.page);
@@ -391,85 +421,171 @@ export function createFlows(
     ed.step(DRAW_RECT, [], ed.aim.photo);
   };
   // ---------- examples (D-062): a click opens the home with its demo HA data ----------
-  // The start screen shows one even row of them (D-111), the main choices above stay first; “All examples” opens the full
-  // list in its groups (designer interiors, apartments, houses).
+  // The start screen shows one even row of them (D-111) with their 3D renders (D-113), the main choices above stay first;
+  // “All examples” opens the gallery, a page of its own.
   // Each example has its own lights, sensors and devices: another one than the loaded one — the page reloads with it (main.js) and opens it
+  const exampleInfo = (x: FlowsExample): ExampleInfo => EXAMPLE[x.id] || {name: x.id, kind: 'flat'};
+  // an example as a card of the start screen and the gallery: its name, render, area and rooms
+  function exampleHome(x: RoomedExample): GalleryHome {
+    const info = exampleInfo(x);
+    const facts = homeFacts(x.plan.rooms);
+    return {
+      id: x.id,
+      name: t(info.name),
+      note: info.note ? t(info.note) : undefined,
+      area: facts.area,
+      rooms: facts.rooms,
+      kind: GALLERY_KIND[info.kind],
+      aiBuilt: false,
+      render: x.render || null,
+      outline: planThumb(x.plan),
+    };
+  }
+  // what the loading cover shows while a home opens: the picture, the name and the facts (shell.html keeps it over a reload)
+  function coverCard(home: GalleryHome): string {
+    return `${cardPicture(home)}<b>${esc(home.name)}</b><span>${esc(factsLine(home))}</span>`;
+  }
+  // an example chosen: open it, or reload with its HA data under its card
+  const pickExample = (x: RoomedExample): void => {
+    const card = coverCard(exampleHome(x));
+    coverUp(card);
+    if (x.id === example) {
+      openExample(x);
+      return;
+    }
+    // another example's HA data: its address, then the page reloads with it
+    const r: Route = {ex: x.id, page: 'preview'};
+    router?.write(r, true);
+    shown = routeHash(r);
+    reloadWith(x, card);
+  };
   {
     const box = find($('start'), '.examples');
     box.hidden = !examples.length;
     const tile = (x: RoomedExample): HTMLElement => {
-      const info = EXAMPLE[x.id] || {name: x.id, kind: 'flat'};
-      const m2 = x.plan.rooms
-        .filter(r => !OUTDOOR.test(r.name + ' ' + r.id))
-        .reduce((s, r) => s + Math.abs(area(r.polygon)), 0);
+      const home = exampleHome(x);
       const b = el(
-        `<button class="ex glass" data-ex="${esc(x.id)}">${planThumb(x.plan)}<b></b><span></span></button>`,
+        `<button class="ex glass" data-ex="${esc(x.id)}"><span class="ex-pic">${cardPicture(home)}</span><b></b><span class="ex-facts"></span></button>`,
       );
-      const name = t(info.name);
-      find(b, 'b').textContent = name;
-      find(b, 'span').textContent = num(m2, 0) + t(' m²') + (info.note ? ' · ' + t(info.note) : '');
-      b.title = name; // the name is on one line, cut short where it is long
-      b.onclick = () => {
-        coverUp(b.innerHTML);
-        if (x.id === example) {
-          openExample(x);
-          return;
-        }
-        // another example's HA data: its address, then the page reloads with it
-        const r: Route = {ex: x.id, page: 'preview'};
-        router?.write(r, true);
-        shown = routeHash(r);
-        reloadWith(x);
-      };
+      find(b, 'b').textContent = home.name;
+      // the row is narrow: the area and the note, the rooms are on the gallery's cards
+      find(b, '.ex-facts').textContent = factsLine({...home, rooms: 0});
+      b.title = home.name; // the name is on one line, cut short where it is long
+      b.onclick = () => pickExample(x);
       return b;
     };
-    for (const x of examples) {
-      const kind = (EXAMPLE[x.id] || {kind: 'flat'}).kind;
-      find(box, `.ex-list[data-kind=${kind}]`).append(tile(x));
-    }
-    box.querySelectorAll<HTMLElement>('.ex-group').forEach(g => (g.hidden = !g.querySelector('.ex')));
     // the row: the chosen ones (a designer interior, apartments of different sizes, a house), filled up with the others in their
     // order where one is missing, five at most
     const featured = find(box, '.ex-featured');
     const chosen = FEATURED_EXAMPLES.map(id => examples.find(e => e.id === id)).filter(x => x !== undefined);
     const others = examples.filter(x => !chosen.includes(x));
     for (const x of [...chosen, ...others].slice(0, FEATURED_EXAMPLES.length)) featured.append(tile(x));
-    const groups = find(box, '.ex-groups');
-    const all = find<HTMLButtonElement>(box, '.ex-all');
-    all.hidden = examples.length <= featured.children.length;
-    all.onclick = () => {
-      const open = groups.hidden;
-      groups.hidden = !open;
-      featured.hidden = open;
-      all.setAttribute('aria-expanded', String(open));
-      all.textContent = open ? t('Fewer examples') : t('All examples');
-    };
+    find(box, '.ex-all').onclick = () => showGallery();
   }
-  // “← Examples” by the file menu while an example is open: back to the start screen, at the examples
+
+  // ---------- the gallery (D-113): every example and the homes the server publishes, as large cards ----------
+  // A page of its own over the editor, as the start screen is (#/gallery). A published home opens as an example does: a copy
+  // in this browser, the gallery's file never changes. Its list is asked for once, when the gallery is first shown.
+  const galleryBox = $('gallery');
+  const galleryError = find(galleryBox, '.gal-error');
+  let galleryHeld: HeldFocus | null = null;
+  let galleryCards: GalleryView | null = null;
+  let published: Promise<GalleryHome[]> | null = null;
+  function showGallery(): void {
+    if (!galleryCards) {
+      galleryCards = galleryView(galleryBox, openFromGallery);
+      galleryCards.list(examples.map(exampleHome));
+    }
+    published ??= gallery ? fetchGallery(gallery) : Promise.resolve([]);
+    published.then(homes => galleryCards?.list(homes));
+    coverDown();
+    $('start').hidden = true;
+    startHeld?.release();
+    startHeld = null;
+    galleryError.hidden = true;
+    galleryBox.hidden = false;
+    galleryHeld?.release();
+    galleryHeld = holdFocus(galleryBox, {onEscape: () => startScreen(startCanContinue)});
+    f.syncRoute();
+  }
+  function hideGallery(): void {
+    galleryBox.hidden = true;
+    galleryHeld?.release();
+    galleryHeld = null;
+  }
+  find(galleryBox, '.gal-back').onclick = () => startScreen(startCanContinue);
+  function openFromGallery(home: GalleryHome): void {
+    const x = home.plan ? null : examples.find(e => e.id === home.id);
+    if (x) pickExample(x);
+    else openPublished(home);
+  }
+  // A published home: its plan fetched and checked as a file is, then opened in Preview as an example is. One that cannot
+  // be had leaves the gallery up with a line saying so.
+  async function openPublished(home: GalleryHome): Promise<void> {
+    coverUp(coverCard(home));
+    let plan: Plan;
+    try {
+      // a published home always has its plan's address (gallery.ts parseGalleryIndex)
+      const answer = await fetch(home.plan!, {signal: AbortSignal.timeout(PUBLISHED_PLAN_TIMEOUT_MS)});
+      if (!answer.ok) throw new Error(answer.statusText);
+      plan = readPlan(await answer.text());
+    } catch {
+      cover.hidden = true;
+      ed.view.resume?.();
+      galleryError.textContent = t("Couldn't open this home. Try again later.");
+      galleryError.hidden = false;
+      // the focus stays in the gallery (Escape, Tab)
+      if (!galleryBox.contains(document.activeElement)) galleryBox.focus({preventScroll: true});
+      return;
+    }
+    // a new project of its own in this browser
+    delete plan.id;
+    plan.name = home.name;
+    rememberPublished(plan);
+    await openPlan({plan, name: home.name, underlay: null}, 'preview');
+  }
+
+  // “← Examples” by the file menu while an example or a published home is open: back to the start screen at the examples,
+  // or to the gallery the published home came from
   const back = $('to-examples');
   back.onclick = () => {
+    if (!exampleOf(ed.plan) && isPublished(ed.plan)) {
+      showGallery();
+      return;
+    }
     f.showStart({canContinue: true});
     find($('start'), '.examples').scrollIntoView({block: 'center'});
   };
   f.syncExample = () => {
-    back.hidden = !examples.length || !exampleOf(ed.plan);
+    back.hidden = !examples.length || !isPlaything(ed.plan);
     f.syncRoute();
   };
   // page — where it opens: Preview (the finished home first; “Plan” and the other modes are a click away) or the page in the address
-  async function openExample(x: FlowsExample, page: RoutePage = 'preview'): Promise<void> {
+  function openExample(x: FlowsExample, page: RoutePage = 'preview'): Promise<void> {
+    const plan = structuredClone(x.plan);
+    const name = t(EXAMPLE[x.id]?.name || x.id);
+    // the example's own plan photo (build.ts)
+    const underlay = x.underlay as ExamplePhoto | null | undefined;
+    return openPlan({plan, name, underlay}, page);
+  }
+  // A home to look at (an example, a published home): the plan open now is kept aside, the home opens in the page given
+  async function openPlan(
+    home: {plan: PlanInput; name: string; underlay?: ExamplePhoto | null},
+    page: RoutePage,
+  ): Promise<void> {
     quiet++;
     try {
       const kept = await keepPrev();
       hideStart();
       ed.banner();
-      const plan = structuredClone(x.plan);
-      const name = t(EXAMPLE[x.id]?.name || x.id);
+      const plan = home.plan;
+      const name = home.name;
       plan.name ??= name;
       ed.hold = false;
       ed.setPlan(plan, {fit: false});
       ed.setMode('rooms');
       ed.setTool('select');
-      const u = x.underlay as ExamplePhoto | null | undefined; // the example's own plan photo (build.ts)
+      const u = home.underlay;
       if (u) {
         await ed.underlay.set(u.src, {place: () => ed.underlay.match(...u.match)});
         ed.underlay.opacity = 0.5;
@@ -479,8 +595,8 @@ export function createFlows(
       ed.mode.refresh?.();
       ed.fit();
       setPage(page);
-      // an example is most often opened “just to look” — say right away that your own plan is safe
-      // shown in “Preview” too: the example opens in it
+      // a home is most often opened “just to look” — say right away that your own plan is safe
+      // shown in “Preview” too: the home opens in it
       if (kept)
         ed.banner(
           t('“{0}” is open. Your plan is saved.', name),
@@ -523,7 +639,40 @@ export function createFlows(
   const exampleOf = (p: Pick<Plan, 'rooms'>): RoomedExample | null =>
     examples[exKeys.indexOf(roomsKey(p))] || null;
   const isDemo = (p: Pick<Plan, 'rooms'>): boolean => !!exampleOf(p);
-  const worth = (): boolean => (ed.plan.rooms.length > 0 || ed.underlay.ready) && !isDemo(ed.plan);
+  // A home opened from the gallery that is not an example (D-113) is played with the same way while its rooms are as
+  // published: its rooms' fingerprint is kept (PUBLISHED_OPENED). It is not an example otherwise: it has no address of its
+  // own, and Back does not swap it for your plan.
+  function fingerprint(p: Pick<Plan, 'rooms'>): string {
+    const text = roomsKey(p);
+    let hash = 0x811c9dc5; // FNV-1a, 32 bits
+    for (let i = 0; i < text.length; i++) {
+      hash ^= text.charCodeAt(i);
+      hash = Math.imul(hash, 0x01000193) >>> 0;
+    }
+    return hash.toString(36) + '.' + text.length.toString(36);
+  }
+  function openedPublished(): string[] {
+    try {
+      // what rememberPublished wrote in this browser: a list of strings
+      const list: unknown = JSON.parse(localStorage.getItem(PUBLISHED_OPENED) || '[]');
+      return Array.isArray(list) ? list.filter(key => typeof key === 'string') : [];
+    } catch {
+      return [];
+    }
+  }
+  function rememberPublished(p: Pick<Plan, 'rooms'>): void {
+    const key = fingerprint(p);
+    const others = openedPublished().filter(other => other !== key);
+    const list = [key, ...others].slice(0, PUBLISHED_OPENED_MAX);
+    try {
+      localStorage.setItem(PUBLISHED_OPENED, JSON.stringify(list));
+    } catch {}
+  }
+  function isPublished(p: Pick<Plan, 'rooms'>): boolean {
+    return p.rooms.length > 0 && openedPublished().includes(fingerprint(p));
+  }
+  const isPlaything = (p: Pick<Plan, 'rooms'>): boolean => isDemo(p) || isPublished(p);
+  const worth = (): boolean => (ed.plan.rooms.length > 0 || ed.underlay.ready) && !isPlaything(ed.plan);
   // a ready photo is placed: a and b are there
   const photoOf = (u: Underlay): UnderlayPlace | null =>
     u.ready ? {a: [...u.a!], b: [...u.b!], opacity: u.opacity, visible: u.visible} : null;

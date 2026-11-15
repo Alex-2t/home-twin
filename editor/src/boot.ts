@@ -3,6 +3,7 @@
 //   ha     — the HA layer (editor/ha.js: mockHA or ha-live.js)
 //   examples — the start screen's examples [{id, plan, underlay}] and example — the one whose HA data are loaded (D-062); absent (in HA) — none
 //   router — the address: the page that is open (editor/route.js, D-066); absent — not used
+//   gallery — the address of the list of homes the server publishes for the gallery (D-113); absent — the examples alone
 //   plans  — where else the plan is stored: {load(local) → Promise<{plan, rev}>, save(plan)}; absent — browser only
 //   photos — where the plan photo is kept (underlay.js: browserPhotos — the default, ha-live.js: hassPhotos)
 //   onApp(ed) — right after the editor is created, before the first plan
@@ -19,11 +20,12 @@ import type {Router} from './editor/route.ts';
 import type {HaLayer, Plan, PlanInput, PlanLight} from './core/types.ts';
 import type {Editor, EditorFlows} from './editor/editor-types.ts';
 
-/** A start screen example (D-062): its id, its plan and its plan photo (null: none). */
+/** A start screen example (D-062): its id, its plan, its plan photo (null: none) and its 3D render (D-113; null: none). */
 export interface StartExample {
   id: string;
   plan: PlanInput;
   underlay: unknown;
+  render?: string | null;
 }
 
 /**
@@ -41,6 +43,7 @@ export interface BootOptions {
   examples?: StartExample[];
   example?: string | null;
   router?: Router | null;
+  gallery?: string | null;
   plans?: PlanStore | null;
   photos?: PhotoStore;
   onApp?: ((ed: Editor) => void) | null;
@@ -59,6 +62,7 @@ export async function boot({
   examples = [],
   example = null,
   router = null,
+  gallery = null,
   plans = null,
   photos = undefined,
   onApp = null,
@@ -68,7 +72,7 @@ export async function boot({
   translateDom(document.body); // static markup — in the user's language
   const ed = createApp({haLights, ha, photos});
   onApp?.(ed);
-  const flows = createFlows(ed, {examples, example, router});
+  const flows = createFlows(ed, {examples, example, router, gallery});
   ed.flows = flows;
   await loadKenney(MODELS);
   ed.thumbs = thumbnails();

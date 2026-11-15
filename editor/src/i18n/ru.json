@@ -1246,7 +1246,6 @@
  "Click for auto, by the sun.": "Нажмите — авто, по солнцу.",
  "Colorful bins": "Цветные ящики",
  "decor tabletop books vase candles fruit bowl ornament styling shelf sideboard": "декор настольный книги ваза свечи фрукты чаша безделушки стайлинг полка комод",
- "Designer interiors": "Дизайнерские интерьеры",
  "Detached house": "Частный дом",
  "Digital": "Цифровое",
  "Don't show again": "Больше не показывать",
@@ -1642,5 +1641,8 @@
  "Current package": "Текущий пакет",
  "Your package": "Ваш пакет",
  "All examples": "Все примеры",
- "Fewer examples": "Меньше примеров"
+ "Built by AI": "Создано ИИ",
+ "Designer": "Дизайнерские",
+ "Open any home to look around. You edit your own copy.": "Откройте любой дом и осмотритесь — меняется только ваша копия.",
+ "Couldn't open this home. Try again later.": "Не удалось открыть этот дом. Попробуйте позже."
 }

@@ -2,7 +2,7 @@
 // The demo apartment is embedded into src/gen/ (in .gitignore): demo/own.ts is the owner's apartment, local only (.gitignore), and it
 // is used if the file exists; otherwise demo/typical.ts, the typical three-room apartment from the repository. --demo=<name> takes
 // demo/<name>.ts instead (--demo=typical, --demo=homes/studio). The ten typical homes (demo/homes.ts, D-030) go in too: the start
-// screen's examples (D-062).
+// screen's examples (D-062), each with its 3D render from assets/renders/ (D-113).
 // Each generated module gets a .d.ts beside it, in the shared types, so the typed code can import it (D-087).
 import fs from 'node:fs';
 import crypto from 'node:crypto';
@@ -54,13 +54,19 @@ async function genDemo(): Promise<void> {
   );
   console.log('demo:', demoName);
   const {HOMES} = await import('./demo/homes.ts');
+  // each example's 3D render for its card (D-113; tools/render-examples.ts makes them): a WebP data URL, none while missing
+  const exampleRender = (id: string): string | undefined => {
+    const file = `assets/renders/${id}.webp`;
+    if (!fs.existsSync(file)) return undefined;
+    return 'data:image/webp;base64,' + fs.readFileSync(file).toString('base64');
+  };
   // a home whose module fails to load (being written) is left out with a warning, the build goes on
   const examples: ExampleHome[] = (
     await Promise.all(
       HOMES.map(async (h): Promise<ExampleHome | null> => {
         try {
           const d = await h.load();
-          return {id: h.id, HA: d.HA, DEMO: d.DEMO};
+          return {id: h.id, HA: d.HA, DEMO: d.DEMO, render: exampleRender(h.id)};
         } catch (e) {
           // a module that cannot be loaded or run throws an Error
           console.warn('example left out:', h.id, '—', (e as Error).message.split('\n')[0]);

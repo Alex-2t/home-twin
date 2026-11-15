@@ -10,10 +10,13 @@ npm install
 npm run build          # → dist/index.html, a single file
 npm run dev            # rebuilds on every change (the demo homes in demo/ too) and serves http://localhost:8766/
 npm test               # core tests (node --test)
+node tools/render-examples.ts [--only loft]   # the examples' 3D renders for their cards → assets/renders/ (headless Chrome)
 ```
 The demo apartment (the start screen of the standalone editor; not included in the HA dashboard) is a module in `demo/`: `typical.ts` is an invented typical three-room apartment from the repository, `own.ts` is the owner's apartment from the neighboring `3d_floor`, local only (`.gitignore`); the build uses `own.ts` if it exists, and `node build.ts --demo=typical` picks the typical one explicitly (any module in `demo/` works: `--demo=homes/studio`). Everything shared by the demo (sensors, devices, statistics, weather) is in `demo/kit.ts`. Build output goes to `src/gen/` and `dist/` (both in `.gitignore`).
 
 The ten typical homes (D-030, [typical-homes.md](../docs/research/typical-homes.md)) are reference plans with their own HA data: the list is `demo/homes.ts`, the modules are in `demo/homes/` (home 5 is `typical.ts`); houses are the ground floor for now. `src/core/homes.test.js` (part of `npm test`) runs each through the editor's own code: rooms, openings and walls, furniture conflicts, then the wizard's steps — areas, “Auto-place” lights, suggested sensors, devices. With three designer interiors (loft, minimalist, Japandi) they are the start screen's examples (D-062): a click opens the home with its own HA data; each is finished in a style (`demo/kit.ts`: STYLES, or the module's own `STYLE` and room finishes) and furnished like a designer interior, every light placed (D-064).
+
+Each example's card shows a 3D render of it (D-113): `assets/renders/<id>.webp`, 640 × 400, made by `node tools/render-examples.ts` with the same camera as the AI build's pictures; run it again after an example changes. “All examples” opens the gallery (`#/gallery`, `src/editor/gallery.ts`): the examples and, in the standalone editor, the AI-built homes the server publishes beside the page at `gallery/index.json` (not in this repository; where there is none, the examples alone). To see some locally, serve `dist/index.html` with a `gallery/` folder beside it.
 
 ## Saving and files
 
@@ -48,6 +51,7 @@ src/editor/          editor UI
   icons.js           Lucide icons
   underlay.js        underlay (image in IndexedDB, position in localStorage)
   flows.js           start screen, “upload a plan” wizard, file and settings menus
+  gallery.ts         the gallery of homes (D-113): the server's list read safely, the cards' facts, the page with its filter chips
   keyboard.ts        the keyboard alone (D-096): dialogs that hold the focus and give it back, menus' keys, long lists as one Tab stop, which input came last
   ai-build.js        the AI build: the start card, upload, progress as it goes; ai-review.js — the review with pins and their photos; ai-pins.js — what a pin is on and carries (D-073, D-074, D-076)
   ai-estimate.ts     what a build or a round of pins will about take, asked of the service before it starts: percent of a package, a warning when it is more than what is left (D-094)

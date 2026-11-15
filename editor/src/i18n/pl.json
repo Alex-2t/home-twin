@@ -1246,7 +1246,6 @@
  "Click for auto, by the sun.": "Kliknij: auto, według słońca.",
  "Colorful bins": "Kolorowe pojemniki",
  "decor tabletop books vase candles fruit bowl ornament styling shelf sideboard": "dekoracje stół książki wazon świece owoce misa ozdoba stylizacja półka komoda",
- "Designer interiors": "Wnętrza projektowe",
  "Detached house": "Dom jednorodzinny",
  "Digital": "Cyfrowe",
  "Don't show again": "Nie pokazuj ponownie",
@@ -1642,5 +1641,8 @@
  "Current package": "Bieżący pakiet",
  "Your package": "Twój pakiet",
  "All examples": "Wszystkie przykłady",
- "Fewer examples": "Mniej przykładów"
+ "Built by AI": "Zbudowane przez AI",
+ "Designer": "Projektowe",
+ "Open any home to look around. You edit your own copy.": "Otwórz dowolny dom i rozejrzyj się. Edytujesz własną kopię.",
+ "Couldn't open this home. Try again later.": "Nie udało się otworzyć tego domu. Spróbuj później."
 }

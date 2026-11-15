@@ -310,20 +310,63 @@ body[data-main="3d"]:not([data-mode=lights]) .tools{display:none}
 .start-box{width:min(780px,92vw);text-align:center}.start h1{font-size:30px;letter-spacing:-.02em;margin:0 0 8px}.start p{color:var(--mut);margin:0 0 16px;font-size:15px}
 .choices{display:grid;grid-template-columns:repeat(2,1fr);gap:12px}
 .choices .choice{display:grid;grid-template-columns:auto 1fr;column-gap:14px;row-gap:2px;align-items:center;padding:14px 16px}.choices .choice .ci{grid-row:span 2;margin:0}
-/* the start screen's examples (D-062): one even row under the main choices (D-111), “All examples” opens them in their groups;
-   tiles of one height with a small outline of the rooms, the name on one line */
-.examples{margin-top:18px;text-align:left}.examples[hidden],.ex-group[hidden],.ex-groups[hidden],.ex-list[hidden]{display:none}
+/* the start screen's examples (D-062): one even row under the main choices (D-111), each a 3D render of the home (D-113) with
+   its name on one line; “All examples” opens the gallery */
+.examples{margin-top:18px;text-align:left}.examples[hidden]{display:none}
 .ex-head{display:flex;align-items:center;justify-content:space-between;gap:12px;margin:0 2px 8px}
 .ex-title{color:var(--mut);font-size:13px;font-weight:600}
-.ex-all{height:26px;padding:0 8px;margin-right:-8px;font-size:12.5px;font-weight:600;color:var(--acc)}.ex-all:hover{background:var(--acc2)}
-.ex-kind{display:block;color:var(--mut);font-size:11.5px;margin:10px 2px 6px}.ex-group:first-child .ex-kind{margin-top:0}
+.ex-all{height:26px;padding:0 4px 0 8px;margin-right:-4px;gap:2px;font-size:12.5px;font-weight:600;color:var(--acc)}.ex-all:hover{background:var(--acc2)}
 .ex-list{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:8px}
-.ex{min-width:0;display:flex;flex-direction:column;align-items:flex-start;gap:1px;text-align:left;height:auto;padding:8px 11px;border-radius:12px;white-space:normal;font-weight:400}
-.ex svg{width:100%;height:28px;margin-bottom:6px}.ex path{fill:color-mix(in srgb,var(--acc) 13%,transparent);stroke:color-mix(in srgb,var(--acc) 70%,var(--tx));stroke-width:1;vector-effect:non-scaling-stroke;stroke-linejoin:round}
-.ex b,.ex span{max-width:100%;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.ex b{font-size:12.5px;font-weight:600;line-height:1.3}.ex span{color:var(--mut);font-size:11.5px;line-height:1.3}
-.ex:hover{background:var(--panel-solid);border-color:var(--acc)}.ex:hover path{fill:color-mix(in srgb,var(--acc) 22%,transparent)}
+.ex{min-width:0;display:flex;flex-direction:column;align-items:stretch;gap:1px;text-align:left;height:auto;padding:0 0 8px;border-radius:12px;overflow:hidden;white-space:normal;font-weight:400}
+/* the render: its own dark backdrop in both themes, as a photo; a home without one shows the outline of its rooms */
+.ex-pic,.gcard-pic{display:block;aspect-ratio:16/10;background:#1c1f2b;overflow:hidden}
+.ex-pic{margin-bottom:6px}
+.ex-pic img,.gcard-pic img{display:block;width:100%;height:100%;object-fit:cover;transition:transform .35s ease}
+.ex:hover .ex-pic img,.gcard:hover .gcard-pic img{transform:scale(1.04)}
+.ex-outline{display:grid;place-items:center;width:100%;height:100%;padding:10%;background:var(--chip)}
+.ex-outline svg{width:100%;height:100%}
+.ex-outline path{fill:color-mix(in srgb,var(--acc) 13%,transparent);stroke:color-mix(in srgb,var(--acc) 70%,var(--tx));stroke-width:1;vector-effect:non-scaling-stroke;stroke-linejoin:round}
+.ex b,.ex .ex-facts{max-width:100%;padding:0 10px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.ex b{font-size:12.5px;font-weight:600;line-height:1.3}.ex .ex-facts{color:var(--mut);font-size:11.5px;line-height:1.3}
+.ex:hover{background:var(--panel-solid);border-color:var(--acc)}
+@media (prefers-reduced-motion:reduce){.ex-pic img,.gcard-pic img{transition:none}.ex:hover .ex-pic img,.gcard:hover .gcard-pic img{transform:none}}
 @media (max-width:640px){.choices{grid-template-columns:1fr}.ex-list{grid-template-columns:repeat(2,minmax(0,1fr))}.ex-featured .ex:nth-child(n+5){display:none}.start{padding:16px 0}}
+/* The gallery (D-113): a page of its own like the start screen; a sticky head with the chips, a grid of large cards */
+.gallery{position:fixed;inset:0;z-index:50;overflow:auto;background:var(--cv)}
+.gal-box{width:min(1240px,calc(100% - 48px));margin:0 auto;padding:0 0 40px}
+.gal-head{position:sticky;top:0;z-index:2;display:flex;align-items:center;gap:10px;flex-wrap:wrap;padding:16px 0 12px;background:color-mix(in srgb,var(--cv) 86%,transparent);-webkit-backdrop-filter:blur(12px);backdrop-filter:blur(12px)}
+.gal-head h1{margin:0;font-size:22px;letter-spacing:-.02em}
+button.gal-back{width:36px;height:36px;border-radius:11px;background:var(--panel-solid);box-shadow:inset 0 0 0 1px var(--line2)}button.gal-back:hover{background:var(--hov)}
+.gal-chips{display:flex;gap:6px;margin-left:auto;scrollbar-width:none}.gal-chips::-webkit-scrollbar{display:none}
+button.gal-chip{height:32px;padding:0 12px;gap:6px;border-radius:99px;font-size:13px;font-weight:600;background:var(--panel-solid);box-shadow:inset 0 0 0 1px var(--line2)}
+button.gal-chip small{font-size:11.5px;font-weight:600;color:var(--mut)}
+button.gal-chip:hover{background:var(--hov)}
+button.gal-chip[aria-pressed=true]{background:var(--tx);color:var(--cv);box-shadow:none}button.gal-chip[aria-pressed=true] small{color:inherit;opacity:.6}
+.gal-sub{margin:0 0 14px;color:var(--mut);font-size:13.5px}
+.gal-error{margin:0 0 14px;padding:10px 14px;border-radius:12px;background:color-mix(in srgb,var(--bad) 12%,transparent);color:var(--tx);font-size:13.5px}
+.gal-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(270px,1fr));gap:16px}
+button.gcard{position:relative;display:flex;flex-direction:column;align-items:stretch;justify-content:flex-start;height:auto;padding:0;border-radius:16px;overflow:hidden;text-align:left;white-space:normal;font-weight:400;
+  background:var(--panel-solid);box-shadow:inset 0 0 0 1px var(--line),var(--sh);transition:transform .18s ease,box-shadow .18s ease}
+button.gcard:hover{background:var(--panel-solid);transform:translateY(-2px);box-shadow:inset 0 0 0 1px var(--acc),var(--sh-lg)}
+button.gcard:focus-visible{outline:2px solid var(--acc);outline-offset:2px}
+.gcard-ai{position:absolute;top:10px;left:10px;display:inline-flex;align-items:center;gap:4px;height:22px;padding:0 8px;border-radius:99px;font-size:11.5px;font-weight:600;color:#fff;
+  background:rgba(14,16,26,.6);-webkit-backdrop-filter:blur(8px);backdrop-filter:blur(8px);box-shadow:inset 0 0 0 1px rgba(255,255,255,.18)}
+.gcard-ai .ic{color:#c4b5fd}
+.gcard-text{display:flex;flex-direction:column;gap:2px;min-width:0;padding:10px 14px 12px}
+.gcard-text b{font-size:14.5px;font-weight:600;line-height:1.3;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.gcard-text span{color:var(--mut);font-size:12.5px;line-height:1.3;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+@media (prefers-reduced-motion:reduce){button.gcard{transition:none}button.gcard:hover{transform:none}}
+@media (max-width:640px){
+  .gal-box{width:calc(100% - 32px);padding-bottom:24px}
+  .gal-head{padding:10px 0 10px;gap:8px}.gal-head h1{font-size:19px}
+  .gal-chips{order:3;width:100%;margin-left:0;overflow-x:auto}
+  .gal-chips{gap:5px}button.gal-chip{height:30px;padding:0 9px;gap:4px;font-size:12.5px;flex:none}
+  .gal-sub{font-size:12.5px;margin-bottom:10px}
+  .gal-grid{grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}
+  button.gcard{border-radius:12px}
+  .gcard-text{padding:7px 9px 9px}.gcard-text b{font-size:12.5px}.gcard-text span{font-size:11px}
+  .gcard-ai{top:6px;left:6px;height:20px;padding:0 6px;font-size:10.5px}
+}
 .choice{display:flex;flex-direction:column;gap:6px;align-items:flex-start;text-align:left;height:auto;padding:18px;border-radius:18px;white-space:normal;font-weight:400}
 .choice:hover{background:var(--panel-solid);border-color:var(--acc)}.choice b{font-size:15px;font-weight:600}.choice span{color:var(--mut);line-height:1.45}
 .choice .ci{width:38px;height:38px;border-radius:11px;display:grid;place-items:center;background:var(--acc2);color:var(--acc);margin-bottom:6px}
@@ -341,6 +384,8 @@ body[data-main="3d"]:not([data-mode=lights]) .tools{display:none}
 .loading-card{width:132px}.loading .logo.big{margin:0 auto}
 .loading[data-ex] .loading-card{width:232px;padding:14px 16px 16px;border-radius:var(--r);background:var(--panel-solid);border:1px solid var(--line);box-shadow:var(--sh)}
 .loading-ex{display:flex;flex-direction:column;gap:1px}.loading-ex svg{width:100%;height:96px;margin-bottom:10px}.loading-ex .logo svg{width:26px;height:26px;margin:0}
+.loading-ex img{display:block;width:100%;aspect-ratio:16/10;object-fit:cover;border-radius:10px;margin-bottom:10px;background:#1c1f2b}
+.loading-ex .ex-outline{display:block;padding:0;background:none}
 .loading-ex path{fill:color-mix(in srgb,var(--acc) 13%,transparent);stroke:color-mix(in srgb,var(--acc) 70%,var(--tx));stroke-width:1.25;vector-effect:non-scaling-stroke;stroke-linejoin:round}
 .loading-ex .logo path{fill:none;stroke:currentColor;stroke-width:1.8;vector-effect:none}
 .loading-ex b{font-size:14px;font-weight:600;line-height:1.3}.loading-ex span{color:var(--mut);font-size:12px;line-height:1.3}
