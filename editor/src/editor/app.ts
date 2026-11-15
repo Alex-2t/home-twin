@@ -46,12 +46,14 @@ import {createViewDemo} from './view-demo.ts';
 import {createLook} from './look.ts';
 import {liveScene} from '../core/devices.ts';
 import {planWalls, planFurniture, planSpots} from '../core/plan-scene.ts';
-import {createPath} from './wizard-path.ts';
+import {createPath, fitProgressLine} from './wizard-path.ts';
 import {
   DOCK_QUERY,
   clipFoldButtons,
   clipStillShown,
   coachClip,
+  coachResizeCorner,
+  coachWidth,
   fitCoachPanel,
   stepClipCardPill,
 } from './wizard-clip-panel.ts';
@@ -237,6 +239,8 @@ export function createApp({haLights, ha, photos}: AppOptions): Editor {
       // where the card is at the bottom (a phone, a tablet held upright) a “Watch how” pill on it opens the clip over the page
       if (clip && clipStep) actions.prepend(stepClipCardPill(clipStep));
       bn.append(actions);
+      // the corner that widens or narrows the panel on the left (shown only there)
+      bn.append(coachResizeCorner(placeFloats));
     }
     if (text) keepCardFocus();
     syncFinishHint();
@@ -1422,7 +1426,7 @@ export function createApp({haLights, ha, photos}: AppOptions): Editor {
     else if (sideShown) top = side.offsetTop + side.offsetHeight + 12;
     // what the panel keeps above: the toolbar and the test panel, where they are across from its widest
     const workBox = work.getBoundingClientRect();
-    const reach = left + 420 + 12;
+    const reach = left + Math.max(420, coachWidth() ?? 0) + 12;
     let bottomLimit = work.clientHeight - 12;
     for (const below of [$('dock'), document.querySelector<HTMLElement>('.dev')]) {
       if (!below || below.hidden) continue;
@@ -1575,6 +1579,7 @@ export function createApp({haLights, ha, photos}: AppOptions): Editor {
       b.style.setProperty('--wiz-w', fit + 'px');
       b.classList.toggle('tight', fit < 560);
     }
+    fitProgressLine($('banner'));
     coach.place();
     // a view still at its automatic fit is fitted again beside the docked card when the card appears or changes its size,
     // so only a view the user set can be covered

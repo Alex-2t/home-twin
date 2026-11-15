@@ -260,16 +260,29 @@ body[data-main="3d"]:not([data-mode=lights]) .tools{display:none}
 .knob{position:absolute;z-index:23;width:28px;height:28px;min-width:0;padding:0;border-radius:50%;transform:translate(-50%,-50%);display:grid;place-items:center;
   background:#fff;color:var(--acc);box-shadow:0 0 0 2px var(--acc),0 2px 8px rgba(0,0,0,.35);cursor:grab;touch-action:none}
 .knob:hover{transform:translate(-50%,-50%) scale(1.08)}.knob.drag{cursor:grabbing;transform:translate(-50%,-50%) scale(1.08)}
-/* the progress line in the step card (wizard-path.ts, D-111): a small dot per main step, the current one longer, and its name */
+/* the progress line in the step card (wizard-path.ts, D-043, D-111): numbered dots joined by lines, the optional steps as dashed
+   dots with icons, and the step's name; .compact where the name does not fit — a small dot per main step, the current one longer */
 .banner.has-path{flex-wrap:wrap;justify-content:flex-end}.banner.has-path>span{flex-basis:100%}
 .banner .path{flex-basis:100%;display:flex;align-items:center;gap:8px;min-width:0;margin:0;font-size:12px;color:var(--mut)}
 .path-dots{flex:none;display:flex;align-items:center}
-.banner .path .dot{width:13px;height:20px;min-width:0;min-height:0;padding:0;border-radius:99px;background:none}
-.banner .path .dot::before{content:'';flex:none;width:6px;height:6px;border-radius:99px;background:color-mix(in srgb,var(--tx) 24%,transparent);transition:width .2s,background .2s}
-.banner .path .dot.done::before{background:var(--acc)}
-.banner .path .dot.later::before{background:none;box-shadow:inset 0 0 0 1.5px var(--warn)}
-.banner .path .dot.cur{width:25px}.banner .path .dot.cur::before{width:17px;background:var(--tx)}
-.banner .path .dot:not(:disabled):hover{background:none}.banner .path .dot:not(:disabled):hover::before{background:var(--acc);box-shadow:none}
+.banner .path .dot{flex:none;width:20px;height:20px;min-width:0;min-height:0;padding:0;border-radius:50%;display:grid;place-items:center}
+.banner .path:not(.compact) .dot{font-size:10.5px;font-weight:600;background:transparent;color:var(--tx);box-shadow:inset 0 0 0 1.5px color-mix(in srgb,var(--tx) 30%,transparent);opacity:.75}
+.banner .path:not(.compact) .dot:not(:disabled):hover{opacity:1;box-shadow:inset 0 0 0 1.5px var(--tx)}
+.banner .path:not(.compact) .dot.done{background:var(--acc);color:var(--acc-tx);box-shadow:none;opacity:1}
+.banner .path:not(.compact) .dot.cur{background:var(--tx);color:var(--panel-solid);box-shadow:none;opacity:1}
+.banner .path:not(.compact) .dot.later{color:var(--warn);box-shadow:inset 0 0 0 1.5px var(--warn);opacity:1}
+.banner .path:not(.compact) .dot:disabled:not(.cur):not(.done){opacity:.4}
+.banner .path:not(.compact) .dot.opt{box-shadow:none;border:1.5px dashed color-mix(in srgb,var(--tx) 40%,transparent)}.banner .path .dot.opt .ic{width:11px;height:11px}
+.banner .path:not(.compact) .dot.opt:is(.done,.cur){border:0}
+.banner .path i{flex:none;width:10px;height:1.5px;background:color-mix(in srgb,var(--tx) 25%,transparent)}.banner .path i.on{background:var(--acc)}
+.banner .path i.gap{width:14px;background:none}
+.banner .path.compact i,.banner .path.compact .dot.opt{display:none}
+.banner .path.compact .dot{width:13px;border-radius:99px;background:none}.banner .path.compact .dot>*{display:none}
+.banner .path.compact .dot::before{content:'';width:6px;height:6px;border-radius:99px;background:color-mix(in srgb,var(--tx) 24%,transparent);transition:width .2s,background .2s}
+.banner .path.compact .dot.done::before{background:var(--acc)}
+.banner .path.compact .dot.later::before{background:none;box-shadow:inset 0 0 0 1.5px var(--warn)}
+.banner .path.compact .dot.cur{width:25px}.banner .path.compact .dot.cur::before{width:17px;background:var(--tx)}
+.banner .path.compact .dot:not(:disabled):hover{background:none}.banner .path.compact .dot:not(:disabled):hover::before{background:var(--acc);box-shadow:none}
 .banner .path .dot:disabled{cursor:default}
 .banner .todo+button{margin-left:auto}
 .banner .todo{flex-basis:100%;display:flex;flex-wrap:wrap;gap:6px;margin:4px 0 2px}
@@ -409,6 +422,11 @@ body[data-main="3d"]:not([data-mode=lights]) .tools{display:none}
 .banner.wizard-card.docked.clip-open .coach-fold{display:inline-flex;flex:none;width:24px;height:24px;min-height:0;padding:0;background:none;color:var(--mut)}
 .banner.wizard-card.docked.clip-open .coach-fold:hover{background:var(--hov);color:var(--tx)}
 .banner.wizard-card.docked.clip-open .coach-clip{display:block;flex-basis:100%}
+/* the panel's bottom right corner widens or narrows it (wizard-clip-panel.ts: coachResizeCorner); a double click — automatic width */
+.coach-resize{display:none;position:absolute;right:0;bottom:0;width:22px;height:22px;z-index:2;cursor:nwse-resize;touch-action:none}
+.banner.wizard-card.docked .coach-resize{display:block}
+.coach-resize::before{content:'';position:absolute;right:6px;bottom:6px;width:7px;height:7px;border-right:2px solid var(--sub);border-bottom:2px solid var(--sub);border-radius:0 0 4px 0;opacity:.7;transition:opacity .15s}
+.coach-resize:hover::before,.coach-resize.drag::before{opacity:1;border-color:var(--acc)}
 .ctx-extra summary:focus-visible{outline:2px solid var(--acc);outline-offset:3px;border-radius:4px}
 /* Step clips (D-109, D-110, D-111): a short looping clip of the step's action on a photo of a paper plan, in the step card docked
    on the left (wizard-clip-panel.ts) or, where the card is at the bottom, over the page from its “Watch how” pill. The photo is a picture; the overlay

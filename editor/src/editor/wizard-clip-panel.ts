@@ -7,6 +7,8 @@
 // 1024 px, nor beside the open catalog on a laptop). Where even the narrowest panel with its clip does not fit above the toolbar,
 // “Watch how” opens the clip over the page instead. On a phone and a tablet held upright the card stays at the bottom and its
 // “Watch how” pill opens the clip over the page.
+// The user may widen or narrow the panel by its bottom right corner (the clip grows with it); the width is remembered, and a
+// double click on the corner gives the automatic width back.
 import {t} from '../i18n/i18n.ts';
 import {el, esc} from './ui.ts';
 import {icon} from './icons.ts';
@@ -50,12 +52,16 @@ export type ClipChoice = 'open' | 'closed' | null;
 export const DOCK_QUERY = '(min-width: 761px)';
 
 const CHOICE_KEY = 'home-twin-editor:step-clip';
+const WIDTH_KEY = 'home-twin-editor:coach-width';
 // The panel's width: about 30 % of the screen, from 360 to 420 px; narrower, down to 300 px, only to keep above the toolbar.
 const WIDTH_SHARE = 0.3;
 const WIDEST = 420;
 const PREFERRED_NARROWEST = 360;
 const NARROWEST = 300;
 const WIDTH_STEP = 20;
+// Widened by hand: up to this, and up to this share of the screen.
+const WIDEST_BY_HAND = 960;
+const BY_HAND_SHARE = 0.6;
 // The clip is 16 : 10, as wide as the panel's inside; the panel's padding and border on each side, the gap above the clip.
 const CLIP_RATIO = 16 / 10;
 const PANEL_INSET = 13;
@@ -84,6 +90,32 @@ function storeChoice(choice: 'open' | 'closed'): void {
   }
 }
 
+/** The width the user set by the corner, px; null: automatic. Read from storage once, then kept here (also while dragging). */
+let handWidth: number | null | undefined;
+
+export function coachWidth(): number | null {
+  if (handWidth !== undefined) return handWidth;
+  handWidth = null;
+  try {
+    const saved = Number(localStorage.getItem(WIDTH_KEY));
+    if (saved > 0) handWidth = saved;
+  } catch {
+    // storage blocked: automatic width
+  }
+  return handWidth;
+}
+
+function setCoachWidth(width: number | null, store: boolean): void {
+  handWidth = width;
+  if (!store) return;
+  try {
+    if (width == null) localStorage.removeItem(WIDTH_KEY);
+    else localStorage.setItem(WIDTH_KEY, String(width));
+  } catch {
+    // storage blocked: the width lasts until the page is closed only
+  }
+}
+
 // ---------- the panel's fit ----------
 
 /** The clip's height with the gap above it, for a panel this wide. */
@@ -104,10 +136,18 @@ function leavesPlanFree(room: CoachRoom, width: number): boolean {
 
 /** How wide the panel is and whether its clip is open: the widest from the preferred width down whose clip fits above the
  * bottom limit; the user's choice, or with none the plan's room, says whether it is open. */
-export function fitCoachPanel(room: CoachRoom, choice: ClipChoice = storedChoice()): CoachFit {
-  const preferred = Math.round(
+export function fitCoachPanel(
+  room: CoachRoom,
+  choice: ClipChoice = storedChoice(),
+  byHand: number | null = coachWidth(),
+): CoachFit {
+  let preferred = Math.round(
     Math.min(WIDEST, Math.max(PREFERRED_NARROWEST, room.containerWidth * WIDTH_SHARE)),
   );
+  if (byHand != null) {
+    const handLimit = Math.min(WIDEST_BY_HAND, room.containerWidth * BY_HAND_SHARE);
+    preferred = Math.round(Math.max(NARROWEST, Math.min(handLimit, byHand)));
+  }
   const widest = Math.max(NARROWEST, Math.min(preferred, room.containerWidth - room.left - GAP));
   let fitting: number | null = null;
   for (let width = widest; width >= NARROWEST; width -= WIDTH_STEP) {
@@ -119,6 +159,47 @@ export function fitCoachPanel(room: CoachRoom, choice: ClipChoice = storedChoice
   if (fitting == null) return {width: widest, clip: 'no-room'};
   const wantsOpen = choice ? choice === 'open' : leavesPlanFree(room, fitting);
   return wantsOpen ? {width: fitting, clip: 'open'} : {width: widest, clip: 'folded'};
+}
+
+// ---------- the corner that resizes the panel ----------
+
+/** The panel's bottom right corner (styles.css shows it only on the docked panel): dragging sets the width, a double click gives
+ * the automatic width back. relayout places the panel again with the new width. */
+export function coachResizeCorner(relayout: () => void): HTMLElement {
+  const corner = el(`<div class="coach-resize" title="${esc(t('Drag to resize'))}"></div>`);
+  corner.addEventListener('pointerdown', event => {
+    if (event.button !== 0) return;
+    event.preventDefault();
+    event.stopPropagation();
+    corner.setPointerCapture(event.pointerId);
+    const panel = corner.parentElement;
+    const startX = event.clientX;
+    const startWidth = panel ? panel.offsetWidth : (coachWidth() ?? WIDEST);
+    corner.classList.add('drag');
+    const move = (moveEvent: PointerEvent): void => {
+      setCoachWidth(Math.round(startWidth + moveEvent.clientX - startX), false);
+      relayout();
+    };
+    const up = (): void => {
+      corner.removeEventListener('pointermove', move);
+      for (const type of ['pointerup', 'pointercancel', 'lostpointercapture'])
+        corner.removeEventListener(type, up);
+      corner.classList.remove('drag');
+      // keep the width the panel took (it may be narrower than dragged: short of height, or past the limit)
+      const width = corner.parentElement?.offsetWidth;
+      setCoachWidth(width || coachWidth(), true);
+      relayout();
+    };
+    corner.addEventListener('pointermove', move);
+    for (const type of ['pointerup', 'pointercancel', 'lostpointercapture'])
+      corner.addEventListener(type, up);
+  });
+  corner.addEventListener('dblclick', event => {
+    event.stopPropagation();
+    setCoachWidth(null, true);
+    relayout();
+  });
+  return corner;
 }
 
 // ---------- the clip and its buttons in the card ----------
