@@ -423,10 +423,11 @@ body[data-main="3d"]:not([data-mode=lights]) .tools{display:none}
 .banner.wizard-card.docked.clip-open .coach-fold:hover{background:var(--hov);color:var(--tx)}
 .banner.wizard-card.docked.clip-open .coach-clip{display:block;flex-basis:100%}
 /* the panel's bottom right corner widens or narrows it (wizard-clip-panel.ts: coachResizeCorner); a double click — automatic width */
-.coach-resize{display:none;position:absolute;right:0;bottom:0;width:22px;height:22px;z-index:2;cursor:nwse-resize;touch-action:none}
+.coach-resize{display:none;position:absolute;right:0;bottom:0;width:26px;height:26px;z-index:2;cursor:nwse-resize;touch-action:none;border-radius:0 0 14px 0}
 .banner.wizard-card.docked .coach-resize{display:block}
-.coach-resize::before{content:'';position:absolute;right:6px;bottom:6px;width:7px;height:7px;border-right:2px solid var(--sub);border-bottom:2px solid var(--sub);border-radius:0 0 4px 0;opacity:.7;transition:opacity .15s}
-.coach-resize:hover::before,.coach-resize.drag::before{opacity:1;border-color:var(--acc)}
+.coach-resize::before{content:'';position:absolute;right:5px;bottom:5px;width:12px;height:12px;opacity:.8;transition:opacity .15s;
+  background:linear-gradient(135deg,transparent 0 45%,var(--mut) 45% 53%,transparent 53% 68%,var(--mut) 68% 76%,transparent 76%)}
+.coach-resize:hover::before,.coach-resize.drag::before{opacity:1;background:linear-gradient(135deg,transparent 0 45%,var(--acc) 45% 53%,transparent 53% 68%,var(--acc) 68% 76%,transparent 76%)}
 .ctx-extra summary:focus-visible{outline:2px solid var(--acc);outline-offset:3px;border-radius:4px}
 /* Step clips (D-109, D-110, D-111): a short looping clip of the step's action on a photo of a paper plan, in the step card docked
    on the left (wizard-clip-panel.ts) or, where the card is at the bottom, over the page from its “Watch how” pill. The photo is a picture; the overlay
