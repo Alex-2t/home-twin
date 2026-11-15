@@ -35,6 +35,7 @@ src/core/            core — no UI, will move into HA later
   geometry.js        walls from room outlines, plan validation, openings
   plan.js            the plan and its operations: rooms, corners, shared walls, side length
   plan-file.js       JSON validation before import
+  plan-format.ts     the plan's format version and the steps that bring older plans up (D-121, docs/plan-format.md)
   plan-mend.ts       a plan that arrives unchecked (HA, history, the browser) mended on load: what cannot be drawn left out or set to its default (D-095)
   layout.js          snapping furniture and lamps to walls, overlap checks
   fixtures.js        what kind of light it is (lamp shape), guessing by name, default position

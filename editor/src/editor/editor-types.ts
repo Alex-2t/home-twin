@@ -434,8 +434,11 @@ export interface CoachEnv {
 
 // ---------- the editor ----------
 
-/** How the plan is saved in Home Assistant (ha-app.ts ed.remote). */
-export type RemoteSaveState = 'saved' | 'offline' | 'conflict';
+/**
+ * How the plan is saved in Home Assistant (ha-app.ts ed.remote). 'outdated': HA has the plan in a newer format than this
+ * editor writes (another window has a newer Home Twin, D-121): this one no longer saves.
+ */
+export type RemoteSaveState = 'saved' | 'offline' | 'conflict' | 'outdated';
 
 /** The fit of the plan into the free part of the screen (ed.fit). */
 export interface FitOptions {
@@ -515,6 +518,8 @@ export interface Editor {
   sensorSpots(): PlacedSensor[];
   /** ha-app.ts: how the plan is saved in HA; none: in this browser. */
   remote?(): RemoteSaveState;
+  /** The open plan is of a newer format than this editor writes (boot.ts, D-121): it is shown and never saved. */
+  newerPlan?: boolean;
 
   // ---------- views and layout ----------
   /** The plan canvas. */

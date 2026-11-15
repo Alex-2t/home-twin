@@ -246,6 +246,31 @@ test('plan in HA: written with a delay and a revision number; changed in another
   assert.equal(sent.at(-1)?.rev, undefined, '“Keep mine” — without a revision, on top');
 });
 
+test('plan in HA of a newer format (D-121): HA refuses ours — this editor stops writing, even “Keep mine”', async () => {
+  let outdated = 0;
+  const sent: HassMessage[] = [];
+  const hass = {
+    callWS: async (m: HassMessage) => {
+      sent.push(m);
+      if (m.type === 'home_twin/plan/get') return {plan: {version: 1, rooms: []}, rev: 1};
+      throw Object.assign(new Error('newer'), {code: 'newer_plan'});
+    },
+  };
+  const P = hassPlans(() => hass, {onOutdated: () => outdated++});
+  await P.load();
+  P.save({version: 1, rooms: [1]});
+  await P.flush();
+  assert.equal(outdated, 1);
+  assert.equal(P.state(), 'outdated');
+  const writes = (): number => sent.filter(m => m.type === 'home_twin/plan/save').length;
+  assert.equal(writes(), 1);
+  P.save({version: 1, rooms: [1, 2]});
+  P.keepMine();
+  await P.flush();
+  await new Promise(r => setTimeout(r, 5));
+  assert.equal(writes(), 1, 'nothing more is sent');
+});
+
 const memMark = <Value>(v: Value | null = null): UnsentMark<Value> & {v: Value | null} => ({
   v,
   get() {

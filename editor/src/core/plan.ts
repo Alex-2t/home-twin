@@ -15,6 +15,7 @@ import {
 } from './geometry.ts';
 import pc from 'polygon-clipping';
 import {mendPlan} from './plan-mend.ts';
+import {PLAN_VERSION, upgradeFormat} from './plan-format.ts';
 import {
   splitPieces,
   joinPieces,
@@ -46,7 +47,7 @@ import type {
   ZoneParts,
 } from './types.ts';
 
-export const PLAN_VERSION = 1;
+export {PLAN_VERSION} from './plan-format.ts';
 export const LINK = 0.45; // edges of neighboring rooms closer than this form one wall
 
 export const emptyPlan = (): Plan => ({
@@ -68,9 +69,14 @@ function tellMended(notes: ReturnType<typeof mendPlan>): void {
   const lines = notes.map(n => `${n.list}${n.id ? ' ' + n.id : ''}: ${n.what}`);
   console.warn(`Home Twin: the plan had values it cannot draw, mended:\n  ${lines.join('\n  ')}`);
 }
-// Bring old, incomplete and damaged plans up to the current shape (damaged: plan-mend.ts).
+// Bring old, incomplete and damaged plans up to the current shape: an older format step by step (plan-format.ts), then what is
+// missing filled in and what is damaged mended (plan-mend.ts). A plan of a newer format keeps its own version: the editor then
+// shows it and does not save it (D-121).
 export function migrate(p: PlanInput): Plan {
-  const plan = {...emptyPlan(), ...p};
+  const input: Record<string, unknown> = {...p};
+  const version = upgradeFormat(input);
+  // the steps have brought the input to this format: it has the shape PlanInput describes
+  const plan = {...emptyPlan(), ...(input as PlanInput)};
   plan.rooms = listOr(plan.rooms);
   plan.openings = listOr(plan.openings);
   plan.furniture = listOr(plan.furniture);
@@ -79,8 +85,7 @@ export function migrate(p: PlanInput): Plan {
   plan.sensorSkip = listOr(plan.sensorSkip);
   plan.devices = listOr(plan.devices);
   tellMended(mendPlan(plan as Plan));
-  for (const r of plan.rooms) delete r.sens; // readings used to live on the room (first draft of D-033); now they are plan.sensors
-  plan.version = PLAN_VERSION;
+  plan.version = version;
   // Openings from a file may be stored as plain coordinates: attach them to room edges.
   plan.openings = plan.openings
     .map(o =>

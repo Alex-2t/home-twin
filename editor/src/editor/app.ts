@@ -2484,11 +2484,12 @@ export function createApp({haLights, ha, photos}: AppOptions): Editor {
     }
     demo.run(ask && !viewMoved && !ed.reducedMotion() && ed.role('3d') !== 'off');
     syncFinishHint();
-    // in the HA panel the plan is saved in HA (ed.remote: 'saved' | 'offline' | 'conflict'), otherwise — in this browser
+    // in the HA panel the plan is saved in HA (ed.remote: 'saved' | 'offline' | 'conflict' | 'outdated'), otherwise — in this
+    // browser; a plan of a newer format is not saved anywhere (boot.ts, D-121)
     const saved = document.querySelector<HTMLElement>('.saved');
     const draft = ed.plan.lights.some(l => l.draft);
-    const remote = ed.remote?.();
-    const off = remote === 'offline' || remote === 'conflict';
+    const remote = ed.newerPlan ? 'outdated' : ed.remote?.();
+    const off = remote === 'offline' || remote === 'conflict' || remote === 'outdated';
     const failed = off || (!remote && !!ed.history.error);
     if (saved) {
       saved.replaceChildren(
@@ -2502,15 +2503,17 @@ export function createApp({haLights, ha, photos}: AppOptions): Editor {
             )
           : remote === 'conflict'
             ? t('The plan was changed in another window.')
-            : failed
-              ? t('Could not save the plan in this browser. Download the plan file.')
-              : remote
-                ? draft
-                  ? t('Light placement still needs confirmation. The draft is saved in Home Assistant.')
-                  : t('The plan is saved in Home Assistant')
-                : draft
-                  ? t('Light placement still needs confirmation. The draft is saved in this browser.')
-                  : t('The plan saves automatically in this browser');
+            : remote === 'outdated'
+              ? t('Home Twin was updated')
+              : failed
+                ? t('Could not save the plan in this browser. Download the plan file.')
+                : remote
+                  ? draft
+                    ? t('Light placement still needs confirmation. The draft is saved in Home Assistant.')
+                    : t('The plan is saved in Home Assistant')
+                  : draft
+                    ? t('Light placement still needs confirmation. The draft is saved in this browser.')
+                    : t('The plan saves automatically in this browser');
     }
   };
   ed.view.onMoved?.(m => {

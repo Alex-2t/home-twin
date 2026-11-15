@@ -1,6 +1,6 @@
 import {test} from 'node:test';
 import assert from 'node:assert/strict';
-import {emptyPlan, migrate} from './plan.ts';
+import {emptyPlan, migrate, PLAN_VERSION} from './plan.ts';
 import {readPlan} from './plan-file.ts';
 import type {Plan} from './types.ts';
 
@@ -82,7 +82,7 @@ test('foreign JSON, invalid data and future versions are rejected before opening
     assert.throws(() => readPlan(text), text);
   // Each change breaks the plan; Object.assign puts in the values a plan's type does not allow.
   const bad: Array<(p: Plan) => unknown> = [
-    p => (p.version = 2),
+    p => (p.version = PLAN_VERSION + 1),
     p => Object.assign(p, {units: 'cm'}),
     p => Object.assign(p, {rooms: null}),
     p => p.rooms.push({...p.rooms[0]}),

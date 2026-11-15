@@ -8,6 +8,7 @@ import {pal, dimLabel} from './draw.ts';
 import {DRAW_RECT} from './modes/rooms.ts';
 import {tiltOf, fitPhoto} from './underlay.ts';
 import {readPlan} from '../core/plan-file.ts';
+import {NewerPlanError, newerPlanText} from '../core/plan-format.ts';
 import {autoPlace} from '../core/devices.ts';
 import {idb} from './underlay.ts';
 import {axisCursor} from './drag-gesture.ts';
@@ -523,12 +524,13 @@ export function createFlows(
       const answer = await fetch(home.plan!, {signal: AbortSignal.timeout(PUBLISHED_PLAN_TIMEOUT_MS)});
       if (!answer.ok) throw new Error(answer.statusText);
       plan = readPlan(await answer.text());
-    } catch {
+    } catch (error) {
       cover.hidden = true;
       ed.view.resume?.();
       // from a shared link the gallery is not up yet: the line is said there
       if (galleryBox.hidden) showGallery();
-      galleryError.textContent = t("Couldn't open this home. Try again later.");
+      galleryError.textContent =
+        error instanceof NewerPlanError ? newerPlanText() : t("Couldn't open this home. Try again later.");
       galleryError.hidden = false;
       // the focus stays in the gallery (Escape, Tab)
       if (!galleryBox.contains(document.activeElement)) galleryBox.focus({preventScroll: true});
@@ -1615,8 +1617,9 @@ export function createFlows(
     let plan: Plan;
     try {
       plan = readPlan(await file.text());
-    } catch {
-      ed.banner(t("This isn't a plan file."), [[t('Got it'), () => ed.banner()]]);
+    } catch (error) {
+      const text = error instanceof NewerPlanError ? newerPlanText() : t("This isn't a plan file.");
+      ed.banner(text, [[t('Got it'), () => ed.banner()]]);
       return;
     }
     // Another project has no photo in its JSON. The previous plan photo must not end up under the new home.

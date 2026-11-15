@@ -146,7 +146,7 @@ export interface Room {
   floorPattern?: FinishPattern;
   /** The room screen's dashboard layout in Preview (look/layout.ts). */
   panel?: PanelLayout;
-  /** Readings used to live on the room (the first draft of D-033); migrate deletes them. */
+  /** Readings used to live on the room (the first draft of D-033); the format's step to version 1 deletes them (plan-format.ts). */
   sens?: unknown;
 }
 
@@ -562,7 +562,10 @@ export interface HomeView {
 
 /** The plan file (D-005): plain JSON, saved by the editor and by the HA integration. Every list is there after migrate. */
 export interface Plan {
-  /** plan.ts PLAN_VERSION; a file without one is version 0. */
+  /**
+   * The format the plan is in (plan-format.ts PLAN_VERSION, D-121); a file without one is version 0. After migrate it is
+   * PLAN_VERSION, or higher for a plan from a newer editor (shown, never saved).
+   */
   version: number;
   units: 'm';
   /** The project's own id ('plan_…'); migrate gives a plan one, an empty plan has none yet. */

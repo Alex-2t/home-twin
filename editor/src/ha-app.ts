@@ -6,7 +6,7 @@ import {liveHA, hassPlans, hassPhotos} from './editor/ha-live.ts';
 import {browserPhotos} from './editor/underlay.ts';
 import {t, setFormats} from './i18n/i18n.ts';
 import {haRouter} from './editor/route.ts';
-import {UPDATE_NOTICE_CSS, buildOf, createUpdateNotice, reloadPanel, watchBuild} from './frontend-build.ts';
+import {buildOf, reloadPanel, showEditorUpdateNotice, watchBuild} from './frontend-build.ts';
 import type {Hass} from './core/types.ts';
 import type {Editor} from './editor/editor-types.ts';
 import type {PanelRoute, PanelRouter} from './editor/route.ts';
@@ -55,26 +55,18 @@ export async function start(panel: PanelHost): Promise<PanelApp> {
     ]);
   };
   // HA serves a newer build of the panel (an update without a restart, D-097): this one keeps working — the integration does not
-  // move an open panel — and “Reload” brings the new one. Its own notice, not the banner: the coach reuses the banner, and the start
-  // screen covers it. It stays awake over dialogs (keyboard.ts: data-awake).
+  // move an open panel — and “Reload” brings the new one. The same when HA's plan is of a newer format than this editor writes
+  // (D-121): a newer Home Twin saved it in another window, and this one stops saving.
   const showUpdated = (): void => {
-    if (document.querySelector('.ht-updated')) return;
-    const style = document.createElement('style');
-    style.textContent =
-      UPDATE_NOTICE_CSS +
-      '.ht-updated{position:fixed;top:68px;left:50%;transform:translateX(-50%);z-index:2147483000}';
     const words = {text: t('Home Twin was updated'), reload: t('Reload')};
-    const notice = createUpdateNotice(words, () => reloadPanel(hass()));
-    notice.setAttribute('data-awake', '');
-    document.head.append(style);
-    document.body.append(notice);
+    showEditorUpdateNotice(words, () => reloadPanel(hass()));
   };
   const status = (): void => ed?.syncSave?.();
-  const plans = hassPlans(hass, {onConflict: ask, onStatus: status});
+  const plans = hassPlans(hass, {onConflict: ask, onStatus: status, onOutdated: showUpdated});
   const photos = hassPhotos(hass, {local: browserPhotos, onStatus: status});
   // the page in the panel's path (/home-twin/lights …, D-066): HA sets route on the panel, ha-panel.js passes it on
   const router = haRouter(panel);
-  ed = await boot({ha, plans, photos, router});
+  ed = await boot({ha, plans, photos, router, onNewerPlan: showUpdated});
   // the “Saved” mark at the top: whether HA has everything. While HA is unreachable its frontend holds requests until it is back,
   // so “no connection” comes from hass.connected
   // the shell has it
@@ -83,7 +75,7 @@ export async function start(panel: PanelHost): Promise<PanelApp> {
   );
   ed.remote = () => {
     const p = plans.state();
-    return p === 'conflict'
+    return p === 'conflict' || p === 'outdated'
       ? p
       : panel.hass?.connected === false
         ? 'offline'

@@ -7,14 +7,17 @@
 //   plans  — where else the plan is stored: {load(local) → Promise<{plan, rev}>, save(plan)}; absent — browser only
 //   photos — where the plan photo is kept (underlay.js: browserPhotos — the default, ha-live.js: hassPhotos)
 //   onApp(ed) — right after the editor is created, before the first plan
+//   onNewerPlan — the plan opened is of a newer format than this editor writes (D-121): it is not saved; absent — a notice offers to reload
 //   dev    — the test panel (standalone app on localhost only)
 import {createApp} from './editor/app.ts';
 import {haPlanLights} from './editor/ha.ts';
 import {createFlows} from './editor/flows.ts';
 import {devPanel} from './editor/devpanel.ts';
-import {translateDom} from './i18n/i18n.ts';
+import {t, translateDom} from './i18n/i18n.ts';
 import {loadKenney, thumbnails} from './core/furniture3d.ts';
 import {MODELS} from './gen/models.gen.js';
+import {isNewerPlan} from './core/plan-format.ts';
+import {showEditorUpdateNotice} from './frontend-build.ts';
 import type {PhotoStore} from './editor/underlay.ts';
 import type {Router} from './editor/route.ts';
 import type {HaLayer, Plan, PlanInput, PlanLight} from './core/types.ts';
@@ -47,6 +50,7 @@ export interface BootOptions {
   plans?: PlanStore | null;
   photos?: PhotoStore;
   onApp?: ((ed: Editor) => void) | null;
+  onNewerPlan?: (() => void) | null;
   dev?: boolean;
 }
 
@@ -66,6 +70,7 @@ export async function boot({
   plans = null,
   photos = undefined,
   onApp = null,
+  onNewerPlan = null,
   dev = false,
 }: BootOptions): Promise<Editor> {
   const haLights = (): PlanLight[] => haPlanLights(ha);
@@ -90,6 +95,7 @@ export async function boot({
       return local(p);
     };
   }
+  keepNewerPlans(ed, onNewerPlan);
   saved ??= ed.history.load() as PlanInput | null;
   const canContinue = !!(saved && Array.isArray(saved.rooms));
   if (canContinue) {
@@ -108,4 +114,26 @@ export async function boot({
   window.editor = {ed, flows};
   document.body.dataset.ready = 'true';
   return ed;
+}
+
+// A plan of a newer format than this editor writes (D-121) — this tab is older than the plan: HA's plan was saved by a newer
+// Home Twin in another window, or this browser ran a newer editor. It is shown as far as it can be, but never written back,
+// in this browser or in HA: an older editor would drop or misread what it does not know. The user is told once.
+function keepNewerPlans(ed: Editor, onNewerPlan: (() => void) | null): void {
+  const save = ed.history.save;
+  ed.history.save = plan => {
+    if (!isNewerPlan(plan)) {
+      ed.newerPlan = false;
+      return save(plan);
+    }
+    if (!ed.newerPlan) {
+      ed.newerPlan = true;
+      if (onNewerPlan) onNewerPlan();
+      else
+        showEditorUpdateNotice({text: t('Home Twin was updated'), reload: t('Reload')}, () =>
+          location.reload(),
+        );
+    }
+    return true;
+  };
 }

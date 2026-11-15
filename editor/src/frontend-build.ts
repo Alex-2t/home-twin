@@ -98,3 +98,20 @@ export function createUpdateNotice(words: {text: string; reload: string}, onRelo
   notice.append(text, reload);
   return notice;
 }
+
+/**
+ * The notice over an open editor (the panel in HA, the editor on its own): kept once, on top, awake over dialogs
+ * (keyboard.ts: data-awake). Its own element, not the editor's banner: the coach reuses the banner, and the start screen
+ * covers it.
+ */
+export function showEditorUpdateNotice(words: {text: string; reload: string}, onReload: () => void): void {
+  if (document.querySelector('.ht-updated')) return;
+  const style = document.createElement('style');
+  style.textContent =
+    UPDATE_NOTICE_CSS +
+    '.ht-updated{position:fixed;top:68px;left:50%;transform:translateX(-50%);z-index:2147483000}';
+  const notice = createUpdateNotice(words, onReload);
+  notice.setAttribute('data-awake', '');
+  document.head.append(style);
+  document.body.append(notice);
+}

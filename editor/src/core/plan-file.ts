@@ -1,6 +1,7 @@
 // Validate a file before it replaces the current project. Geometry errors can be fixed in the editor;
-// an invalid structure or an unknown version must not turn into an empty saved plan.
-import {migrate, PLAN_VERSION} from './plan.ts';
+// an invalid structure must not turn into an empty saved plan, and a file of a newer format is refused (NewerPlanError, D-121).
+import {migrate} from './plan.ts';
+import {NewerPlanError, PLAN_VERSION} from './plan-format.ts';
 import {checkItem} from './parts.ts';
 import {isHex} from './color.ts';
 import {CEILING_RANGE} from './geometry.ts';
@@ -41,7 +42,9 @@ function ceilingInRange(height: unknown): void {
 export function readPlan(text: string): Plan {
   const p: unknown = JSON.parse(text);
   check(obj(p) && isList(p.rooms));
-  optional(p, 'version', x => typeof x === 'number' && Number.isInteger(x) && x >= 0 && x <= PLAN_VERSION);
+  optional(p, 'version', x => typeof x === 'number' && Number.isInteger(x) && x >= 0);
+  // a file of a newer format: not opened, so it is not spoilt by an editor that does not know it; the user is told to update
+  if (typeof p.version === 'number' && p.version > PLAN_VERSION) throw new NewerPlanError(p.version);
   optional(p, 'units', x => x === 'm');
   optional(p, 'id', str);
   optional(p, 'name', x => typeof x === 'string');

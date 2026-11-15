@@ -856,6 +856,7 @@
  "This area isn't on the plan — click a sensor, then a wall.": "平面图上没有此区域：先点传感器，再点墙面。",
  "This area isn’t on the plan — click a device, then its spot.": "该区域不在平面图上——先点设备，再点位置。",
  "This area isn’t on the plan — click a light, then its spot.": "该区域不在平面图上——先点灯，再点位置。",
+ "This home was made in a newer version of Home Twin. Update Home Twin to open it.": "此住宅由更新版本的 Home Twin 创建。请更新 Home Twin 后再打开。",
  "This is a separate fixture": "这是独立灯具",
  "This is the current plan": "这是当前平面图",
  "This isn't a plan file.": "这不是平面图文件。",

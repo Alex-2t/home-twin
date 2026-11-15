@@ -513,6 +513,8 @@ export interface HassPlanAnswer {
 export interface HassPlansOptions {
   /** The plan was changed in another window: ask which one to keep. */
   onConflict?: () => void;
+  /** HA refused the plan: it has one of a newer format, saved by a newer Home Twin (D-121). This editor stops saving. */
+  onOutdated?: () => void;
   onStatus?: (state: RemoteSaveState) => void;
   mark?: UnsentMark<PlanUnsent>;
 }
@@ -560,7 +562,7 @@ const keep = <Value>(key: string): UnsentMark<Value> => ({
 const json = (plan: unknown): string => JSON.stringify(plan ?? null);
 export function hassPlans(
   getHass: () => Pick<Hass, 'callWS'>,
-  {onConflict, onStatus, mark = keep<PlanUnsent>(UNSENT)}: HassPlansOptions = {},
+  {onConflict, onOutdated, onStatus, mark = keep<PlanUnsent>(UNSENT)}: HassPlansOptions = {},
 ): HassPlans {
   // base, last — snapshots (JSON) of the plan this browser started from and of the plan HA has: the editor changes its plan in place
   let rev: number | null = null;
@@ -582,11 +584,18 @@ export function hassPlans(
     status('conflict');
     onConflict?.();
   };
+  // HA has the plan in a newer format (the integration's check, D-121): writing ours would take it back. Nothing more is sent
+  // from this editor, not even “Keep mine”; the edits stay in this browser until the page is reloaded.
+  const outdated = (): void => {
+    stop = true;
+    status('outdated');
+    onOutdated?.();
+  };
   // HA's answers to home_twin/plan/get and save; not checked
   const ws = (message: HassMessage): Promise<HassPlanAnswer> =>
     getHass().callWS(message) as Promise<HassPlanAnswer>;
   async function send(force = false): Promise<void> {
-    if (sending || !want || (stop && !force)) return;
+    if (sending || !want || (stop && !force) || state === 'outdated') return;
     sending = true;
     const plan = want;
     want = null;
@@ -613,6 +622,7 @@ export function hassPlans(
     } catch (e) {
       want ??= plan;
       if (errorCode(e) === 'conflict') conflict();
+      else if (errorCode(e) === 'newer_plan') outdated();
       else {
         status('offline');
         wait = 5000;

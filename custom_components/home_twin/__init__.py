@@ -7,6 +7,10 @@ with HA's own sidebar editing) and is also the integration's config panel: the �
 reads and writes the plan with the websocket commands home_twin/plan/get and home_twin/plan/save. The revision number (rev) grows
 with every write — that is how the editor sees that the plan was changed in another window.
 
+The plan names its format (plan.version, D-121). An older editor (a tab opened before an update) may not write over a plan of a
+newer format: it is refused (newer_plan) and the editor stops saving. When a newer editor first writes the plan in its format, the
+plan as it was is kept in .storage/home_twin.plan.format<N>, so a step of the format that went wrong never loses a home.
+
 The plan photo (D-058) is a file, .storage/home_twin.photo, sent and read over HTTP at /api/home_twin/photo. Its id, type and
 placement on the plan are kept with the plan (home_twin/photo/get, home_twin/photo/place, home_twin/photo/delete).
 
@@ -55,6 +59,7 @@ from .const import (
     PLACE_MAX_BYTES,
     PLAN_MAX_BYTES,
     STATIC_URL,
+    STORE_BEFORE_FORMAT_KEY,
     STORE_KEY,
     STORE_VERSION,
 )
@@ -241,6 +246,21 @@ async def ws_frontend_update_panel(
     connection.send_result(msg["id"], {"build": d["panel_build"]})
 
 
+def _format_of(plan: Any) -> int:
+    """The format a plan names (plan.version): a whole number from 0; none or a wrong one is 0, as the editor reads it."""
+    version = plan.get("version") if isinstance(plan, dict) else None
+    if isinstance(version, int) and not isinstance(version, bool) and version >= 0:
+        return version
+    return 0
+
+
+def _keep_before_format(hass: HomeAssistant, plan: dict[str, Any], rev: int) -> None:
+    """The plan in its older format, kept before the newer one replaces it (one file per format, the latest plan of it)."""
+    key = STORE_BEFORE_FORMAT_KEY.format(_format_of(plan))
+    store: Store[dict[str, Any]] = Store(hass, STORE_VERSION, key)
+    hass.async_create_task(store.async_save({"plan": plan, "rev": rev}))
+
+
 def _save(d: dict[str, Any]) -> None:
     # to disk with a delay: dragging produces edits in quick succession
     d["store"].async_delay_save(lambda: d["data"], 2)
@@ -277,6 +297,17 @@ def ws_plan_save(hass: HomeAssistant, connection: websocket_api.ActiveConnection
     if len(json.dumps(msg["plan"], separators=(",", ":"))) > PLAN_MAX_BYTES:
         connection.send_error(msg["id"], "too_large", "plan is too large")
         return
+    # the formats (D-121): an older editor does not write over a newer plan, even with “Keep mine” (no rev); a newer one first
+    # keeps the plan as it was
+    stored = data["plan"]
+    if isinstance(stored, dict):
+        before = _format_of(stored)
+        after = _format_of(msg["plan"])
+        if after < before:
+            connection.send_error(msg["id"], "newer_plan", f"the plan is format {before}; this editor writes format {after}")
+            return
+        if after > before:
+            _keep_before_format(hass, stored, data["rev"])
     data["plan"], data["rev"] = msg["plan"], data["rev"] + 1
     _save(d)
     connection.send_result(msg["id"], {"rev": data["rev"]})

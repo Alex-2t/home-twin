@@ -30,6 +30,7 @@ import type {HeldFocus} from './keyboard.ts';
 import {icon} from './icons.ts';
 import {idb} from './idb.ts';
 import {readPlan} from '../core/plan-file.ts';
+import {NewerPlanError, newerPlanText, PLAN_VERSION} from '../core/plan-format.ts';
 import {emptyPlan} from '../core/plan.ts';
 import {kindName, localRoomName, numberAlike} from '../core/overview.ts';
 import {byId} from '../core/catalog.ts';
@@ -232,7 +233,9 @@ export interface AiBuildScreen {
 }
 
 // What went wrong, in the words of the Error that fetch, JSON or the service threw.
-const messageOf = (error: unknown): string => (error as Error).message;
+// a home of a newer format than this editor reads (the service was updated before this Home Twin): the user is told to update
+const messageOf = (error: unknown): string =>
+  error instanceof NewerPlanError ? newerPlanText() : (error as Error).message;
 
 /** Why the service refused an upload, in the owner's language where the reason is known; else the service's own words. */
 function refusedText(failure: UploadFailed): string {
@@ -1348,7 +1351,7 @@ export function openAiBuild(ed: Editor, options: AiBuildOptions = {}): AiBuildSc
 
   async function loadPlanRead(): Promise<void> {
     try {
-      const res = await fetch(`${base()}/plan`, {cache: 'no-store'});
+      const res = await fetch(`${base()}/plan?format=${PLAN_VERSION}`, {cache: 'no-store'});
       if (!res.ok) return;
       const plan = readPlan(await res.text());
       planRead = {
@@ -2173,7 +2176,8 @@ export function openAiBuild(ed: Editor, options: AiBuildOptions = {}): AiBuildSc
   // ---------- the review ----------
 
   async function loadIntoEditor(): Promise<void> {
-    const res = await fetch(`${base()}/home`, {cache: 'no-store'});
+    // the format this editor reads: a service that writes a newer one can answer in this one, or say to update (D-121)
+    const res = await fetch(`${base()}/home?format=${PLAN_VERSION}`, {cache: 'no-store'});
     if (!res.ok) throw new Error(res.statusText);
     const plan = readPlan(await res.text());
     cover(false);
