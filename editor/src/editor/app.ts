@@ -748,12 +748,20 @@ export function createApp({haLights, ha, photos}: AppOptions): Editor {
   let ctxOff: {key: string; l: number; t: number} | null = null;
   // what the panel is about: another object — the panel is at it again. A mode can say broader (ctxPin): in the “Lights” step — the room, and
   // a dragged panel stays in place while the lamps of this room are gone through
-  const ctxKey = (): string => {
-    const pin = ed.mode.ctxPin?.();
-    if (pin) return ed.mode.id + '|' + pin;
+  const selKey = (): string => {
     const {part, vertex, ...s} = ed.sel;
     return ed.mode.id + '|' + JSON.stringify(s) + '|' + (ed.mode.ctxKey?.() ?? '');
   };
+  const ctxKey = (): string => {
+    const pin = ed.mode.ctxPin?.();
+    if (pin) return ed.mode.id + '|' + pin;
+    return selKey();
+  };
+  // Once the panel has found its place by an object, it holds that place (the owner: a turn or a flip changes the object's box,
+  // and the panel jumping away from under the pointer is in the way). It moves with the object and with panning; a zoom or
+  // another object — a new place is chosen; closed — forgotten. Kept as the offset from the object's centre on screen.
+  type CtxHold = {key: string; sc: number; dx: number; dy: number; below: boolean};
+  let ctxHold: CtxHold | null = null;
   // The panel moving to another object (hovered another room, selected something else) — smooth; panning and zooming — follows without delay.
   let ctxLast: {k: string; x: number; y: number} | null = null;
   let ctxGlideT: ReturnType<typeof setTimeout> | 0 = 0;
@@ -782,6 +790,7 @@ export function createApp({haLights, ha, photos}: AppOptions): Editor {
     if (!nodes) {
       c.hidden = true;
       ctxLast = null;
+      ctxHold = null;
       return;
     }
     c.append(...nodes);
@@ -842,6 +851,7 @@ export function createApp({haLights, ha, photos}: AppOptions): Editor {
     if (!box) {
       c.hidden = true;
       ctxLast = null;
+      ctxHold = null;
       return;
     }
     if (innerWidth <= 640) {
@@ -857,6 +867,12 @@ export function createApp({haLights, ha, photos}: AppOptions): Editor {
     const [X0, top] = ed.v.S([x0, y1]);
     const [X1, bottom] = ed.v.S([x1, y0]);
     const X = (X0 + X1) / 2;
+    const Y = (top + bottom) / 2;
+    // the place chosen below is held for this object (see ctxHold)
+    const place = (x: number, y: number, below: boolean): void => {
+      ctxHold = {key: selKey(), sc: ed.v.sc, dx: x - X, dy: y - Y, below};
+      putCtx(x, y, below);
+    };
     // Above the object; does not fit under the top panels — below it; does not fit there either (the bottom bar, the step banner) — beside it
     // (to the right, otherwise to the left; not over the 3D window); no room beside it either — at the top edge, over the object.
     // Only panels that are horizontally under the panel get in the way.
@@ -897,6 +913,14 @@ export function createApp({haLights, ha, photos}: AppOptions): Editor {
     let x = Math.max(sr + w / 2, Math.min(ed.v.w - w / 2 - 6, X));
     const [minTop, maxBot] = bounds(x);
     if (ctxOff && ctxOff.key !== ctxKey()) ctxOff = null;
+    if (ctxHold && (ctxHold.key !== selKey() || ctxHold.sc !== ed.v.sc)) ctxHold = null;
+    if (!ctxOff && ctxHold) {
+      const hx = Math.max(sr + w / 2, Math.min(ed.v.w - w / 2 - 6, X + ctxHold.dx));
+      const [mt, mb] = bounds(hx);
+      const hy = ctxHold.below ? Math.max(mt, Math.min(mb - h, Y + ctxHold.dy)) : Y + ctxHold.dy;
+      putCtx(hx, hy, ctxHold.below);
+      return;
+    }
     // The panel is always right against its object — beside it, below or above it, sharing a border (the owner: otherwise it looks like
     // the panel of a neighbouring room). Of those places — the one where it is least in the way: not on other rooms and not on the 3D window;
     // at an outer wall — right behind it, outside the plan. In the way everywhere — it lies on the neighbouring rooms where it covers the least.
@@ -1021,7 +1045,7 @@ export function createApp({haLights, ha, photos}: AppOptions): Editor {
             best = c;
           }
         }
-        putCtx(best!.cx, best!.ty, true); // ok has places, and any cost is below Infinity
+        place(best!.cx, best!.ty, true); // ok has places, and any cost is below Infinity
         return;
       }
     }
@@ -1084,13 +1108,14 @@ export function createApp({haLights, ha, photos}: AppOptions): Editor {
       }
     }
     // moved aside by the handle — an offset over the default place, within the plan
-    if (ctxOff && ctxOff.key !== ctxKey()) ctxOff = null;
     if (ctxOff) {
       below = true;
       y = Math.max(4, Math.min(ed.v.h - h - 4, ctxOff.t));
       x = Math.max(4, Math.min(ed.v.w - w - 4, ctxOff.l)) + w / 2;
+      putCtx(x, y, below);
+      return;
     }
-    putCtx(x, y, below);
+    place(x, y, below);
   }
   const zoomEl = $('zoom');
   ed.draw = () => {
