@@ -303,9 +303,9 @@ export function createFlows(
       ed.update();
     } // the example in the address is the plan already open (a reload): it stays as it is
     $('start').hidden = true;
-    // the showcase is Preview only, in the evening (D-116)
+    // the showcase is Preview only, each home in its light (D-116)
     setPage(SHOWCASE ? 'preview' : r.page);
-    if (SHOWCASE) ed.showEvening();
+    if (SHOWCASE) ed.showcaseLight();
     coverDown();
   }
   // an address from outside: once its page is open, the address is written as it is now (a wrong one is cleaned, a refused mode corrected)
@@ -590,8 +590,8 @@ export function createFlows(
       ed.mode.refresh?.();
       ed.fit();
       setPage(page);
-      // the showcase presents every home in the evening (D-116)
-      if (SHOWCASE) ed.showEvening();
+      // the showcase presents every home in its light (D-116)
+      if (SHOWCASE) ed.showcaseLight();
       // a home is most often opened “just to look” — say right away that your own plan is safe
       // shown in “Preview” too: the home opens in it
       if (kept && !SHOWCASE)

@@ -43,3 +43,11 @@ test('no lamps, no rooms lit; a bathroom or a hallway alone is never chosen', ()
   assert.equal(eveningRooms(rooms, []).size, 0);
   assert.equal(eveningRooms(rooms, [{room: 'hall'}, {room: 'bath'}]).size, 0);
 });
+
+test('a small home is shown by day, a larger one in the evening', async () => {
+  const {shownByDay, DAYLIGHT_MAX_AREA} = await import('./evening.ts');
+  assert.equal(shownByDay(30), true, 'a studio');
+  assert.equal(shownByDay(DAYLIGHT_MAX_AREA - 1), true);
+  assert.equal(shownByDay(DAYLIGHT_MAX_AREA), false);
+  assert.equal(shownByDay(117), false, 'the loft');
+});

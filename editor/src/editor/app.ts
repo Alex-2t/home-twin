@@ -45,7 +45,8 @@ import {createCoach} from './coach.ts';
 import {createViewDemo} from './view-demo.ts';
 import {createLook} from './look.ts';
 import {SHOWCASE} from './showcase.ts';
-import {eveningRooms} from '../core/evening.ts';
+import {eveningRooms, shownByDay} from '../core/evening.ts';
+import {homeFacts} from './gallery.ts';
 import {NOT_ADMIN_CSS} from '../look/roles.ts';
 import {liveScene} from '../core/devices.ts';
 import {planWalls, planFurniture, planSpots} from '../core/plan-scene.ts';
@@ -2661,16 +2662,18 @@ export function createApp({haLights, ha, photos}: AppOptions): Editor {
     if (!SHOWCASE) saveMode(dayMode);
     showNight(true);
   };
-  // The evening a home is shown in (D-116): night for now (not kept), and only the lamps of a couple of rooms on. In the demo a
-  // lamp's state is the plan's (ha.ts), so the home panel and the 3D see the same.
-  ed.showEvening = () => {
-    const lit = eveningRooms(ed.plan.rooms, ed.plan.lights);
+  // The light a home is shown in (D-116): a small home by day with every lamp off, a larger one in the evening — night (not kept)
+  // and only the lamps of a couple of rooms on. In the demo a lamp's state is the plan's (ha.ts), so the home panel and the 3D see
+  // the same.
+  ed.showcaseLight = () => {
+    const byDay = shownByDay(homeFacts(ed.plan.rooms).area);
+    const lit = byDay ? new Set<string>() : eveningRooms(ed.plan.rooms, ed.plan.lights);
     for (const lamp of ed.plan.lights) {
       const on = !!lamp.room && lit.has(lamp.room);
       lamp.on = on;
       ed.view.setLightOn(lamp.id, on);
     }
-    dayMode = 'night';
+    dayMode = byDay ? 'day' : 'night';
     showNight(true);
     if (look) lookUI.refresh();
   };

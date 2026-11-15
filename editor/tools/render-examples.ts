@@ -3,8 +3,8 @@
 //   node tools/render-examples.ts [--only loft,studio]
 //   node tools/render-examples.ts --gallery <dir>   (a published gallery's homes: <dir>/index.json, each <id>.webp rewritten)
 // It builds the editor with the typical demo, opens each example in headless Chrome, shows the home alone in 3D from its home
-// view (the same camera and framing as the AI build's editor-3d.png, so the AI-built homes' renders match these) in the evening
-// a home is shown in (D-116: night, a couple of rooms lit, core/evening.ts) and takes a screenshot, made small in the page
+// view (the same camera and framing as the AI build's editor-3d.png, so the AI-built homes' renders match these) in the light
+// a home is shown in (D-116, core/evening.ts: a small home by day, the others at night with a couple of rooms lit) and takes a screenshot, made small in the page
 // itself (no image library needed). A gallery's homes open from a local server that gives the folder at /gallery/, as the
 // editor's own server does. Chrome: CHROME_PATH, or the usual macOS place.
 import fs from 'node:fs';
@@ -217,7 +217,7 @@ async function renderHome(devTools: DevTools, address: string): Promise<Buffer> 
         const ed = window.editor?.ed;
         if (!ed?.setBare) return false;
         ed.setBare('3d');
-        ed.showEvening();
+        ed.showcaseLight();
         ed.view.home();
         return true;
       })()`,

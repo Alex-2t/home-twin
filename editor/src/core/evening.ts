@@ -3,6 +3,8 @@
 // the main room people spend the evening in (the largest living room, kitchen or dining room) and the largest bedroom; where
 // one of them is missing, the next largest room lived in, so two rooms are lit where two have lamps. Every other lamp is off.
 // An AI-built home has only the lamps its video showed, often none in the living room: the rule picks among those it has.
+// Not every home is shown so (the owner: a mix reads better than a page of night scenes): a small home is shown by day with
+// every lamp off (shownByDay), the larger ones in the evening.
 import {area} from './geometry.ts';
 import {roomKind} from './overview.ts';
 import type {Room, RoomKind} from './types.ts';
@@ -17,6 +19,11 @@ const roomArea = (room: Room): number => Math.abs(area(room.polygon));
 
 // How many rooms are lit.
 const LIT_ROOMS = 2;
+// A home smaller than this (m² indoors, as its card says) is shown by day: a studio, a one- or a small two-room flat.
+export const DAYLIGHT_MAX_AREA = 60;
+
+/** A home of this indoor area (m²) is shown by day, every lamp off; a larger one in the evening. */
+export const shownByDay = (indoorArea: number): boolean => indoorArea < DAYLIGHT_MAX_AREA;
 
 /** The largest of the rooms whose kind is one of these, not taken already; none: null. */
 function largestOf(rooms: Room[], kinds: readonly RoomKind[], taken: Set<string>): Room | null {
