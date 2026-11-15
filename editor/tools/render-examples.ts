@@ -4,20 +4,26 @@
 // It builds the editor with the typical demo, opens each example in headless Chrome, shows the home alone in 3D from its home
 // view (the same camera and framing as the AI build's editor-3d.png, so the AI-built homes' renders match these) and takes a
 // screenshot, made small in the page itself (no image library needed). Chrome: CHROME_PATH, or the usual macOS place.
-//   node tools/render-examples.ts --turntable --only loft,studio
-// The turntable of a card (D-114): the home from 24 angles round it at the still render's height, once by day and once at night
-// with every light on, each set one sprite sheet (assets/turntable/<id>-day.webp, -night.webp; turntable-math.ts its layout).
+//   node tools/render-examples.ts --turntable --only loft,studio [--sheets a,b,c] [--lights day,night]
+// The turntable of a card (D-114): the home from 72 angles round it (every 5°) at the still render's height, by day and at
+// night with only the rooms chosen in demo/homes.ts lit, each light in three sheets of 24: a — 0°, 15°, 30° …, b — 5°,
+// 20° …, c — 10°, 25° … (assets/turntable/<id>-<light>.webp, -b.webp, -c.webp; turntable-math.ts their layout). All the
+// sheets share sheet a's frame size, so --sheets b,c adds the in-between angles to sheets made before.
 // The home turns round its own middle at one frame size that holds it at every angle, so the still render
-// (assets/renders/<id>.webp) is written again from frame 0: the card starts turning from the picture it shows.
+// (assets/renders/<id>.webp) is written again from sheet a's frame 0 in the light the card starts in: it starts turning from
+// the picture it shows.
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import {execFileSync, spawn} from 'node:child_process';
 import {pathToFileURL} from 'node:url';
 import {HOMES} from '../demo/homes.ts';
+import type {TurntableLight, TurntableLook} from '../demo/homes.ts';
 import {
   TURNTABLE_COLUMNS,
   TURNTABLE_FRAMES,
+  TURNTABLE_SHEETS,
+  sheetSuffix,
   TURNTABLE_FRAME_HEIGHT,
   TURNTABLE_FRAME_WIDTH,
   TURNTABLE_ROWS,
@@ -308,6 +314,7 @@ export function turntableViews(
   home: CameraView,
   plan: PlanHalfSize,
   frames: number = TURNTABLE_FRAMES,
+  sheet: number = 0,
 ): CameraView[] {
   const {theta, phi} = home;
   const [tx, ty, tz] = home.t;
@@ -327,11 +334,14 @@ export function turntableViews(
     halfX * Math.abs(Math.sin(angle)) + halfZ * Math.abs(Math.cos(angle));
   const halfY = Math.max(0, (home.fit[1] - Math.cos(phi) * deep(theta)) / Math.sin(phi));
   // backwards round: as the frames go on, the near side of the home moves right, as a drag to the right turns it
-  const angles = Array.from({length: frames}, (_, k) => theta - (k * 2 * Math.PI) / frames);
+  const step = (2 * Math.PI) / frames;
+  const angles = Array.from({length: frames}, (_, k) => theta - k * step);
+  // the frame size from sheet a's angles, so every sheet has the one size (the in-between angles hardly differ)
   const widths = angles.map(angle => halfX * Math.abs(Math.cos(angle)) + halfZ * Math.abs(Math.sin(angle)));
   const heights = angles.map(angle => halfY * Math.sin(phi) + Math.cos(phi) * deep(angle));
   const fit: [number, number] = [Math.max(home.fit[0], ...widths), Math.max(home.fit[1], ...heights)];
-  return angles.map(angle => ({t: middle, theta: angle, phi, fit}));
+  const offset = (sheet * step) / TURNTABLE_SHEETS;
+  return angles.map(angle => ({t: middle, theta: angle - offset, phi, fit}));
 }
 
 // In the page: the sheet's canvas (made on the first frame), a screenshot drawn small into a cell, and the sheet as WebP.
@@ -393,12 +403,24 @@ async function encodeSheet(devTools: DevTools, sessionId: string): Promise<Buffe
   return Buffer.from(webpBase64, 'base64');
 }
 
-/** An example's turntable: the day sheet, the night sheet with every light on, and the still render from frame 0. */
+/** A turntable's sheets as rendered, by light: the sheets asked for (0: a, 1: b, 2: c); and the still render. */
+interface TurntableRender {
+  sheets: Record<TurntableLight, Map<number, Buffer>>;
+  still: Buffer | null;
+}
+
+/**
+ * An example's turntable (demo/homes.ts `turntable`): the sheets asked for in the lights asked for — by day, and at night
+ * with only the lights of its chosen rooms on (`litAtNight`). The still render from sheet a's frame 0 in its start light.
+ */
 async function renderTurntable(
   devTools: DevTools,
   pageUrl: string,
   id: string,
-): Promise<{day: Buffer; night: Buffer; still: Buffer}> {
+  sheets: number[],
+  lights: TurntableLight[],
+  look: TurntableLook,
+): Promise<TurntableRender> {
   const page = await openExampleBare(devTools, pageUrl, id);
   const {sessionId} = page;
   try {
@@ -413,28 +435,34 @@ async function renderTurntable(
         return {x: (Math.max(...xs) - Math.min(...xs)) / 2, y: (Math.max(...ys) - Math.min(...ys)) / 2};
       })()`,
     );
-    const views = turntableViews(home, plan);
-    const frame0 = await paintSheet(devTools, sessionId, views);
-    const day = await encodeSheet(devTools, sessionId);
-    const still = await stillFrom(devTools, sessionId, frame0);
-    // the night as the 3D window's moon shows it, with every light of the home on
-    await evaluate(
-      devTools,
-      sessionId,
-      `(() => {
-        const ed = window.editor.ed;
-        for (const light of ed.plan.lights) {
-          light.on = true;
-          ed.view.setLightOn(light.id, true);
-        }
-        ed.view.setNight(true);
-        return true;
-      })()`,
-    );
-    await pause(NIGHT_SETTLE_MS);
-    await paintSheet(devTools, sessionId, views);
-    const night = await encodeSheet(devTools, sessionId);
-    return {day, night, still};
+    const rendered: TurntableRender = {sheets: {day: new Map(), night: new Map()}, still: null};
+    // the day first (as the example opens), then the night as the 3D window's night shows it, the chosen rooms lit
+    for (const light of (['day', 'night'] as const).filter(each => lights.includes(each))) {
+      if (light === 'night') {
+        await evaluate(
+          devTools,
+          sessionId,
+          `((lit) => {
+            const ed = window.editor.ed;
+            for (const lamp of ed.plan.lights) {
+              lamp.on = lit.includes(lamp.room);
+              ed.view.setLightOn(lamp.id, lamp.on);
+            }
+            ed.view.setNight(true);
+            return true;
+          })(${JSON.stringify(look.litAtNight)})`,
+        );
+        await pause(NIGHT_SETTLE_MS);
+      }
+      for (const sheet of sheets) {
+        const views = turntableViews(home, plan, TURNTABLE_FRAMES, sheet);
+        const frame0 = await paintSheet(devTools, sessionId, views);
+        rendered.sheets[light].set(sheet, await encodeSheet(devTools, sessionId));
+        if (sheet === 0 && light === look.start)
+          rendered.still = await stillFrom(devTools, sessionId, frame0);
+      }
+    }
+    return rendered;
   } finally {
     await page.close();
   }
@@ -453,6 +481,12 @@ async function main(): Promise<void> {
   const only = onlyIndex > 0 ? process.argv[onlyIndex + 1].split(',') : null;
   const ids = HOMES.map(home => home.id).filter(id => !only || only.includes(id));
   const turntable = process.argv.includes('--turntable');
+  const sheetsIndex = process.argv.indexOf('--sheets');
+  const sheetLetters = sheetsIndex > 0 ? process.argv[sheetsIndex + 1].split(',') : ['a', 'b', 'c'];
+  const sheets = sheetLetters.map(letter => 'abc'.indexOf(letter)).filter(sheet => sheet >= 0);
+  const lightsIndex = process.argv.indexOf('--lights');
+  const lightNames = lightsIndex > 0 ? process.argv[lightsIndex + 1].split(',') : ['day', 'night'];
+  const lights = (['day', 'night'] as const).filter(light => lightNames.includes(light));
   console.log('building the editor with the typical demo…');
   execFileSync(process.execPath, ['build.ts', '--demo=typical'], {stdio: 'inherit'});
   fs.mkdirSync(OUT_DIR, {recursive: true});
@@ -466,10 +500,16 @@ async function main(): Promise<void> {
     for (const id of ids) {
       try {
         if (turntable) {
-          const sheets = await renderTurntable(devTools, pageUrl, id);
-          writeSaying(path.join(TURNTABLE_DIR, `${id}-day.webp`), sheets.day, SHEET_MAX_BYTES);
-          writeSaying(path.join(TURNTABLE_DIR, `${id}-night.webp`), sheets.night, SHEET_MAX_BYTES);
-          writeSaying(path.join(OUT_DIR, `${id}.webp`), sheets.still, MAX_BYTES);
+          const look = HOMES.find(home => home.id === id)?.turntable;
+          if (!look) throw new Error('no turntable in demo/homes.ts');
+          const rendered = await renderTurntable(devTools, pageUrl, id, sheets, lights, look);
+          for (const light of lights) {
+            for (const [sheet, bytes] of rendered.sheets[light]) {
+              const file = path.join(TURNTABLE_DIR, `${id}-${light}${sheetSuffix(sheet)}.webp`);
+              writeSaying(file, bytes, SHEET_MAX_BYTES);
+            }
+          }
+          if (rendered.still) writeSaying(path.join(OUT_DIR, `${id}.webp`), rendered.still, MAX_BYTES);
         } else {
           const picture = await renderExample(devTools, pageUrl, id);
           writeSaying(path.join(OUT_DIR, `${id}.webp`), picture, MAX_BYTES);

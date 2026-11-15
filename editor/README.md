@@ -11,7 +11,7 @@ npm run build          # → dist/index.html, a single file
 npm run dev            # rebuilds on every change (the demo homes in demo/ too) and serves http://localhost:8766/
 npm test               # core tests (node --test)
 node tools/render-examples.ts [--only loft]   # the examples' 3D renders for their cards → assets/renders/ (headless Chrome)
-node tools/render-examples.ts --turntable --only loft,studio   # their turntable sheets, day and night → assets/turntable/ (D-114)
+node tools/render-examples.ts --turntable --only loft,studio [--sheets a,b,c] [--lights day,night]   # turntable sheets → assets/turntable/ (D-114)
 ```
 The demo apartment (the start screen of the standalone editor; not included in the HA dashboard) is a module in `demo/`: `typical.ts` is an invented typical three-room apartment from the repository, `own.ts` is the owner's apartment from the neighboring `3d_floor`, local only (`.gitignore`); the build uses `own.ts` if it exists, and `node build.ts --demo=typical` picks the typical one explicitly (any module in `demo/` works: `--demo=homes/studio`). Everything shared by the demo (sensors, devices, statistics, weather) is in `demo/kit.ts`. Build output goes to `src/gen/` and `dist/` (both in `.gitignore`).
 

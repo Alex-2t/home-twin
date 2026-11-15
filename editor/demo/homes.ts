@@ -8,11 +8,23 @@ import type {DemoHomeModule, StyleName} from './kit.ts';
 import type {DemoHome} from '../src/core/types.ts';
 
 /** A home of the reference set: its id, its title and what is in it, and how to load it. */
+/** A card's turntable light (D-114): by day, or at night with a couple of rooms lit. */
+export type TurntableLight = 'day' | 'night';
+
+/** How a card's turntable is shown (D-114): the light it starts in (the one the home looks best in) and the rooms lit at night. */
+export interface TurntableLook {
+  start: TurntableLight;
+  /** Room ids whose lights are on at night; the rest of the home is dark. */
+  litAtNight: string[];
+}
+
 export interface TypicalHome {
   id: string;
   title: string;
   what: string;
   load: () => Promise<DemoHome>;
+  /** Its card turns (D-114, tools/render-examples.ts --turntable); none: a still card. */
+  turntable?: TurntableLook;
 }
 
 // style — how the home is finished (kit.ts: STYLES): each its own, so the examples do not all look the same; a module may return its own
@@ -31,6 +43,8 @@ export const HOMES: TypicalHome[] = [
     title: '1. Studio',
     what: 'kitchen along a wall, living area, shower room with a washing machine',
     load: load('homes/studio', 'scandi'),
+    // light walls, wood and green read best by day; at night the living room and the shower room are lit
+    turntable: {start: 'day', litAtNight: ['living', 'bathroom']},
   },
   {
     id: 'one-bed',
@@ -73,6 +87,8 @@ export const HOMES: TypicalHome[] = [
     title: '11. Loft',
     what: 'a converted industrial space: open kitchen-living-dining, big steel windows, bedroom, bathroom',
     load: load('homes/loft', 'loft'),
+    // grey and black finishes look flat by day; at night the kitchen-living room and the bedroom glow against the dark rest
+    turntable: {start: 'night', litAtNight: ['living', 'bedroom']},
   },
   {
     id: 'minimal',

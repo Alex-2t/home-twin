@@ -10,6 +10,8 @@ import * as esbuild from 'esbuild';
 import {execFile} from 'node:child_process';
 import type {DemoHomeModule} from './demo/kit.ts';
 import type {ExampleHome} from './src/core/types.ts';
+import type {TypicalHome} from './demo/homes.ts';
+import {TURNTABLE_SHEETS, sheetSuffix} from './src/editor/turntable-math.ts';
 
 fs.mkdirSync('src/gen', {recursive: true});
 fs.mkdirSync('dist', {recursive: true});
@@ -61,21 +63,34 @@ async function genDemo(): Promise<void> {
     return 'data:image/webp;base64,' + fs.readFileSync(file).toString('base64');
   };
   // the turntable sheets of a card (D-114; tools/render-examples.ts --turntable): not in the page, files beside it under turntable/,
-  // named by their content so they can be kept a year (the AI build's server serves them so); none while missing
+  // named by their content so they can be kept a year (the AI build's server serves them so). Per light, sheet a is needed and
+  // b and c (the in-between angles) are taken where there; the light it starts in must have its sheet a; none: a still card.
   fs.rmSync('dist/turntable', {recursive: true, force: true});
-  const exampleTurntable = (id: string): ExampleHome['turntable'] => {
-    const sheets: Record<'day' | 'night', string> = {day: '', night: ''};
-    for (const light of ['day', 'night'] as const) {
-      const file = `assets/turntable/${id}-${light}.webp`;
-      if (!fs.existsSync(file)) return undefined;
+  const lightSheets = (id: string, light: 'day' | 'night'): Array<string | null> => {
+    const sheets: Array<string | null> = [];
+    for (let sheet = 0; sheet < TURNTABLE_SHEETS; sheet++) {
+      const stem = `${id}-${light}${sheetSuffix(sheet)}`;
+      const file = `assets/turntable/${stem}.webp`;
+      if (!fs.existsSync(file)) {
+        sheets.push(null);
+        continue;
+      }
       const bytes = fs.readFileSync(file);
       const hash = crypto.createHash('sha256').update(bytes).digest('hex').slice(0, 10);
-      const name = `${id}-${light}.${hash}.webp`;
+      const name = `${stem}.${hash}.webp`;
       fs.mkdirSync('dist/turntable', {recursive: true});
       fs.copyFileSync(file, `dist/turntable/${name}`);
-      sheets[light] = `turntable/${name}`;
+      sheets.push(`turntable/${name}`);
     }
-    return sheets;
+    return sheets[0] ? sheets : [];
+  };
+  const exampleTurntable = (home: TypicalHome): ExampleHome['turntable'] => {
+    if (!home.turntable) return undefined;
+    const day = lightSheets(home.id, 'day');
+    const night = lightSheets(home.id, 'night');
+    const start = home.turntable.start;
+    const startSheets = start === 'day' ? day : night;
+    return startSheets.length ? {start, day, night} : undefined;
   };
   // a home whose module fails to load (being written) is left out with a warning, the build goes on
   const examples: ExampleHome[] = (
@@ -88,7 +103,7 @@ async function genDemo(): Promise<void> {
             HA: d.HA,
             DEMO: d.DEMO,
             render: exampleRender(h.id),
-            turntable: exampleTurntable(h.id),
+            turntable: exampleTurntable(h),
           };
         } catch (e) {
           // a module that cannot be loaded or run throws an Error
