@@ -549,6 +549,10 @@ export interface Editor {
   toggleNight(): void;
   /** The light a home is shown in (D-116): a small one by day, lamps off; a larger one at night with a couple of rooms lit. */
   showcaseLight(): void;
+  /** A linked window (link.ts) switched a lamp: the plan, the 3D and Preview show it here too. */
+  setLampOn(id: string, on: boolean): void;
+  /** A linked window (link.ts) set day / night; like the showcase, the mode is not kept. */
+  setDayMode(mode: DayNightMode): void;
   reducedMotion(): boolean;
   /** Preview (D-047): 3D full screen with the home panel. */
   look(): boolean;

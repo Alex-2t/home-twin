@@ -2679,6 +2679,19 @@ export function createApp({haLights, ha, photos}: AppOptions): Editor {
     showNight(true);
     if (look) lookUI.refresh();
   };
+  // A linked window (link.ts, D-118) switched a lamp or stepped day / night: this one shows the same.
+  ed.setLampOn = (id, on) => {
+    const lamp = ed.plan.lights.find(light => light.id === id);
+    if (!lamp || (lamp.on !== false) === on) return;
+    lamp.on = on;
+    ed.view.setLightOn(id, on);
+    if (look) lookUI.refresh();
+  };
+  ed.setDayMode = mode => {
+    if (mode === dayMode) return;
+    dayMode = mode;
+    showNight(true);
+  };
   $('daynight').onclick = $('daynight-pip').onclick = e => {
     e.stopPropagation();
     ed.toggleNight();

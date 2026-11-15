@@ -37,6 +37,7 @@ import {renderAC} from '../look/ac-control.ts';
 import {sparkline, METRICS, metricColor} from '../look/history.ts';
 import {weatherNow, forecastSlots, degrees} from '../look/weather.ts';
 import {SCENES, sceneDevices, scenePlan, sceneDraft, executeScene} from '../look/scenes.ts';
+import {LAMP_SET_EVENT, type LampSet} from './link.ts';
 import {securityDevices, securityAlerts, leakView, waterView, valveCommand} from '../look/security.ts';
 import {drawDemoFeed, openCameraPreview} from '../look/camera.ts';
 import {vacuumDevices, vacuumStatus, vacuumButton, vacuumHomeEnabled, vacuumCommand} from '../look/vacuum.ts';
@@ -552,6 +553,8 @@ export function createLook(ed: LookEditor, host0: HTMLElement): LookPanel {
       );
     L.on = v;
     ed.view.setLightOn(L.id, v);
+    // a window linked to this one (link.ts) switches it too
+    dispatchEvent(new CustomEvent<LampSet>(LAMP_SET_EVENT, {detail: {id: L.id, on: v}}));
     return Promise.resolve(true);
   }
 

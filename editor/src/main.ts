@@ -5,6 +5,7 @@ import {mockHA} from './editor/ha.ts';
 import {DEMO_NAME, DEMO, HA, DEMO_UNDERLAY} from './gen/demo.gen.js';
 import {EXAMPLES} from './gen/examples.gen.js';
 import {hashRouter} from './editor/route.ts';
+import {linkWindows} from './editor/link.ts';
 import {openAiFromAddress, aiService, aiStartCard} from './editor/ai-build.ts';
 import type {ExampleHome} from './core/types.ts';
 
@@ -41,6 +42,8 @@ const ed = await boot({
   dev: true,
   onApp: ed => ha._lightsFrom(() => ed.plan.lights),
 });
+// A page that shows this home twice (a desktop window and a phone, ?link=<id>) gets one home in both (D-118).
+linkWindows(ha, ed);
 // The AI build (D-072, D-073, D-074): offered on the start screen where its service answers (locally: the harness's build server
 // serves this page), with the build on its way if there is one; ?build=<id> opens that build's progress, ?ai=new the upload.
 // Back from the checkout (?payment_id=…) the payment is counted on the account, then the page it left opens again (D-086,
