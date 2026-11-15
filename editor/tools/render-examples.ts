@@ -4,35 +4,15 @@
 // It builds the editor with the typical demo, opens each example in headless Chrome, shows the home alone in 3D from its home
 // view (the same camera and framing as the AI build's editor-3d.png, so the AI-built homes' renders match these) and takes a
 // screenshot, made small in the page itself (no image library needed). Chrome: CHROME_PATH, or the usual macOS place.
-//   node tools/render-examples.ts --turntable --only loft,studio
-// The turntable of a card (D-114): the home from 24 angles round it at the still render's height, once by day and once at night
-// with every light on, each set one sprite sheet (assets/turntable/<id>-day.webp, -night.webp; turntable-math.ts its layout).
-// The home turns round its own middle at one frame size that holds it at every angle, so the still render
-// (assets/renders/<id>.webp) is written again from frame 0: the card starts turning from the picture it shows.
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import {execFileSync, spawn} from 'node:child_process';
 import {pathToFileURL} from 'node:url';
 import {HOMES} from '../demo/homes.ts';
-import {
-  TURNTABLE_COLUMNS,
-  TURNTABLE_FRAMES,
-  TURNTABLE_FRAME_HEIGHT,
-  TURNTABLE_FRAME_WIDTH,
-  TURNTABLE_ROWS,
-} from '../src/editor/turntable-math.ts';
 
 const CHROME = process.env.CHROME_PATH || '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome';
 const OUT_DIR = 'assets/renders';
-const TURNTABLE_DIR = 'assets/turntable';
-// A sheet's size limit, and the quality it starts at (the steps down as for the still render).
-const SHEET_MAX_BYTES = 400 * 1024;
-const SHEET_FIRST_QUALITY = 0.86;
-// frame() in the editor's scene puts the look-at point this high before it centres the silhouette (core/scene.ts).
-const FRAME_TARGET_HEIGHT = 0.8;
-// After the night is switched on, its lamps fade in.
-const NIGHT_SETTLE_MS = 2500;
 // The page as the AI build's screenshots take it (its tools/shot.ts): 1600 × 1000, then made 640 × 400.
 const VIEWPORT_WIDTH = 1600;
 const VIEWPORT_HEIGHT = 1000;
@@ -203,22 +183,12 @@ const SHRINK_IN_PAGE = `async (pngBase64, width, height, maxBytes, first, step, 
   return url.slice(url.indexOf(',') + 1);
 }`;
 
-/** A page of the editor in its own browser context: the DevTools session that drives it, and how to close it. */
-interface OpenPage {
-  sessionId: string;
-  close: () => Promise<void>;
-}
-
-/** One example opened in its own browser context (fresh storage) and shown alone in 3D from its home view, at rest. */
-async function openExampleBare(devTools: DevTools, pageUrl: string, id: string): Promise<OpenPage> {
+/** One example opened in its own browser context (fresh storage), shown alone in 3D, and its WebP picture's bytes. */
+async function renderExample(devTools: DevTools, pageUrl: string, id: string): Promise<Buffer> {
   const {browserContextId} = await devTools.call('Target.createBrowserContext');
   const {targetId} = await devTools.call('Target.createTarget', {url: 'about:blank', browserContextId});
   const {sessionId} = (await devTools.call('Target.attachToTarget', {targetId, flatten: true})) as {
     sessionId: string;
-  };
-  const close = async (): Promise<void> => {
-    await devTools.call('Target.closeTarget', {targetId});
-    await devTools.call('Target.disposeBrowserContext', {browserContextId});
   };
   try {
     await devTools.call(
@@ -249,214 +219,28 @@ async function openExampleBare(devTools: DevTools, pageUrl: string, id: string):
     if (!bare) throw new Error('this editor has no bare 3D view');
     await viewStill(devTools, sessionId);
     await pause(SETTLE_MS);
-    return {sessionId, close};
-  } catch (error) {
-    await close();
-    throw error;
-  }
-}
-
-/** The page as it is now, a PNG in base64. */
-async function screenshot(devTools: DevTools, sessionId: string): Promise<string> {
-  const shot = (await devTools.call('Page.captureScreenshot', {format: 'png'}, sessionId)) as {data: string};
-  return shot.data;
-}
-
-/** A screenshot made the still render's size and WebP (SHRINK_IN_PAGE). */
-async function stillFrom(devTools: DevTools, sessionId: string, pngBase64: string): Promise<Buffer> {
-  const webpBase64 = await evaluate<string>(
-    devTools,
-    sessionId,
-    `(${SHRINK_IN_PAGE})(${JSON.stringify(pngBase64)}, ${RENDER_WIDTH}, ${RENDER_HEIGHT}, ${MAX_BYTES}, ${FIRST_QUALITY}, ${QUALITY_STEP}, ${LOWEST_QUALITY})`,
-  );
-  return Buffer.from(webpBase64, 'base64');
-}
-
-/** One example's still render: its home view, as the AI build's pictures are taken. */
-async function renderExample(devTools: DevTools, pageUrl: string, id: string): Promise<Buffer> {
-  const page = await openExampleBare(devTools, pageUrl, id);
-  try {
-    return await stillFrom(devTools, page.sessionId, await screenshot(devTools, page.sessionId));
+    const shot = (await devTools.call('Page.captureScreenshot', {format: 'png'}, sessionId)) as {
+      data: string;
+    };
+    const webpBase64 = await evaluate<string>(
+      devTools,
+      sessionId,
+      `(${SHRINK_IN_PAGE})(${JSON.stringify(shot.data)}, ${RENDER_WIDTH}, ${RENDER_HEIGHT}, ${MAX_BYTES}, ${FIRST_QUALITY}, ${QUALITY_STEP}, ${LOWEST_QUALITY})`,
+    );
+    return Buffer.from(webpBase64, 'base64');
   } finally {
-    await page.close();
+    await devTools.call('Target.closeTarget', {targetId});
+    await devTools.call('Target.disposeBrowserContext', {browserContextId});
   }
-}
-
-/** The editor's camera view (scene.ts getView): the look-at point, the angles round and down, the half frame in metres. */
-interface CameraView {
-  t: [number, number, number];
-  theta: number;
-  phi: number;
-  fit: [number, number];
-}
-
-/** Half the size of the rooms' outline on the plan, metres: along x and along y (the 3D view's z). */
-interface PlanHalfSize {
-  x: number;
-  y: number;
-}
-
-/**
- * The turntable's views: the home's middle and a frame size that holds the home at every angle, from its home view (the
- * editor fits that one to the silhouette, core/scene.ts frame). The editor's camera looks at the look-at point from
- * (sin φ sin θ, cos φ, sin φ cos θ); its right is (cos θ, 0, −sin θ) and its up (−cos φ sin θ, sin φ, −cos φ cos θ). frame()
- * puts the look-at point at the model box's middle at FRAME_TARGET_HEIGHT and moves it up the screen to the silhouette's
- * middle; a box's silhouette is centred on its middle, so that middle is found again, and the box's half sizes from the
- * plan's outline (plus the walls, found from the frame's width) and the frame's height. Frame k looks from θ0 − k · 15°.
- */
-export function turntableViews(
-  home: CameraView,
-  plan: PlanHalfSize,
-  frames: number = TURNTABLE_FRAMES,
-): CameraView[] {
-  const {theta, phi} = home;
-  const [tx, ty, tz] = home.t;
-  const up = [-Math.cos(phi) * Math.sin(theta), Math.sin(phi), -Math.cos(phi) * Math.cos(theta)];
-  const shiftUp = (ty - FRAME_TARGET_HEIGHT) / up[1];
-  const middle: [number, number, number] = [
-    tx - shiftUp * up[0],
-    FRAME_TARGET_HEIGHT + shiftUp / Math.sin(phi),
-    tz - shiftUp * up[2],
-  ];
-  const across = Math.abs(Math.cos(theta)) + Math.abs(Math.sin(theta));
-  const walls =
-    (home.fit[0] - plan.x * Math.abs(Math.cos(theta)) - plan.y * Math.abs(Math.sin(theta))) / across;
-  const halfX = plan.x + Math.max(0, walls);
-  const halfZ = plan.y + Math.max(0, walls);
-  const deep = (angle: number): number =>
-    halfX * Math.abs(Math.sin(angle)) + halfZ * Math.abs(Math.cos(angle));
-  const halfY = Math.max(0, (home.fit[1] - Math.cos(phi) * deep(theta)) / Math.sin(phi));
-  // backwards round: as the frames go on, the near side of the home moves right, as a drag to the right turns it
-  const angles = Array.from({length: frames}, (_, k) => theta - (k * 2 * Math.PI) / frames);
-  const widths = angles.map(angle => halfX * Math.abs(Math.cos(angle)) + halfZ * Math.abs(Math.sin(angle)));
-  const heights = angles.map(angle => halfY * Math.sin(phi) + Math.cos(phi) * deep(angle));
-  const fit: [number, number] = [Math.max(home.fit[0], ...widths), Math.max(home.fit[1], ...heights)];
-  return angles.map(angle => ({t: middle, theta: angle, phi, fit}));
-}
-
-// In the page: the sheet's canvas (made on the first frame), a screenshot drawn small into a cell, and the sheet as WebP.
-const SHEET_IN_PAGE = `{
-  cell: async (pngBase64, index, columns, rows, width, height) => {
-    if (!window.__sheet || index === 0) {
-      const canvas = document.createElement('canvas');
-      canvas.width = columns * width;
-      canvas.height = rows * height;
-      window.__sheet = canvas;
-    }
-    const image = new Image();
-    image.src = 'data:image/png;base64,' + pngBase64;
-    await image.decode();
-    const context = window.__sheet.getContext('2d');
-    context.imageSmoothingEnabled = true;
-    context.imageSmoothingQuality = 'high';
-    const column = index % columns;
-    const row = Math.floor(index / columns);
-    context.drawImage(image, column * width, row * height, width, height);
-    return true;
-  },
-  encode: (maxBytes, first, step, lowest) => {
-    let quality = first;
-    let url = window.__sheet.toDataURL('image/webp', quality);
-    while (url.length * 0.75 > maxBytes && quality - step >= lowest) {
-      quality -= step;
-      url = window.__sheet.toDataURL('image/webp', quality);
-    }
-    return url.slice(url.indexOf(',') + 1);
-  },
-}`;
-
-/** The turntable's frames painted into the sheet, flying the camera to each view in turn. Gives frame 0's screenshot. */
-async function paintSheet(devTools: DevTools, sessionId: string, views: CameraView[]): Promise<string> {
-  let first = '';
-  for (const [index, view] of views.entries()) {
-    await evaluate(devTools, sessionId, `window.editor.ed.view.flyTo(${JSON.stringify(view)})`);
-    await viewStill(devTools, sessionId);
-    await pause(SETTLE_MS);
-    const png = await screenshot(devTools, sessionId);
-    if (index === 0) first = png;
-    await evaluate(
-      devTools,
-      sessionId,
-      `(${SHEET_IN_PAGE}).cell(${JSON.stringify(png)}, ${index}, ${TURNTABLE_COLUMNS}, ${TURNTABLE_ROWS}, ${TURNTABLE_FRAME_WIDTH}, ${TURNTABLE_FRAME_HEIGHT})`,
-    );
-  }
-  return first;
-}
-
-/** The sheet painted so far, as WebP bytes under the limit. */
-async function encodeSheet(devTools: DevTools, sessionId: string): Promise<Buffer> {
-  const webpBase64 = await evaluate<string>(
-    devTools,
-    sessionId,
-    `(${SHEET_IN_PAGE}).encode(${SHEET_MAX_BYTES}, ${SHEET_FIRST_QUALITY}, ${QUALITY_STEP}, ${LOWEST_QUALITY})`,
-  );
-  return Buffer.from(webpBase64, 'base64');
-}
-
-/** An example's turntable: the day sheet, the night sheet with every light on, and the still render from frame 0. */
-async function renderTurntable(
-  devTools: DevTools,
-  pageUrl: string,
-  id: string,
-): Promise<{day: Buffer; night: Buffer; still: Buffer}> {
-  const page = await openExampleBare(devTools, pageUrl, id);
-  const {sessionId} = page;
-  try {
-    const home = await evaluate<CameraView>(devTools, sessionId, 'window.editor.ed.view.getView()');
-    const plan = await evaluate<PlanHalfSize>(
-      devTools,
-      sessionId,
-      `(() => {
-        const points = window.editor.ed.plan.rooms.flatMap(room => room.polygon);
-        const xs = points.map(point => point[0]);
-        const ys = points.map(point => point[1]);
-        return {x: (Math.max(...xs) - Math.min(...xs)) / 2, y: (Math.max(...ys) - Math.min(...ys)) / 2};
-      })()`,
-    );
-    const views = turntableViews(home, plan);
-    const frame0 = await paintSheet(devTools, sessionId, views);
-    const day = await encodeSheet(devTools, sessionId);
-    const still = await stillFrom(devTools, sessionId, frame0);
-    // the night as the 3D window's moon shows it, with every light of the home on
-    await evaluate(
-      devTools,
-      sessionId,
-      `(() => {
-        const ed = window.editor.ed;
-        for (const light of ed.plan.lights) {
-          light.on = true;
-          ed.view.setLightOn(light.id, true);
-        }
-        ed.view.setNight(true);
-        return true;
-      })()`,
-    );
-    await pause(NIGHT_SETTLE_MS);
-    await paintSheet(devTools, sessionId, views);
-    const night = await encodeSheet(devTools, sessionId);
-    return {day, night, still};
-  } finally {
-    await page.close();
-  }
-}
-
-/** Writes a file and says its size. */
-function writeSaying(file: string, bytes: Buffer, limit: number): void {
-  fs.writeFileSync(file, bytes);
-  const kilobytes = (bytes.length / 1024).toFixed(1);
-  const tooLarge = bytes.length > limit ? ' (over the limit)' : '';
-  console.log(`${file}: ${kilobytes} KB${tooLarge}`);
 }
 
 async function main(): Promise<void> {
   const onlyIndex = process.argv.indexOf('--only');
   const only = onlyIndex > 0 ? process.argv[onlyIndex + 1].split(',') : null;
   const ids = HOMES.map(home => home.id).filter(id => !only || only.includes(id));
-  const turntable = process.argv.includes('--turntable');
   console.log('building the editor with the typical demo…');
   execFileSync(process.execPath, ['build.ts', '--demo=typical'], {stdio: 'inherit'});
   fs.mkdirSync(OUT_DIR, {recursive: true});
-  fs.mkdirSync(TURNTABLE_DIR, {recursive: true});
   const pageUrl = pathToFileURL(path.resolve('dist/index.html')).href;
   const profileDir = fs.mkdtempSync(path.join(os.tmpdir(), 'render-examples-'));
   const chrome = await startChrome(profileDir);
@@ -465,15 +249,12 @@ async function main(): Promise<void> {
   try {
     for (const id of ids) {
       try {
-        if (turntable) {
-          const sheets = await renderTurntable(devTools, pageUrl, id);
-          writeSaying(path.join(TURNTABLE_DIR, `${id}-day.webp`), sheets.day, SHEET_MAX_BYTES);
-          writeSaying(path.join(TURNTABLE_DIR, `${id}-night.webp`), sheets.night, SHEET_MAX_BYTES);
-          writeSaying(path.join(OUT_DIR, `${id}.webp`), sheets.still, MAX_BYTES);
-        } else {
-          const picture = await renderExample(devTools, pageUrl, id);
-          writeSaying(path.join(OUT_DIR, `${id}.webp`), picture, MAX_BYTES);
-        }
+        const picture = await renderExample(devTools, pageUrl, id);
+        const file = path.join(OUT_DIR, `${id}.webp`);
+        fs.writeFileSync(file, picture);
+        const kilobytes = (picture.length / 1024).toFixed(1);
+        const tooLarge = picture.length > MAX_BYTES ? ' (over the limit)' : '';
+        console.log(`${file}: ${kilobytes} KB${tooLarge}`);
       } catch (error) {
         failed += 1;
         console.error(`${id}: not rendered: ${(error as Error).message}`);

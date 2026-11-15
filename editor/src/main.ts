@@ -34,13 +34,7 @@ const ha = mockHA(cur.HA);
 const galleryIndex = new URL('gallery/index.json', location.href).href;
 const ed = await boot({
   ha,
-  examples: list.map(x => ({
-    id: x.id,
-    plan: x.DEMO,
-    underlay: x.UNDERLAY || null,
-    render: x.render || null,
-    turntable: x.turntable || null,
-  })),
+  examples: list.map(x => ({id: x.id, plan: x.DEMO, underlay: x.UNDERLAY || null, render: x.render || null})),
   example: cur.id,
   router,
   gallery: galleryIndex,

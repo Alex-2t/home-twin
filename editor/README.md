@@ -11,7 +11,6 @@ npm run build          # → dist/index.html, a single file
 npm run dev            # rebuilds on every change (the demo homes in demo/ too) and serves http://localhost:8766/
 npm test               # core tests (node --test)
 node tools/render-examples.ts [--only loft]   # the examples' 3D renders for their cards → assets/renders/ (headless Chrome)
-node tools/render-examples.ts --turntable --only loft,studio   # their turntable sheets, day and night → assets/turntable/ (D-114)
 ```
 The demo apartment (the start screen of the standalone editor; not included in the HA dashboard) is a module in `demo/`: `typical.ts` is an invented typical three-room apartment from the repository, `own.ts` is the owner's apartment from the neighboring `3d_floor`, local only (`.gitignore`); the build uses `own.ts` if it exists, and `node build.ts --demo=typical` picks the typical one explicitly (any module in `demo/` works: `--demo=homes/studio`). Everything shared by the demo (sensors, devices, statistics, weather) is in `demo/kit.ts`. Build output goes to `src/gen/` and `dist/` (both in `.gitignore`).
 
@@ -52,7 +51,6 @@ src/editor/          editor UI
   icons.js           Lucide icons
   underlay.js        underlay (image in IndexedDB, position in localStorage)
   flows.js           start screen, “upload a plan” wizard, file and settings menus
-  turntable.ts       a card's turntable (D-114): the sheets loaded on first use, hover, drag, tap, the lamp; turntable-math.ts its arithmetic
   gallery.ts         the gallery of homes (D-113): the server's list read safely, the cards' facts, the page with its filter chips
   keyboard.ts        the keyboard alone (D-096): dialogs that hold the focus and give it back, menus' keys, long lists as one Tab stop, which input came last
   ai-build.js        the AI build: the start card, upload, progress as it goes; ai-review.js — the review with pins and their photos; ai-pins.js — what a pin is on and carries (D-073, D-074, D-076)
