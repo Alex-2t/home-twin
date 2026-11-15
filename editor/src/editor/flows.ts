@@ -15,6 +15,8 @@ import {OUTLINE_LIVING_SHARE} from './wizard-state.ts';
 import {holdFocus, menuKeys, focusMenuStart} from './keyboard.ts';
 import {cardPicture, factsLine, fetchGallery, galleryView, homeFacts} from './gallery.ts';
 import type {GalleryHome, GalleryKind, GalleryView} from './gallery.ts';
+import {withTurntable} from './turntable.ts';
+import type {TurntableSheets} from './turntable.ts';
 import type {HeldFocus} from './keyboard.ts';
 import type {Outline, Plan, PlanInput, Point, Room, UnderlayPlace} from '../core/types.ts';
 import type {Underlay} from './underlay.ts';
@@ -33,6 +35,8 @@ export interface FlowsExample {
   plan: PlanInput;
   underlay?: unknown;
   render?: string | null;
+  /** Its turntable's day and night sheets beside the page (D-114); none: a still card. */
+  turntable?: TurntableSheets | null;
 }
 
 /** An example whose plan has its rooms, as every generated example has. */
@@ -439,6 +443,7 @@ export function createFlows(
       aiBuilt: false,
       render: x.render || null,
       outline: planThumb(x.plan),
+      turntable: x.turntable || undefined,
     };
   }
   // what the loading cover shows while a home opens: the picture, the name and the facts (shell.html keeps it over a reload)
@@ -472,7 +477,8 @@ export function createFlows(
       find(b, '.ex-facts').textContent = factsLine({...home, rooms: 0});
       b.title = home.name; // the name is on one line, cut short where it is long
       b.onclick = () => pickExample(x);
-      return b;
+      if (!home.turntable) return b;
+      return withTurntable(b, find(b, '.ex-pic'), home.turntable);
     };
     // the row: the chosen ones (a designer interior, apartments of different sizes, a house), filled up with the others in their
     // order where one is missing, five at most

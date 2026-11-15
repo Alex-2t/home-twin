@@ -330,7 +330,7 @@ body[data-main="3d"]:not([data-mode=lights]) .tools{display:none}
 .ex b{font-size:12.5px;font-weight:600;line-height:1.3}.ex .ex-facts{color:var(--mut);font-size:11.5px;line-height:1.3}
 .ex:hover{background:var(--panel-solid);border-color:var(--acc)}
 @media (prefers-reduced-motion:reduce){.ex-pic img,.gcard-pic img{transition:none}.ex:hover .ex-pic img,.gcard:hover .gcard-pic img{transform:none}}
-@media (max-width:640px){.choices{grid-template-columns:1fr}.ex-list{grid-template-columns:repeat(2,minmax(0,1fr))}.ex-featured .ex:nth-child(n+5){display:none}.start{padding:16px 0}}
+@media (max-width:640px){.choices{grid-template-columns:1fr}.ex-list{grid-template-columns:repeat(2,minmax(0,1fr))}.ex-featured > :nth-child(n+5){display:none}.start{padding:16px 0}}
 /* The gallery (D-113): a page of its own like the start screen; a sticky head with the chips, a grid of large cards */
 .gallery{position:fixed;inset:0;z-index:50;overflow:auto;background:var(--cv)}
 .gal-box{width:min(1240px,calc(100% - 48px));margin:0 auto;padding:0 0 40px}
@@ -356,6 +356,24 @@ button.gcard:focus-visible{outline:2px solid var(--acc);outline-offset:2px}
 .gcard-text b{font-size:14.5px;font-weight:600;line-height:1.3;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .gcard-text span{color:var(--mut);font-size:12.5px;line-height:1.3;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 @media (prefers-reduced-motion:reduce){button.gcard{transition:none}button.gcard:hover{transform:none}}
+/* The turntable of a card (D-114, turntable.ts): the frames over the still picture, the 360° mark, the lamp button over the corner.
+   The picture takes vertical swipes as the page's scroll and horizontal ones as a turn. */
+.tt-wrap{position:relative;display:grid;min-width:0}.tt-wrap>button{width:100%;height:100%}
+.tt-pic{position:relative;touch-action:pan-y;cursor:grab}.tt-pic:active{cursor:grabbing}
+.tt-view{position:absolute;inset:0;display:block;background-repeat:no-repeat;opacity:0;transition:opacity .2s}.tt-view.on{opacity:1}
+.ex:hover .tt-pic img,.gcard:hover .tt-pic img{transform:none} /* the frames are drawn at the picture's own scale */
+.tt-badge{position:absolute;left:7px;bottom:7px;display:inline-flex;align-items:center;height:18px;padding:0 6px;border-radius:99px;font-size:10.5px;font-weight:700;letter-spacing:.02em;color:#fff;
+  background:rgba(14,16,26,.55);-webkit-backdrop-filter:blur(6px);backdrop-filter:blur(6px);box-shadow:inset 0 0 0 1px rgba(255,255,255,.16);pointer-events:none;transition:opacity .2s}
+.tt-wrap:hover .tt-badge{opacity:0}
+button.tt-lamp{position:absolute;top:7px;right:7px;z-index:2;width:28px;height:28px;min-width:0;padding:0;border-radius:99px;color:#fff;
+  background:rgba(14,16,26,.6);-webkit-backdrop-filter:blur(8px);backdrop-filter:blur(8px);box-shadow:inset 0 0 0 1px rgba(255,255,255,.18);opacity:0;transition:opacity .15s,background .15s}
+button.tt-lamp:hover{background:rgba(14,16,26,.8)}button.tt-lamp[aria-pressed=true]{color:#fcd34d}
+.tt-wrap:hover button.tt-lamp,button.tt-lamp:focus-visible,button.tt-lamp[aria-pressed=true]{opacity:1}
+.tt-loading button.tt-lamp{animation:tt-wait 1s ease-in-out infinite}@keyframes tt-wait{50%{opacity:.45}}
+.tt-failed .tt-badge,.tt-failed button.tt-lamp,.tt-failed .tt-view{display:none}
+.gallery .tt-wrap:hover button.tt-lamp{transform:translateY(-2px)}
+@media (hover:none){button.tt-lamp{opacity:1}.tt-pic{cursor:auto}}
+@media (prefers-reduced-motion:reduce){.tt-view,button.tt-lamp,.tt-badge{transition:none}.tt-loading button.tt-lamp{animation:none}}
 @media (max-width:640px){
   .gal-box{width:calc(100% - 32px);padding-bottom:24px}
   .gal-head{padding:10px 0 10px;gap:8px}.gal-head h1{font-size:19px}

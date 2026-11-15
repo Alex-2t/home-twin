@@ -60,13 +60,36 @@ async function genDemo(): Promise<void> {
     if (!fs.existsSync(file)) return undefined;
     return 'data:image/webp;base64,' + fs.readFileSync(file).toString('base64');
   };
+  // the turntable sheets of a card (D-114; tools/render-examples.ts --turntable): not in the page, files beside it under turntable/,
+  // named by their content so they can be kept a year (the AI build's server serves them so); none while missing
+  fs.rmSync('dist/turntable', {recursive: true, force: true});
+  const exampleTurntable = (id: string): ExampleHome['turntable'] => {
+    const sheets: Record<'day' | 'night', string> = {day: '', night: ''};
+    for (const light of ['day', 'night'] as const) {
+      const file = `assets/turntable/${id}-${light}.webp`;
+      if (!fs.existsSync(file)) return undefined;
+      const bytes = fs.readFileSync(file);
+      const hash = crypto.createHash('sha256').update(bytes).digest('hex').slice(0, 10);
+      const name = `${id}-${light}.${hash}.webp`;
+      fs.mkdirSync('dist/turntable', {recursive: true});
+      fs.copyFileSync(file, `dist/turntable/${name}`);
+      sheets[light] = `turntable/${name}`;
+    }
+    return sheets;
+  };
   // a home whose module fails to load (being written) is left out with a warning, the build goes on
   const examples: ExampleHome[] = (
     await Promise.all(
       HOMES.map(async (h): Promise<ExampleHome | null> => {
         try {
           const d = await h.load();
-          return {id: h.id, HA: d.HA, DEMO: d.DEMO, render: exampleRender(h.id)};
+          return {
+            id: h.id,
+            HA: d.HA,
+            DEMO: d.DEMO,
+            render: exampleRender(h.id),
+            turntable: exampleTurntable(h.id),
+          };
         } catch (e) {
           // a module that cannot be loaded or run throws an Error
           console.warn('example left out:', h.id, '—', (e as Error).message.split('\n')[0]);

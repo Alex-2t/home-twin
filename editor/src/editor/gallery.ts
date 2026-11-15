@@ -8,6 +8,8 @@ import {area} from '../core/geometry.ts';
 import {roomKind} from '../core/overview.ts';
 import {icon} from './icons.ts';
 import {el, esc} from './ui.ts';
+import {withTurntable} from './turntable.ts';
+import type {TurntableSheets} from './turntable.ts';
 import type {Outline} from '../core/types.ts';
 
 /** What a home is, for the gallery's filter chips. */
@@ -34,6 +36,8 @@ export interface GalleryHome {
   render: string | null;
   /** The outline drawn when there is no render (an SVG of our own). */
   outline?: string;
+  /** Its turntable's sheets (D-114, an example's only); none: the card is its still picture. */
+  turntable?: TurntableSheets;
   /** A published home's plan file: its address. Examples have their plan in the editor. */
   plan?: string;
 }
@@ -178,7 +182,11 @@ export function galleryView(
     if (badge) badge.textContent = t('Built by AI');
     button.title = home.name;
     button.onclick = () => open(home, button);
-    return button;
+    if (!home.turntable) return button;
+    // a card that turns sits in a box with its lamp button; the box is the grid's item, filtered by its kind
+    const box = withTurntable(button, button.querySelector<HTMLElement>('.gcard-pic')!, home.turntable);
+    box.dataset.kind = home.kind;
+    return box;
   };
 
   const show = (): void => {

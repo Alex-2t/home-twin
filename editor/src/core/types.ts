@@ -1331,6 +1331,8 @@ export interface ExampleHome {
   DEMO: PlanInput;
   /** Its 3D render for the start screen and the gallery (D-113): a WebP data URL from assets/renders/; none: not rendered yet. */
   render?: string;
+  /** Its turntable (D-114): the day and night sprite sheets' addresses beside the page (dist/turntable/); none: a still card. */
+  turntable?: {day: string; night: string};
 }
 
 /** What room climate and the sensor suggestions read (app.ts sensorCtx): HA's sensors, areas and current readings. */
