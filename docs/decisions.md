@@ -48,6 +48,7 @@ New decisions are appended at the top of their section, old ones are not rewritt
   - Rooms → Outline: the outline is taken away for a new one; with walls, windows or doors added a question comes first ("Back to the outline? … will be removed", Cancel / Go back). ⌘Z brings it all back on the Rooms step. The area from the documents stays, so a new outline is sized by it again. The area dialog is no longer reached from Rooms (D-038's "Back from the first steps" is now the outline's only).
   - Windows & doors → Rooms, Link rooms → Windows & doors, Furniture → Link rooms, Lights → Furniture: as before, the plan kept.
   - The summary → Sensors (the step if it was gone into, its question if it was skipped), else Devices the same way, else Lights; Sensors → Devices or Lights. It used to go to Lights always.
+- **The selected wall's panel says what its buttons do** (the owner: not clear). The length has a pencil (it opens the length to type); Window and Door have a plus and the tooltip "Add a window / door where you clicked the wall"; Railing's tooltip is "Open balcony or terrace: a railing instead of the wall". Three new strings in every language; the old "An open balcony or terrace edge" is gone.
 - Tests: `wizard-clip-panel.test.ts` (a width set by hand, its limits, narrowing for height). Looked at headless at 1440 × 900: step 1 with the clip open (full strip), folded (compact), dragged to 620 px and reset.
 
 ### D-111. The main screens decluttered: one coach panel on the left, only what is of use now, one panel style — **accepted** (2026-11-15)

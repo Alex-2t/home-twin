@@ -2072,7 +2072,9 @@ export function roomsMode(ed: Editor): RoomsMode {
       const lines = [line];
       const whole = Math.abs(len(W.a, W.b) - len(W.ea, W.eb)) < 0.01;
       const L = whole
-        ? el(`<button class="soft" title="${t('Enter length')}">${t('{0} cm', cm(len(W.a, W.b)))}</button>`)
+        ? el(
+            `<button class="soft ctx-ic" title="${t('Enter length')}">${icon('pencil', 13)}<span>${t('{0} cm', cm(len(W.a, W.b)))}</span></button>`,
+          )
         : el(`<small title="${t('Segment length')}">${t('{0} cm', cm(len(W.a, W.b)))}</small>`);
       L.onclick = () => {
         const [X, Y] = v().S([(W.a[0] + W.b[0]) / 2, (W.a[1] + W.b[1]) / 2]);
@@ -2110,7 +2112,7 @@ export function roomsMode(ed: Editor): RoomsMode {
       };
       // an outer wall has no “Remove wall”: no wall is possible only between rooms (D-021); it can be a railing (D-071) — an open balcony, a terrace
       const rail = el(
-        `<button class="soft" title="${W.rail ? t('Put the wall back') : t('An open balcony or terrace edge')}">${W.rail ? t('Restore wall') : t('Railing')}</button>`,
+        `<button class="soft" title="${W.rail ? t('Put the wall back') : t('Open balcony or terrace: a railing instead of the wall')}">${W.rail ? t('Restore wall') : t('Railing')}</button>`,
       );
       rail.onclick = () => {
         const w = selWall();
@@ -2132,8 +2134,13 @@ export function roomsMode(ed: Editor): RoomsMode {
       // place a window or a door at the click point; no room (a corner, a neighbouring opening) — the button is disabled
       const put = (k: OpeningKind): HTMLElement => {
         const b = el<HTMLButtonElement>(
-          `<button class="soft">${k === 'door' ? t('Door') : t('Window')}</button>`,
+          `<button class="soft ctx-ic">${icon('plus', 13)}<span>${k === 'door' ? t('Door') : t('Window')}</span></button>`,
         );
+        // what it does, as the plain name does not say it adds one (the owner)
+        b.title =
+          k === 'door'
+            ? t('Add a door where you clicked the wall')
+            : t('Add a window where you clicked the wall');
         if (!ops.can(W, k)) {
           b.disabled = true;
           b.title = t("Doesn't fit here");
