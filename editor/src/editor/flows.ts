@@ -35,7 +35,7 @@ export interface FlowsExample {
   plan: PlanInput;
   underlay?: unknown;
   render?: string | null;
-  /** Its turntable: the light it starts in and each light's sheets beside the page (D-114); none: a still card. */
+  /** Its turntable's day and night sheets beside the page (D-114); none: a still card. */
   turntable?: TurntableSheets | null;
 }
 

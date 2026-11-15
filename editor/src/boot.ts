@@ -26,7 +26,7 @@ export interface StartExample {
   plan: PlanInput;
   underlay: unknown;
   render?: string | null;
-  turntable?: {start: 'day' | 'night'; day: Array<string | null>; night: Array<string | null>} | null;
+  turntable?: {day: string; night: string} | null;
 }
 
 /**
