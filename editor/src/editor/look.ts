@@ -1902,7 +1902,7 @@ export function createLook(ed: LookEditor, host0: HTMLElement): LookPanel {
     if (!r) return '';
     const P = roomParts(r, M);
     const all = favItems();
-    return layout(r.id)
+    const parts = layout(r.id)
       .map(c => {
         const html = !isFav(c)
           ? P[c.id]
@@ -1912,6 +1912,14 @@ export function createLook(ed: LookEditor, host0: HTMLElement): LookPanel {
         return html.trim() ? `<div class="room-part" data-part="${escape(c.id)}">${html}</div>` : '';
       })
       .join('');
+    return parts || roomEmpty();
+  }
+  // A room with no light and no device: say so, and where they come from (in an example there is nothing to add them with).
+  function roomEmpty(): string {
+    const how = ed.ha?.demo
+      ? ''
+      : `<small>${escape(t('Place its lights in the editor: they show up here.'))}</small>`;
+    return `<div class="room-empty">${icon('bulb')}<p>${escape(t('No lights or devices in this room'))}</p>${how}</div>`;
   }
 
   function strip(M: LookModel): void {

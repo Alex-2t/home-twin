@@ -1683,5 +1683,7 @@
  "The video cannot be opened. It may be damaged: upload it again, or add photos instead.": "无法打开视频，可能已损坏：请重新上传，或改为添加照片。",
  "No room of a home was found in your video or photos. Upload a video or photos of the rooms.": "在你的视频或照片中没有找到任何房间。请上传房间的视频或照片。",
  "Upload again": "重新上传",
- "Too many codes asked. Wait an hour, then send a new one.": "请求的验证码太多。请等一小时后再发送新的验证码。"
+ "Too many codes asked. Wait an hour, then send a new one.": "请求的验证码太多。请等一小时后再发送新的验证码。",
+ "No lights or devices in this room": "这个房间没有灯光或设备",
+ "Place its lights in the editor: they show up here.": "在编辑器中放置它的灯具，它们就会显示在这里。"
 }

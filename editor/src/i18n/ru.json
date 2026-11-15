@@ -1683,5 +1683,7 @@
  "The video cannot be opened. It may be damaged: upload it again, or add photos instead.": "Видео не открывается, возможно, оно повреждено. Загрузите его снова или добавьте фото.",
  "No room of a home was found in your video or photos. Upload a video or photos of the rooms.": "В видео или на фото не нашлось ни одной комнаты. Загрузите видео или фото комнат.",
  "Upload again": "Загрузить заново",
- "Too many codes asked. Wait an hour, then send a new one.": "Запрошено слишком много кодов. Подождите час и отправьте новый."
+ "Too many codes asked. Wait an hour, then send a new one.": "Запрошено слишком много кодов. Подождите час и отправьте новый.",
+ "No lights or devices in this room": "В этой комнате нет света и устройств",
+ "Place its lights in the editor: they show up here.": "Добавьте её светильники в редакторе — они появятся здесь."
 }

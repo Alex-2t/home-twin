@@ -1683,5 +1683,7 @@
  "The video cannot be opened. It may be damaged: upload it again, or add photos instead.": "No se puede abrir el vídeo. Puede estar dañado: súbelo de nuevo o añade fotos en su lugar.",
  "No room of a home was found in your video or photos. Upload a video or photos of the rooms.": "No se encontró ninguna habitación en tu vídeo o fotos. Sube un vídeo o fotos de las habitaciones.",
  "Upload again": "Subir de nuevo",
- "Too many codes asked. Wait an hour, then send a new one.": "Se han pedido demasiados códigos. Espera una hora y envía uno nuevo."
+ "Too many codes asked. Wait an hour, then send a new one.": "Se han pedido demasiados códigos. Espera una hora y envía uno nuevo.",
+ "No lights or devices in this room": "No hay luces ni dispositivos en esta habitación",
+ "Place its lights in the editor: they show up here.": "Coloca sus luces en el editor: aparecerán aquí."
 }
