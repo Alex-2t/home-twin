@@ -1,6 +1,7 @@
 // The AI build's upload in chunks (D-107). The build service is reached through Cloudflare's tunnel, which refuses a request
 // body over 100 MB, and a phone's video of a home is often 100–500 MB: sent in one request it failed in production. So the
-// plan photo and each video go in chunks of the size the service names (16 MB), one after another, each with its SHA-256:
+// plan photo, each video and each photo of a room (D-117) go in chunks of the size the service names (16 MB), one after
+// another, each with its SHA-256:
 //   POST <api>/api/uploads                  {files: [{kind, name, size}], lang} → {id, chunkBytes, files: [{received}]}
 //                                           401 SIGNED_OUT, 402 BALANCE_EMPTY before any byte is sent
 //   PUT  <api>/api/uploads/<id>/<n>?offset= a chunk of file n (0: the plan photo) → {received}; 409 {received}: go on there
@@ -12,7 +13,7 @@
 
 /** A file the service is told of before its bytes come. */
 interface AnnouncedFile {
-  kind: 'plan' | 'video';
+  kind: 'plan' | 'video' | 'photo';
   name: string;
   size: number;
 }
@@ -52,6 +53,8 @@ export interface UploadRequest {
   api: string;
   plan: File;
   videos: File[];
+  /** Photos of the rooms (D-117), instead of the videos or beside them. */
+  photos: File[];
   /** The language the owner reads: the build names the rooms and the furniture in it. */
   lang: string;
 }
@@ -126,7 +129,7 @@ function stateOf(body: unknown, files: number): UploadState | null {
 }
 
 /**
- * The plan photo and the videos uploaded in chunks → the id of the build that starts. `onShare` is told the share sent so
+ * The plan photo, the videos and the photos uploaded in chunks → the id of the build that starts. `onShare` is told the share sent so
  * far (0 to 1), only ever growing. Throws UploadFailed: 401 or 402 before any byte, 0 when the connection stays away.
  */
 export async function uploadBuild(
@@ -135,9 +138,14 @@ export async function uploadBuild(
   transport: UploadTransport,
   onShare: (share: number) => void,
 ): Promise<string> {
-  const files = [request.plan, ...request.videos];
+  const files = [request.plan, ...request.videos, ...request.photos];
+  const kinds: AnnouncedFile['kind'][] = [
+    'plan',
+    ...request.videos.map((): AnnouncedFile['kind'] => 'video'),
+    ...request.photos.map((): AnnouncedFile['kind'] => 'photo'),
+  ];
   const announced: AnnouncedFile[] = files.map((file, index) => ({
-    kind: index === 0 ? 'plan' : 'video',
+    kind: kinds[index],
     name: file.name,
     size: file.size,
   }));

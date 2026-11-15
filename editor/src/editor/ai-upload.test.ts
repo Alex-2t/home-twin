@@ -102,7 +102,7 @@ function patternedFile(name: string, size: number): File {
 
 const plan = patternedFile('plan.jpg', 700);
 const videos = [patternedFile('walk.mp4', 4500), patternedFile('more.mp4', 1200)];
-const request = {api: '', plan, videos, lang: 'en'};
+const request = {api: '', plan, videos, photos: [] as File[], lang: 'en'};
 
 /** Whether the service ended up with exactly the files' bytes. */
 async function sameBytes(service: ServiceStandIn): Promise<boolean> {
@@ -189,4 +189,24 @@ test('signed out or with nothing left, the upload stops before any byte goes', a
   assert.equal(refused.status, 401);
   assert.equal(refused.code, 'SIGNED_OUT');
   assert.equal(service.chunks, 0);
+});
+
+test('photos of the rooms go after the plan and the videos, each announced as a photo', async () => {
+  const service = new ServiceStandIn();
+  const announced: string[] = [];
+  const transport = service.transport();
+  const watched: UploadTransport = {
+    ...transport,
+    json: async (method, url, body) => {
+      const files = (body as {files?: {kind: string}[]} | undefined)?.files;
+      if (files) announced.push(...files.map(file => file.kind));
+      return transport.json(method, url, body);
+    },
+  };
+  const photos = [patternedFile('IMG_0001.HEIC', 300), patternedFile('kitchen.jpg', 1500)];
+  const build = await uploadBuild({...request, videos: [], photos}, {id: null}, watched, () => {});
+  assert.equal(build, 'home-1');
+  assert.deepEqual(announced, ['plan', 'photo', 'photo']);
+  // 700 + 300 + 1500 bytes in chunks of 1000: 1 + 1 + 2.
+  assert.equal(service.chunks, 4);
 });

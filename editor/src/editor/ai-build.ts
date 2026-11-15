@@ -59,6 +59,7 @@ import {accountBar, openSignIn, pausedCard} from './ai-account-ui.ts';
 import type {AccountBar, SignInReason, SignInSheet} from './ai-account-ui.ts';
 import {buildEstimate, estimateLine, roundEstimate, roundSize} from './ai-estimate.ts';
 import {totalSeconds, videoConcern, videoConcernText, videosFacts} from './video-note.ts';
+import {FEW_PHOTOS, MOST_PHOTOS, MOST_VIDEOS, isPlanFile, showable, sortMedia} from './media-files.ts';
 import type {VideoConcern} from './video-note.ts';
 import {UploadFailed, browserTransport, uploadBuild} from './ai-upload.ts';
 import type {UploadJob} from './ai-upload.ts';
@@ -165,6 +166,8 @@ interface BuildStatus {
   rounds?: PinRound[];
   /** The things it could not place clear, each with one phrase in the owner's language. */
   unplaced?: UnplacedThing[];
+  /** What the home is built from (D-117); a service from before photos says nothing: a video. */
+  input?: 'video' | 'photos' | 'both';
 }
 
 /** How many floors the plan draws, and their labels as written on it (empty when none is). */
@@ -200,17 +203,26 @@ interface SavedNotes {
   text?: string;
 }
 
-/** The files chosen for a build: the plan photo and the videos. */
+/** The files chosen for a build: the plan photo, the videos and the photos of the rooms (D-117). */
 interface ChosenFiles {
   plan: File | null;
   videos: File[];
+  photos: File[];
 }
+
+const noFiles = (): ChosenFiles => ({plan: null, videos: [], photos: []});
+
+/** Whether two lists hold the same files in the same order. */
+const sameList = (a: File[], b: File[]): boolean =>
+  a.length === b.length && a.every((file, i) => file === b[i]);
 
 /** Whether two choices are the same files: an upload stopped midway goes on only with the files it started with. */
 function sameFiles(a: ChosenFiles, b: ChosenFiles): boolean {
-  if (a.plan !== b.plan || a.videos.length !== b.videos.length) return false;
-  return a.videos.every((video, i) => video === b.videos[i]);
+  return a.plan === b.plan && sameList(a.videos, b.videos) && sameList(a.photos, b.photos);
 }
+
+/** Whether the rooms are chosen: a video, photos, or both. */
+const haveRooms = (files: ChosenFiles): boolean => files.videos.length > 0 || files.photos.length > 0;
 
 /** The AI build over the editor (openAiBuild). */
 export interface AiBuildScreen {
@@ -219,6 +231,16 @@ export interface AiBuildScreen {
 
 // What went wrong, in the words of the Error that fetch, JSON or the service threw.
 const messageOf = (error: unknown): string => (error as Error).message;
+
+/** Why the service refused an upload, in the owner's language where the reason is known; else the service's own words. */
+function refusedText(failure: UploadFailed): string {
+  if (failure.code === 'TOO_BIG')
+    return t('a file is too big: a video up to 2 GB, a photo up to 40 MB, the plan up to 50 MB');
+  if (failure.code === 'TOO_MANY')
+    return t('too many files: up to {0} videos and {1} photos', MOST_VIDEOS, MOST_PHOTOS);
+  if (failure.code === 'FILES') return t('add the floor plan and a video or photos of your home');
+  return failure.message;
+}
 // A meter's bar is its one child (<i class="aib-meter"><i></i></i>).
 const barOf = (meter: HTMLElement): HTMLElement => meter.firstChild as HTMLElement;
 // The element an event is on: a click lands on an element.
@@ -401,6 +423,33 @@ const PHRASES: Record<PhraseStep, string[]> = {
     N('Counting what was built'),
   ],
 };
+// A build from photos only (D-117) says so where a build from video speaks of the video: each line here stands for the one
+// it is keyed by.
+const PHOTO_WORDS: Record<string, string> = {
+  'Rooms from the video': N('Rooms from the photos'),
+  'Rooms from your video': N('Rooms from your photos'),
+  'The video meets the drawing': N('The photos meet the drawing'),
+  'Placing things as the video shows': N('Placing things as the photos show'),
+  'Comparing the drawing with the video': N('Comparing the drawing with the photos'),
+  'Hanging the lamps from your video': N('Hanging the lamps from your photos'),
+  'Your plan is next: first the video is cut into rooms': N(
+    'Your plan is next: first the photos are sorted by room',
+  ),
+};
+// What the split and frames steps do, for photos: they sort the photos by room and take them as they are.
+const PHOTO_PHRASES: Partial<Record<PhraseStep, string[]>> = {
+  split: [
+    N('Sorting your photos by room'),
+    N('Finding the same room in different photos'),
+    N('Leaving the street and stairs out'),
+    N('Telling the hallway from the kitchen'),
+  ],
+  frames: [
+    N('Getting the photos ready'),
+    N('Blurring faces in every photo'),
+    N('Turning each photo upright'),
+  ],
+};
 // Under a room's card while its call works, each card in its own turn.
 const ROOM_PHRASES = [N('Looking…'), N('Walls, doors, windows…'), N('Listing the furniture…')];
 
@@ -446,8 +495,13 @@ interface KeptFiles extends ChosenFiles {
 
 /** The files chosen, kept until the upload page opens again; nothing is kept when none are chosen. */
 async function keepChosen(files: ChosenFiles, startWhenSignedIn = false): Promise<void> {
-  if (!files.plan && !files.videos.length) return;
-  await idb('put', CHOSEN_FILES, {plan: files.plan, videos: files.videos, startWhenSignedIn});
+  if (!files.plan && !haveRooms(files)) return;
+  await idb('put', CHOSEN_FILES, {
+    plan: files.plan,
+    videos: files.videos,
+    photos: files.photos,
+    startWhenSignedIn,
+  });
 }
 
 /** The files kept before the browser left, taken out of the store (they are kept only once); null when there are none. */
@@ -456,10 +510,16 @@ async function takeChosen(): Promise<KeptFiles | null> {
     const saved = await idb('get', CHOSEN_FILES);
     if (!saved) return null;
     await idb('del', CHOSEN_FILES);
-    const fields = saved as {plan?: unknown; videos?: unknown; startWhenSignedIn?: unknown};
+    const fields = saved as {plan?: unknown; videos?: unknown; photos?: unknown; startWhenSignedIn?: unknown};
     const plan = fields.plan instanceof File ? fields.plan : null;
-    const videos = Array.isArray(fields.videos) ? fields.videos.filter(video => video instanceof File) : [];
-    return {plan, videos, startWhenSignedIn: fields.startWhenSignedIn === true};
+    const filesIn = (list: unknown): File[] =>
+      Array.isArray(list) ? list.filter(file => file instanceof File) : [];
+    return {
+      plan,
+      videos: filesIn(fields.videos),
+      photos: filesIn(fields.photos),
+      startWhenSignedIn: fields.startWhenSignedIn === true,
+    };
   } catch {
     return null;
   }
@@ -827,7 +887,7 @@ export function openAiBuild(ed: Editor, options: AiBuildOptions = {}): AiBuildSc
   // The plan as read: its outline and what it holds, once the plan call is done.
   let planRead: PlanRead | null = null;
   // The files chosen on the upload page.
-  let chosen: ChosenFiles = {plan: null, videos: []};
+  let chosen: ChosenFiles = noFiles();
   // The upload of the files chosen, once started: pressed again after a stop, the build button goes on with it.
   let uploading: {files: ChosenFiles; job: UploadJob} | null = null;
   // The build's own pages are asked for once it has its id.
@@ -927,9 +987,11 @@ export function openAiBuild(ed: Editor, options: AiBuildOptions = {}): AiBuildSc
   // What a new build of the chosen videos will about take; before a video is chosen, a usual home's.
   async function askUploadEstimate(): Promise<void> {
     const ask = ++estimateAsks;
+    // Before anything is chosen, a usual home's from one video.
     const estimate = await buildEstimate(api, {
       seconds: chosenSeconds,
-      videos: Math.max(1, chosen.videos.length),
+      videos: chosen.photos.length ? chosen.videos.length : Math.max(1, chosen.videos.length),
+      photos: chosen.photos.length,
     });
     if (ask !== estimateAsks || screen !== 'upload') return;
     uploadEstimate = estimate;
@@ -1012,7 +1074,7 @@ export function openAiBuild(ed: Editor, options: AiBuildOptions = {}): AiBuildSc
       sayEmptyStart();
       return;
     }
-    if (chosen.plan && chosen.videos.length) send(chosen);
+    if (chosen.plan && haveRooms(chosen)) send(chosen);
   }
 
   function closeSignIn(): void {
@@ -1117,12 +1179,12 @@ export function openAiBuild(ed: Editor, options: AiBuildOptions = {}): AiBuildSc
     if (button) button.onclick = () => buy(button);
   }
 
-  // The button that starts a build: on with a plan and a video, once the account is known and has something left (signed
-  // out, it opens the sign-in).
+  // The button that starts a build: on with a plan and a video or photos, once the account is known and has something left
+  // (signed out, it opens the sign-in).
   function syncStart(): void {
     const start = root.querySelector<HTMLButtonElement>('[data-act=start]');
     if (!start || start.dataset.sending) return;
-    const haveFiles = !!chosen.plan && chosen.videos.length > 0;
+    const haveFiles = !!chosen.plan && haveRooms(chosen);
     const accountReadyNow = accountKnown && !accountTrouble;
     const nothingLeft = !!offer && !!account?.balance.empty;
     start.disabled = !haveFiles || !accountReadyNow || nothingLeft;
@@ -1295,7 +1357,7 @@ export function openAiBuild(ed: Editor, options: AiBuildOptions = {}): AiBuildSc
     screen = 'upload';
     cover(true);
     setAddress('upload');
-    chosen = {plan: null, videos: []};
+    chosen = noFiles();
     chosenSeconds = null;
     uploadEstimate = null;
     const drop = (
@@ -1320,15 +1382,20 @@ export function openAiBuild(ed: Editor, options: AiBuildOptions = {}): AiBuildSc
         </header>
         <main class="aib-upload">
           <h1>${esc(t('Your home in 3D, built by AI'))}</h1>
-          <p class="aib-lead">${esc(t('Add the floor plan and a video of your home. We build the rooms, doors, windows and furniture, and you check the result.'))}</p>
+          <p class="aib-lead">${esc(t('Add the floor plan and a video or photos of your home. We build the rooms, doors, windows and furniture, and you check the result.'))}</p>
           <div class="aib-drops">
-            ${drop('plan', 'image', t('Floor plan'), t('A photo or scan'), 'image/*', false)}
-            ${drop('video', 'video', t('Video of your home'), t('One walk through every room'), 'video/*', true)}
+            ${drop('plan', 'image', t('Floor plan'), t('A photo, a scan or a PDF'), 'image/*,.heic,.heif,application/pdf,.pdf', false)}
+            ${drop('media', 'video', t('Video or photos of your home'), t('One walk through every room, or photos of each room'), 'video/*,image/*,.heic,.heif,.mov', true)}
           </div>
-          <ul class="aib-tips" aria-label="${esc(t('How to film'))}">
+          <ul class="aib-tips" data-for="video" aria-label="${esc(t('How to film'))}">
             <li>${icon('phoneSideways', 15)}<span>${esc(t('Hold the phone sideways'))}</span></li>
             <li>${icon('bulb', 15)}<span>${esc(t('Lights on. No need to tidy up.'))}</span></li>
             <li>${icon('rotate', 15)}<span>${esc(t('Walk slowly, turn around in each room'))}</span></li>
+          </ul>
+          <ul class="aib-tips" data-for="photos" aria-label="${esc(t('How to take the photos'))}" hidden>
+            <li>${icon('image', 15)}<span>${esc(t('Two or three photos of each room'))}</span></li>
+            <li>${icon('expand', 15)}<span>${esc(t('From the corners, the whole room in view'))}</span></li>
+            <li>${icon('bulb', 15)}<span>${esc(t('Lights on. No need to tidy up.'))}</span></li>
           </ul>
           <p class="aib-video-note" role="status" hidden>${icon('info', 15)}<span></span></p>
           <div class="aib-go">
@@ -1355,34 +1422,89 @@ export function openAiBuild(ed: Editor, options: AiBuildOptions = {}): AiBuildSc
       note.hidden = !concern;
       find(note, 'span').textContent = concern ? videoConcernText(concern) : '';
     };
+    // Files left out of a choice (too many, too big): said on the note's line until the next choice.
+    let leftOutLine: string | null = null;
+    const showLeftOut = (): void => {
+      if (!leftOutLine) return;
+      const note = find(root, '.aib-video-note');
+      note.hidden = false;
+      find(note, 'span').textContent = leftOutLine;
+    };
+    // The tips for filming, or for taking photos when only photos are chosen.
+    const showTips = (): void => {
+      const photosOnly = chosen.photos.length > 0 && !chosen.videos.length;
+      find(root, '.aib-tips[data-for=video]').hidden = photosOnly;
+      find(root, '.aib-tips[data-for=photos]').hidden = !photosOnly;
+    };
+    // A picture the browser cannot show (an HEIC, a PDF): an icon and the file's name instead.
+    const pictureOrName = (file: File): string =>
+      showable(file)
+        ? `<img alt="">`
+        : `<span class="aib-drop-name">${icon(file.type === 'application/pdf' || /\.pdf$/i.test(file.name) ? 'file' : 'image', 22)}<em>${esc(file.name)}</em></span>`;
     const setFiles = (kind: string | undefined, list: File[]): void => {
       const label = find(root, `.aib-drop[data-kind=${kind}]`);
       const shownFile = find(label, '.aib-drop-file');
       if (kind === 'plan') {
-        const image = list.find(f => f.type.startsWith('image/'));
-        if (!image) return;
-        chosen.plan = image;
-        shownFile.innerHTML = `<img alt="">`;
-        find<HTMLImageElement>(shownFile, 'img').src = URL.createObjectURL(image);
+        const plan = list.find(isPlanFile);
+        if (!plan) return;
+        chosen.plan = plan;
+        shownFile.innerHTML = pictureOrName(plan);
+        const img = shownFile.querySelector<HTMLImageElement>('img');
+        if (img) img.src = URL.createObjectURL(plan);
       } else {
-        const videos = list.filter(f => f.type.startsWith('video/'));
-        if (!videos.length) return;
+        const sorted = sortMedia(list);
+        const {videos, photos} = sorted;
+        if (!videos.length && !photos.length) return;
         chosen.videos = videos;
+        chosen.photos = photos;
+        leftOutLine = sorted.tooBig.length
+          ? t('Too big, left out: {0}', sorted.tooBig.join(', '))
+          : sorted.tooMany
+            ? t('Only the first {0} photos are taken', MOST_PHOTOS)
+            : null;
         // The estimate follows the videos' length, once the browser has read it; a video likely to give a thin build
-        // gets a gentle line.
+        // gets a gentle line, and so do a few photos with no video.
         chosenSeconds = null;
         showVideoConcern(null);
-        videosFacts(videos).then(facts => {
-          if (chosen.videos !== videos) return;
-          chosenSeconds = totalSeconds(facts);
-          askUploadEstimate();
-          showVideoConcern(videoConcern(facts));
-        });
-        const megabytes = videos.reduce((sum, f) => sum + f.size, 0) / 1e6;
-        shownFile.innerHTML = `<video muted playsinline preload="metadata"></video><small></small>`;
-        find<HTMLVideoElement>(shownFile, 'video').src = URL.createObjectURL(videos[0]) + '#t=1';
-        find(shownFile, 'small').textContent =
-          t('{0, plural, one {# video} other {# videos}}', videos.length) + ` · ${Math.round(megabytes)} MB`;
+        showLeftOut();
+        showTips();
+        askUploadEstimate();
+        if (videos.length) {
+          videosFacts(videos).then(facts => {
+            if (chosen.videos !== videos) return;
+            chosenSeconds = totalSeconds(facts);
+            askUploadEstimate();
+            showVideoConcern(videoConcern(facts));
+            showLeftOut();
+          });
+        } else if (photos.length < FEW_PHOTOS) {
+          const note = find(root, '.aib-video-note');
+          note.hidden = false;
+          find(note, 'span').textContent = t(
+            'A few photos show little of a home: add two or three of each room',
+          );
+          showLeftOut();
+        }
+        const megabytes = [...videos, ...photos].reduce((sum, f) => sum + f.size, 0) / 1e6;
+        const counts = [
+          videos.length ? t('{0, plural, one {# video} other {# videos}}', videos.length) : '',
+          photos.length ? t('{0, plural, one {# photo} other {# photos}}', photos.length) : '',
+        ].filter(Boolean);
+        if (videos.length) {
+          shownFile.innerHTML = `<video muted playsinline preload="metadata"></video><small></small>`;
+          find<HTMLVideoElement>(shownFile, 'video').src = URL.createObjectURL(videos[0]) + '#t=1';
+        } else {
+          // Up to four photos side by side; one the browser cannot show is a tile with its icon.
+          const tiles = photos.slice(0, 4);
+          shownFile.innerHTML = `<span class="aib-photo-grid n${tiles.length}">${tiles
+            .map(photo =>
+              showable(photo) ? '<img alt="">' : `<span class="aib-photo-tile">${icon('image', 20)}</span>`,
+            )
+            .join('')}</span><small></small>`;
+          const images = shownFile.querySelectorAll<HTMLImageElement>('img');
+          tiles.filter(showable).forEach((photo, i) => (images[i].src = URL.createObjectURL(photo)));
+        }
+        find(shownFile, 'small').textContent = [...counts, `${Math.round(megabytes)} MB`].join(' · ');
       }
       shownFile.hidden = false;
       label.classList.add('has');
@@ -1410,14 +1532,14 @@ export function openAiBuild(ed: Editor, options: AiBuildOptions = {}): AiBuildSc
     takeChosen().then(async kept => {
       if (!kept || screen !== 'upload') return;
       if (kept.plan) setFiles('plan', [kept.plan]);
-      if (kept.videos.length) setFiles('video', kept.videos);
+      if (haveRooms(kept)) setFiles('media', [...kept.videos, ...kept.photos]);
       if (!kept.startWhenSignedIn) return;
       startWhenSignedIn = true;
       await accountReady;
       startAfterSignIn();
     });
     find(root, '[data-act=exit]').onclick = exit;
-    // Signed out, the button opens the sign-in; else it is on only with a plan, a video and something left (syncStart).
+    // Signed out, the button opens the sign-in; else it is on only with a plan, a video or photos and something left (syncStart).
     start.onclick = () => {
       if (offer && !account) askSignIn('build', null, true);
       else send(chosen);
@@ -1453,7 +1575,13 @@ export function openAiBuild(ed: Editor, options: AiBuildOptions = {}): AiBuildSc
     let buildStarted: string;
     try {
       // There is a plan: the button is on only with one (syncStart).
-      const request = {api, plan: files.plan as File, videos: files.videos, lang: getLang()};
+      const request = {
+        api,
+        plan: files.plan as File,
+        videos: files.videos,
+        photos: files.photos,
+        lang: getLang(),
+      };
       buildStarted = await uploadBuild(request, uploading.job, browserTransport(), showShare);
     } catch (error) {
       const failure = error instanceof UploadFailed ? error : new UploadFailed(0, null, String(error));
@@ -1471,7 +1599,10 @@ export function openAiBuild(ed: Editor, options: AiBuildOptions = {}): AiBuildSc
         return;
       }
       sending.classList.add('err');
-      line.textContent = t('Could not upload: {0}', failure.status ? failure.message : t('no connection'));
+      line.textContent = t(
+        'Could not upload: {0}',
+        failure.status ? refusedText(failure) : t('no connection'),
+      );
       stopped();
       return;
     }
@@ -1553,12 +1684,16 @@ export function openAiBuild(ed: Editor, options: AiBuildOptions = {}): AiBuildSc
   const turn = (): number => Math.floor(Date.now() / 1000 / PHRASE_SECONDS);
   const inTurn = <Item>(list: Item[], offset = 0): Item => list[(turn() + offset) % list.length];
   // What the step does, in turn.
-  const phrase = (step: PhraseStep): string => t(inTurn(PHRASES[step]));
+  // A build from photos only speaks of the photos (PHOTO_WORDS, PHOTO_PHRASES).
+  const fromPhotos = (): boolean => status?.input === 'photos';
+  const words = (text: string): string => (fromPhotos() && PHOTO_WORDS[text]) || text;
+  const phrasesOf = (step: PhraseStep): string[] => (fromPhotos() && PHOTO_PHRASES[step]) || PHRASES[step];
+  const phrase = (step: PhraseStep): string => t(words(inTurn(phrasesOf(step))));
   // Every other turn: a line about the work in hand (its room or piece in turn too), what the step does between — the line never
   // stands still for long, and each room still gets its turn.
   const inHalfTurn = <Item>(list: Item[]): Item => list[Math.floor(turn() / 2) % list.length];
   const between = (line: string, step: PhraseStep): string =>
-    turn() % 2 ? t(inHalfTurn(PHRASES[step])) : line;
+    turn() % 2 ? t(words(inHalfTurn(phrasesOf(step)))) : line;
 
   // What the plan call is at: thinking (what it works out, in turn), writing (the rooms as they come), or fixing what our code found.
   function planLine(): string {
@@ -1792,7 +1927,7 @@ export function openAiBuild(ed: Editor, options: AiBuildOptions = {}): AiBuildSc
       box.classList.toggle('aib-waiting', next);
       setLine(
         find(box, '.aib-reading-line span'),
-        next ? t('Your plan is next: first the video is cut into rooms') : planLine(),
+        next ? t(words('Your plan is next: first the video is cut into rooms')) : planLine(),
       );
       const call = status.live?.plan;
       const names = call?.rooms || [];
@@ -1953,6 +2088,12 @@ export function openAiBuild(ed: Editor, options: AiBuildOptions = {}): AiBuildSc
     overall.hidden = !s || !!s.error || !!s.severalFloors || !!locked;
     barOf(overall).style.width = percent(s?.share || 0);
     if (!s) return;
+    // The stages' names and the rooms' heading, in a build from photos.
+    for (const stage of STAGES) {
+      const label = root.querySelector(`.aib-step[data-stage=${stage.key}] .aib-step-head b`);
+      if (label) label.textContent = t(words(stage.label));
+    }
+    find(root, '.aib-found h3').textContent = t(words('Rooms from your video'));
     renderSteps();
     const cta = ctaCard();
     const box = find(root, '.aib-cta');

@@ -1,7 +1,7 @@
 // What an AI build action will about take, told before it starts (D-094): a build on the upload page, a round of pins in
 // the review. The service tells it as percent of a package, never money (D-085), and says when it is more than what is
 // left: the action may still start, and waits for a top-up where the money runs out.
-//   GET <api>/api/estimate?seconds=<videos' length>&videos=<n>   a new build
+//   GET <api>/api/estimate?seconds=<videos' length>&videos=<n>&photos=<n>   a new build (photos of the rooms: D-117)
 //   GET <api>/api/builds/<id>/estimate?rooms=<n>[&home=1]         a round of pins in n rooms (home=1: words for the whole home)
 //   → {low, high, short}: percent of a package; short: more than what is left (null: no account known)
 // An older service has no estimate (404): nothing is shown.
@@ -50,12 +50,13 @@ async function estimateAt(url: string): Promise<Estimate | null> {
   }
 }
 
-/** What a new build will about take, from the videos' length (null: unknown) and how many videos there are. */
+/** What a new build will about take, from the videos' length (null: unknown), how many videos and photos there are. */
 export function buildEstimate(
   api: string,
-  {seconds, videos}: {seconds: number | null; videos: number},
+  {seconds, videos, photos = 0}: {seconds: number | null; videos: number; photos?: number},
 ): Promise<Estimate | null> {
   const query = new URLSearchParams({videos: String(videos)});
+  if (photos > 0) query.set('photos', String(photos));
   if (seconds !== null) query.set('seconds', String(Math.round(seconds)));
   return estimateAt(`${api}/api/estimate?${query}`);
 }
