@@ -27,6 +27,8 @@ export interface RingEdge {
   l: number;
   s: number;
   u: Vector;
+  /** The length of the whole wall the edge lies on (wallLengths): an edge is one piece of it when points split the wall. */
+  wall: number;
 }
 /** A room's face as a tape: its edges and its whole length P. */
 export interface Ring {
@@ -39,7 +41,7 @@ export interface RingPoint {
   s: number;
   q: Point;
 }
-/** A piece of an edge (stretch): its ends, direction and length, the whole edge's length, its start along the tape. */
+/** A piece of an edge (stretch): its ends, direction and length, the length of the whole wall it is on, its start along the tape. */
 interface EdgePiece {
   a: Point;
   b: Point;
@@ -141,10 +143,56 @@ export function ring(face: Outline): Ring {
     const b = face[(i + 1) % face.length];
     const l = Math.hypot(b[0] - a[0], b[1] - a[1]);
     if (l < 1e-6) return;
-    E.push({a, b, l, s, u: [(b[0] - a[0]) / l, (b[1] - a[1]) / l]});
+    E.push({a, b, l, s, u: [(b[0] - a[0]) / l, (b[1] - a[1]) / l], wall: l});
     s += l;
   });
+  const walls = wallLengths(E);
+  E.forEach((e, i) => {
+    e.wall = walls[i];
+  });
   return {E, P: s};
+}
+
+// A step this small between two pieces of a wall going the same way keeps them one wall (a change of the wall's thickness,
+// a plaster bump); a deeper one is a recess or a column, and the pieces on either side of it are walls of their own.
+const WALL_STEP = 0.15;
+
+// The length of the wall each edge lies on. A room's outline keeps points on a straight wall (where a cut ended, where the wall's
+// thickness changes), so one wall can be several short edges. Edges one after another going the same way, also across a small
+// step between them, are one wall: the sum of their lengths decides whether they are a wall the cabinet turns at or relief it fills.
+// A step's own edge keeps its own length (it stays relief).
+function wallLengths(E: RingEdge[]): number[] {
+  const n = E.length;
+  const own = E.map(e => e.l);
+  if (n < 3) return own;
+  const at = (i: number): RingEdge => E[((i % n) + n) % n];
+  const sameWay = (i: number, j: number): boolean => dot(at(i).u, at(j).u) > 0.995;
+  // how far the wall goes on from edge i: 1 to the next edge, 2 over a small step to the one after it, 0 the wall ends here
+  const linkOf = (i: number): number => {
+    if (sameWay(i, i + 1)) return 1;
+    if (at(i + 1).l < WALL_STEP && sameWay(i, i + 2)) return 2;
+    return 0;
+  };
+  const link = E.map((_, i) => linkOf(i));
+  const reached = (i: number): boolean => link[(i - 1 + n) % n] === 1 || link[(i - 2 + n) % n] === 2;
+  const start = E.findIndex((_, i) => !reached(i));
+  if (start < 0) return own; // every edge goes on into the next: no corner to start from
+  const walls = [...own];
+  let i = start;
+  let walked = 0;
+  while (walked < n) {
+    const pieces = [i];
+    let k = i;
+    while (link[k % n] && walked + (k - i) + link[k % n] < n) {
+      k += link[k % n];
+      pieces.push(k);
+    }
+    const length = pieces.reduce((sum, p) => sum + own[p % n], 0);
+    for (const p of pieces) walls[p % n] = length;
+    walked += k - i + 1;
+    i = k + 1;
+  }
+  return walls;
 }
 export function ringAt(R: Ring, s: number): Point {
   s = mod(s, R.P);
@@ -166,7 +214,7 @@ export function ringProject(R: Ring, p: Point): RingPoint | null {
   }
   return best;
 }
-// The piece of the outline from sa forward by L: pieces of edges; full is the length of the whole edge (a short edge is a protrusion, not a wall).
+// The piece of the outline from sa forward by L: pieces of edges; full is the length of the whole wall the edge is on (a short one is a protrusion, not a wall).
 function stretch(R: Ring, sa: number, L: number): EdgePiece[] {
   const out: EdgePiece[] = [];
   const n = R.E.length;
@@ -184,7 +232,7 @@ function stretch(R: Ring, sa: number, L: number): EdgePiece[] {
         b: [e.a[0] + e.u[0] * (t0 + len), e.a[1] + e.u[1] * (t0 + len)],
         u: e.u,
         l: len,
-        full: e.l,
+        full: e.wall,
         s: e.s + t0,
       });
     left -= len;
@@ -416,11 +464,22 @@ export function runGeo(plan: Pick<Plan, 'rooms'>, f: FurnitureItem | null | unde
   const R = ring(face);
   // (A room's face has edges, so each ringProject! below finds its point.)
   const sa = ringProject(R, f.a)!.s;
-  const L = mod(ringProject(R, f.b)!.s - sa, R.P);
+  const L = endsLength(R, sa, ringProject(R, f.b)!.s, f.w);
   const shape = L > 0.01 ? runShape(face, sa, L, f.d) : null;
   const geo = shape && Object.assign(shape, {key, room: r, sa, L});
   cache.set(f, {key, geo});
   return geo;
+}
+// How far a run goes from its start sa to its end sb along the face. The room changed under it (a wall moved, the room was cut)
+// so that both ends now fall on the same point, typically a corner: the length from the ends is then 0 (the cabinet would vanish)
+// or, by a rounding error, the whole room minus nothing (it would wrap around every wall). Then it keeps its own length w from
+// its start, so it stays where it was and can be moved or deleted. A run made to go around the whole room on purpose
+// has its ends 5 cm apart, not on one point.
+function endsLength(R: Ring, sa: number, sb: number, w: number): number {
+  const L = mod(sb - sa, R.P);
+  const together = L < 0.01 || L > R.P - 0.01;
+  if (!together || !Number.isFinite(w) || w <= 0) return L;
+  return Math.max(RUN_MIN, Math.min(R.P - 0.05, w));
 }
 // An old straight item (base and wall cabinets used to be a rectangle x, y, w, rot): the ends come from its back side.
 function fromRect(plan: Pick<Plan, 'rooms'>, f: FurnitureItem): void {
@@ -496,7 +555,7 @@ export function runStops(
 ): {corners: number[]; gaps: OpeningGap[]; stops: number[]} {
   const out: number[] = [];
   // walls around the whole outline, starting from the wall right after a turn: otherwise the first and last would be one wall split in two
-  const long = R.E.map(e => e.l >= Math.max(0.45, d + 0.15));
+  const long = R.E.map(e => e.wall >= Math.max(0.45, d + 0.15));
   const k0 = Math.max(
     0,
     R.E.findIndex((e, i) => {

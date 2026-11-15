@@ -204,3 +204,65 @@ test('kitchen: old straight cabinets become wall runs, base cabinets stop at the
   near(ln[0][1][0], ln[1][0][0]);
   near(ln[0][1][1], ln[1][0][1]);
 });
+test('a wall split by points into short pieces is still one wall: base cabinets stop at its corners', () => {
+  // the same 4×3 room, but every wall has points on it every 0.5 m (cuts and changes of thickness leave such points):
+  // each edge is shorter than a cabinet is deep, and the cabinet used to take them for relief and go around the whole room
+  const corners: Point[] = [
+    [0, 0],
+    [4, 0],
+    [4, 3],
+    [0, 3],
+  ];
+  const polygon = corners.flatMap((a, i): Point[] => {
+    const b = corners[(i + 1) % corners.length];
+    const steps = Math.round(Math.hypot(b[0] - a[0], b[1] - a[1]) / 0.5);
+    return Array.from({length: steps}, (_, k): Point => [
+      a[0] + ((b[0] - a[0]) * k) / steps,
+      a[1] + ((b[1] - a[1]) * k) / steps,
+    ]);
+  });
+  const p: Plan = {...emptyPlan(), rooms: [{id: 'r', polygon}]};
+  const r = runAt(p, [2, 2.5], 2.4, 0.6, {z0: 0, z1: 0.9})!;
+  near(r.L, 3.9);
+  // and with a 3 cm step in the middle of the top wall (a thicker piece of it): still one wall
+  const stepped: Room = {
+    id: 'r',
+    polygon: [
+      [0, 0],
+      [4, 0],
+      [4, 3],
+      [2.3, 3],
+      [2.3, 3.03],
+      [1.7, 3.03],
+      [1.7, 3],
+      [0, 3],
+    ],
+  };
+  p.rooms = [stepped];
+  const s = runAt(p, [1, 2.5], 2.4, 0.6, {z0: 0, z1: 0.9})!;
+  assert.ok(s.L < 4, `along the top wall only, not around a corner: ${s.L}`);
+});
+test('the room changed so that both ends of a cabinet fall on one corner: it keeps its length, does not vanish or go all around', () => {
+  const p: Plan = {...emptyPlan(), rooms: [structuredClone(box)]};
+  const R = ring(faceOf(box));
+  const f = {id: 'k', model: 'kitchenBase', d: 0.6, h: 0.9} as FurnitureItem;
+  // along the bottom wall from x = 0.5 to 2
+  runSet(p, f, box, R, at(box, [0.5, 0]), 1.5);
+  near(f.w, 1.5);
+  // the room was cut: its left part with that stretch of wall is gone, both ends now project onto the corner at x = 2.5
+  p.rooms[0].polygon = [
+    [2.5, 0],
+    [4, 0],
+    [4, 3],
+    [2.5, 3],
+  ];
+  // nudge an end onto the other side of the corner as rounding does: the length from the ends would be the whole room
+  // (runSet gave the cabinet both its ends: the ! below)
+  const a = f.a!;
+  const ends: Point[] = [f.b!, [a[0] - 1e-9, a[1]], [a[0], a[1] + 1e-9]];
+  for (const b of ends) {
+    const g = runGeo(p, {...f, a: [a[0], a[1]], b})!;
+    assert.ok(g, 'it is still there');
+    near(g.L, 1.5);
+  }
+});
