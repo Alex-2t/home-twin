@@ -33,7 +33,8 @@ import {
   homeRange,
   MODE_NAMES,
 } from '../look/overview.ts';
-import {renderAC} from '../look/ac-control.ts';
+import {dialValue, paintDial, renderAC} from '../look/ac-control.ts';
+import type {DialRange} from '../look/ac-control.ts';
 import {sparkline, METRICS, metricColor} from '../look/history.ts';
 import {weatherNow, forecastSlots, degrees} from '../look/weather.ts';
 import {SCENES, sceneDevices, scenePlan, sceneDraft, executeScene} from '../look/scenes.ts';
@@ -435,6 +436,15 @@ export function createLook(ed: LookEditor, host0: HTMLElement): LookPanel {
   // “Customize panel”: draft {cards, empty — currently empty, q — search in the shade}; what is being dragged
   let lay: LayoutDraft | null = null;
   let dnd: DragState | null = null;
+  // the remote's dial being dragged: its node and air conditioner, the pointer, the range, the setpoint HA has and the one under the pointer
+  let dial: {
+    node: SVGSVGElement;
+    id: string;
+    pid: number;
+    range: DialRange;
+    from: number;
+    value: number;
+  } | null = null;
   // “Security”: devices; the valve asks {entity, action}; commands in flight
   let sec: SecurityDevices = {camera: null, water: [], leaks: []};
   let vac: VacuumDevice[] = [];
@@ -1982,6 +1992,7 @@ export function createLook(ed: LookEditor, host0: HTMLElement): LookPanel {
           .join('')
       : null;
     if (active?.matches?.('input[type=range],select')) return; // a slider is being dragged or a list is open — do not redraw under the user's hand
+    if (dial) return; // the remote's dial is being dragged — the same
     syncLights();
     vac = vacOf(M);
     theme();
@@ -2012,6 +2023,10 @@ export function createLook(ed: LookEditor, host0: HTMLElement): LookPanel {
     strip(M);
     sb.scrollTop = y;
     if (refocus) root.querySelector<HTMLElement>(refocus)?.focus({preventScroll: true});
+    // the remote's dial has no data-action: it keeps the focus by its own attribute (set from the keyboard, it is redrawn by HA's answer)
+    const dialId = active?.dataset?.acDial;
+    if (dialId)
+      root.querySelector<HTMLElement>(`[data-ac-dial="${CSS.escape(dialId)}"]`)?.focus({preventScroll: true});
   }
 
   // ---------- actions ----------
@@ -2266,6 +2281,74 @@ export function createLook(ed: LookEditor, host0: HTMLElement): LookPanel {
     bar.style.setProperty('--level', i.value + '%');
     find(bar, '.bar-value').textContent = i.value + '%';
   });
+  // ---------- the remote's dial (ac-control.ts), as in 3d_floor/card.js acPointerDown / acKeyDown ----------
+  // Drag the knob round the arc: the setpoint follows the pointer and is sent when let go; arrows step it, Home and End go to the ends.
+  // While it is dragged the panel is not redrawn (render), so an HA update does not take the dial from under the hand.
+  const sendSetpoint = (id: string, temperature: number): void => {
+    call('climate', 'set_temperature', {entity_id: id, temperature});
+  };
+  const dialAt = (node: SVGSVGElement, e: PointerEvent, range: DialRange): number => {
+    const box = node.getBoundingClientRect();
+    const x = ((e.clientX - box.left) / box.width) * 240 - 120;
+    const y = ((e.clientY - box.top) / box.height) * 240 - 120;
+    return dialValue(x, y, range);
+  };
+  onRoot('pointerdown', e => {
+    if (lay || e.button > 0) return;
+    const node = (e.target as Element).closest?.<SVGSVGElement>('svg[data-ac-dial]');
+    if (!node || node.getAttribute('aria-disabled') === 'true') return;
+    const id = node.dataset.acDial as string; // the dial names its air conditioner
+    const v = acView(ed.ha?.entity(id));
+    if (!v.on || v.temp == null) return;
+    e.preventDefault();
+    node.focus({preventScroll: true});
+    node.setPointerCapture(e.pointerId);
+    // with a temperature acView gives its range and step
+    const range: DialRange = {min: v.min!, max: v.max!, step: v.step!};
+    dial = {node, id, pid: e.pointerId, range, from: v.temp, value: dialAt(node, e, range)};
+    paintDial(node, dial.value);
+  });
+  onRoot('pointermove', e => {
+    if (!dial || e.pointerId !== dial.pid) return;
+    dial.value = dialAt(dial.node, e, dial.range);
+    paintDial(dial.node, dial.value);
+  });
+  onRoot('pointerup', e => {
+    if (!dial || e.pointerId !== dial.pid) return;
+    const {id, from} = dial;
+    const value = dialAt(dial.node, e, dial.range);
+    dial = null;
+    if (value !== from) sendSetpoint(id, value);
+    else render();
+  });
+  onRoot('pointercancel', e => {
+    if (!dial || e.pointerId !== dial.pid) return;
+    dial = null;
+    render(); // back to the setpoint HA has
+  });
+  onRoot('keydown', e => {
+    const node = (e.target as Element).closest?.<SVGSVGElement>('svg[data-ac-dial]');
+    if (!node || node.getAttribute('aria-disabled') === 'true') return;
+    const id = node.dataset.acDial as string; // the dial names its air conditioner
+    const v = acView(ed.ha?.entity(id));
+    if (v.temp == null) return;
+    // with a temperature acView gives its range and step
+    const min = v.min!;
+    const max = v.max!;
+    const step = v.step!;
+    let temperature: number;
+    if (e.key === 'ArrowRight' || e.key === 'ArrowUp') temperature = v.temp + step;
+    else if (e.key === 'ArrowLeft' || e.key === 'ArrowDown') temperature = v.temp - step;
+    else if (e.key === 'Home') temperature = min;
+    else if (e.key === 'End') temperature = max;
+    else return;
+    e.preventDefault();
+    temperature = Math.max(min, Math.min(max, temperature));
+    if (temperature === v.temp) return;
+    paintDial(node, temperature);
+    sendSetpoint(id, temperature);
+  });
+
   onRoot('change', e => {
     // change comes from the scene and AC lists and the curtain sliders
     const i = e.target as HTMLInputElement | HTMLSelectElement;

@@ -84,6 +84,52 @@ const angle = (value: number): {x: number; y: number} => ({
   y: 120 + 92 * Math.sin(value),
 });
 
+/** The setpoint range the dial covers: lowest, highest, and the step between two settings. */
+export interface DialRange {
+  min: number;
+  max: number;
+  step: number;
+}
+
+// The setpoint at a point of the dial: x, y from the dial's centre in its 240-unit box. The arc runs clockwise from 135° (lowest)
+// to 405° (highest); a point in the gap at the bottom goes to the nearer end. The value is rounded to the step.
+export function dialValue(x: number, y: number, range: DialRange): number {
+  let degrees = (Math.atan2(y, x) * 180) / Math.PI;
+  if (degrees < 0) {
+    degrees += 360;
+  }
+  const inGap = degrees >= 45 && degrees < 135;
+  if (inGap) {
+    degrees = degrees < 90 ? 405 : 135;
+  } else if (degrees < 45) {
+    degrees += 360;
+  }
+  const share = (degrees - 135) / 270;
+  const raw = range.min + share * (range.max - range.min);
+  const steps = Math.round((raw - range.min) / range.step);
+  const value = Math.max(range.min, Math.min(range.max, range.min + steps * range.step));
+  return Number(value.toFixed(3));
+}
+
+// Redraw the dial at a setpoint while it is dragged, before HA has it: the arc, the knob, the number and what a screen reader says.
+export function paintDial(node: SVGSVGElement, value: number): void {
+  const min = Number(node.getAttribute('aria-valuemin'));
+  const max = Number(node.getAttribute('aria-valuemax'));
+  const progress = Math.max(0, Math.min(1, (value - min) / (max - min)));
+  const knob = angle(((135 + 270 * progress) * Math.PI) / 180);
+  const unit = node.dataset.unit || '°C';
+  node.setAttribute('aria-valuenow', String(value));
+  node.setAttribute('aria-valuetext', `${number(value)} ${unit}`);
+  const valueText = node.querySelector('.ac-dial-value');
+  if (valueText) {
+    valueText.textContent = number(value);
+  }
+  node.querySelector('.ac-dial-fill')?.setAttribute('stroke-dasharray', `${progress * 100} 100`);
+  const knobCircle = node.querySelector('.ac-dial-knob');
+  knobCircle?.setAttribute('cx', String(knob.x));
+  knobCircle?.setAttribute('cy', String(knob.y));
+}
+
 export function renderAC(device: AcDevice, s: AcState, busy = false, demo = false): string {
   const available = s.status === 'available' && !busy;
   const disabled = !available || !s.canTemperature;

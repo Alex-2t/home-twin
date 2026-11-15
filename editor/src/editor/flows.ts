@@ -8,6 +8,7 @@ import {pal, dimLabel} from './draw.ts';
 import {DRAW_RECT} from './modes/rooms.ts';
 import {tiltOf, fitPhoto} from './underlay.ts';
 import {readPlan} from '../core/plan-file.ts';
+import {autoPlace} from '../core/devices.ts';
 import {idb} from './underlay.ts';
 import {axisCursor} from './drag-gesture.ts';
 import {routeHash} from './route.ts';
@@ -561,11 +562,11 @@ export function createFlows(
     const name = t(EXAMPLE[x.id]?.name || x.id);
     // the example's own plan photo (build.ts)
     const underlay = x.underlay as ExamplePhoto | null | undefined;
-    return openPlan({plan, name, underlay}, page);
+    return openPlan({plan, name, underlay, example: true}, page);
   }
   // A home to look at (an example, a published home): the plan open now is kept aside, the home opens in the page given
   async function openPlan(
-    home: {plan: PlanInput; name: string; underlay?: ExamplePhoto | null},
+    home: {plan: PlanInput; name: string; underlay?: ExamplePhoto | null; example?: boolean},
     page: RoutePage,
   ): Promise<void> {
     quiet++;
@@ -578,6 +579,13 @@ export function createFlows(
       plan.name ??= name;
       ed.hold = false;
       ed.setPlan(plan, {fit: false});
+      // An example opens as a finished home, in Preview: its air conditioners, curtains and sensors from the demo data are put
+      // in the model the way the Devices step would. Otherwise the panel has the remote but the model has no unit, so no airflow,
+      // and the curtains do not move. Its own HA data are loaded (pickExample reloads for another example's).
+      if (home.example && ed.ha?.demo) {
+        const ha = ed.ha;
+        autoPlace(ed.plan, ha.devices?.() || [], entity => ha.entity(entity));
+      }
       ed.setMode('rooms');
       ed.setTool('select');
       const u = home.underlay;
