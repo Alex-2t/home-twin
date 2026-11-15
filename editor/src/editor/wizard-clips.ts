@@ -528,7 +528,7 @@ function planSplitTimeline(): SplitTimeline {
   const moveTo = (target: Point, duration?: Ms): void => {
     const distance = Math.hypot(target[0] - pointerSeen[0], target[1] - pointerSeen[1]);
     const paced = MOVE_SHORTEST_MS + distance * MOVE_MS_PER_VIEW_UNIT;
-    clock += duration ?? Math.min(MOVE_LONGEST_MS, paced);
+    clock += duration ?? Math.round(Math.min(MOVE_LONGEST_MS, paced));
     timeline.pointer.push(key(clock, target));
     pointerSeen = target;
   };
