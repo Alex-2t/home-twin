@@ -1436,6 +1436,12 @@ export function openAiBuild(ed: Editor, options: AiBuildOptions = {}): AiBuildSc
       find(root, '.aib-tips[data-for=video]').hidden = photosOnly;
       find(root, '.aib-tips[data-for=photos]').hidden = !photosOnly;
     };
+    // A file that cannot go where it was put: one line under the tips, the choice before it kept.
+    const sayWrongFile = (line: string): void => {
+      const note = find(root, '.aib-video-note');
+      note.hidden = false;
+      find(note, 'span').textContent = line;
+    };
     // A picture the browser cannot show (an HEIC, a PDF): an icon and the file's name instead.
     const pictureOrName = (file: File): string =>
       showable(file)
@@ -1446,7 +1452,8 @@ export function openAiBuild(ed: Editor, options: AiBuildOptions = {}): AiBuildSc
       const shownFile = find(label, '.aib-drop-file');
       if (kind === 'plan') {
         const plan = list.find(isPlanFile);
-        if (!plan) return;
+        // A video or a document dropped on the plan: said, not silently taken for nothing.
+        if (!plan) return sayWrongFile(t('This is not a floor plan: add a photo, a scan or a PDF'));
         chosen.plan = plan;
         shownFile.innerHTML = pictureOrName(plan);
         const img = shownFile.querySelector<HTMLImageElement>('img');
@@ -1454,7 +1461,11 @@ export function openAiBuild(ed: Editor, options: AiBuildOptions = {}): AiBuildSc
       } else {
         const sorted = sortMedia(list);
         const {videos, photos} = sorted;
-        if (!videos.length && !photos.length) return;
+        if (!videos.length && !photos.length) {
+          if (sorted.tooBig.length)
+            return sayWrongFile(t('Too big, left out: {0}', sorted.tooBig.join(', ')));
+          return sayWrongFile(t('These are not videos or photos'));
+        }
         chosen.videos = videos;
         chosen.photos = photos;
         leftOutLine = sorted.tooBig.length
