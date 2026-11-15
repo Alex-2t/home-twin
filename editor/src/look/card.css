@@ -547,8 +547,12 @@ div.tile:not(.wide){cursor:default}
   .map-card{flex:none;height:clamp(190px,min(66cqw,46cqh),620px);border-radius:18px}
   .canvas-wrap{min-height:0}
   .sidebar{flex:1;min-height:0;padding:0 max(0px,(100% - 640px)/2) 20px;overscroll-behavior:contain}
-  /* The header with “Back” stays in place while the remote scrolls beneath it. */
-  .panel-navigation{position:sticky;top:0;z-index:2;background:var(--paper);padding:2px 0 10px}
+  /* The header with “Back” stays in place while the remote scrolls beneath it. No fill: the page behind
+     may be a gradient (the editor's preview), and a block of --paper (or even a light tint of it) read as a dark bar over it. What scrolls
+     beneath is blurred instead, and the blur fades out towards the header's bottom edge, so there is no line. */
+  .panel-navigation{position:sticky;top:0;z-index:2;background:transparent;padding:2px 0 10px;
+    -webkit-backdrop-filter:blur(22px);backdrop-filter:blur(22px);
+    -webkit-mask-image:linear-gradient(to bottom,#000 72%,transparent);mask-image:linear-gradient(to bottom,#000 72%,transparent)}
   .overview-heading{padding-top:2px}
   .overview-heading h2{font-size:20px}
   .model-expanded .map-card{flex:1;height:auto}
