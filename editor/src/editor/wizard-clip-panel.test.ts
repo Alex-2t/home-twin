@@ -49,3 +49,18 @@ test('short of height the panel narrows down to 300 px, and below that the clip 
     clip: 'no-room',
   });
 });
+
+test('a width set by the corner wins over 30 %, within 300 px and 60 % of the screen', () => {
+  assert.deepEqual(fitCoachPanel(wide, 'open', 600), {width: 600, clip: 'open'});
+  assert.equal(fitCoachPanel(wide, 'open', 200).width, 300);
+  assert.equal(fitCoachPanel({...wide, containerWidth: 1280}, 'open', 2000).width, 768);
+});
+
+test('a wide panel whose clip does not fit above the toolbar narrows until it does', () => {
+  // the toolbar 600 px down: a 900 px panel's clip would reach past it
+  const short = {...wide, containerWidth: 1600, bottomLimit: 600};
+  const fit = fitCoachPanel(short, 'open', 900);
+  assert.equal(fit.clip, 'open');
+  assert.ok(fit.width < 900);
+  assert.ok(short.top + short.cardHeight + Math.round((fit.width - 26) / 1.6) + 8 <= short.bottomLimit);
+});

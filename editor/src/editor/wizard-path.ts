@@ -299,9 +299,10 @@ export function createPath(ed: Editor): WizardPath {
       {exit: false, id: 'fin', fixed: true},
     );
   };
-  // The progress line (D-043, made one compact line in D-111): a small dot per main step — done filled, deferred with an orange
-  // ring, the current one longer — and the step's name. The tooltip on a dot is the step's number, name and state; a click jumps
-  // to it. The optional steps (devices, sensors) have no dots: they are asked about after the main ones.
+  // The progress line (D-043, D-111): numbered dots per main step joined by lines — done ones with a check mark, a deferred one
+  // with an orange ring — then the optional steps (devices, sensors) as dashed dots with icons, and the step's name. Where the
+  // name does not fit beside them, fitProgressLine makes it compact: small dots for the main steps only, the current one longer.
+  // The tooltip on a dot is the step's number, name and state; a click jumps to it.
   P.el = () => {
     const current = P.cur();
     if (!current) return null;
@@ -310,28 +311,50 @@ export function createPath(ed: Editor): WizardPath {
     box.setAttribute('aria-label', t('All steps'));
     const dots = document.createElement('span');
     dots.className = 'path-dots';
-    MAND.forEach(([key], index) => {
+    const dot = (
+      key: OnboardingStepId,
+      title: string,
+      label: string,
+      optional: boolean,
+    ): HTMLButtonElement => {
       const isCurrent = key === current;
       const status = P.status(key);
-      const dot = document.createElement('button');
-      dot.type = 'button';
+      const button = document.createElement('button');
+      button.type = 'button';
       let state = '';
       if (isCurrent) state = ' cur';
       else if (status === 'confirmed') state = ' done';
       else if (status === 'deferred') state = ' later';
-      dot.className = 'dot' + state;
-      dot.title =
-        t('Step {0} of {1}', index + 1, MAND.length) + ': ' + nameOf(key) + ' · ' + statusName(status);
-      dot.setAttribute('aria-label', dot.title);
-      if (isCurrent) dot.setAttribute('aria-current', 'step');
-      if (isCurrent || !can(key)) dot.disabled = true;
+      button.className = 'dot' + (optional ? ' opt' : '') + state;
+      button.title = title + ' · ' + statusName(status);
+      button.setAttribute('aria-label', button.title);
+      if (isCurrent) button.setAttribute('aria-current', 'step');
+      if (status === 'confirmed' && !isCurrent) button.innerHTML = icon('check', 11);
+      else button.innerHTML = label;
+      if (isCurrent || !can(key)) button.disabled = true;
       else
-        dot.onclick = event => {
+        button.onclick = event => {
           event.stopPropagation();
           P.go(key);
         };
-      dots.append(dot);
+      return button;
+    };
+    MAND.forEach(([key], index) => {
+      if (index) {
+        const line = document.createElement('i');
+        if (P.done(MAND[index - 1][0])) line.className = 'on';
+        dots.append(line);
+      }
+      const title = t('Step {0} of {1}', index + 1, MAND.length) + ': ' + nameOf(key);
+      dots.append(dot(key, title, '<span>' + (index + 1) + '</span>', false));
     });
+    const gap = document.createElement('i');
+    gap.className = 'gap';
+    dots.append(gap);
+    for (const [key, , iconName] of OPT) {
+      const title = nameOf(key) + ' · ' + t('optional');
+      dots.append(dot(key, title, icon(iconName, 11), true));
+    }
     box.append(dots);
     const mainIndex = MAND.findIndex(s => s[0] === current);
     let name = nameOf(current) + ' · ' + t('optional');
@@ -344,4 +367,16 @@ export function createPath(ed: Editor): WizardPath {
     return box;
   };
   return P;
+}
+
+/** Makes the card's progress line compact where the step's name does not fit whole beside the full one; asked again whenever
+ * the card is placed, as its width may have changed. */
+export function fitProgressLine(card: HTMLElement): void {
+  const line = card.querySelector<HTMLElement>(':scope > .path');
+  if (!line || card.hidden) return;
+  line.classList.remove('compact');
+  const name = line.querySelector<HTMLElement>('.path-name');
+  const nameCut = !!name && name.scrollWidth > name.clientWidth + 1;
+  const lineOver = line.scrollWidth > line.clientWidth + 1;
+  line.classList.toggle('compact', nameCut || lineOver);
 }
