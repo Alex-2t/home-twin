@@ -85,7 +85,7 @@ async function genDemo(): Promise<void> {
   );
 }
 // The showcase: the examples as a list other sites show (sync.md lists them with the gallery's AI-built homes, D-116), written
-// beside the page — dist/showcase/examples.json and each example's render <id>.webp. A card says the name in every language
+// beside the page — dist/showcase/examples.json and each example's render <id>-<content hash>.webp. A card says the name in every language
 // the editor has, the area and the rooms as the gallery's cards do, and the address that opens the home (#/example/<id>/).
 // Only the typical homes and the designer interiors (demo/homes.ts): never the build's own demo home, which may be the owner's.
 async function writeShowcase(examples: ExampleHome[]): Promise<void> {
@@ -114,7 +114,11 @@ async function writeShowcase(examples: ExampleHome[]): Promise<void> {
     const info = EXAMPLE[example.id];
     const renderFile = `assets/renders/${example.id}.webp`;
     if (!info || !fs.existsSync(renderFile)) continue;
-    fs.copyFileSync(renderFile, `dist/showcase/${example.id}.webp`);
+    // named by its content: a new render is a new address, so no cache in between keeps the old picture
+    const renderBytes = fs.readFileSync(renderFile);
+    const renderHash = crypto.createHash('sha256').update(renderBytes).digest('hex').slice(0, 8);
+    const renderName = `${example.id}-${renderHash}.webp`;
+    fs.writeFileSync(`dist/showcase/${renderName}`, renderBytes);
     const facts = homeFacts(example.DEMO.rooms ?? []);
     homes.push({
       id: example.id,
@@ -123,7 +127,7 @@ async function writeShowcase(examples: ExampleHome[]): Promise<void> {
       area: facts.area,
       rooms: facts.rooms,
       kind: GALLERY_KIND[info.kind],
-      render: `${example.id}.webp`,
+      render: renderName,
       open: `#/example/${example.id}/`,
     });
   }
