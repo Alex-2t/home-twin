@@ -438,6 +438,11 @@ export interface PlanLight {
   members?: string[];
   /** A switch marked "It's a light". */
   relay?: boolean;
+  /**
+   * The AI build put it in a room no lamp was seen in (a ceiling light in the middle): not a lamp of the home, a stand-in for
+   * one. Any HA light placed in its room takes it off the plan, whatever its form (light-place.ts).
+   */
+  guessed?: boolean;
   kind?: LightKind;
   /** None in older plans: fixtures.ts formFor guesses it from kind and h. */
   form?: LightForm;

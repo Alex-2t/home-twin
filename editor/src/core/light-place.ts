@@ -143,9 +143,18 @@ export function placeLight(
   near?: Point | null,
 ): boolean {
   giveSeenBack(plan.lights, light);
-  const seen = seenLampsFor(plan, light, form, opt, cell, near);
-  if (!seen.length) return placeForm(plan, light, form, opt, cell);
-  takePlace(plan, light, seen);
+  const seen = seenLampsFor(plan, light, form, opt, cell, near).filter(lamp => !lamp.guessed);
+  if (seen.length) {
+    takePlace(plan, light, seen);
+    return true;
+  }
+  if (!placeForm(plan, light, form, opt, cell)) return false;
+  // A stand-in the AI build put in a room with no lamp seen: the HA light stands where its own guess says and holds the
+  // stand-in, which comes back when the HA light leaves the room.
+  const standIns = plan.lights.filter(
+    other => other !== light && other.guessed && isSeenLamp(other) && inCell(other, cell),
+  );
+  if (standIns.length) holdSeen(plan.lights, light, standIns);
   return true;
 }
 

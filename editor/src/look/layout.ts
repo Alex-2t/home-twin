@@ -64,12 +64,13 @@ export const BUILTIN: OverviewCard[] = [
     about: N('Climate, energy, connectivity'),
   },
 ];
-// room screen: parts in default order (as in 3d_floor: sensors, remote, curtains, lights, “More in the room”)
+// room screen: parts in default order. Lights first: they are what a room screen is opened for most (the owner, 2026-11-15);
+// then sensors, remote, curtains, “More in the room” (as in 3d_floor)
 export const ROOM_BUILTIN: BuiltinCard[] = [
+  {id: 'lights', name: N('Lighting'), icon: 'bulb', about: N('Room lights')},
   {id: 'climate', name: N('Climate|indoor'), icon: 'thermometer', about: N('Temperature, humidity, CO₂')},
   {id: 'ac', name: N('Air conditioners'), icon: 'snowflake', about: N('AC and heating controls')},
   {id: 'covers', name: N('Curtains'), icon: 'curtain', about: N('Curtains and blinds')},
-  {id: 'lights', name: N('Lighting'), icon: 'bulb', about: N('Room lights')},
   {id: 'extras', name: N('More in the room'), icon: 'door', about: N('Windows, doors and other sensors')},
 ];
 export const isFav = (c: PanelCard | null | undefined): c is FavCard => c?.type === 'entities';
