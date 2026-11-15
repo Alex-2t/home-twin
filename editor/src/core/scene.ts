@@ -31,6 +31,7 @@ import {
   withAO,
 } from './surfaces.ts';
 import {floorPieces} from './pieces.ts';
+import {MOTION_RESOLUTION, MotionResolution, ShadowSchedule} from './render-budget.ts';
 import type {LightDevice} from './card/lighting.ts';
 import type {Item3d} from './furniture3d.ts';
 import type {
@@ -355,22 +356,37 @@ function prism(mp: MultiPolygon, bottom: number, top: number): THREE.ExtrudeGeom
   return g;
 }
 
+// The renderer's pixel ratio at rest (sharper costs more than it shows), and while the camera moves on a slow GPU (D-115).
+const FULL_PIXEL_RATIO_CAP = 1.65;
+const MOVING_PIXEL_RATIO = 1;
+
 export function createView(host: HTMLElement): SceneView {
   let dirty = 2;
-  const redraw = () => {
+  // The sun's shadow map is drawn only after a change, not for a frame that only moves the camera (D-115).
+  const shadows = new ShadowSchedule();
+  // frames on demand (see loop): 2 — this frame and the next; a change through the view also redraws the shadow map
+  const redraw = (): void => {
     dirty = 2;
-  }; // frames on demand (see loop): 2 — this frame and the next
+    shadows.markChanged();
+  };
   const motion = globalThis.matchMedia?.('(prefers-reduced-motion: reduce)');
   const reducedMotion = () => !!motion?.matches;
   const DEG0 = THREE.MathUtils.degToRad;
   RectAreaLightUniformsLib.init();
   const renderer = new THREE.WebGLRenderer({antialias: true, alpha: true});
-  renderer.setPixelRatio(Math.min(devicePixelRatio, 1.65));
+  const fullPixelRatio = Math.min(devicePixelRatio, FULL_PIXEL_RATIO_CAP);
+  renderer.setPixelRatio(fullPixelRatio);
+  const resolution = new MotionResolution({
+    fullRatio: fullPixelRatio,
+    movingRatio: Math.min(fullPixelRatio, MOVING_PIXEL_RATIO),
+    ...MOTION_RESOLUTION,
+  });
   renderer.outputColorSpace = THREE.SRGBColorSpace;
   renderer.toneMapping = THREE.NeutralToneMapping;
   renderer.toneMappingExposure = 1;
   renderer.shadowMap.enabled = true;
   renderer.shadowMap.type = THREE.PCFShadowMap;
+  renderer.shadowMap.autoUpdate = false;
   renderer.setClearColor(0xe9edf1, 1);
   host.appendChild(renderer.domElement);
   const scene = new THREE.Scene();
@@ -552,6 +568,7 @@ export function createView(host: HTMLElement): SceneView {
       SUN.up,
       sunAt.z + (-d.z * c - d.x * s) * SUN.back,
     );
+    shadows.markChanged();
   }
   // The sun follows the view once the view has settled, catching up over a few frames. Moved with the camera on every frame of a
   // turn, the shadow map was drawn from a new angle each time and shadow edges crawled and flickered along wall joints and corners.
@@ -634,6 +651,8 @@ export function createView(host: HTMLElement): SceneView {
     selected?: string | null,
   ): void {
     roomsNow = rooms || [];
+    // another home may be lighter: the next move tries the full resolution again
+    resolution.reset();
     dropRoomFx();
     if (model) {
       scene.remove(model);
@@ -2409,6 +2428,36 @@ export function createView(host: HTMLElement): SceneView {
     renderer.forceContextLoss();
     renderer.domElement.remove();
   };
+  // A shadow caster shown or hidden for the view (a facade, a fixture on it, tall furniture with its back to the camera): the sun's
+  // shadow map no longer matches and is drawn again.
+  function showForView(object: THREE.Object3D, visible: boolean): void {
+    if (object.visible === visible) return;
+    object.visible = visible;
+    shadows.markChanged();
+  }
+  // Whether the camera moved by more than half a pixel since the last frame: the long tail of damping, which moves it by far
+  // less, counts as still, so the sharp frame comes when the view looks still.
+  const cameraBefore = new THREE.Vector3();
+  let zoomBefore = 1;
+  function cameraVisiblyMoved(): boolean {
+    const worldPerPixel = (camera.right - camera.left) / camera.zoom / (host.clientWidth || 1);
+    const shifted = camera.position.distanceTo(cameraBefore) > worldPerPixel / 2;
+    const zoomed = Math.abs(camera.zoom / zoomBefore - 1) > 1e-3;
+    cameraBefore.copy(camera.position);
+    zoomBefore = camera.zoom;
+    return shifted || zoomed;
+  }
+  // Lower the resolution while the camera moves on a GPU too slow for the full one, sharp again once it is still (D-115).
+  // → true when the ratio changed (the frame has to be drawn).
+  let drewLastLoop = false;
+  let lastLoopAt = 0;
+  function fitPixelRatio(now: number): boolean {
+    const sinceDrawnMs = drewLastLoop ? now - lastLoopAt : null;
+    const ratio = resolution.ratioFor(now, cameraVisiblyMoved(), sinceDrawnMs);
+    if (ratio === renderer.getPixelRatio()) return false;
+    renderer.setPixelRatio(ratio);
+    return true;
+  }
   function loop(): void {
     if (paused) {
       raf = 0;
@@ -2429,6 +2478,9 @@ export function createView(host: HTMLElement): SceneView {
     dir.normalize();
     if (!(grab || tweening || damping || camChanged) && sunToward(dir)) dirty = Math.max(dirty, 1);
     if (fast || (calm && now - drawnAt >= 41)) dirty = Math.max(dirty, 1);
+    if (fitPixelRatio(now)) dirty = Math.max(dirty, 1);
+    lastLoopAt = now;
+    drewLastLoop = dirty > 0;
     if (dirty <= 0) {
       raf = requestAnimationFrame(loop);
       return;
@@ -2436,20 +2488,21 @@ export function createView(host: HTMLElement): SceneView {
     dirty--;
     drawnAt = now;
     for (const s of sides) {
-      s.grp.visible = s.out.dot(dir) > -0.25;
+      showForView(s.grp, s.out.dot(dir) > -0.25);
       AOU.htAoVis.value.setComponent(SIDE_AO[s.id], s.grp.visible ? 1 : 0);
     }
     for (const o of labels.values())
       o.mesh.visible = !o.side || sides.find(s => s.id === o.side)?.grp.visible !== false;
     for (const m of fixtures.children)
       if (m.userData.side && !m.userData.off)
-        m.visible = sides.find(s => s.id === m.userData.side)?.grp.visible !== false;
+        showForView(m, sides.find(s => s.id === m.userData.side)?.grp.visible !== false);
     // Tall furniture with its back to the camera hides like a facade: otherwise a wardrobe by an exterior wall blocks the room.
     const faces = (t: number): boolean => -(Math.sin(t) * dir.x + Math.cos(t) * dir.z) > -0.5;
     for (const o of furn.children) {
-      if (o.userData.tall) o.visible = faces(o.rotation.y);
-      for (const q of o.userData.parts || []) q.visible = faces(q.userData.ry);
+      if (o.userData.tall) showForView(o, faces(o.rotation.y));
+      for (const q of o.userData.parts || []) showForView(q, faces(q.userData.ry));
     }
+    renderer.shadowMap.needsUpdate = shadows.takeUpdate();
     renderer.render(scene, camera);
     raf = requestAnimationFrame(loop);
   }
@@ -2487,6 +2540,8 @@ export function createView(host: HTMLElement): SceneView {
   // The view as it is now, drawn once more and handed over at once: a WebGL canvas keeps its picture only until the frame
   // ends, so the caller copies it straight away (the AI build's pins keep what the owner was looking at, ai-review.js).
   function snapshot(): HTMLCanvasElement {
+    if (renderer.getPixelRatio() !== fullPixelRatio) renderer.setPixelRatio(fullPixelRatio);
+    renderer.shadowMap.needsUpdate = shadows.takeUpdate();
     renderer.render(scene, camera);
     return renderer.domElement;
   }

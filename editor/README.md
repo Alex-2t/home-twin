@@ -43,6 +43,7 @@ src/core/            core — no UI, will move into HA later
   car3d.js           procedural sedan and SUV: separate glazing, LED lamps, body seams and detailed wheels
   parts.js           an item from simple parts (model 'parts', written by the AI build): checks and 3D; stretched to the plan's size
   scene.js           3D view: walls, floor, furniture, lights, room mask
+  render-budget.ts   what the 3D view spends on the GPU (D-115): the sun's shadow map only after a change, a lower resolution only while a slow GPU moves the camera
   surfaces.js        floor by room type (textures in code), shading at walls and corners (D-028)
   card/              card lighting — a copy from 3d_floor (lighting.js, room-light-mask.js)
 src/editor/          editor UI

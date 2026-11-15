@@ -9,6 +9,22 @@ export interface RoomLights {
   lights: Light[];
 }
 
+// The mask fades over this much (m) outside the room's outline: a precision seam at the wall surface is avoided.
+const MASK_FEATHER = 0.025;
+
+const number = (n: number): string => Number(n).toFixed(6);
+
+// Outside the room's box widened by the feather the mask is 0, exactly as the edges would give: a fragment in another room (most
+// of them, for each room) returns at once instead of measuring every edge (D-115). None for an outline without an area.
+function outsideBoxTest(polygon: Outline): string {
+  if (polygon.length < 3) return '';
+  const xs = polygon.map(([x]) => x);
+  const ys = polygon.map(([, y]) => -y);
+  const boxMin = `vec2(${number(Math.min(...xs) - MASK_FEATHER)},${number(Math.min(...ys) - MASK_FEATHER)})`;
+  const boxMax = `vec2(${number(Math.max(...xs) + MASK_FEATHER)},${number(Math.max(...ys) + MASK_FEATHER)})`;
+  return `if (any(lessThan(p,${boxMin})) || any(greaterThan(p,${boxMax}))) return 0.0;`;
+}
+
 const isMesh = (object: Object3D): object is Mesh => (object as Mesh).isMesh === true;
 const isLight = (object: Object3D): object is Light => (object as Light).isLight === true;
 const isStandard = (material: Material): material is MeshStandardMaterial =>
@@ -21,10 +37,10 @@ export function installRoomLightMask(model: Object3D, groups: RoomLights[], scen
   const active = groups.filter(g => g.lights.length);
   const lights = active.flatMap(g => g.lights);
   if (!lights.length) return;
-  const number = (n: number): string => Number(n).toFixed(6);
   const roomFunctions = active
     .map(({room}, index) => {
       const vertices = room.polygon.map(([x, y]) => `vec2(${number(x)},${number(-y)})`);
+      const boxTest = outsideBoxTest(room.polygon);
       const edges = vertices
         .map((a, i) => {
           const b = vertices[(i + 1) % vertices.length];
@@ -40,11 +56,12 @@ export function installRoomLightMask(model: Object3D, groups: RoomLights[], scen
         .join('\n');
       return `
     float confinedRoomMask${index}(vec2 p) {
+      ${boxTest}
       bool inside=false; float distanceToEdge=10000.0;
       ${edges}
       // Small feather at the wall surface avoids a precision seam. It ends
       // within the partition, before the neighbouring room begins.
-      return inside ? 1.0 : 1.0-smoothstep(0.0,0.025,distanceToEdge);
+      return inside ? 1.0 : 1.0-smoothstep(0.0,${number(MASK_FEATHER)},distanceToEdge);
     }
   `;
     })
@@ -118,6 +135,17 @@ export function installRoomLightMask(model: Object3D, groups: RoomLights[], scen
       `${marker}
       ${light}.color *= confinedMasks[confined${name}Rooms[i]];`,
     );
+  }
+  // A point or spot light out of reach here (off, in another room, out of its range or cone) adds nothing: its shading is skipped,
+  // so a dark light in the shader costs a few instructions, not a full BRDF (D-115).
+  const directCall =
+    'RE_Direct( directLight, geometryPosition, geometryNormal, geometryViewDir, geometryClearcoatNormal, material, reflectedLight );';
+  for (const loopStart of ['pointLight = pointLights[ i ];', 'spotLight = spotLights[ i ];']) {
+    const loopAt = chunk.indexOf(loopStart);
+    const callAt = loopAt < 0 ? -1 : chunk.indexOf(directCall, loopAt);
+    if (callAt < 0) throw new Error('Unsupported Three.js direct-light evaluation');
+    const guarded = `if ( directLight.visible ) { ${directCall} }`;
+    chunk = chunk.slice(0, callAt) + guarded + chunk.slice(callAt + directCall.length);
   }
   // LTC area-light evaluation is expensive. A zero contribution needs no LTC
   // sampling/integration, whether the light is off or belongs to another room.
