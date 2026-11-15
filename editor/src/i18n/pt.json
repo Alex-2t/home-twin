@@ -1677,5 +1677,10 @@
  "Video or photos of your home": "Vídeo ou fotos da sua casa",
  "Your plan is next: first the photos are sorted by room": "A sua planta é a seguir: primeiro as fotos são ordenadas por divisão",
  "This is not a floor plan: add a photo, a scan or a PDF": "Isto não é uma planta: adicione uma foto, uma digitalização ou um PDF",
- "These are not videos or photos": "Isto não são vídeos nem fotos"
+ "These are not videos or photos": "Isto não são vídeos nem fotos",
+ "The floor plan cannot be opened. Upload it again as a photo, a scan or a PDF.": "Não é possível abrir a planta. Carregue-a novamente como foto, digitalização ou PDF.",
+ "None of the photos can be opened. Upload them again as JPEG, PNG or HEIC.": "Nenhuma foto pode ser aberta. Carregue-as novamente em JPEG, PNG ou HEIC.",
+ "The video cannot be opened. It may be damaged: upload it again, or add photos instead.": "Não é possível abrir o vídeo. Pode estar danificado: carregue-o novamente ou adicione fotos.",
+ "No room of a home was found in your video or photos. Upload a video or photos of the rooms.": "Não foi encontrada nenhuma divisão no seu vídeo ou fotos. Carregue um vídeo ou fotos das divisões.",
+ "Upload again": "Carregar novamente"
 }

@@ -1677,5 +1677,10 @@
  "Video or photos of your home": "Video oder Fotos deines Zuhauses",
  "Your plan is next: first the photos are sorted by room": "Dein Grundriss ist als Nächstes dran: zuerst werden die Fotos nach Räumen sortiert",
  "This is not a floor plan: add a photo, a scan or a PDF": "Das ist kein Grundriss: füge ein Foto, einen Scan oder ein PDF hinzu",
- "These are not videos or photos": "Das sind keine Videos oder Fotos"
+ "These are not videos or photos": "Das sind keine Videos oder Fotos",
+ "The floor plan cannot be opened. Upload it again as a photo, a scan or a PDF.": "Der Grundriss lässt sich nicht öffnen. Lade ihn erneut als Foto, Scan oder PDF hoch.",
+ "None of the photos can be opened. Upload them again as JPEG, PNG or HEIC.": "Keines der Fotos lässt sich öffnen. Lade sie erneut als JPEG, PNG oder HEIC hoch.",
+ "The video cannot be opened. It may be damaged: upload it again, or add photos instead.": "Das Video lässt sich nicht öffnen. Es ist vielleicht beschädigt: lade es erneut hoch oder füge stattdessen Fotos hinzu.",
+ "No room of a home was found in your video or photos. Upload a video or photos of the rooms.": "In deinem Video oder deinen Fotos wurde kein Raum eines Zuhauses gefunden. Lade ein Video oder Fotos der Räume hoch.",
+ "Upload again": "Erneut hochladen"
 }

@@ -1677,5 +1677,10 @@
  "Video or photos of your home": "Video o foto della casa",
  "Your plan is next: first the photos are sorted by room": "La tua planimetria è la prossima: prima le foto vengono ordinate per stanza",
  "This is not a floor plan: add a photo, a scan or a PDF": "Questa non è una planimetria: aggiungi una foto, una scansione o un PDF",
- "These are not videos or photos": "Questi non sono video o foto"
+ "These are not videos or photos": "Questi non sono video o foto",
+ "The floor plan cannot be opened. Upload it again as a photo, a scan or a PDF.": "Impossibile aprire la planimetria. Caricala di nuovo come foto, scansione o PDF.",
+ "None of the photos can be opened. Upload them again as JPEG, PNG or HEIC.": "Nessuna foto può essere aperta. Caricale di nuovo in JPEG, PNG o HEIC.",
+ "The video cannot be opened. It may be damaged: upload it again, or add photos instead.": "Impossibile aprire il video. Potrebbe essere danneggiato: caricalo di nuovo o aggiungi delle foto.",
+ "No room of a home was found in your video or photos. Upload a video or photos of the rooms.": "Nel video o nelle foto non è stata trovata nessuna stanza. Carica un video o delle foto delle stanze.",
+ "Upload again": "Carica di nuovo"
 }

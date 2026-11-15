@@ -166,6 +166,8 @@ interface BuildStatus {
   rounds?: PinRound[];
   /** The things it could not place clear, each with one phrase in the owner's language. */
   unplaced?: UnplacedThing[];
+  /** The build stopped on the files themselves (D-117): which, said in words with a way to upload others. */
+  fileProblem?: 'plan' | 'photos' | 'video' | 'rooms' | null;
   /** What the home is built from (D-117); a service from before photos says nothing: a video. */
   input?: 'video' | 'photos' | 'both';
 }
@@ -422,6 +424,13 @@ const PHRASES: Record<PhraseStep, string[]> = {
     N('Checking nothing blocks a doorway'),
     N('Counting what was built'),
   ],
+};
+// What is wrong with the files a build stopped on (D-117), in the owner's words.
+const FILE_PROBLEMS: Record<NonNullable<BuildStatus['fileProblem']>, string> = {
+  plan: N('The floor plan cannot be opened. Upload it again as a photo, a scan or a PDF.'),
+  photos: N('None of the photos can be opened. Upload them again as JPEG, PNG or HEIC.'),
+  video: N('The video cannot be opened. It may be damaged: upload it again, or add photos instead.'),
+  rooms: N('No room of a home was found in your video or photos. Upload a video or photos of the rooms.'),
 };
 // A build from photos only (D-117) says so where a build from video speaks of the video: each line here stands for the one
 // it is keyed by.
@@ -1826,6 +1835,16 @@ export function openAiBuild(ed: Editor, options: AiBuildOptions = {}): AiBuildSc
           <span class="aib-card-ic">${icon('plan', 20)}</span>
           <span class="aib-card-text"><b>${esc(t('We build one floor for now'))}</b><small>${esc(t('Upload a plan of one floor, or crop this one to one floor.'))}</small></span>
           <button class="primary" data-act="new-build">${esc(t('Upload a plan'))}</button></div>`,
+      };
+    }
+    if (s.error && s.fileProblem) {
+      // The files themselves: trying again would stop the same way, so the way out is other files.
+      return {
+        key: `files:${s.fileProblem}`,
+        html: `<div class="aib-card bad">
+          <span class="aib-card-ic">${icon('alert', 20)}</span>
+          <span class="aib-card-text"><b>${esc(t('The build stopped'))}</b><small title="${esc(s.error)}">${esc(t(FILE_PROBLEMS[s.fileProblem]))}</small></span>
+          <button class="primary" data-act="new-build">${esc(t('Upload again'))}</button></div>`,
       };
     }
     if (s.error) {

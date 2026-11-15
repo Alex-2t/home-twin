@@ -1677,5 +1677,10 @@
  "Video or photos of your home": "Видео или фото дома",
  "Your plan is next: first the photos are sorted by room": "План следующий: сначала раскладываем фото по комнатам",
  "This is not a floor plan: add a photo, a scan or a PDF": "Это не план: добавьте фото, скан или PDF",
- "These are not videos or photos": "Это не видео и не фото"
+ "These are not videos or photos": "Это не видео и не фото",
+ "The floor plan cannot be opened. Upload it again as a photo, a scan or a PDF.": "План не открывается. Загрузите его снова: фото, скан или PDF.",
+ "None of the photos can be opened. Upload them again as JPEG, PNG or HEIC.": "Ни одно фото не открывается. Загрузите их снова в JPEG, PNG или HEIC.",
+ "The video cannot be opened. It may be damaged: upload it again, or add photos instead.": "Видео не открывается, возможно, оно повреждено. Загрузите его снова или добавьте фото.",
+ "No room of a home was found in your video or photos. Upload a video or photos of the rooms.": "В видео или на фото не нашлось ни одной комнаты. Загрузите видео или фото комнат.",
+ "Upload again": "Загрузить заново"
 }

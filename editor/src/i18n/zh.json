@@ -1677,5 +1677,10 @@
  "Video or photos of your home": "家的视频或照片",
  "Your plan is next: first the photos are sorted by room": "接下来是你的平面图：先按房间整理照片",
  "This is not a floor plan: add a photo, a scan or a PDF": "这不是平面图：请添加照片、扫描件或 PDF",
- "These are not videos or photos": "这些不是视频或照片"
+ "These are not videos or photos": "这些不是视频或照片",
+ "The floor plan cannot be opened. Upload it again as a photo, a scan or a PDF.": "无法打开平面图。请重新上传照片、扫描件或 PDF。",
+ "None of the photos can be opened. Upload them again as JPEG, PNG or HEIC.": "所有照片都无法打开。请以 JPEG、PNG 或 HEIC 格式重新上传。",
+ "The video cannot be opened. It may be damaged: upload it again, or add photos instead.": "无法打开视频，可能已损坏：请重新上传，或改为添加照片。",
+ "No room of a home was found in your video or photos. Upload a video or photos of the rooms.": "在你的视频或照片中没有找到任何房间。请上传房间的视频或照片。",
+ "Upload again": "重新上传"
 }

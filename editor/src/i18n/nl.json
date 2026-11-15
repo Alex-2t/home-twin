@@ -1677,5 +1677,10 @@
  "Video or photos of your home": "Video of foto's van je huis",
  "Your plan is next: first the photos are sorted by room": "Je plattegrond is hierna: eerst worden de foto's per kamer gesorteerd",
  "This is not a floor plan: add a photo, a scan or a PDF": "Dit is geen plattegrond: voeg een foto, een scan of een pdf toe",
- "These are not videos or photos": "Dit zijn geen video's of foto's"
+ "These are not videos or photos": "Dit zijn geen video's of foto's",
+ "The floor plan cannot be opened. Upload it again as a photo, a scan or a PDF.": "De plattegrond kan niet worden geopend. Upload hem opnieuw als foto, scan of pdf.",
+ "None of the photos can be opened. Upload them again as JPEG, PNG or HEIC.": "Geen van de foto's kan worden geopend. Upload ze opnieuw als JPEG, PNG of HEIC.",
+ "The video cannot be opened. It may be damaged: upload it again, or add photos instead.": "De video kan niet worden geopend. Misschien is hij beschadigd: upload hem opnieuw of voeg foto's toe.",
+ "No room of a home was found in your video or photos. Upload a video or photos of the rooms.": "In je video of foto's is geen kamer gevonden. Upload een video of foto's van de kamers.",
+ "Upload again": "Opnieuw uploaden"
 }
