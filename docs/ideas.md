@@ -2,6 +2,10 @@
 
 Reviewed 2026-11-07. This file keeps proposals and already implemented ideas with links to decisions. The current development queue is in [status.md](status.md); an idea being recorded does not mean it has been included in the nearest release.
 
+## Example cards as short looping videos (owner, 2026-11-15) — parked, not to be done now
+
+The example cards on the start screen and in the gallery could show a short video that simply turns the model round, instead of the still render: no turning by hand, no drag, no lamp — just a plain looping video of the camera going round the home, rendered at 30–60 fps (about 300–500 KB, loaded only when a card is hovered or comes into view; the still render stays as the poster and as the fallback, e.g. on an iPhone in Low Power Mode). Tried first as pre-rendered frame sheets turned by hover and drag with a day/night lamp (D-114, 2026-11-15): 24, then 72 frames with a cross-fade still looked choppy, so it was reverted the same day and the cards are still renders again.
+
 ## Seen lamps tell themselves apart (2026-11-14, from D-103)
 
 A lamp the AI build saw is named by its form (“Floor lamp”), so a room's list can show “Floor lamp” twice — the owner's HA one not on the plan yet and the seen one. A small mark on a seen lamp's row and panel (“seen in the video”) would say which is which; the panel's “Which of your lights is it?” already binds them.
