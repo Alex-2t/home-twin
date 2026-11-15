@@ -476,7 +476,15 @@ body[data-main="3d"]:not([data-mode=lights]) .tools{display:none}
 .banner.wizard-card .wizard-message{flex:0 1 auto;min-width:0;white-space:normal;line-height:1.45;font-weight:500;padding:5px 0}
 .banner.wizard-card .wizard-help{flex:none;background:none;color:var(--mut);width:28px;min-width:28px;height:28px;min-height:0;padding:0}
 .banner.wizard-card .wizard-help[aria-expanded=true]{background:var(--acc2);color:var(--acc)}
-.wizard-detail{flex-basis:100%;font-weight:400;font-size:12px;color:var(--mut);padding:10px 0;border-top:1px solid var(--line);line-height:1.5;max-height:25vh;overflow:auto}
+.wizard-help-chev,.banner.wizard-card.docked .wizard-help-q{display:none}
+.wizard-help>span{display:grid;place-items:center}
+/* in the panel on the left the longer hint is open by default; its button is a chevron that folds it (D-112) */
+.banner.wizard-card.docked .wizard-help-chev{display:grid;transition:transform .2s}
+.banner.wizard-card.docked .wizard-help[aria-expanded=true]{background:none;color:var(--mut)}
+.banner.wizard-card.docked .wizard-help[aria-expanded=true] .wizard-help-chev{transform:rotate(180deg)}
+.banner.wizard-card.docked .wizard-help:hover{background:var(--hov);color:var(--tx)}
+.wizard-detail{flex-basis:100%;font-weight:400;font-size:12.5px;color:var(--mut);padding:8px 0 2px;border-top:1px solid var(--line);line-height:1.5;max-height:25vh;overflow:auto}
+.wizard-detail small{font-size:inherit;opacity:1}.wizard-detail small:first-child{margin-top:0}
 .wizard-actions{flex:1 0 auto;display:flex;justify-content:flex-end;align-items:center;gap:6px;flex-wrap:wrap}
 .banner.wizard-card button{white-space:normal;text-align:center;height:auto;min-height:30px;padding:5px 10px}
 .banner.wizard-card button.primary{background:var(--acc);color:var(--acc-tx)}

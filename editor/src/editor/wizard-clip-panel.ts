@@ -53,6 +53,7 @@ export const DOCK_QUERY = '(min-width: 761px)';
 
 const CHOICE_KEY = 'home-twin-editor:step-clip';
 const WIDTH_KEY = 'home-twin-editor:coach-width';
+const DETAIL_KEY = 'home-twin-editor:step-detail';
 // The panel's width: about 30 % of the screen, from 360 to 420 px; narrower, down to 300 px, only to keep above the toolbar.
 const WIDTH_SHARE = 0.3;
 const WIDEST = 420;
@@ -113,6 +114,23 @@ function setCoachWidth(width: number | null, store: boolean): void {
     else localStorage.setItem(WIDTH_KEY, String(width));
   } catch {
     // storage blocked: the width lasts until the page is closed only
+  }
+}
+
+/** Whether the step's longer hint is open in the docked panel: open unless the user folded it (one choice for every step). */
+export function detailWanted(): boolean {
+  try {
+    return localStorage.getItem(DETAIL_KEY) !== 'closed';
+  } catch {
+    return true; // storage blocked: as if never chosen
+  }
+}
+
+export function storeDetail(open: boolean): void {
+  try {
+    localStorage.setItem(DETAIL_KEY, open ? 'open' : 'closed');
+  } catch {
+    // storage blocked: the choice lasts until the page is closed only
   }
 }
 

@@ -54,7 +54,9 @@ import {
   coachClip,
   coachResizeCorner,
   coachWidth,
+  detailWanted,
   fitCoachPanel,
+  storeDetail,
   stepClipCardPill,
 } from './wizard-clip-panel.ts';
 import type {ClipBox, CoachFit} from './wizard-clip-panel.ts';
@@ -212,20 +214,25 @@ export function createApp({haLights, ha, photos}: AppOptions): Editor {
       message.replaceWith(say);
       say.append(message);
       if (phase !== 'fin') {
-        message.innerHTML = o.short || full.split('<small>')[0];
+        const firstPart = full.split('<small>')[0];
+        message.innerHTML = o.short || firstPart;
         if (full.trim() !== message.innerHTML.trim()) {
-          // “?” — only if the full text adds something
+          // the longer hint, only if it adds something, without the phrase already shown above it. In the panel on the left it
+          // is open unless the user folded it (remembered for every step), its button a chevron; at the bottom it opens by “?”
+          // (syncStepDetail, from placeCoach).
           const help = el(
-            `<button type="button" class="wizard-help" aria-expanded="false" aria-controls="wizard-detail" title="${t('Show hint')}">${icon('help', 15)}</button>`,
+            `<button type="button" class="wizard-help" aria-expanded="false" aria-controls="wizard-detail"><span class="wizard-help-q">${icon('help', 15)}</span><span class="wizard-help-chev">${icon('down', 15)}</span></button>`,
           );
-          help.setAttribute('aria-label', t('Show hint'));
           const detail = el('<div id="wizard-detail" class="wizard-detail" hidden></div>');
-          detail.innerHTML = full;
+          detail.innerHTML = o.short ? full : full.slice(firstPart.length);
           help.onclick = () => {
             const open = help.getAttribute('aria-expanded') !== 'true';
-            help.setAttribute('aria-expanded', String(open));
-            detail.hidden = !open;
-            coach.place();
+            // in the panel on the left: remembered; opened by hand it stays open on this card even short of height (it scrolls)
+            if (bn.classList.contains('docked')) {
+              storeDetail(open);
+              help.dataset.force = open ? '1' : '';
+            } else help.dataset.open = open ? '1' : '';
+            placeFloats();
             ed.draw();
           };
           say.append(help);
@@ -1415,8 +1422,11 @@ export function createApp({haLights, ha, photos}: AppOptions): Editor {
       dockPlace = null;
       bn.classList.remove('clip-open', 'clip-no-room');
       bn.style.removeProperty('--dock-max-h');
+      syncStepDetail(bn, false);
       return;
     }
+    // the longer hint as the user wants it; dropped below if the clip and it do not both fit
+    syncStepDetail(bn, true);
     const sideShown = !side.hidden;
     const sideOpen = sideShown && !side.classList.contains('closed');
     const brand = $('brand');
@@ -1436,12 +1446,15 @@ export function createApp({haLights, ha, photos}: AppOptions): Editor {
     }
     const clip = bn.querySelector<HTMLElement>('.coach-clip');
     const clipNow = clip?.offsetHeight ? clip.offsetHeight + 8 : 0; // with the gap above it
+    const detail = bn.querySelector<HTMLElement>('.wizard-detail');
+    const detailNow = detail && !detail.hidden ? detail.offsetHeight + 8 : 0;
     const room = {
       left,
       top,
       containerWidth: work.clientWidth,
       bottomLimit,
-      cardHeight: bn.offsetHeight - clipNow,
+      // the clip goes first: the panel's fit leaves the longer hint out
+      cardHeight: bn.offsetHeight - clipNow - detailNow,
       planBox: ed.v.fitted ? null : planScreenBox(),
     };
     // a card without a clip (the summary, devices, sensors) is as wide as one with its clip folded
@@ -1450,7 +1463,23 @@ export function createApp({haLights, ha, photos}: AppOptions): Editor {
     bn.style.setProperty('--dock-max-h', Math.max(160, bottomLimit - top) + 'px');
     bn.classList.toggle('clip-open', fit.clip === 'open');
     bn.classList.toggle('clip-no-room', fit.clip === 'no-room');
+    // short of height with the clip in place, the longer hint folds rather than the panel scrolling
+    if (detailNow && bn.scrollHeight > bn.clientHeight + 1) syncStepDetail(bn, true, true);
     dockPlace = {x: left, y: top};
+  }
+  /** Opens or folds the step card's longer hint: in the panel on the left as the user chose (unless noRoom), at the bottom only
+   * after a click on “?”. */
+  function syncStepDetail(bn: HTMLElement, docked: boolean, noRoom = false): void {
+    const help = bn.querySelector<HTMLElement>('.wizard-help');
+    const detail = bn.querySelector<HTMLElement>('.wizard-detail');
+    if (!help || !detail) return;
+    let open = help.dataset.open === '1';
+    if (docked) open = detailWanted() && (!noRoom || help.dataset.force === '1');
+    detail.hidden = !open;
+    help.setAttribute('aria-expanded', String(open));
+    const label = open ? t('Hide hint') : t('Show hint');
+    help.title = label;
+    help.setAttribute('aria-label', label);
   }
   /** The docked card's box in the work area, or null where the card is not the panel on the left. */
   function dockedCardBox(): ClipBox | null {
