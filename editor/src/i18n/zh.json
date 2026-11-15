@@ -1245,7 +1245,6 @@
  "Click for auto, by the sun.": "点击：自动，跟随太阳。",
  "Colorful bins": "彩色收纳筐",
  "decor tabletop books vase candles fruit bowl ornament styling shelf sideboard": "装饰 桌面 书本 花瓶 蜡烛 水果 果盘 摆件 软装 置物架 餐边柜",
- "Designer interiors": "设计师室内",
  "Detached house": "独栋住宅",
  "Digital": "电钢琴",
  "Don't show again": "不再显示",
@@ -1641,5 +1640,8 @@
  "Current package": "当前套餐",
  "Your package": "你的套餐",
  "All examples": "全部示例",
- "Fewer examples": "收起示例"
+ "Built by AI": "AI 构建",
+ "Designer": "设计师",
+ "Open any home to look around. You edit your own copy.": "打开任意住宅随意浏览。您编辑的是自己的副本。",
+ "Couldn't open this home. Try again later.": "无法打开此住宅，请稍后再试。"
 }

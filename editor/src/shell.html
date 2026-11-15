@@ -109,15 +109,28 @@
       <button class="choice glass" data-a="scratch"><span class="ci"><i data-ic="pen" data-s="20"></i></span><b>Draw from scratch</b><span>A rectangle you split into rooms.</span></button>
     </div>
     <div class="examples" hidden>
-      <div class="ex-head"><span class="ex-title">Or open an example</span><button type="button" class="ex-all" aria-expanded="false" aria-controls="ex-groups">All examples</button></div>
+      <div class="ex-head"><span class="ex-title">Or open an example</span><button type="button" class="ex-all">All examples<i data-ic="right" data-s="14"></i></button></div>
       <div class="ex-list ex-featured"></div>
-      <div id="ex-groups" class="ex-groups" hidden>
-        <div class="ex-group"><span class="ex-kind">Designer interiors</span><div class="ex-list" data-kind="style"></div></div>
-        <div class="ex-group"><span class="ex-kind">Apartments</span><div class="ex-list" data-kind="flat"></div></div>
-        <div class="ex-group"><span class="ex-kind">Houses</span><div class="ex-list" data-kind="house"></div></div>
-      </div>
     </div>
     <button class="start-prev" data-a="prev" hidden>Restore previous plan</button>
+  </div>
+</div>
+<!-- The gallery of homes (D-112, flows.ts, gallery.ts): every example and the homes the server publishes, as large cards. -->
+<div id="gallery" class="gallery" hidden>
+  <div class="gal-box">
+    <div class="gal-head">
+      <button type="button" class="gal-back ib" title="Back"><i data-ic="left" data-s="18"></i></button>
+      <h1>Examples</h1>
+      <div class="gal-chips" role="group">
+        <button type="button" class="gal-chip" data-f="all" aria-pressed="true">All<small></small></button>
+        <button type="button" class="gal-chip" data-f="apartment" aria-pressed="false">Apartments<small></small></button>
+        <button type="button" class="gal-chip" data-f="house" aria-pressed="false">Houses<small></small></button>
+        <button type="button" class="gal-chip" data-f="designer" aria-pressed="false">Designer<small></small></button>
+      </div>
+    </div>
+    <p class="gal-sub">Open any home to look around. You edit your own copy.</p>
+    <p class="gal-error" role="alert" hidden></p>
+    <div class="gal-grid"></div>
   </div>
 </div>
 <input id="file-plan" type="file" accept="image/*" hidden><input id="file-json" type="file" accept="application/json,.json" hidden>

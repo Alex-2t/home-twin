@@ -1245,7 +1245,6 @@
  "Click for auto, by the sun.": "Klik: auto, volgens de zon.",
  "Colorful bins": "Kleurige bakken",
  "decor tabletop books vase candles fruit bowl ornament styling shelf sideboard": "decoratie tafel boeken vaas kaarsen fruit schaal ornament styling plank dressoir",
- "Designer interiors": "Designinterieurs",
  "Detached house": "Vrijstaand huis",
  "Digital": "Digitaal",
  "Don't show again": "Niet meer tonen",
@@ -1641,5 +1640,8 @@
  "Current package": "Huidig pakket",
  "Your package": "Je pakket",
  "All examples": "Alle voorbeelden",
- "Fewer examples": "Minder voorbeelden"
+ "Built by AI": "Gebouwd door AI",
+ "Designer": "Design",
+ "Open any home to look around. You edit your own copy.": "Open een woning om rond te kijken. Je bewerkt je eigen kopie.",
+ "Couldn't open this home. Try again later.": "Deze woning kon niet worden geopend. Probeer het later opnieuw."
 }

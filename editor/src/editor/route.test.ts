@@ -21,7 +21,10 @@ test('the address names the page: start screen, your plan in a mode, an example'
     '#/example/loft/lights/x',
   ])
     assert.equal(parseRoute(bad), null, bad);
-  for (const h of ['#/plan', '#/preview', '#/example/house/sensors'])
+  assert.deepEqual(parseRoute('#/gallery'), {ex: null, page: 'gallery'}, 'the gallery of homes (D-112)');
+  for (const bad of ['#/gallery/', '#/example/loft/gallery', '#/galleryx'])
+    assert.equal(parseRoute(bad), null, bad);
+  for (const h of ['#/plan', '#/preview', '#/example/house/sensors', '#/gallery'])
     assert.equal(routeHash(parseRoute(h)), h);
   assert.equal(routeHash(null), '');
 });
@@ -29,5 +32,6 @@ test('the address names the page: start screen, your plan in a mode, an example'
 test('in Home Assistant the page is the panel path', () => {
   assert.deepEqual(parsePanelPath('/lights'), {ex: null, page: 'lights'});
   assert.deepEqual(parsePanelPath('preview/'), {ex: null, page: 'preview'});
-  for (const bad of ['', '/', '/foo', '/example/loft']) assert.equal(parsePanelPath(bad), null, bad);
+  for (const bad of ['', '/', '/foo', '/example/loft', '/gallery'])
+    assert.equal(parsePanelPath(bad), null, bad);
 });

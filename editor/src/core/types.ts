@@ -1329,6 +1329,8 @@ export interface ExampleHome {
   id: string;
   HA: DemoHaData;
   DEMO: PlanInput;
+  /** Its 3D render for the start screen and the gallery (D-112): a WebP data URL from assets/renders/; none: not rendered yet. */
+  render?: string;
 }
 
 /** What room climate and the sensor suggestions read (app.ts sensorCtx): HA's sensors, areas and current readings. */
