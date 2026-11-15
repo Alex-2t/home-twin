@@ -455,6 +455,7 @@ body[data-main="3d"]:not([data-mode=lights]) .tools{display:none}
 .clip-svg :is(.cl-choice,.cl-tile).on{fill:color-mix(in srgb,var(--acc) 30%,transparent)}
 .clip-svg .cl-icon{fill:none;stroke:var(--tx);stroke-width:1.4;stroke-linejoin:round}
 .clip-svg .cl-marked{fill:color-mix(in srgb,var(--acc) 18%,transparent);stroke:var(--acc);stroke-width:1.6;stroke-dasharray:4 3}
+.clip-svg .cl-tint{fill:color-mix(in srgb,var(--acc) 16%,transparent)} /* the room under the pointer in Split (draw.ts tints it) */
 .clip-svg .cl-chip rect{fill:color-mix(in srgb,var(--tx) 8%,transparent);transition:fill .12s}.clip-svg .cl-chip text{fill:var(--tx)}
 .clip-svg .cl-chip.on rect{fill:var(--acc)}.clip-svg .cl-chip.on text{fill:var(--acc-tx)}
 .clip-svg .cl-tag{fill:var(--acc)}.clip-svg .cl-tag-text{fill:var(--acc-tx)}
