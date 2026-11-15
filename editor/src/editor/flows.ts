@@ -353,15 +353,13 @@ export function createFlows(
     ed.underlay.save();
     ed.mode.refresh?.();
     if (fresh || !ed.plan.rooms.length) ed.fit();
-    // a new photo is straightened along the plan lines right away (D-040); “Undo straightening” is in the rectangle step
-    autoTilt = null;
+    // a new photo is straightened along the plan lines right away (D-040); the knob above it turns it back
     if (fresh) {
       const th = tiltOf(ed.underlay.img!); // set() above has put the photo in
       if (th != null && Math.abs(th) > 0.003 && Math.abs(th) < 0.35) {
         const c = ed.underlay.center();
         ed.underlay.turn(c, th);
         ed.underlay.save();
-        autoTilt = {c, th};
         knob.src = ed.underlay.src;
         knob.straight = th;
         ed.fit();
@@ -372,7 +370,6 @@ export function createFlows(
     if (fresh) f.askArea();
     else f.calibrate();
   };
-  let autoTilt: {c: Point; th: number} | null = null;
   find($('start'), '[data-a=scratch]').onclick = async () => {
     await keepPrev();
     hideStart();
@@ -684,16 +681,7 @@ export function createFlows(
         scratchStep();
         return;
       }
-      const at = autoTilt;
-      afterCalibration(
-        at &&
-          (() => {
-            ed.underlay.turn(at.c, -at.th);
-            ed.underlay.save();
-            autoTilt = null;
-            ed.draw();
-          }),
-      );
+      afterCalibration();
     };
   };
   ed.askArea = () => f.askArea();
@@ -812,7 +800,7 @@ export function createFlows(
       ed.commit();
       ed.fit();
       const tilted = Math.abs(tilt) > 0.002;
-      if (step) afterCalibration(tilted ? undoTilt : null);
+      if (step) afterCalibration();
       else
         ed.banner(t('Scale set.'), [
           ...((tilted
@@ -1043,22 +1031,13 @@ export function createFlows(
     },
   };
 
-  // Step 2: rectangle. A tilted photo gets a knob above it (ed.knob); if it was straightened automatically — “Undo straightening”.
-  function afterCalibration(undoTilt: (() => void) | null = null): void {
+  // Step 2: rectangle. A tilted photo gets a knob above it (ed.knob). No “Undo straightening” here (D-112): the step keeps only
+  // Back; the photo is turned back by the knob or by “Rotate plan with photo” in the toolbar.
+  function afterCalibration(): void {
     ed.setTool('rect');
     ed.step(
       `${DRAW_RECT}<small>${t('Photo at an angle? Turn it by the circle above the photo.')}</small>`,
-      undoTilt
-        ? [
-            [
-              t('Undo straightening'),
-              () => {
-                undoTilt();
-                afterCalibration();
-              },
-            ],
-          ]
-        : [],
+      [],
       ed.aim.photo,
       {id: 'rect'},
     );
