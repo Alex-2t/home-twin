@@ -15,6 +15,40 @@ export function el<ElementType extends HTMLElement = HTMLElement>(html: string):
 // The characters esc replaces, and with what.
 const HTML_ESCAPES: Record<string, string> = {'&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;'};
 export const esc = (s: unknown): string => String(s).replace(/[&<>"]/g, c => HTML_ESCAPES[c]);
+// A row of choices that scrolls sideways instead of widening its panel: it takes the room the panel's other lines leave
+// (it adds no width of its own), the mouse wheel scrolls it, its edges fade only where more is hidden, and the chosen one
+// (`.on`) is in sight when it first shows.
+export function scrollRow(items: Node[]): HTMLElement {
+  const row = el(`<div class="hscroll"></div>`);
+  row.append(...items);
+  const showFades = (): void => {
+    const hiddenLeft = row.scrollLeft > 1;
+    const hiddenRight = row.scrollLeft + row.clientWidth < row.scrollWidth - 1;
+    row.classList.toggle('more-left', hiddenLeft);
+    row.classList.toggle('more-right', hiddenRight);
+  };
+  let chosenShown = false;
+  const showChosen = (): void => {
+    if (chosenShown || !row.clientWidth) return;
+    chosenShown = true;
+    const chosen = row.querySelector<HTMLElement>('.on');
+    if (!chosen) return;
+    const chosenRight = chosen.offsetLeft + chosen.offsetWidth;
+    if (chosenRight > row.clientWidth) row.scrollLeft = chosenRight - row.clientWidth + 24;
+  };
+  row.onscroll = showFades;
+  row.onwheel = e => {
+    if (Math.abs(e.deltaY) <= Math.abs(e.deltaX)) return;
+    if (row.scrollWidth <= row.clientWidth) return;
+    row.scrollLeft += e.deltaY;
+    e.preventDefault();
+  };
+  new ResizeObserver(() => {
+    showChosen();
+    showFades();
+  }).observe(row);
+  return row;
+}
 // An element of our own markup inside root, typed as present like $ (a missing one fails at its first use); the caller names
 // the element's type when it needs more than HTMLElement.
 export function find<ElementType extends Element = HTMLElement>(

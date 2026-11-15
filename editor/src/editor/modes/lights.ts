@@ -46,7 +46,7 @@ import type {Contour, LampCell, StripRuns} from '../../core/fixtures.ts';
 import {autoPlace, bindSeenLamp, placeLight} from '../../core/light-place.ts';
 import {giveSeenBack, isSeenLamp, settleSeen} from '../../core/seen-lamps.ts';
 import {moved, slideAlongWall} from '../nudge.ts';
-import {$, el, esc, parseLen, section, tip, tipHide} from '../ui.ts';
+import {$, el, esc, parseLen, scrollRow, section, tip, tipHide} from '../ui.ts';
 import {icon} from '../icons.ts';
 import {cssHex, hexNum, isHex, snapColor} from '../../core/color.ts';
 import {FONT, alpha, dimLabel, pal, shiftSegs, shiftPoint} from '../draw.ts';
@@ -1599,7 +1599,11 @@ export function lightsMode(ed: Editor): LightsMode {
     if (f === 'ceiling')
       opts.append(el(`<small>${t('Count')}</small>`), count(L.points.length, 6)); // several shades on one switch
     else if (f === 'spots')
-      opts.append(el(`<small>${t('Count')}</small>`), count(L.points.length, 40), ...chips(SPOTS, L.opt));
+      opts.append(
+        el(`<small>${t('Count')}</small>`),
+        count(L.points.length, 40),
+        scrollRow(chips(SPOTS, L.opt)),
+      );
     else if (f === 'pendant') {
       // how many, and the shade: it changes only the look, the points stay
       const cur = shadeOf(L);
@@ -1613,7 +1617,7 @@ export function lightsMode(ed: Editor): LightsMode {
         };
         return b;
       });
-      opts.append(el(`<small>${t('Count')}</small>`), count(L.points.length, 8), ...shade);
+      opts.append(el(`<small>${t('Count')}</small>`), count(L.points.length, 8), scrollRow(shade));
     } else if (f === 'line') {
       const cur = housingOf(L);
       // the body color: only the look; a chip is chosen while the body has no colour of its own
@@ -1629,15 +1633,17 @@ export function lightsMode(ed: Editor): LightsMode {
         };
         return b;
       });
-      opts.append(...chips(LINES, L.opt), el('<span class="sep"></span>'), ...body, ownBody(L));
+      opts.append(scrollRow([...chips(LINES, L.opt), el('<span class="sep"></span>'), ...body, ownBody(L)]));
     } else if (f === 'strip')
       opts.append(
-        ...chips(
-          {
-            ...STRIP,
-            ...Object.fromEntries((cell ? furnOpts(plan(), cell) : []).map(k => [k, FURN_STRIP[k]])), // furnOpts gives FURN_STRIP's keys
-          },
-          L.opt,
+        scrollRow(
+          chips(
+            {
+              ...STRIP,
+              ...Object.fromEntries((cell ? furnOpts(plan(), cell) : []).map(k => [k, FURN_STRIP[k]])), // furnOpts gives FURN_STRIP's keys
+            },
+            L.opt,
+          ),
         ),
       ); // on furniture — if it is in the room
     else if (f === 'wall') {
@@ -1691,6 +1697,7 @@ export function lightsMode(ed: Editor): LightsMode {
       .slice(0, BIND_CHOICES);
     if (!choices.length) return [];
     const row = el(`<div class="line names"><small>${t('Which of your lights is it?')}</small></div>`);
+    const buttons: HTMLElement[] = [];
     for (const H of choices) {
       const b = el(`<button class="chip">${esc(H.name)}</button>`);
       b.onclick = () => {
@@ -1706,8 +1713,9 @@ export function lightsMode(ed: Editor): LightsMode {
         ed.commit();
         blink(H.id);
       };
-      row.append(b);
+      buttons.push(b);
     }
+    row.append(scrollRow(buttons));
     return [row];
   }
   // A fitting's own colour (L.body, D-070 everywhere): as the form draws it, white, black, or any colour; a picked colour
