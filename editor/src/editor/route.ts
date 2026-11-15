@@ -2,7 +2,7 @@
 // (plan, furniture, lights, devices, sensors) or Preview; in the standalone editor also an example and the gallery (D-113).
 //   standalone (hashRouter): a hash — it works on any static hosting (the online demo) without server rules
 //     (none) — the start screen · #/plan … #/preview — your plan · #/example/<id>/<page> — an example (no page — Preview, an example opens in it)
-//     · #/gallery — the gallery of homes
+//     · #/gallery — the gallery of homes · #/home/<id> — a home the gallery publishes, opened in Preview (a link to share it)
 //   Home Assistant (haRouter): the panel's own path, as HA's own panels have — /home-twin, /home-twin/lights …
 // A router: read() — the route in the address; write(route, push) — show one (push — a new step in the history, else the step is corrected);
 // listen(cb) — the address was changed from outside (Back / Forward, a typed or followed link).
@@ -18,6 +18,8 @@ export type RouteScreen = RoutePage | 'gallery';
 export interface Route {
   ex: string | null;
   page: RouteScreen;
+  /** With the gallery: a home it publishes, to be opened (a shared link). Once open it is your copy, at #/preview. */
+  home?: string;
 }
 
 const GALLERY_HASH = '#/gallery';
@@ -43,8 +45,13 @@ export interface PanelRouter extends Router {
 const PAGE_NAMES: readonly string[] = PAGES;
 const isPage = (page: string): page is RoutePage => PAGE_NAMES.includes(page);
 
+// A published home's address: its id as the gallery's list gives it (gallery.ts: lowercase letters, digits and hyphens).
+const HOME_HASH = /^#\/home\/([a-z0-9][a-z0-9-]*)$/;
+
 export function parseRoute(hash: string | null | undefined): Route | null {
   if (hash === GALLERY_HASH) return {ex: null, page: 'gallery'};
+  const published = HOME_HASH.exec(hash || '');
+  if (published) return {ex: null, page: 'gallery', home: published[1]};
   const m = /^#\/(?:example\/([a-z0-9-]+)(?:\/|$))?([a-z]*)$/.exec(hash || '');
   if (!m) return null;
   const page = m[2] || (m[1] ? 'preview' : '');
@@ -52,7 +59,7 @@ export function parseRoute(hash: string | null | undefined): Route | null {
 }
 export function routeHash(r: Route | null | undefined): string {
   if (!r) return '';
-  if (r.page === 'gallery') return GALLERY_HASH;
+  if (r.page === 'gallery') return r.home ? `#/home/${r.home}` : GALLERY_HASH;
   return (r.ex ? `#/example/${r.ex}/` : '#/') + r.page;
 }
 export const parsePanelPath = (path: string | null | undefined): Route | null => {

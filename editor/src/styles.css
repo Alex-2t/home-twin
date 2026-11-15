@@ -318,6 +318,7 @@ body:not([data-mode=rooms]) #rotate-plan{display:none}
 .examples{margin-top:18px;text-align:left}.examples[hidden]{display:none}
 .ex-head{display:flex;align-items:center;justify-content:space-between;gap:12px;margin:0 2px 8px}
 .ex-title{color:var(--mut);font-size:13px;font-weight:600}
+.ex-online{display:inline-flex;align-items:center;gap:6px;margin-top:16px;padding:6px 10px;border-radius:10px;font-size:13px;font-weight:600;color:var(--acc);text-decoration:none}.ex-online:hover{background:var(--acc2)}.ex-online[hidden]{display:none}
 .ex-all{height:26px;padding:0 4px 0 8px;margin-right:-4px;gap:2px;font-size:12.5px;font-weight:600;color:var(--acc)}.ex-all:hover{background:var(--acc2)}
 .ex-list{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:8px}
 .ex{min-width:0;display:flex;flex-direction:column;align-items:stretch;gap:1px;text-align:left;height:auto;padding:0 0 8px;border-radius:12px;overflow:hidden;white-space:normal;font-weight:400}

@@ -24,7 +24,14 @@ test('the address names the page: start screen, your plan in a mode, an example'
   assert.deepEqual(parseRoute('#/gallery'), {ex: null, page: 'gallery'}, 'the gallery of homes (D-113)');
   for (const bad of ['#/gallery/', '#/example/loft/gallery', '#/galleryx'])
     assert.equal(parseRoute(bad), null, bad);
-  for (const h of ['#/plan', '#/preview', '#/example/house/sensors', '#/gallery'])
+  assert.deepEqual(
+    parseRoute('#/home/compact-one-bedroom'),
+    {ex: null, page: 'gallery', home: 'compact-one-bedroom'},
+    'a home the gallery publishes, by a shared link',
+  );
+  for (const bad of ['#/home/', '#/home/Loft', '#/home/a/b', '#/home/-x', '#/home/a.json'])
+    assert.equal(parseRoute(bad), null, bad);
+  for (const h of ['#/plan', '#/preview', '#/example/house/sensors', '#/gallery', '#/home/two-bed-flat'])
     assert.equal(routeHash(parseRoute(h)), h);
   assert.equal(routeHash(null), '');
 });

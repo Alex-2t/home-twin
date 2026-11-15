@@ -76,6 +76,7 @@ async function genDemo(): Promise<void> {
     )
   ).filter(home => home !== null);
   fs.writeFileSync('src/gen/examples.gen.js', 'export const EXAMPLES=' + JSON.stringify(examples) + ';\n');
+  await writeShowcase(examples);
   writeGenTypes(
     'examples',
     "import type {ExampleHome} from '../core/types.ts';\n" +
@@ -83,6 +84,52 @@ async function genDemo(): Promise<void> {
       'export declare const EXAMPLES: ExampleHome[];\n',
   );
 }
+// The showcase: the examples as a list other sites show (sync.md lists them with the gallery's AI-built homes, D-116), written
+// beside the page — dist/showcase/examples.json and each example's render <id>.webp. A card says the name in every language
+// the editor has, the area and the rooms as the gallery's cards do, and the address that opens the home (#/example/<id>/).
+// Only the typical homes and the designer interiors (demo/homes.ts): never the build's own demo home, which may be the owner's.
+async function writeShowcase(examples: ExampleHome[]): Promise<void> {
+  const {EXAMPLE, GALLERY_KIND} = await import('./src/editor/example-info.ts');
+  const {homeFacts} = await import('./src/editor/gallery.ts');
+  const languages = fs
+    .readdirSync('src/i18n')
+    .filter(file => /^[a-z]{2}\.json$/.test(file) && file !== 'keys.json')
+    .map(file => file.slice(0, 2));
+  const translations: Record<string, Record<string, string>> = Object.fromEntries(
+    languages.map(lang => [lang, JSON.parse(fs.readFileSync(`src/i18n/${lang}.json`, 'utf8'))]),
+  );
+  // a text in English and in every language that translates it
+  const inEveryLanguage = (text: string): Record<string, string> => {
+    const said: Record<string, string> = {en: text};
+    for (const lang of languages) {
+      const translated = translations[lang][text];
+      if (translated) said[lang] = translated;
+    }
+    return said;
+  };
+  fs.rmSync('dist/showcase', {recursive: true, force: true});
+  fs.mkdirSync('dist/showcase', {recursive: true});
+  const homes = [];
+  for (const example of examples) {
+    const info = EXAMPLE[example.id];
+    const renderFile = `assets/renders/${example.id}.webp`;
+    if (!info || !fs.existsSync(renderFile)) continue;
+    fs.copyFileSync(renderFile, `dist/showcase/${example.id}.webp`);
+    const facts = homeFacts(example.DEMO.rooms ?? []);
+    homes.push({
+      id: example.id,
+      name: inEveryLanguage(info.name),
+      note: info.note ? inEveryLanguage(info.note) : undefined,
+      area: facts.area,
+      rooms: facts.rooms,
+      kind: GALLERY_KIND[info.kind],
+      render: `${example.id}.webp`,
+      open: `#/example/${example.id}/`,
+    });
+  }
+  fs.writeFileSync('dist/showcase/examples.json', JSON.stringify(homes, null, 1) + '\n');
+}
+
 await genDemo();
 // --gen-demo: only the demo files (the dev server runs it in a fresh process when demo/ changes: imported modules are cached)
 if (process.argv.includes('--gen-demo')) process.exit(0);

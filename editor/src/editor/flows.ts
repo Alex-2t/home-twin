@@ -1,5 +1,5 @@
 // Start screen, the “upload plan → align → trace” wizard, the “⋯” menu.
-import {t, N, num} from '../i18n/i18n.ts';
+import {t, num} from '../i18n/i18n.ts';
 import {emptyPlan, rotatePlan, scalePlan} from '../core/plan.ts';
 import {$, el, esc, find} from './ui.ts';
 import {icon} from './icons.ts';
@@ -14,7 +14,9 @@ import {routeHash} from './route.ts';
 import {OUTLINE_LIVING_SHARE} from './wizard-state.ts';
 import {holdFocus, menuKeys, focusMenuStart} from './keyboard.ts';
 import {cardPicture, factsLine, fetchGallery, galleryView, homeFacts} from './gallery.ts';
-import type {GalleryHome, GalleryKind, GalleryView} from './gallery.ts';
+import {EXAMPLE, GALLERY_KIND} from './example-info.ts';
+import type {ExampleInfo} from './example-info.ts';
+import type {GalleryHome, GalleryView} from './gallery.ts';
 import type {HeldFocus} from './keyboard.ts';
 import type {Outline, Plan, PlanInput, Point, Room, UnderlayPlace} from '../core/types.ts';
 import type {Underlay} from './underlay.ts';
@@ -45,13 +47,6 @@ export interface FlowsOptions {
   router?: Router | null;
   /** The address of the list of homes the server publishes for the gallery (D-113); none: the examples alone. */
   gallery?: string | null;
-}
-
-/** How an example is called on its card and which group it is in. */
-interface ExampleInfo {
-  name: string;
-  kind: 'flat' | 'style' | 'house';
-  note?: string;
 }
 
 /** The previous plan kept aside ('home-twin-editor:prev'): the plan and its photo's placement (null: no photo). */
@@ -89,32 +84,8 @@ interface UnderlayOp {
 const OUTLINE_STEPS: Array<PathStep | null> = ['rect', 'split'];
 
 const UPLOAD_WIDTH_M = 12; // until the scale is set, the plan image is assumed to be 12 m wide — a typical apartment
-// The start screen's examples (D-062): three designer interiors first, the ten typical homes (demo/homes.ts, D-030), and “Demo home” — the build's own demo apartment
-// when it is not one of them. note — said under the name (houses: only the ground floor is drawn, the editor is single-floor)
-const EXAMPLE: Record<string, ExampleInfo> = {
-  demo: {name: N('Demo home'), kind: 'flat'},
-  studio: {name: N('Studio'), kind: 'flat'},
-  'one-bed': {name: N('One room + kitchen'), kind: 'flat'},
-  'euro-two': {name: N('Open kitchen + bedroom'), kind: 'flat'},
-  'old-two': {name: N('Two rooms, older block'), kind: 'flat'},
-  family: {name: N('Family, three rooms'), kind: 'flat'},
-  large: {name: N('Large, two bathrooms'), kind: 'flat'},
-  altbau: {name: N('Period apartment'), kind: 'flat'},
-  loft: {name: N('Loft'), kind: 'style'},
-  minimal: {name: N('Minimalist'), kind: 'style'},
-  japandi: {name: N('Japandi'), kind: 'style'},
-  townhouse: {name: N('Townhouse'), kind: 'house', note: N('ground floor')},
-  bungalow: {name: N('Bungalow'), kind: 'house'},
-  house: {name: N('Detached house'), kind: 'house', note: N('ground floor')},
-};
 // The start screen's row of examples (D-111): a designer interior, three apartments of different sizes, a house
 const FEATURED_EXAMPLES: string[] = ['loft', 'studio', 'family', 'altbau', 'house'];
-// An example's group as the gallery's filter chips name it (D-113).
-const GALLERY_KIND: Record<ExampleInfo['kind'], GalleryKind> = {
-  flat: 'apartment',
-  style: 'designer',
-  house: 'house',
-};
 // Homes opened from the gallery that are not examples (D-113): their rooms' fingerprints, so playing with one is not taken
 // for your own work (the backup slot below), as with an example. A few dozen at most.
 const PUBLISHED_OPENED = 'home-twin-editor:gallery-opened';
@@ -303,8 +274,9 @@ export function createFlows(
     // the gallery (D-113): only where there are examples (not in Home Assistant)
     if (r?.page === 'gallery') {
       ed.hold = false;
-      if (examples.length) showGallery();
-      else startScreen(canContinue);
+      if (!examples.length) startScreen(canContinue);
+      else if (r.home) await openPublishedById(r.home);
+      else showGallery();
       return;
     }
     const x = r?.ex ? examples.find(e => e.id === r.ex) : null;
@@ -462,6 +434,8 @@ export function createFlows(
   {
     const box = find($('start'), '.examples');
     box.hidden = !examples.length;
+    // no examples here (Home Assistant): the gallery online, in a new tab
+    find($('start'), '.ex-online').hidden = examples.length > 0;
     const tile = (x: RoomedExample): HTMLElement => {
       const home = exampleHome(x);
       const b = el(
@@ -496,8 +470,7 @@ export function createFlows(
       galleryCards = galleryView(galleryBox, openFromGallery);
       galleryCards.list(examples.map(exampleHome));
     }
-    published ??= gallery ? fetchGallery(gallery) : Promise.resolve([]);
-    published.then(homes => galleryCards?.list(homes));
+    publishedHomes().then(homes => galleryCards?.list(homes));
     coverDown();
     $('start').hidden = true;
     startHeld?.release();
@@ -507,6 +480,21 @@ export function createFlows(
     galleryHeld?.release();
     galleryHeld = holdFocus(galleryBox, {onEscape: () => startScreen(startCanContinue)});
     f.syncRoute();
+  }
+  // the server's list of homes, asked for once
+  function publishedHomes(): Promise<GalleryHome[]> {
+    published ??= gallery ? fetchGallery(gallery) : Promise.resolve([]);
+    return published;
+  }
+  // A shared link to a published home (#/home/<id>): it opens as from the gallery; one the list does not have — the gallery.
+  async function openPublishedById(id: string): Promise<void> {
+    const homes = await publishedHomes();
+    const home = homes.find(h => h.id === id);
+    if (!home) {
+      showGallery();
+      return;
+    }
+    await openPublished(home);
   }
   function hideGallery(): void {
     galleryBox.hidden = true;
@@ -532,6 +520,8 @@ export function createFlows(
     } catch {
       cover.hidden = true;
       ed.view.resume?.();
+      // from a shared link the gallery is not up yet: the line is said there
+      if (galleryBox.hidden) showGallery();
       galleryError.textContent = t("Couldn't open this home. Try again later.");
       galleryError.hidden = false;
       // the focus stays in the gallery (Escape, Tab)
