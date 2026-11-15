@@ -315,6 +315,40 @@ export function* roomEdges(plan: Pick<Plan, 'rooms'>): Generator<RoomEdge, void,
     }
   }
 }
+// Room walls with inward normals: like roomEdges, but edges one after another on one straight line are one wall. A room keeps
+// points on a straight wall (where a cut ended, where the wall's thickness changes); for snapping furniture and a strip along
+// the whole wall such a point is not a corner. i is the wall's first edge.
+export function* roomWalls(plan: Pick<Plan, 'rooms'>): Generator<RoomEdge, void, undefined> {
+  const byRoom = new Map<Room, RoomEdge[]>();
+  for (const e of roomEdges(plan)) {
+    const edges = byRoom.get(e.room) ?? [];
+    edges.push(e);
+    byRoom.set(e.room, edges);
+  }
+  for (const edges of byRoom.values()) yield* mergeStraight(edges);
+}
+// The next edge goes on along the same line: the same way and no farther than 5 mm from it.
+function goesOn(e: RoomEdge, next: RoomEdge): boolean {
+  const sameWay = e.u[0] * next.u[0] + e.u[1] * next.u[1] > 0.9999;
+  const offLine = Math.abs((next.b[0] - e.a[0]) * e.n[0] + (next.b[1] - e.a[1]) * e.n[1]);
+  return sameWay && offLine < 0.005;
+}
+function mergeStraight(edges: RoomEdge[]): RoomEdge[] {
+  const n = edges.length;
+  // start at an edge that does not go on from the one before it, so that no wall is cut in two at the outline's start
+  const start = edges.findIndex((e, k) => !goesOn(edges[(k - 1 + n) % n], e));
+  if (start < 0) return edges;
+  const walls: RoomEdge[] = [];
+  for (let k = 0; k < n; k++) {
+    const e = edges[(start + k) % n];
+    const last = walls[walls.length - 1];
+    if (last && goesOn(last, e)) {
+      const l = Math.hypot(e.b[0] - last.a[0], e.b[1] - last.a[1]);
+      walls[walls.length - 1] = {...last, b: e.b, l};
+    } else walls.push(e);
+  }
+  return walls;
+}
 
 // ---------- wall thickness ----------
 // Plan defaults: exterior walls and partitions (a partition is where rooms touch or stand with a gap).

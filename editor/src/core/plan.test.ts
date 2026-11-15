@@ -13,6 +13,7 @@ import {
 } from './geometry.ts';
 import {
   migrate,
+  emptyPlan,
   linkedEdges,
   moveEdges,
   snapshot,
@@ -50,6 +51,7 @@ import {
   footRects,
   stackOf,
   snapLightPoint,
+  stripOnWall,
   tuck,
 } from './layout.ts';
 import {sideWall, roomWall, bakeFinish, WALL_KINDS, floorKind, isFloorKind, isWallKind} from './surfaces.ts';
@@ -198,6 +200,35 @@ test('furniture at a wall: snaps to the corner and the middle within snap (depen
   const c = at(1.6, 0.25);
   assert.ok(c.mid && Math.abs(c.x - 1.5) < 1e-3, 'near the middle of the wall: centered');
   assert.ok(!at(1.6, 0.03).mid);
+});
+test('a point on a straight wall (a cut ended there) is no corner: furniture and a strip go along the whole wall', () => {
+  type Corner = [number, number];
+  const room = (polygon: Corner[]): ReturnType<typeof emptyPlan> => ({
+    ...emptyPlan(),
+    rooms: [{id: 'r', name: 'R', polygon}],
+  });
+  const whole = room([
+    [0, 0],
+    [4.6, 0],
+    [4.6, 3.2],
+    [0, 3.2],
+  ]);
+  // the same room, its top wall split at 1.9 and 2.3 (a 40 cm piece), its left one at 1.5
+  const split = room([
+    [0, 0],
+    [4.6, 0],
+    [4.6, 3.2],
+    [2.3, 3.2],
+    [1.9, 3.2],
+    [0, 3.2],
+    [0, 1.5],
+  ]);
+  const sofa = {id: 's', model: 'sofa', w: 2.2, d: 0.95, h: 0.85, rot: 0, x: 0, y: 0};
+  for (const x of [0.5, 1.4, 1.9, 2.1, 2.6, 4]) {
+    const p: Point = [x, 2.6];
+    assert.deepEqual(snapToWall(split, sofa, p), snapToWall(whole, sofa, p), `the sofa dropped at x = ${x}`);
+  }
+  assert.deepEqual(stripOnWall(split, [2.1, 3]), stripOnWall(whole, [2.1, 3]));
 });
 test('kitchen modules: flush with a neighbor along the wall; a wall-hung one conflicts only if it overlaps in height too', () => {
   const p = two();

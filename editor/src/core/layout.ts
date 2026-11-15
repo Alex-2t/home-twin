@@ -1,7 +1,7 @@
 // Placement rules for furniture and lights: snapping to walls, overlap checks. No three.js.
 import {t} from '../i18n/i18n.ts';
 import {WALL, openingCoords, openingOut, pointIn, centroid} from './geometry.ts';
-import {roomEdges, roomAt, uniqueName, swingOf} from './plan.ts';
+import {roomWalls, roomAt, uniqueName, swingOf} from './plan.ts';
 import {byId, zOf, lArms, nameOf} from './catalog.ts';
 import {isRun, runGeo} from './runs.ts';
 import {giveSeenBack} from './seen-lamps.ts';
@@ -163,7 +163,7 @@ export function snapToWall(plan: Plan, f: FurnitureItem, p: Point, free?: boolea
   // how far from a wall the pull starts: usually 55 cm behind the back; a chair, table or rug (loose) only when almost touching
   let best: (RoomEdge & {off: number; along: number}) | null = null;
   const reach = entryOf(f)?.loose ? WALL.inner + 0.1 : 0.55;
-  for (const e of roomEdges(plan)) {
+  for (const e of roomWalls(plan)) {
     if (e.l < 0.3) continue;
     const along = (p[0] - e.a[0]) * e.u[0] + (p[1] - e.a[1]) * e.u[1];
     const off = (p[0] - e.a[0]) * e.n[0] + (p[1] - e.a[1]) * e.n[1];
@@ -391,7 +391,7 @@ export function snapLightPoint(
 // A strip: the whole nearest wall of the room along its surface, 10 cm in from the corners.
 export function stripOnWall(plan: Pick<Plan, 'rooms'>, p: Point): WallStrip | null {
   let best: (RoomEdge & {off: number}) | null = null;
-  for (const e of roomEdges(plan)) {
+  for (const e of roomWalls(plan)) {
     if (e.l < 0.4) continue;
     const along = (p[0] - e.a[0]) * e.u[0] + (p[1] - e.a[1]) * e.u[1];
     const off = (p[0] - e.a[0]) * e.n[0] + (p[1] - e.a[1]) * e.n[1];
@@ -443,7 +443,7 @@ export function autoPlaceLights(
     } else {
       if (L.h !== undefined && L.h < 1.8) continue;
       let best: RoomEdge | null = null;
-      for (const e of roomEdges(plan)) if (e.room === r && (!best || e.l > best.l)) best = e;
+      for (const e of roomWalls(plan)) if (e.room === r && (!best || e.l > best.l)) best = e;
       if (!best) continue;
       const longest = best;
       const k = WALL.inner + 0.03;
