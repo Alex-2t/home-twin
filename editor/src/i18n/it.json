@@ -1682,5 +1682,6 @@
  "None of the photos can be opened. Upload them again as JPEG, PNG or HEIC.": "Nessuna foto può essere aperta. Caricale di nuovo in JPEG, PNG o HEIC.",
  "The video cannot be opened. It may be damaged: upload it again, or add photos instead.": "Impossibile aprire il video. Potrebbe essere danneggiato: caricalo di nuovo o aggiungi delle foto.",
  "No room of a home was found in your video or photos. Upload a video or photos of the rooms.": "Nel video o nelle foto non è stata trovata nessuna stanza. Carica un video o delle foto delle stanze.",
- "Upload again": "Carica di nuovo"
+ "Upload again": "Carica di nuovo",
+ "Too many codes asked. Wait an hour, then send a new one.": "Troppi codici richiesti. Aspetta un'ora, poi inviane uno nuovo."
 }

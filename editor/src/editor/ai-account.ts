@@ -308,6 +308,7 @@ export function refusalText(error: unknown): string {
   if (error.code === 'CODE_WRONG') return t('Wrong code. Check it and try again.');
   if (error.code === 'CODE_EXPIRED') return t('The code has expired. Send a new one.');
   if (error.code === 'CODE_TRIES') return t('Too many tries. Send a new code.');
+  if (error.code === 'TOO_MANY_CODES') return t('Too many codes asked. Wait an hour, then send a new one.');
   if (error.code === 'PAYMENT_FAILED') return t('The payment did not go through');
   if (error.code === 'PAYMENT_UNKNOWN') return t('The payment was not found');
   if (error.code === 'PAYMENT_NOT_OURS') return t('This payment is not for a package here');
