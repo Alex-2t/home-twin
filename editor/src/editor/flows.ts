@@ -603,7 +603,7 @@ export function createFlows(
   // “Don't know” — scale by a wall, as before. Once the scale is set by a wall, the area no longer touches it.
   // The area dialog: when a photo is uploaded, at the start of “Draw from scratch” and via “Back” from the first steps (to fix the area). If rooms already exist —
   // the size comes from them right away, the step stays the same. Without a photo “Don't know” means draw by eye (sizes show at the cursor). A balcony is not included in the documented area everywhere (it is in Moldova, not in Russia) — a checkbox,
-  // the last choice is remembered.
+  // ticked by default (D-112), the last choice is remembered.
   const BALC = 'home-twin-editor:docBalcony';
   f.askArea = () => {
     const has = ed.plan.rooms.length > 0;
@@ -619,7 +619,14 @@ export function createFlows(
     const bal = find<HTMLInputElement>(box, '.area-balc input');
     const form = find<HTMLFormElement>(box, 'form');
     if (ed.plan.docArea) inp.value = num(ed.plan.docArea);
-    bal.checked = ed.plan.docBalcony ?? localStorage.getItem(BALC) === '1';
+    // ticked unless the plan or the last choice says otherwise: most documented areas the users bring include the balcony
+    let lastBalcony: string | null = null;
+    try {
+      lastBalcony = localStorage.getItem(BALC);
+    } catch {
+      // storage blocked: as if never chosen
+    }
+    bal.checked = ed.plan.docBalcony ?? lastBalcony !== '0';
     // a dialog: the editor under it sleeps while it is open
     const held = holdFocus(box, {first: inp});
     const closeBox = (): void => {
