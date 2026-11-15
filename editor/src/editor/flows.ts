@@ -751,7 +751,7 @@ export function createFlows(
   // the size comes from them right away, the step stays the same. Without a photo “Don't know” means draw by eye (sizes show at the cursor). A balcony is not included in the documented area everywhere (it is in Moldova, not in Russia) — a checkbox,
   // ticked by default (D-112), the last choice is remembered.
   const BALC = 'home-twin-editor:docBalcony';
-  f.askArea = () => {
+  f.askArea = ({fromBack = false} = {}) => {
     const has = ed.plan.rooms.length > 0;
     const photo = ed.underlay.ready;
     const box = el(`<div class="keys area-ask"><form class="keys-box glass area-box">
@@ -792,11 +792,11 @@ export function createFlows(
       has ? f.calibrate() : f.calibrate({step: true});
     };
     find(box, '[data-a=wall]').onclick = wall;
-    // Esc: on upload — “Don't know”, when editing — just close
+    // Esc: on upload — “Don't know”, when editing or opened by the outline step's Back — just close
     box.addEventListener('keydown', e => {
       if (e.key === 'Escape') {
         e.stopPropagation();
-        has ? closeBox() : wall();
+        has || fromBack ? closeBox() : wall();
       }
     });
     inp.oninput = () => {
@@ -833,7 +833,7 @@ export function createFlows(
       afterCalibration();
     };
   };
-  ed.askArea = () => f.askArea();
+  ed.askArea = o => f.askArea(o);
   ed.showStart = () => f.showStart({canContinue: true});
   // balcony, loggia, terrace (in ten languages) — not included in the area unless “included” is checked (plan.docBalcony)
   const OUT =

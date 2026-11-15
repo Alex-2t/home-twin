@@ -409,7 +409,14 @@ export function roomsMode(ed: Editor): RoomsMode {
   // internal: called only by ed.setTool (the single tool state machine in app.js)
   // The “rectangle → split” wizard follows the plan, not the clicks: ⌘Z or deleting the only room
   // go back to “Draw a rectangle”, the room is back — “Split” again. Finished — via “Done”.
-  const RECT_STEP: StepCard = [DRAW_RECT, [], ed.aim.photo];
+  // the outline step's card; over a photo with the tip on turning it, as flows.ts shows it after the area dialog
+  const rectStep = (): StepCard => [
+    ed.underlay.ready
+      ? `${DRAW_RECT}<small>${t('Photo at an angle? Turn it by the circle above the photo.')}</small>`
+      : DRAW_RECT,
+    [],
+    ed.aim.photo,
+  ];
   const SPLIT_STEP = `${t('Split into rooms: a click adds a wall.')}<small>${t('Tip: all horizontal walls first, then vertical ones. Delete extras later.')}</small><small>${t('Select and delete any extra area outside your apartment.')}</small><small>${t('You can also paint the floor and walls: select a room with the arrow.')}</small>`;
   // a strip above the bottom bar, does not move; after the first split — on one line (the owner)
   const SPLIT_O = (): StepOptions => ({id: 'split', fixed: true});
@@ -606,7 +613,7 @@ export function roomsMode(ed: Editor): RoomsMode {
     persist();
     if (at === 'rect') {
       wiz.open = wiz.names = false;
-      ed.step(...(wiz.back || RECT_STEP));
+      ed.step(...(wiz.back || rectStep()));
       ed.setTool('rect');
     } else if (at === 'open') {
       wiz.opened = null;

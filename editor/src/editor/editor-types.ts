@@ -409,8 +409,8 @@ export interface EditorFlows {
   hasPrev(): boolean;
   /** The mode and guided step this plan had last time. */
   resume(): void;
-  /** The area dialog (D-038). */
-  askArea(): void;
+  /** The area dialog (D-038); fromBack: opened by the outline step's Back, so Esc only closes it. */
+  askArea(o?: {fromBack?: boolean}): void;
   /** Scale from a wall: two clicks on the photo and a length; step: as a guided step. */
   calibrate(o?: {step?: boolean}): void;
   rotatePlan(): void;
@@ -652,7 +652,7 @@ export interface Editor {
   /** flows.ts: an example from the address is about to replace this plan, so the 3D does not build it. */
   hold?: boolean;
   /** flows.ts: the area dialog, and the start screen with "Continue". */
-  askArea(): void;
+  askArea(o?: {fromBack?: boolean}): void;
   showStart(): void;
   /** flows.ts: sizes from the area in the documents (D-038), by the first rectangle or the rooms; the factor, 0: none. */
   fitArea?(by: 'rect' | 'rooms', o?: {commit?: boolean; tell?: boolean}): number;

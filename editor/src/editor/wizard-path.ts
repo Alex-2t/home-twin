@@ -193,25 +193,68 @@ export function createPath(ed: Editor): WizardPath {
     // rooms are named — sizing by the area from the documents is exact (D-038): the balcony is already recognized by its name
     if (ed.plan.scaleBy === 'rect' && !['rect', 'split', 'open'].includes(from)) ed.fitArea?.('rooms');
   };
-  // “Back”: a mandatory step — to the previous one on the path; the summary and “Sensors” (with the question about them) → Lights
-  // (a mandatory step is not passed — to it); “Outline” and “Rooms” — the area dialog (to correct it); “Outline” without a photo — the start screen
-  const photo = (): boolean => ed.underlay.ready;
+  // “Back” goes to the screen before the step, with the plan as it is (D-112):
+  // - Outline → the area dialog (it comes before the outline both after a photo and in “Draw from scratch”); Esc there
+  //   closes it and the outline step stays.
+  // - Rooms → Outline: the outline is taken away so a new one can be drawn; walls, windows or doors added since are asked
+  //   about first. ⌘Z brings it all back, on the Rooms step.
+  // - a later main step → the one before it;
+  // - the summary, Sensors and Devices (with their questions) → the screen before them that was shown: Sensors, Devices
+  //   (the step itself if it was gone into, its question if that was answered “Skip”), else Lights.
+  const optionalScreen = (k: 'devices' | 'sensors'): (() => void) | null => {
+    const status = P.status(k);
+    if (status === 'not_started') return null; // never asked: HA had nothing to show
+    if (status === 'deferred' && !stepFacts(ed.plan, k).started)
+      return k === 'devices' ? P.askDevices : P.ask;
+    return () => P.go(k);
+  };
   P.canBack = () => !!P.cur();
   P.back = () => {
     const k = P.cur();
     ed.capture = null;
     ed.v.cv.style.cursor = '';
-    if (k === 'rect' || k === 'split') {
-      // flows.ts sets both when the editor starts, before any step runs.
-      if (k === 'split' || photo()) ed.askArea();
-      else ed.showStart();
+    if (k === 'rect') {
+      // flows.ts sets it when the editor starts, before any step runs.
+      ed.askArea({fromBack: true});
+      return;
+    }
+    if (k === 'split') {
+      backToOutline();
       return;
     }
     const i = MAND.findIndex(s => s[0] === k);
-    if (i > 0) P.go(MAND[i - 1][0]);
-    else if (k === 'fin' || k === 'sensors' || k === 'devices') P.go('lights');
-    else P.finale();
+    if (i > 0) {
+      P.go(MAND[i - 1][0]);
+      return;
+    }
+    let previous: (() => void) | null = null;
+    if (k === 'fin') previous = optionalScreen('sensors') ?? optionalScreen('devices');
+    if (k === 'sensors') previous = optionalScreen('devices');
+    (previous ?? (() => P.go('lights')))();
   };
+  function backToOutline(): void {
+    const added = ed.plan.rooms.length > 1 || ed.plan.openings.length > 0;
+    const go = (): void => {
+      ed.banner();
+      ed.versions?.mark('before', 'backToOutline');
+      ed.plan.rooms = [];
+      ed.plan.openings = [];
+      ed.sel.room = null;
+      ed.sel.wall = null;
+      ed.sel.opening = null;
+      ed.commit();
+      P.go('rect');
+      ed.fit();
+    };
+    if (!added) {
+      go();
+      return;
+    }
+    ed.banner(t('Back to the outline? The walls, windows and doors you added will be removed.'), [
+      [t('Cancel'), () => ed.banner()],
+      [t('Go back'), go, true],
+    ]);
+  }
   P.go = k => {
     if (ed.modes.lights.guardLeave?.(() => P.go(k))) return;
     ed.capture = null;
