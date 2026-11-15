@@ -2666,8 +2666,10 @@ export function createApp({haLights, ha, photos}: AppOptions): Editor {
   // and only the lamps of a couple of rooms on. In the demo a lamp's state is the plan's (ha.ts), so the home panel and the 3D see
   // the same.
   ed.showcaseLight = () => {
-    const byDay = shownByDay(homeFacts(ed.plan.rooms).area);
-    const lit = byDay ? new Set<string>() : eveningRooms(ed.plan.rooms, ed.plan.lights);
+    const evening = eveningRooms(ed.plan.rooms, ed.plan.lights);
+    // No room with a lamp to light: an evening would be a dark home, so it is shown by day.
+    const byDay = shownByDay(homeFacts(ed.plan.rooms).area) || evening.size === 0;
+    const lit = byDay ? new Set<string>() : evening;
     for (const lamp of ed.plan.lights) {
       const on = !!lamp.room && lit.has(lamp.room);
       lamp.on = on;

@@ -4,7 +4,8 @@
 // one of them is missing, the next largest room lived in, so two rooms are lit where two have lamps. Every other lamp is off.
 // An AI-built home has only the lamps its video showed, often none in the living room: the rule picks among those it has.
 // Not every home is shown so (the owner: a mix reads better than a page of night scenes): a small home is shown by day with
-// every lamp off (shownByDay), the larger ones in the evening.
+// every lamp off (shownByDay), the larger ones in the evening — unless no room has a lamp to light (a home built from photos
+// that showed none): an evening would be a dark home, so it is shown by day too.
 import {area} from './geometry.ts';
 import {roomKind} from './overview.ts';
 import type {Room, RoomKind} from './types.ts';
