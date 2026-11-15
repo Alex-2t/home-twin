@@ -268,28 +268,38 @@ const outlineClip: ClipDefinition = {
 };
 
 // 2. Rooms: the outline from step 1 takes in the balcony and the empty paper beside it. A line through the pointer snaps
-// onto the drawn wall above the flat (a click makes it a wall), two short cuts follow the balcony's sides, and the two
-// pieces beside the balcony are deleted, as the step's hint says ("delete any extra area outside"): as in the editor's Split
-// tool, the piece under the pointer is tinted and its bin comes up on hover, so the only click is on the bin.
+// onto the drawn wall above the flat (a click makes it a wall), and then, as the step's tip says (horizontal walls first,
+// then vertical ones), onto the inner wall across the flat; two short cuts follow the balcony's sides and one the inner wall
+// between the kids' room and the bathroom. The two pieces beside the balcony are deleted, as the step's hint says ("delete
+// any extra area outside"): as in the editor's Split tool, the piece under the pointer is tinted and its bin comes up on
+// hover, so the only click is on the bin.
 const SPLIT_SNAP_METRES = 0.35;
 const CUT_Y = FLAT_TOP + OUTER_WALL / 2; // the drawn wall between the flat and the balcony, along its middle
+const MIDDLE_Y = 3.75; // the drawn inner wall across the flat: kids' room | bedroom, hallway | living room, kitchen | living room
+const INNER_X = 3.45; // the drawn inner wall between the kids' room and the bathroom, below the wall across
+const MIDDLE_POINTER_X = 2.2;
+const INNER_POINTER_Y = 1.2;
 const STRIP_MIDDLE_Y = (STRIP_BOTTOM + HOME_TOP) / 2;
 const EXTRA_LEFT_MIDDLE: Point = [2.7, STRIP_MIDDLE_Y];
 const EXTRA_RIGHT_MIDDLE: Point = [(BALCONY_RIGHT + 10.4) / 2, STRIP_MIDDLE_Y];
 // the clicks
 const CUT_ACROSS_CLICK: Ms = 1450;
-const CUT_LEFT_CLICK: Ms = 2400;
-const CUT_RIGHT_CLICK: Ms = 3300;
-const TRASH_LEFT_CLICK: Ms = 4650;
-const TRASH_RIGHT_CLICK: Ms = 6100;
+const CUT_MIDDLE_CLICK: Ms = 2300;
+const CUT_LEFT_CLICK: Ms = 3250;
+const CUT_RIGHT_CLICK: Ms = 4150;
+const CUT_INNER_CLICK: Ms = 5150;
+const TRASH_LEFT_CLICK: Ms = 6600;
+const TRASH_RIGHT_CLICK: Ms = 8050;
 // when the pointer comes over each piece beside the balcony (no click: hovering tints it and brings up its bin)
-const HOVER_LEFT_AT: Ms = 3800;
-const HOVER_RIGHT_AT: Ms = 5250;
-const SPLIT_LOOP: Ms = 7900;
+const HOVER_LEFT_AT: Ms = 5750;
+const HOVER_RIGHT_AT: Ms = 7200;
+const SPLIT_LOOP: Ms = 9850;
 // when the pointer sweeps for each cut, so its guide shows only then
 const SWEEP_ACROSS: readonly [Ms, Ms] = [600, CUT_ACROSS_CLICK];
-const SWEEP_LEFT: readonly [Ms, Ms] = [2000, CUT_LEFT_CLICK];
-const SWEEP_RIGHT: readonly [Ms, Ms] = [2900, CUT_RIGHT_CLICK];
+const SWEEP_MIDDLE: readonly [Ms, Ms] = [1900, CUT_MIDDLE_CLICK];
+const SWEEP_LEFT: readonly [Ms, Ms] = [2850, CUT_LEFT_CLICK];
+const SWEEP_RIGHT: readonly [Ms, Ms] = [3750, CUT_RIGHT_CLICK];
+const SWEEP_INNER: readonly [Ms, Ms] = [4750, CUT_INNER_CLICK];
 // the delete button that comes up under the piece under the pointer, in view units from the piece's middle
 const TRASH_BELOW = 20;
 const TRASH_SIZE = 18;
@@ -298,6 +308,8 @@ const trashSeen = (middle: Point): Point => {
   return [x, y + TRASH_BELOW];
 };
 const CUT_ACROSS_SEEN = seen(2.2, CUT_Y);
+const CUT_MIDDLE_SEEN = seen(MIDDLE_POINTER_X, MIDDLE_Y);
+const CUT_INNER_SEEN = seen(INNER_X, INNER_POINTER_Y);
 const CUT_LEFT_SEEN = seen(BALCONY_LEFT, STRIP_MIDDLE_Y);
 const CUT_RIGHT_SEEN = seen(BALCONY_RIGHT, STRIP_MIDDLE_Y);
 const HOVER_LEFT_SEEN = seen(...EXTRA_LEFT_MIDDLE);
@@ -309,21 +321,27 @@ const SPLIT_POINTER: PointerKey[] = [
   key(SWEEP_ACROSS[0], seen(2.2, 6.7)),
   key(1250, CUT_ACROSS_SEEN),
   key(1600, CUT_ACROSS_SEEN),
+  key(SWEEP_MIDDLE[0], seen(MIDDLE_POINTER_X, 4.4)),
+  key(2150, CUT_MIDDLE_SEEN),
+  key(2450, CUT_MIDDLE_SEEN),
   key(SWEEP_LEFT[0], seen(4.9, STRIP_MIDDLE_Y)),
-  key(2250, CUT_LEFT_SEEN),
-  key(2550, CUT_LEFT_SEEN),
+  key(3100, CUT_LEFT_SEEN),
+  key(3400, CUT_LEFT_SEEN),
   key(SWEEP_RIGHT[0], seen(8.4, STRIP_MIDDLE_Y)),
-  key(3150, CUT_RIGHT_SEEN),
-  key(3450, CUT_RIGHT_SEEN),
-  key(3850, HOVER_LEFT_SEEN),
-  key(4150, HOVER_LEFT_SEEN),
-  key(4500, TRASH_LEFT_SEEN),
-  key(4800, TRASH_LEFT_SEEN),
-  key(5300, HOVER_RIGHT_SEEN),
-  key(5600, HOVER_RIGHT_SEEN),
-  key(5950, TRASH_RIGHT_SEEN),
-  key(6250, TRASH_RIGHT_SEEN),
-  key(6950, POINTER_EXIT),
+  key(4000, CUT_RIGHT_SEEN),
+  key(4300, CUT_RIGHT_SEEN),
+  key(SWEEP_INNER[0], seen(2.8, INNER_POINTER_Y)),
+  key(5000, CUT_INNER_SEEN),
+  key(5300, CUT_INNER_SEEN),
+  key(5800, HOVER_LEFT_SEEN),
+  key(6100, HOVER_LEFT_SEEN),
+  key(6450, TRASH_LEFT_SEEN),
+  key(6750, TRASH_LEFT_SEEN),
+  key(7250, HOVER_RIGHT_SEEN),
+  key(7550, HOVER_RIGHT_SEEN),
+  key(7900, TRASH_RIGHT_SEEN),
+  key(8200, TRASH_RIGHT_SEEN),
+  key(8900, POINTER_EXIT),
 ];
 const during = (time: Ms, [from, to]: readonly [Ms, Ms]): boolean => time >= from && time < to;
 /** The value snapped onto `target` when it is near enough, as the editor snaps a cut onto the photo's lines. */
@@ -349,7 +367,7 @@ const trashMarkup = (part: string, middle: Point): string => {
 };
 const splitClip: ClipDefinition = {
   loopMs: SPLIT_LOOP,
-  stillMs: 7200,
+  stillMs: 9150,
   markup: () => {
     const w = OUTER_WALL;
     const half = INNER_WALL / 2;
@@ -368,9 +386,11 @@ const splitClip: ClipDefinition = {
       bandMarkup([0, HOME_TOP], [BALCONY_LEFT - half, HOME_TOP + w], shown('wallsLeftB')) +
       bandMarkup([10.4, STRIP_BOTTOM], [10.4 + w, HOME_TOP + w], shown('wallsRightA')) +
       bandMarkup([BALCONY_RIGHT + half, HOME_TOP], [10.4, HOME_TOP + w], shown('wallsRightB'));
-    // the three cuts: made in the accent, then plain walls
+    // the five cuts: made in the accent, then plain walls
     const cuts: Array<[string, Point, Point]> = [
       ['cutAcross', [0, FLAT_TOP], [10.4, STRIP_BOTTOM]],
+      ['cutMiddle', [0, MIDDLE_Y - half], [10.4, MIDDLE_Y + half]],
+      ['cutInner', [INNER_X - half, 0], [INNER_X + half, MIDDLE_Y - half]],
       ['cutLeft', [BALCONY_LEFT - half, STRIP_BOTTOM], [BALCONY_LEFT + half, HOME_TOP]],
       ['cutRight', [BALCONY_RIGHT - half, STRIP_BOTTOM], [BALCONY_RIGHT + half, HOME_TOP]],
     ];
@@ -403,14 +423,22 @@ const splitClip: ClipDefinition = {
     const kept = beforeFadeOut(time, SPLIT_LOOP);
     const pointer = pointerAt(SPLIT_POINTER, time);
     const [pointerX, pointerY] = viewToPlan([pointer.x, pointer.y]);
-    // the guide: across the whole outline first, then up and down across the strip by the balcony
+    // the guide: across the whole outline first, then across the flat, up and down across the strip by the balcony, and
+    // up and down the flat's lower half by the kids' room
     let guide: [Point, Point] | null = null;
     let snapped = false;
-    if (during(time, SWEEP_ACROSS)) {
-      const cut = snapTo(pointerY, CUT_Y);
+    if (during(time, SWEEP_ACROSS) || during(time, SWEEP_MIDDLE)) {
+      const cut = snapTo(pointerY, during(time, SWEEP_ACROSS) ? CUT_Y : MIDDLE_Y);
       guide = [
         [0, cut.value],
         [10.4, cut.value],
+      ];
+      snapped = cut.snapped;
+    } else if (during(time, SWEEP_INNER)) {
+      const cut = snapTo(pointerX, INNER_X);
+      guide = [
+        [cut.value, 0],
+        [cut.value, MIDDLE_Y - INNER_WALL / 2],
       ];
       snapped = cut.snapped;
     } else if (during(time, SWEEP_LEFT) || during(time, SWEEP_RIGHT)) {
@@ -431,10 +459,12 @@ const splitClip: ClipDefinition = {
       parts.guide.setAttribute('y2', y2.toFixed(2));
       parts.guide.classList.toggle('snap', snapped);
     }
-    const cutAt: Array<[string, Ms]> = [
-      ['cutAcross', CUT_ACROSS_CLICK],
-      ['cutLeft', CUT_LEFT_CLICK],
-      ['cutRight', CUT_RIGHT_CLICK],
+    const cutAt: Array<[string, Ms, Point]> = [
+      ['cutAcross', CUT_ACROSS_CLICK, CUT_ACROSS_SEEN],
+      ['cutMiddle', CUT_MIDDLE_CLICK, CUT_MIDDLE_SEEN],
+      ['cutLeft', CUT_LEFT_CLICK, CUT_LEFT_SEEN],
+      ['cutRight', CUT_RIGHT_CLICK, CUT_RIGHT_SEEN],
+      ['cutInner', CUT_INNER_CLICK, CUT_INNER_SEEN],
     ];
     for (const [part, clickAt] of cutAt) {
       setOpacity(parts[part], presence(time, clickAt) * kept);
@@ -457,14 +487,8 @@ const splitClip: ClipDefinition = {
       parts[`trash${side}Button`].classList.toggle('on', time >= trashAt - PRESS_MS / 2);
     }
     // one ring for the cuts and one for the bins: their clicks never overlap
-    const lastCut = [CUT_RIGHT_CLICK, CUT_LEFT_CLICK, CUT_ACROSS_CLICK].find(clickAt => time >= clickAt);
-    const cutSeen =
-      lastCut === CUT_RIGHT_CLICK
-        ? CUT_RIGHT_SEEN
-        : lastCut === CUT_LEFT_CLICK
-          ? CUT_LEFT_SEEN
-          : CUT_ACROSS_SEEN;
-    poseRipple(parts.ringCut, time, lastCut ?? CUT_ACROSS_CLICK, cutSeen);
+    const lastCut = [...cutAt].reverse().find(([, clickAt]) => time >= clickAt) ?? cutAt[0];
+    poseRipple(parts.ringCut, time, lastCut[1], lastCut[2]);
     const bins: Array<[Ms, Point]> = [
       [TRASH_RIGHT_CLICK, TRASH_RIGHT_SEEN],
       [TRASH_LEFT_CLICK, TRASH_LEFT_SEEN],
@@ -476,9 +500,7 @@ const splitClip: ClipDefinition = {
       SPLIT_POINTER,
       time,
       [
-        pressAt(CUT_ACROSS_CLICK),
-        pressAt(CUT_LEFT_CLICK),
-        pressAt(CUT_RIGHT_CLICK),
+        ...cutAt.map(([, clickAt]) => pressAt(clickAt)),
         pressAt(TRASH_LEFT_CLICK),
         pressAt(TRASH_RIGHT_CLICK),
       ],

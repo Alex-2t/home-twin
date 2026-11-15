@@ -18,10 +18,10 @@ test('every main step of the guided path has a clip', () => {
   assert.deepEqual(missing, []);
 });
 
-// The rooms clip is longer: besides a cut it trims the area beside the balcony that the outline took in.
-test('a clip loops in about 3–4.5 s (the rooms one up to 8 s) and its still picture is a moment of the loop', () => {
+// The rooms clip is longer: besides its cuts it trims the area beside the balcony that the outline took in.
+test('a clip loops in about 3–4.5 s (the rooms one up to 10 s) and its still picture is a moment of the loop', () => {
   for (const [step, clip] of Object.entries(STEP_CLIPS)) {
-    const longest = step === 'split' ? 8000 : 4500;
+    const longest = step === 'split' ? 10000 : 4500;
     assert.ok(clip.loopMs >= 3000 && clip.loopMs <= longest, `${step}: loop ${clip.loopMs} ms`);
     assert.ok(clip.stillMs > 0 && clip.stillMs < clip.loopMs, `${step}: still at ${clip.stillMs} ms`);
   }
