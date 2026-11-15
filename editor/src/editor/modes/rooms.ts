@@ -2066,15 +2066,13 @@ export function roomsMode(ed: Editor): RoomsMode {
     // the selected wall menu: length (click to type it), remove the wall; thickness — under “⋯”, only if enabled in the settings
     const W = selWall();
     if (W) {
-      // what the wall is, in plain words (the owner: “Exterior wall” over a finish that changed inside read as the outer face):
-      // “Wall” and where it stands — facing outside or between rooms; each finish row below says which side it paints
-      let kind = '';
-      if (!W.open && !W.rail) kind = W.interior ? t('between rooms') : t('facing outside');
+      // just “Wall” (or Railing, Room boundary): where it stands is seen on the plan and in its buttons; each finish row below says
+      // which side it paints (the owner)
       let title = t('Wall');
       if (W.open) title = t('Room boundary');
       else if (W.rail) title = t('Railing');
       const line = el(
-        `<div class="line"><b title="${W.open ? t('No wall, separate rooms') : ''}">${title}</b>${kind ? `<small class="wall-kind">${kind}</small>` : ''}</div>`,
+        `<div class="line"><b title="${W.open ? t('No wall, separate rooms') : ''}">${title}</b></div>`,
       );
       const lines = [line];
       const whole = Math.abs(len(W.a, W.b) - len(W.ea, W.eb)) < 0.01;

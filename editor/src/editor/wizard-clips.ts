@@ -267,83 +267,319 @@ const outlineClip: ClipDefinition = {
   },
 };
 
-// 2. Rooms: the outline from step 1 takes in the balcony and the empty paper beside it. A line through the pointer snaps
-// onto the drawn wall above the flat (a click makes it a wall), and then, as the step's tip says (horizontal walls first,
-// then vertical ones), onto the inner wall across the flat; two short cuts follow the balcony's sides and one the inner wall
-// between the kids' room and the bathroom. The two pieces beside the balcony are deleted, as the step's hint says ("delete
-// any extra area outside"): as in the editor's Split tool, the piece under the pointer is tinted and its bin comes up on
-// hover, so the only click is on the bin.
-const SPLIT_SNAP_METRES = 0.35;
+// 2. Rooms: the outline from step 1 takes in the balcony and the empty paper beside it, and the whole flat is one room. The
+// clip cuts it into the drawn rooms as the editor's Split tool does: a line through the pointer snaps onto a drawn wall and a
+// click makes it a wall across the whole room under the pointer. First the balcony: the wall above the flat, the balcony's
+// two sides, and the two pieces beside it are deleted, as the step's hint says ("delete any extra area outside"): the piece
+// under the pointer is tinted and its bin comes up on hover, so the only click is on the bin. Then every inner wall of the
+// flat. The hallway and the living room are not rectangles, so three cuts also leave a wall where the drawing has none; as
+// the step's tip says ("delete extras later"), a click selects such a wall and "Remove wall" in its panel merges the rooms.
+
+/** A cut of the Split tool: a line across the room under the pointer, snapped onto a drawn wall; a click makes it a wall. */
+interface SplitCut {
+  /** The cut's data-part name. */
+  part: string;
+  /** 'x': the line runs east–west (a horizontal wall); 'y': north–south (a vertical wall). */
+  runs: 'x' | 'y';
+  /** The drawn wall's middle across the line: its y for a horizontal line, its x for a vertical one. */
+  at: number;
+  /** The line's ends along it: the walls of the room it cuts. */
+  from: number;
+  to: number;
+  /** The new wall's thickness: the outer wall's above the flat, an inner wall's elsewhere. */
+  thickness: number;
+  /** Where the pointer starts its sweep towards the drawn wall, and where on it it clicks (plan metres). */
+  sweepFrom: Point;
+  clickAt: Point;
+  /** The part of the new wall the drawing has no wall at, removed at the end by the named removal. */
+  extra?: {from: number; to: number; removal: string};
+}
+
+/** An extra wall the cuts left: a click on it selects it, a click on "Remove wall" in its panel merges the two rooms. */
+interface WallRemoval {
+  name: string;
+  /** Where the pointer clicks on the wall (plan metres). */
+  clickAt: Point;
+}
+
+const HALF_INNER = INNER_WALL / 2;
 const CUT_Y = FLAT_TOP + OUTER_WALL / 2; // the drawn wall between the flat and the balcony, along its middle
-const MIDDLE_Y = 3.75; // the drawn inner wall across the flat: kids' room | bedroom, hallway | living room, kitchen | living room
-const INNER_X = 3.45; // the drawn inner wall between the kids' room and the bathroom, below the wall across
-const MIDDLE_POINTER_X = 2.2;
-const INNER_POINTER_Y = 1.2;
 const STRIP_MIDDLE_Y = (STRIP_BOTTOM + HOME_TOP) / 2;
 const EXTRA_LEFT_MIDDLE: Point = [2.7, STRIP_MIDDLE_Y];
 const EXTRA_RIGHT_MIDDLE: Point = [(BALCONY_RIGHT + 10.4) / 2, STRIP_MIDDLE_Y];
-// the clicks
-const CUT_ACROSS_CLICK: Ms = 1450;
-const CUT_MIDDLE_CLICK: Ms = 2300;
-const CUT_LEFT_CLICK: Ms = 3250;
-const CUT_RIGHT_CLICK: Ms = 4150;
-const CUT_INNER_CLICK: Ms = 5150;
-const TRASH_LEFT_CLICK: Ms = 6600;
-const TRASH_RIGHT_CLICK: Ms = 8050;
-// when the pointer comes over each piece beside the balcony (no click: hovering tints it and brings up its bin)
-const HOVER_LEFT_AT: Ms = 5750;
-const HOVER_RIGHT_AT: Ms = 7200;
-const SPLIT_LOOP: Ms = 9850;
-// when the pointer sweeps for each cut, so its guide shows only then
-const SWEEP_ACROSS: readonly [Ms, Ms] = [600, CUT_ACROSS_CLICK];
-const SWEEP_MIDDLE: readonly [Ms, Ms] = [1900, CUT_MIDDLE_CLICK];
-const SWEEP_LEFT: readonly [Ms, Ms] = [2850, CUT_LEFT_CLICK];
-const SWEEP_RIGHT: readonly [Ms, Ms] = [3750, CUT_RIGHT_CLICK];
-const SWEEP_INNER: readonly [Ms, Ms] = [4750, CUT_INNER_CLICK];
-// the delete button that comes up under the piece under the pointer, in view units from the piece's middle
-const TRASH_BELOW = 20;
-const TRASH_SIZE = 18;
-const trashSeen = (middle: Point): Point => {
-  const [x, y] = seen(...middle);
-  return [x, y + TRASH_BELOW];
-};
-const CUT_ACROSS_SEEN = seen(2.2, CUT_Y);
-const CUT_MIDDLE_SEEN = seen(MIDDLE_POINTER_X, MIDDLE_Y);
-const CUT_INNER_SEEN = seen(INNER_X, INNER_POINTER_Y);
-const CUT_LEFT_SEEN = seen(BALCONY_LEFT, STRIP_MIDDLE_Y);
-const CUT_RIGHT_SEEN = seen(BALCONY_RIGHT, STRIP_MIDDLE_Y);
-const HOVER_LEFT_SEEN = seen(...EXTRA_LEFT_MIDDLE);
-const HOVER_RIGHT_SEEN = seen(...EXTRA_RIGHT_MIDDLE);
-const TRASH_LEFT_SEEN = trashSeen(EXTRA_LEFT_MIDDLE);
-const TRASH_RIGHT_SEEN = trashSeen(EXTRA_RIGHT_MIDDLE);
-const SPLIT_POINTER: PointerKey[] = [
-  key(0, POINTER_HOME),
-  key(SWEEP_ACROSS[0], seen(2.2, 6.7)),
-  key(1250, CUT_ACROSS_SEEN),
-  key(1600, CUT_ACROSS_SEEN),
-  key(SWEEP_MIDDLE[0], seen(MIDDLE_POINTER_X, 4.4)),
-  key(2150, CUT_MIDDLE_SEEN),
-  key(2450, CUT_MIDDLE_SEEN),
-  key(SWEEP_LEFT[0], seen(4.9, STRIP_MIDDLE_Y)),
-  key(3100, CUT_LEFT_SEEN),
-  key(3400, CUT_LEFT_SEEN),
-  key(SWEEP_RIGHT[0], seen(8.4, STRIP_MIDDLE_Y)),
-  key(4000, CUT_RIGHT_SEEN),
-  key(4300, CUT_RIGHT_SEEN),
-  key(SWEEP_INNER[0], seen(2.8, INNER_POINTER_Y)),
-  key(5000, CUT_INNER_SEEN),
-  key(5300, CUT_INNER_SEEN),
-  key(5800, HOVER_LEFT_SEEN),
-  key(6100, HOVER_LEFT_SEEN),
-  key(6450, TRASH_LEFT_SEEN),
-  key(6750, TRASH_LEFT_SEEN),
-  key(7250, HOVER_RIGHT_SEEN),
-  key(7550, HOVER_RIGHT_SEEN),
-  key(7900, TRASH_RIGHT_SEEN),
-  key(8200, TRASH_RIGHT_SEEN),
-  key(8900, POINTER_EXIT),
+
+// The balcony's cuts: the wall above the flat across the whole outline, then the balcony's sides across the strip above it.
+const BALCONY_CUTS: SplitCut[] = [
+  {
+    part: 'cutAcross',
+    runs: 'x',
+    at: CUT_Y,
+    from: 0,
+    to: 10.4,
+    thickness: OUTER_WALL,
+    sweepFrom: [2.2, 6.7],
+    clickAt: [2.2, CUT_Y],
+  },
+  {
+    part: 'cutBalconyLeft',
+    runs: 'y',
+    at: BALCONY_LEFT,
+    from: STRIP_BOTTOM,
+    to: HOME_TOP,
+    thickness: INNER_WALL,
+    sweepFrom: [4.9, STRIP_MIDDLE_Y],
+    clickAt: [BALCONY_LEFT, STRIP_MIDDLE_Y],
+  },
+  {
+    part: 'cutBalconyRight',
+    runs: 'y',
+    at: BALCONY_RIGHT,
+    from: STRIP_BOTTOM,
+    to: HOME_TOP,
+    thickness: INNER_WALL,
+    sweepFrom: [8.4, STRIP_MIDDLE_Y],
+    clickAt: [BALCONY_RIGHT, STRIP_MIDDLE_Y],
+  },
 ];
-const during = (time: Ms, [from, to]: readonly [Ms, Ms]): boolean => time >= from && time < to;
+
+// The flat's inner walls (the drawn rooms in wizard-clip-plan.ts). Each line runs across the whole room it is made in.
+const INNER_CUTS: SplitCut[] = [
+  // across the whole flat: kids' room | bedroom, hallway | living room, kitchen | living room; the corridor has no wall there
+  {
+    part: 'cutMiddle',
+    runs: 'x',
+    at: 3.75,
+    from: 0,
+    to: 10.4,
+    thickness: INNER_WALL,
+    sweepFrom: [2.2, 4.4],
+    clickAt: [2.2, 3.75],
+    extra: {from: 3.5, to: 4.5, removal: 'removeCorridor'},
+  },
+  // the upper half: bedroom | living room
+  {
+    part: 'cutBedroom',
+    runs: 'y',
+    at: 3.45,
+    from: 3.8,
+    to: 7.6,
+    thickness: INNER_WALL,
+    sweepFrom: [2.8, 6.4],
+    clickAt: [3.45, 6.4],
+  },
+  // the lower half: kids' room | bathroom and hallway
+  {
+    part: 'cutKids',
+    runs: 'y',
+    at: 3.45,
+    from: 0,
+    to: 3.7,
+    thickness: INNER_WALL,
+    sweepFrom: [2.8, 1.2],
+    clickAt: [3.45, 1.2],
+  },
+  // hallway | kitchen
+  {
+    part: 'cutKitchen',
+    runs: 'y',
+    at: 6.95,
+    from: 0,
+    to: 3.7,
+    thickness: INNER_WALL,
+    sweepFrom: [7.6, 1.2],
+    clickAt: [6.95, 1.2],
+  },
+  // bathroom | hallway; beside the bathroom the line goes on through the hallway
+  {
+    part: 'cutBathroom',
+    runs: 'x',
+    at: 1.95,
+    from: 3.5,
+    to: 6.9,
+    thickness: INNER_WALL,
+    sweepFrom: [3.8, 2.6],
+    clickAt: [3.8, 1.95],
+    extra: {from: 5.4, to: 6.9, removal: 'removeHall'},
+  },
+  // bathroom | front of the hallway
+  {
+    part: 'cutBathroomSide',
+    runs: 'y',
+    at: 5.35,
+    from: 0,
+    to: 1.9,
+    thickness: INNER_WALL,
+    sweepFrom: [5.95, 0.9],
+    clickAt: [5.35, 0.9],
+  },
+  // corridor | living room above it; beside the corridor the line goes on through the living room
+  {
+    part: 'cutCorridorTop',
+    runs: 'x',
+    at: 5.05,
+    from: 3.5,
+    to: 10.4,
+    thickness: INNER_WALL,
+    sweepFrom: [4, 5.7],
+    clickAt: [4, 5.05],
+    extra: {from: 4.6, to: 10.4, removal: 'removeLiving'},
+  },
+  // corridor | living room beside it
+  {
+    part: 'cutCorridorSide',
+    runs: 'y',
+    at: 4.55,
+    from: 3.8,
+    to: 5,
+    thickness: INNER_WALL,
+    sweepFrom: [5.2, 4.4],
+    clickAt: [4.55, 4.4],
+  },
+];
+const SPLIT_CUTS: SplitCut[] = [...BALCONY_CUTS, ...INNER_CUTS];
+
+// The extra walls, in the order they are removed (the pointer's shortest way after the last cut).
+const WALL_REMOVALS: WallRemoval[] = [
+  {name: 'removeCorridor', clickAt: [4, 3.75]},
+  {name: 'removeHall', clickAt: [6.4, 1.95]},
+  {name: 'removeLiving', clickAt: [7.6, 5.05]},
+];
+
+// A cut's line snaps onto a drawn wall this near, as the editor snaps onto the photo's lines.
+const SPLIT_SNAP_METRES = 0.35;
+// The pointer's pace: a move takes from its shortest to its longest time, longer the farther it goes.
+const MOVE_SHORTEST_MS = 280;
+const MOVE_LONGEST_MS = 650;
+const MOVE_MS_PER_VIEW_UNIT = 3.5;
+// A sweep towards the drawn wall, the wait before a click and the stay after it.
+const SWEEP_MS = 380;
+const BEFORE_CLICK_MS = 160;
+const AFTER_CLICK_MS = 150;
+// A piece beside the balcony: how long the pointer stays over it before going down to its bin, and that move.
+const HOVER_STAY_MS = 300;
+const TO_BUTTON_MS = 330;
+// The panel under the piece or the wall the pointer is over, in view units below the pointer.
+const PANEL_BELOW = 20;
+const TRASH_SIZE = 18;
+const REMOVE_BUTTON_HEIGHT = 16;
+const REMOVE_TEXT_SIZE = 7;
+// The moments around the pointer's exit: the still picture just after it, the loop's end after the fade and the pause.
+const STILL_AFTER_EXIT_MS = 250;
+const LOOP_AFTER_EXIT_MS = 950;
+
+/** Where the panel under a point of the view comes up. */
+const panelSeen = (point: Point): Point => [point[0], point[1] + PANEL_BELOW];
+/** A wall along a cut's line between two places along it, as two plan corners. */
+function cutBand(cut: SplitCut, from: number, to: number): [Point, Point] {
+  const half = cut.thickness / 2;
+  if (cut.runs === 'x') {
+    return [
+      [from, cut.at - half],
+      [to, cut.at + half],
+    ];
+  }
+  return [
+    [cut.at - half, from],
+    [cut.at + half, to],
+  ];
+}
+/** A line along a cut's direction at `across`, between the cut's ends, as two plan points. */
+function cutLine(cut: SplitCut, across: number, from = cut.from, to = cut.to): [Point, Point] {
+  if (cut.runs === 'x') {
+    return [
+      [from, across],
+      [to, across],
+    ];
+  }
+  return [
+    [across, from],
+    [across, to],
+  ];
+}
+
+/** When each action of the rooms clip happens, and the pointer's way through them. */
+interface SplitTimeline {
+  pointer: PointerKey[];
+  /** Every click: its moment and where it is in the view. */
+  clicks: Array<{at: Ms; seen: Point}>;
+  /** Each cut: when its sweep starts and when its click makes the wall. */
+  cuts: Array<{cut: SplitCut; sweepStart: Ms; click: Ms}>;
+  /** Each piece beside the balcony: when the pointer comes over it and when its bin is clicked. */
+  deletes: Array<{side: 'Left' | 'Right'; hoverAt: Ms; click: Ms}>;
+  /** Each extra wall: when a click selects it and when "Remove wall" is clicked. */
+  removals: Array<{removal: WallRemoval; select: Ms; remove: Ms}>;
+  loopMs: Ms;
+  stillMs: Ms;
+}
+
+/** Lays the rooms clip's actions one after another: the balcony's cuts, the deletes, the inner cuts, the removals. */
+function planSplitTimeline(): SplitTimeline {
+  const timeline: SplitTimeline = {
+    pointer: [key(0, POINTER_HOME)],
+    clicks: [],
+    cuts: [],
+    deletes: [],
+    removals: [],
+    loopMs: 0,
+    stillMs: 0,
+  };
+  let clock: Ms = 0;
+  let pointerSeen: Point = POINTER_HOME;
+  const moveTo = (target: Point, duration?: Ms): void => {
+    const distance = Math.hypot(target[0] - pointerSeen[0], target[1] - pointerSeen[1]);
+    const paced = MOVE_SHORTEST_MS + distance * MOVE_MS_PER_VIEW_UNIT;
+    clock += duration ?? Math.min(MOVE_LONGEST_MS, paced);
+    timeline.pointer.push(key(clock, target));
+    pointerSeen = target;
+  };
+  const stay = (duration: Ms): void => {
+    clock += duration;
+    timeline.pointer.push(key(clock, pointerSeen));
+  };
+  /** A click where the pointer is: a short wait, the click, a short stay. Returns its moment. */
+  const clickHere = (): Ms => {
+    stay(BEFORE_CLICK_MS);
+    const at = clock;
+    timeline.clicks.push({at, seen: pointerSeen});
+    stay(AFTER_CLICK_MS);
+    return at;
+  };
+  const makeCut = (cut: SplitCut): void => {
+    moveTo(seen(...cut.sweepFrom));
+    const sweepStart = clock;
+    moveTo(seen(...cut.clickAt), SWEEP_MS);
+    const click = clickHere();
+    timeline.cuts.push({cut, sweepStart, click});
+  };
+  for (const cut of BALCONY_CUTS) makeCut(cut);
+  const pieces: Array<['Left' | 'Right', Point]> = [
+    ['Left', EXTRA_LEFT_MIDDLE],
+    ['Right', EXTRA_RIGHT_MIDDLE],
+  ];
+  for (const [side, middle] of pieces) {
+    moveTo(seen(...middle));
+    const hoverAt = clock - 50;
+    stay(HOVER_STAY_MS);
+    moveTo(panelSeen(seen(...middle)), TO_BUTTON_MS);
+    const click = clickHere();
+    timeline.deletes.push({side, hoverAt, click});
+  }
+  for (const cut of INNER_CUTS) makeCut(cut);
+  for (const removal of WALL_REMOVALS) {
+    const wallSeen = seen(...removal.clickAt);
+    moveTo(wallSeen);
+    const select = clickHere();
+    moveTo(panelSeen(wallSeen), TO_BUTTON_MS);
+    const remove = clickHere();
+    timeline.removals.push({removal, select, remove});
+  }
+  moveTo(POINTER_EXIT, 700);
+  timeline.stillMs = clock + STILL_AFTER_EXIT_MS;
+  timeline.loopMs = clock + LOOP_AFTER_EXIT_MS;
+  return timeline;
+}
+const SPLIT_TIMELINE = planSplitTimeline();
+
 /** The value snapped onto `target` when it is near enough, as the editor snaps a cut onto the photo's lines. */
 const snapTo = (value: number, target: number): {value: number; snapped: boolean} =>
   Math.abs(value - target) < SPLIT_SNAP_METRES ? {value: target, snapped: true} : {value, snapped: false};
@@ -355,7 +591,7 @@ const viewToPlan = (point: Point): Point => {
 };
 /** The delete button under the piece under the pointer: a small panel with a bin. */
 const trashMarkup = (part: string, middle: Point): string => {
-  const [x, y] = trashSeen(middle);
+  const [x, y] = panelSeen(seen(...middle));
   const half = TRASH_SIZE / 2;
   return (
     `<g data-part="${part}" style="opacity:0">` +
@@ -365,12 +601,49 @@ const trashMarkup = (part: string, middle: Point): string => {
     `</g>`
   );
 };
+/** The selected wall's panel, cut down to its "Remove wall" button, under the click on the wall. */
+const removeWallMarkup = (removal: WallRemoval): string => {
+  const label = t('Remove wall');
+  const textLength = textWidth(label, REMOVE_TEXT_SIZE);
+  const width = textLength + 14;
+  const [x, y] = panelSeen(seen(...removal.clickAt));
+  const left = x - width / 2;
+  const top = y - REMOVE_BUTTON_HEIGHT / 2;
+  return (
+    `<g data-part="${removal.name}Panel" style="opacity:0">` +
+    `<rect class="cl-panel" x="${(left - 3).toFixed(2)}" y="${(top - 3).toFixed(2)}" width="${(width + 6).toFixed(2)}" height="${REMOVE_BUTTON_HEIGHT + 6}" rx="6"/>` +
+    `<rect data-part="${removal.name}Button" class="cl-choice" x="${left.toFixed(2)}" y="${top.toFixed(2)}" width="${width.toFixed(2)}" height="${REMOVE_BUTTON_HEIGHT}" rx="4"/>` +
+    `<text class="cl-bad" x="${x.toFixed(2)}" y="${(y + 2.5).toFixed(2)}" font-size="${REMOVE_TEXT_SIZE}" textLength="${textLength.toFixed(1)}" lengthAdjust="spacingAndGlyphs">${esc(label)}</text>` +
+    `</g>`
+  );
+};
+/** A cut's wall: its kept piece(s), its extra piece when it has one, and the accent band shown while it is new. */
+const cutMarkup = (cut: SplitCut): string => {
+  const pieces: string[] = [];
+  if (cut.extra) {
+    pieces.push(bandMarkup(...cutBand(cut, cut.from, cut.extra.from), hidden(`${cut.part}Kept`)));
+    pieces.push(bandMarkup(...cutBand(cut, cut.extra.from, cut.extra.to), hidden(`${cut.part}Extra`)));
+    if (cut.extra.to < cut.to) {
+      pieces.push(bandMarkup(...cutBand(cut, cut.extra.to, cut.to), hidden(`${cut.part}KeptEnd`)));
+    }
+  } else {
+    pieces.push(bandMarkup(...cutBand(cut, cut.from, cut.to), hidden(`${cut.part}Kept`)));
+  }
+  pieces.push(bandMarkup(...cutBand(cut, cut.from, cut.to), hidden(`${cut.part}Fresh`), 'cl-freshband'));
+  return pieces.join('');
+};
+/** The selection drawn over an extra wall once a click selects it. */
+const selectedWallMarkup = (cut: SplitCut): string => {
+  const extra = cut.extra!; // only cuts with an extra piece are passed
+  const [start, end] = cutLine(cut, cut.at, extra.from, extra.to).map(toPaper);
+  return `<line class="cl-selected"${hidden(`${extra.removal}Selected`)} x1="${start[0].toFixed(2)}" y1="${start[1].toFixed(2)}" x2="${end[0].toFixed(2)}" y2="${end[1].toFixed(2)}"/>`;
+};
+
 const splitClip: ClipDefinition = {
-  loopMs: SPLIT_LOOP,
-  stillMs: 9150,
+  loopMs: SPLIT_TIMELINE.loopMs,
+  stillMs: SPLIT_TIMELINE.stillMs,
   markup: () => {
     const w = OUTER_WALL;
-    const half = INNER_WALL / 2;
     const floors =
       `<rect class="cl-floor" ${planRect([0, 0], [10.4, STRIP_BOTTOM])}/>` +
       `<rect class="cl-floor" data-part="extraLeft" ${planRect([0, STRIP_BOTTOM], [BALCONY_LEFT, HOME_TOP])}/>` +
@@ -381,129 +654,99 @@ const splitClip: ClipDefinition = {
       bandMarkup([-w, -w], [10.4 + w, 0]) +
       bandMarkup([-w, 0], [0, STRIP_BOTTOM]) +
       bandMarkup([10.4, 0], [10.4 + w, STRIP_BOTTOM]) +
-      bandMarkup([BALCONY_LEFT - half, HOME_TOP], [BALCONY_RIGHT + half, HOME_TOP + w]) +
+      bandMarkup([BALCONY_LEFT - HALF_INNER, HOME_TOP], [BALCONY_RIGHT + HALF_INNER, HOME_TOP + w]) +
       bandMarkup([-w, STRIP_BOTTOM], [0, HOME_TOP + w], shown('wallsLeftA')) +
-      bandMarkup([0, HOME_TOP], [BALCONY_LEFT - half, HOME_TOP + w], shown('wallsLeftB')) +
+      bandMarkup([0, HOME_TOP], [BALCONY_LEFT - HALF_INNER, HOME_TOP + w], shown('wallsLeftB')) +
       bandMarkup([10.4, STRIP_BOTTOM], [10.4 + w, HOME_TOP + w], shown('wallsRightA')) +
-      bandMarkup([BALCONY_RIGHT + half, HOME_TOP], [10.4, HOME_TOP + w], shown('wallsRightB'));
-    // the five cuts: made in the accent, then plain walls
-    const cuts: Array<[string, Point, Point]> = [
-      ['cutAcross', [0, FLAT_TOP], [10.4, STRIP_BOTTOM]],
-      ['cutMiddle', [0, MIDDLE_Y - half], [10.4, MIDDLE_Y + half]],
-      ['cutInner', [INNER_X - half, 0], [INNER_X + half, MIDDLE_Y - half]],
-      ['cutLeft', [BALCONY_LEFT - half, STRIP_BOTTOM], [BALCONY_LEFT + half, HOME_TOP]],
-      ['cutRight', [BALCONY_RIGHT - half, STRIP_BOTTOM], [BALCONY_RIGHT + half, HOME_TOP]],
-    ];
-    const cutMarkup = cuts
-      .map(
-        ([part, a, b]) =>
-          bandMarkup(a, b, hidden(part)) + bandMarkup(a, b, hidden(`${part}Fresh`), 'cl-freshband'),
-      )
-      .join('');
+      bandMarkup([BALCONY_RIGHT + HALF_INNER, HOME_TOP], [10.4, HOME_TOP + w], shown('wallsRightB'));
     // tinted, not selected: the editor tints the room under the pointer in Split
-    const markedLeft = `<rect class="cl-tint"${hidden('markedLeft')} ${planRect([0, STRIP_BOTTOM], [BALCONY_LEFT - half, HOME_TOP])}/>`;
-    const markedRight = `<rect class="cl-tint"${hidden('markedRight')} ${planRect([BALCONY_RIGHT + half, STRIP_BOTTOM], [10.4, HOME_TOP])}/>`;
+    const markedLeft = `<rect class="cl-tint"${hidden('markedLeft')} ${planRect([0, STRIP_BOTTOM], [BALCONY_LEFT - HALF_INNER, HOME_TOP])}/>`;
+    const markedRight = `<rect class="cl-tint"${hidden('markedRight')} ${planRect([BALCONY_RIGHT + HALF_INNER, STRIP_BOTTOM], [10.4, HOME_TOP])}/>`;
+    const selections = SPLIT_CUTS.filter(cut => cut.extra)
+      .map(selectedWallMarkup)
+      .join('');
     return (
       onPaper(
         floors +
           walls +
-          cutMarkup +
+          SPLIT_CUTS.map(cutMarkup).join('') +
+          selections +
           markedLeft +
           markedRight +
           `<line data-part="guide" class="cl-guide" style="opacity:0"/>`,
       ) +
       trashMarkup('trashLeft', EXTRA_LEFT_MIDDLE) +
       trashMarkup('trashRight', EXTRA_RIGHT_MIDDLE) +
-      RIPPLE_MARKUP('ringCut') +
-      RIPPLE_MARKUP('ringPick') +
+      WALL_REMOVALS.map(removeWallMarkup).join('') +
+      RIPPLE_MARKUP('ringEven') +
+      RIPPLE_MARKUP('ringOdd') +
       POINTER_MARKUP
     );
   },
   pose(parts, time) {
-    const kept = beforeFadeOut(time, SPLIT_LOOP);
-    const pointer = pointerAt(SPLIT_POINTER, time);
+    const timeline = SPLIT_TIMELINE;
+    const kept = beforeFadeOut(time, timeline.loopMs);
+    const pointer = pointerAt(timeline.pointer, time);
     const [pointerX, pointerY] = viewToPlan([pointer.x, pointer.y]);
-    // the guide: across the whole outline first, then across the flat, up and down across the strip by the balcony, and
-    // up and down the flat's lower half by the kids' room
-    let guide: [Point, Point] | null = null;
-    let snapped = false;
-    if (during(time, SWEEP_ACROSS) || during(time, SWEEP_MIDDLE)) {
-      const cut = snapTo(pointerY, during(time, SWEEP_ACROSS) ? CUT_Y : MIDDLE_Y);
-      guide = [
-        [0, cut.value],
-        [10.4, cut.value],
-      ];
-      snapped = cut.snapped;
-    } else if (during(time, SWEEP_INNER)) {
-      const cut = snapTo(pointerX, INNER_X);
-      guide = [
-        [cut.value, 0],
-        [cut.value, MIDDLE_Y - INNER_WALL / 2],
-      ];
-      snapped = cut.snapped;
-    } else if (during(time, SWEEP_LEFT) || during(time, SWEEP_RIGHT)) {
-      const cut = snapTo(pointerX, during(time, SWEEP_LEFT) ? BALCONY_LEFT : BALCONY_RIGHT);
-      guide = [
-        [cut.value, STRIP_BOTTOM],
-        [cut.value, HOME_TOP],
-      ];
-      snapped = cut.snapped;
+    // the guide: the line through the pointer while it sweeps towards a drawn wall, snapped onto it when near
+    const sweeping = timeline.cuts.find(({sweepStart, click}) => time >= sweepStart && time < click);
+    setOpacity(parts.guide, sweeping ? 1 : 0);
+    if (sweeping) {
+      const cut = sweeping.cut;
+      const across = cut.runs === 'x' ? pointerY : pointerX;
+      const snap = snapTo(across, cut.at);
+      const [start, end] = cutLine(cut, snap.value).map(toPaper);
+      parts.guide.setAttribute('x1', start[0].toFixed(2));
+      parts.guide.setAttribute('y1', start[1].toFixed(2));
+      parts.guide.setAttribute('x2', end[0].toFixed(2));
+      parts.guide.setAttribute('y2', end[1].toFixed(2));
+      parts.guide.classList.toggle('snap', snap.snapped);
     }
-    setOpacity(parts.guide, guide ? 1 : 0);
-    if (guide) {
-      const [x1, y1] = toPaper(guide[0]);
-      const [x2, y2] = toPaper(guide[1]);
-      parts.guide.setAttribute('x1', x1.toFixed(2));
-      parts.guide.setAttribute('y1', y1.toFixed(2));
-      parts.guide.setAttribute('x2', x2.toFixed(2));
-      parts.guide.setAttribute('y2', y2.toFixed(2));
-      parts.guide.classList.toggle('snap', snapped);
-    }
-    const cutAt: Array<[string, Ms, Point]> = [
-      ['cutAcross', CUT_ACROSS_CLICK, CUT_ACROSS_SEEN],
-      ['cutMiddle', CUT_MIDDLE_CLICK, CUT_MIDDLE_SEEN],
-      ['cutLeft', CUT_LEFT_CLICK, CUT_LEFT_SEEN],
-      ['cutRight', CUT_RIGHT_CLICK, CUT_RIGHT_SEEN],
-      ['cutInner', CUT_INNER_CLICK, CUT_INNER_SEEN],
-    ];
-    for (const [part, clickAt] of cutAt) {
-      setOpacity(parts[part], presence(time, clickAt) * kept);
-      setOpacity(parts[`${part}Fresh`], presence(time, clickAt, clickAt + 700) * kept);
+    // the cuts' walls: in the accent when made, then plain; an extra piece goes when "Remove wall" is clicked
+    const removedAt = new Map(timeline.removals.map(({removal, remove}) => [removal.name, remove]));
+    for (const {cut, click} of timeline.cuts) {
+      const made = presence(time, click) * kept;
+      setOpacity(parts[`${cut.part}Kept`], made);
+      setOpacity(parts[`${cut.part}Fresh`], presence(time, click, click + 700) * kept);
+      if (!cut.extra) continue;
+      const keptEnd = parts[`${cut.part}KeptEnd`]; // only where the extra piece is in the line's middle
+      if (keptEnd) setOpacity(keptEnd, made);
+      const removed = presence(time, removedAt.get(cut.extra.removal)!); // every extra piece has its removal
+      setOpacity(parts[`${cut.part}Extra`], made * (1 - removed));
     }
     // a piece beside the balcony: tinted with its bin up while the pointer is over it, gone with its walls at the bin's click
-    const pieces: Array<[string, Ms, Ms]> = [
-      ['Left', HOVER_LEFT_AT, TRASH_LEFT_CLICK],
-      ['Right', HOVER_RIGHT_AT, TRASH_RIGHT_CLICK],
-    ];
-    for (const [side, hoverAt, trashAt] of pieces) {
-      const left = 1 - presence(time, trashAt);
+    for (const {side, hoverAt, click} of timeline.deletes) {
+      const left = 1 - presence(time, click);
       // the piece comes back as the loop's result fades out, so the next loop starts from the outline again
       const there = Math.max(left, 1 - kept);
       setOpacity(parts[`extra${side}`], there);
       setOpacity(parts[`walls${side}A`], there);
       setOpacity(parts[`walls${side}B`], there);
-      setOpacity(parts[`marked${side}`], presence(time, hoverAt, trashAt));
-      setOpacity(parts[`trash${side}`], presence(time, hoverAt + 120, trashAt + 120));
-      parts[`trash${side}Button`].classList.toggle('on', time >= trashAt - PRESS_MS / 2);
+      setOpacity(parts[`marked${side}`], presence(time, hoverAt, click));
+      setOpacity(parts[`trash${side}`], presence(time, hoverAt + 120, click + 120));
+      parts[`trash${side}Button`].classList.toggle('on', time >= click - PRESS_MS / 2);
     }
-    // one ring for the cuts and one for the bins: their clicks never overlap
-    const lastCut = [...cutAt].reverse().find(([, clickAt]) => time >= clickAt) ?? cutAt[0];
-    poseRipple(parts.ringCut, time, lastCut[1], lastCut[2]);
-    const bins: Array<[Ms, Point]> = [
-      [TRASH_RIGHT_CLICK, TRASH_RIGHT_SEEN],
-      [TRASH_LEFT_CLICK, TRASH_LEFT_SEEN],
+    // an extra wall: selected by its click, with its panel; "Remove wall" takes both away with the wall
+    for (const {removal, select, remove} of timeline.removals) {
+      setOpacity(parts[`${removal.name}Selected`], presence(time, select, remove));
+      setOpacity(parts[`${removal.name}Panel`], presence(time, select + 100, remove + 120));
+      parts[`${removal.name}Button`].classList.toggle('on', time >= remove - PRESS_MS / 2);
+    }
+    // two rings, taking turns, so a ring always has time to fade before its next click
+    const rings: Array<[SVGElement, number]> = [
+      [parts.ringEven, 0],
+      [parts.ringOdd, 1],
     ];
-    const lastBin = bins.find(([clickAt]) => time >= clickAt) ?? bins[bins.length - 1];
-    poseRipple(parts.ringPick, time, lastBin[0], lastBin[1]);
+    for (const [ring, parity] of rings) {
+      const ownClicks = timeline.clicks.filter((_, index) => index % 2 === parity);
+      const last = [...ownClicks].reverse().find(({at}) => time >= at) ?? ownClicks[0];
+      poseRipple(ring, time, last.at, last.seen);
+    }
     posePointer(
       parts,
-      SPLIT_POINTER,
+      timeline.pointer,
       time,
-      [
-        ...cutAt.map(([, clickAt]) => pressAt(clickAt)),
-        pressAt(TRASH_LEFT_CLICK),
-        pressAt(TRASH_RIGHT_CLICK),
-      ],
+      timeline.clicks.map(({at}) => pressAt(at)),
       kept,
     );
   },
