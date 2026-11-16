@@ -1501,8 +1501,6 @@
  "Not on the plan: not built": "平面图上没有：不建",
  "An error in our code, not in the files": "是我们代码的错误，不是文件的问题",
  "Not understood what to change: say it another way or add a photo": "没明白要改什么：换种说法或加张照片",
- "Not enough room there: point at another spot": "那里空间不够：请指另一个位置",
- "It would block a door or the way through": "会挡住门或通道",
  "It did not work, our mistake: we try again": "没成功，是我们的错：我们会再试",
  "Not clear where to move it: point at the spot": "不清楚要移到哪里：请指出位置",
  "Our layout put it back: we try again": "我们的布局把它放回了原处：我们会再试",
@@ -1741,5 +1739,7 @@
  "Water leak": "漏水",
  "What to show in the corner of the model": "模型角落显示的内容",
  "Which notifications to show": "显示哪些通知",
- "yesterday at {0}": "昨天 {0}"
+ "yesterday at {0}": "昨天 {0}",
+ "We could not fit it there: drag it in the editor": "那里放不下：请在编辑器里拖动它",
+ "It ran into another thing and we could not make room: drag it in the editor": "它碰到了别的东西，我们腾不出空间：请在编辑器里拖动它"
 }

@@ -1501,8 +1501,6 @@
  "Not on the plan: not built": "Niet op de plattegrond: niet gebouwd",
  "An error in our code, not in the files": "Een fout in onze code, niet in de bestanden",
  "Not understood what to change: say it another way or add a photo": "Niet begrepen wat er moet veranderen: zeg het anders of voeg een foto toe",
- "Not enough room there: point at another spot": "Daar is niet genoeg ruimte: wijs een andere plek aan",
- "It would block a door or the way through": "Het zou een deur of de doorgang blokkeren",
  "It did not work, our mistake: we try again": "Het lukte niet, onze fout: we proberen het opnieuw",
  "Not clear where to move it: point at the spot": "Niet duidelijk waarheen: wijs de plek aan",
  "Our layout put it back: we try again": "Onze indeling zette het terug: we proberen het opnieuw",
@@ -1741,5 +1739,7 @@
  "Water leak": "Waterlek",
  "What to show in the corner of the model": "Wat in de hoek van het model verschijnt",
  "Which notifications to show": "Welke meldingen tonen",
- "yesterday at {0}": "gisteren om {0}"
+ "yesterday at {0}": "gisteren om {0}",
+ "We could not fit it there: drag it in the editor": "We konden het daar niet kwijt: sleep het in de editor",
+ "It ran into another thing and we could not make room: drag it in the editor": "Het botste tegen iets anders en we konden geen ruimte maken: sleep het in de editor"
 }

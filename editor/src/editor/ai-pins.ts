@@ -124,8 +124,8 @@ export const MAX_PIN_PHOTOS = 4;
  */
 export const MISSED_REASON = {
   'no-fix': N('Not understood what to change: say it another way or add a photo'),
-  refused: N('Not enough room there: point at another spot'),
-  undone: N('It would block a door or the way through'),
+  refused: N('We could not fit it there: drag it in the editor'),
+  undone: N('It ran into another thing and we could not make room: drag it in the editor'),
   unchanged: N('It did not work, our mistake: we try again'),
   'same-place': N('Not clear where to move it: point at the spot'),
   'put-back': N('Our layout put it back: we try again'),

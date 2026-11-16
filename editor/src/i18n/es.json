@@ -1501,8 +1501,6 @@
  "Not on the plan: not built": "No está en el plano: no se construye",
  "An error in our code, not in the files": "Un error en nuestro código, no en los archivos",
  "Not understood what to change: say it another way or add a photo": "No entendimos qué cambiar: dilo de otra forma o añade una foto",
- "Not enough room there: point at another spot": "No hay sitio suficiente ahí: indica otro lugar",
- "It would block a door or the way through": "Bloquearía una puerta o el paso",
  "It did not work, our mistake: we try again": "No funcionó, error nuestro: lo intentamos de nuevo",
  "Not clear where to move it: point at the spot": "No está claro adónde moverlo: indica el lugar",
  "Our layout put it back: we try again": "Nuestra distribución lo devolvió a su sitio: lo intentamos de nuevo",
@@ -1741,5 +1739,7 @@
  "Water leak": "Fuga de agua",
  "What to show in the corner of the model": "Qué mostrar en la esquina del modelo",
  "Which notifications to show": "Qué notificaciones mostrar",
- "yesterday at {0}": "ayer a las {0}"
+ "yesterday at {0}": "ayer a las {0}",
+ "We could not fit it there: drag it in the editor": "No pudimos colocarlo ahí: arrástralo en el editor",
+ "It ran into another thing and we could not make room: drag it in the editor": "Chocó con otra cosa y no pudimos hacerle sitio: arrástralo en el editor"
 }
