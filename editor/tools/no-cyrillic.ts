@@ -1,5 +1,5 @@
 // The repository is English-only. Lists Cyrillic in every tracked file and exits with 1 if any is found.
-//   node editor/tools/no-cyrillic.ts   (from the repository root; CI runs it)
+//   node editor/tools/no-cyrillic.ts   (from the repository root; CI runs it, and so does npm run check)
 // Allowed: the Russian UI translations (ru.json); in JavaScript — words inside regex literals, re('…') and new RegExp(…)
 // (they match names coming from Home Assistant in many languages) and lines marked "allow-cyrillic".
 import fs from 'node:fs';
