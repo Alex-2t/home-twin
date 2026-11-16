@@ -21,7 +21,7 @@
   <section id="pane-3d" class="pane view-pane" data-empty><div id="view3d"></div>
     <div class="pane-empty" aria-hidden="true"><span class="pane-empty-ic"><i data-ic="box" data-s="22"></i></span><b>Your home in 3D</b><span>Appears as you draw rooms</span></div>
     <span class="pane-tag"><i class="live-dot"></i>3D · live</span>
-    <div class="view-tools"><button id="save-view-pip" class="txt sm save-view" title="Save as the home view — your home opens with it, and the card shows it" hidden><i data-ic="check" data-s="14"></i><span>Save view</span></button><button id="home-pip" class="ib" title="Home view — as on the card (Home)"><i data-ic="house" data-s="15"></i></button><button id="daynight-pip" class="ib" title="Day / night"><i data-ic="sun" data-s="15"></i></button></div>
+    <div class="view-tools"><button id="save-view-pip" class="txt sm save-view" title="Save as the home view — your home opens with it, and the card shows it" hidden><i data-ic="check" data-s="14"></i><span>Save view</span></button><button id="home-pip" class="ib" title="Home view — as on the card (Home)"><i data-ic="house" data-s="15"></i></button><button id="daynight-pip" class="ib" title="Day / night" hidden><i data-ic="sun" data-s="15"></i></button></div>
     <div class="pip-grip" title="Drag to resize"></div>
   </section>
   <div id="divider" class="divider" title="Drag to resize; double-click to split evenly"></div>
@@ -80,8 +80,9 @@
       <button id="zoom-out" class="ib" title="Zoom out"><i data-ic="minus"></i></button><button id="zoom" class="zoom" title="Whole plan (Home)" translate="no">100%</button><button id="zoom-in" class="ib" title="Zoom in"><i data-ic="plus"></i></button>
       <button id="fit" class="ib" title="Whole plan (Home)"><i data-ic="fit"></i></button>
     </div>
+    <!-- day / night is Preview's (look.ts): in the editor the 3D is by day until the lights, at night from them on (app.ts showNight) -->
     <div class="grp v3-only">
-      <button id="daynight" class="txt" title="Day / night"><i data-ic="sun"></i><span>Day</span></button>
+      <button id="daynight" class="txt" title="Day / night" hidden><i data-ic="sun"></i><span>Day</span></button>
       <button id="view-reset" class="ib" title="Home view — as on the card (Home)"><i data-ic="house"></i></button><button id="save-view" class="txt save-view" title="Save as the home view — your home opens with it, and the card shows it" hidden><i data-ic="check"></i><span>Save view</span></button>
     </div>
     <span class="sep help-sep"></span><button id="help" class="ib" title="Keyboard shortcuts (?)"><i data-ic="help"></i></button>
@@ -100,13 +101,17 @@
 <div id="start" class="start" hidden>
   <div class="start-box">
     <span class="logo big"><i data-ic="house" data-s="26"></i></span>
-    <h1>Let's draw your home</h1>
-    <p>Rooms, furniture and your lights — step by step in 3D.</p>
-    <button class="choice continue glass" data-a="continue"><b>Continue</b><span>Back to your saved plan</span><i data-ic="right"></i></button>
-    <button class="choice magic glass" data-a="ai" hidden><span class="ci"><i data-ic="sparkles" data-s="20"></i></span><b>Build with AI</b><span>A plan photo and a video of your home: rooms and furniture in 3D, ready to check.</span><i data-ic="right"></i></button>
+    <!-- two headings: a first visit, and a return to a saved plan (flows.ts startScreen, body of #start[data-back]) -->
+    <h1 class="start-new">Let's draw your home</h1>
+    <h1 class="start-back">Welcome back</h1>
+    <p class="start-new">Rooms, furniture and your lights — step by step in 3D.</p>
+    <p class="start-back">Pick up where you left off, or start another home.</p>
+    <!-- your plan: its picture, name and facts (flows.ts fills them); the one main choice when it is there -->
+    <button class="choice continue glass" data-a="continue"><span class="cont-pic"><canvas></canvas></span><b class="cont-name">My home</b><span class="cont-facts"></span><span class="cont-go">Continue<i data-ic="right" data-s="16"></i></span></button>
+    <button class="choice magic glass" data-a="ai" hidden><span class="ci"><i data-ic="sparkles" data-s="20"></i></span><b>Build with AI<small class="magic-time"><i data-ic="clock" data-s="12"></i>About 15 min</small></b><span>A plan photo and a video of your home: rooms and furniture in 3D, ready to check.</span><i data-ic="right"></i></button>
     <div class="choices">
-      <button class="choice glass" data-a="upload"><span class="ci"><i data-ic="image" data-s="20"></i></span><b>Upload a plan</b><span>A photo or scan — trace rooms over it.</span></button>
-      <button class="choice glass" data-a="scratch"><span class="ci"><i data-ic="pen" data-s="20"></i></span><b>Draw from scratch</b><span>A rectangle you split into rooms.</span></button>
+      <button class="choice glass" data-a="upload"><span class="ci"><i data-ic="image" data-s="20"></i></span><b>Upload a plan</b><span>A photo or scan — trace rooms over it.</span><i data-ic="right"></i></button>
+      <button class="choice glass" data-a="scratch"><span class="ci"><i data-ic="pen" data-s="20"></i></span><b>Draw from scratch</b><span>A rectangle you split into rooms.</span><i data-ic="right"></i></button>
     </div>
     <div class="examples" hidden>
       <div class="ex-head"><span class="ex-title">Or open an example</span><button type="button" class="ex-all">All examples<i data-ic="right" data-s="14"></i></button></div>

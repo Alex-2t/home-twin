@@ -438,6 +438,11 @@ export interface PlanLight {
   members?: string[];
   /** A switch marked "It's a light". */
   relay?: boolean;
+  /**
+   * The AI build put it in a room no lamp was seen in (a ceiling light in the middle): not a lamp of the home, a stand-in for
+   * one. Any HA light placed in its room takes it off the plan, whatever its form (light-place.ts).
+   */
+  guessed?: boolean;
   kind?: LightKind;
   /** None in older plans: fixtures.ts formFor guesses it from kind and h. */
   form?: LightForm;
@@ -914,6 +919,8 @@ export interface CoverView {
   open: number;
   pos?: number;
   moving?: boolean;
+  /** Moving, and toward closed (lowering, for a blind). */
+  closing?: boolean;
 }
 
 /** A contact sensor's state (devices.ts contactView). */
@@ -989,6 +996,11 @@ export interface HassAttributes {
   target_temp_step?: number;
   fan_mode?: string;
   fan_modes?: string[];
+  /** light: 0–255, reported only while it is on */
+  brightness?: number;
+  /** light: 'onoff', 'brightness', 'color_temp', 'hs', 'rgb'…; anything but 'onoff' can be dimmed */
+  supported_color_modes?: string[];
+  color_mode?: string;
   /** cover: 0 closed … 100 open */
   current_position?: number;
   /** camera: the frame's path (ha.url makes it a full URL) */
@@ -1013,6 +1025,8 @@ export interface HassEntityState {
   /** ISO time; the demo's lamps have none. */
   last_changed?: string;
   last_updated?: string;
+  /** Who made the last change (hass.states has it; the demo does not): a person (user_id), an automation's run (parent_id). */
+  context?: {id?: string; parent_id?: string | null; user_id?: string | null};
 }
 
 /** An entity registry entry (hass.entities[entity_id]). */
@@ -1203,6 +1217,17 @@ export interface HaStateChange {
   lu: number;
 }
 
+/** A logbook entry (HA's logbook/get_events): what changed, when (seconds), and what caused it. */
+export interface LogbookEntry {
+  entity_id?: string;
+  state?: string;
+  when?: number;
+  context_user_id?: string | null;
+  context_event_type?: string;
+  context_entity_id?: string;
+  context_name?: string;
+}
+
 /** The HA "Energy" dashboard: the grid consumption statistics and the devices it lists. */
 export interface HaEnergyPrefs {
   grid: string[];
@@ -1242,6 +1267,8 @@ export interface HaLayer {
   sunDown(now?: number): boolean;
   statistics(ids: string[], query: HaStatisticsQuery): Promise<Record<string, HaStatisticsRow[]>>;
   stateHistory(ids: string[], range: {start: number; end: number}): Promise<Record<string, HaStateChange[]>>;
+  /** Live only: HA's logbook for these entities (what caused each change), for the notifications' history. */
+  logbook?(ids: string[], range: {start: number; end: number}): Promise<LogbookEntry[]>;
   energy(): Promise<HaEnergyPrefs | null>;
   devices(): HaDevice[];
   entities(): HaEntityItem[];

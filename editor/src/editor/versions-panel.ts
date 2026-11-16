@@ -40,8 +40,8 @@ export const versionLabel = (v: Pick<PlanVersion, 'kind' | 'what'>): string => {
       : t('Autosave');
 };
 
-// when: today — the time, yesterday — “Yesterday, 18:40”, earlier — date and time
-function when(at: number): string {
+// when: today — the time, yesterday — “Yesterday, 18:40”, earlier — date and time (the start screen's “Continue” too)
+export function changedWhen(at: number): string {
   const d = new Date(at);
   const now = new Date();
   const tm = clock(d);
@@ -201,7 +201,7 @@ export function openVersions(ed: Editor): {close(): void} {
       if (j === i && focus) b.focus();
     });
     find(dialog, '.ver-view b').textContent = r.now ? t('Now') : versionLabel(r);
-    find(dialog, '.ver-view small').textContent = [r.now ? null : when(r.at), summary(r.plan)]
+    find(dialog, '.ver-view small').textContent = [r.now ? null : changedWhen(r.at), summary(r.plan)]
       .filter(Boolean)
       .join(' · ');
     const go = find<HTMLButtonElement>(dialog, '[data-act=restore]');
@@ -220,10 +220,10 @@ export function openVersions(ed: Editor): {close(): void} {
           r,
           i,
         ) => `<button class="ver-row" role="option" data-i="${i}"><canvas class="ver-thumb"></canvas><span><b>${esc(r.now ? t('Now') : versionLabel(r))}</b>
-      <small>${esc(r.now ? summary(r.plan) : when(r.at))}</small></span></button>`,
+      <small>${esc(r.now ? summary(r.plan) : changedWhen(r.at))}</small></span></button>`,
       ).join('') +
       (R.length < 2
-        ? `<p class="ver-empty">${esc(t('No versions yet. They appear on their own: after wizard steps, before big changes and every 10 minutes of work.'))}</p>`
+        ? `<p class="ver-empty">${esc(t('No versions yet. They appear on their own: after wizard steps, before big changes and every few edits.'))}</p>`
         : '');
     list.querySelectorAll<HTMLElement>('.ver-row').forEach((b, i) => {
       drawPlan(find<HTMLCanvasElement>(b, 'canvas'), R[i].plan);

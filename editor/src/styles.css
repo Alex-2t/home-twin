@@ -111,6 +111,8 @@ body:not([data-mode=rooms]) #rotate-plan{display:none}
 .txt{padding:0 10px}
 .menu{position:absolute;top:50px;min-width:250px;padding:6px;z-index:40;display:flex;flex-direction:column;background:var(--panel-solid)}
 .brand .menu{left:0}.topr .menu{right:0}
+/* an open menu is above the step card (.banner, 23) and the dimmed spot: its bar is lifted while the menu is open */
+.brand:has(>.menu:not([hidden])),.topr:has(.menu:not([hidden])){z-index:41}
 .menu>button{justify-content:flex-start;height:34px;gap:10px}.menu>button .ic{color:var(--mut)}
 .menu hr{border:0;border-top:1px solid var(--line);margin:5px 4px}
 .menu-row{display:flex;align-items:center;justify-content:space-between;gap:10px;height:36px;padding:0 6px 0 10px;font-weight:500;cursor:default}.menu-row.check{cursor:pointer}
@@ -314,7 +316,7 @@ body:not([data-mode=rooms]) #rotate-plan{display:none}
 .start{position:fixed;inset:0;z-index:50;display:grid;place-items:safe center;overflow:auto;padding:24px 0;background:var(--cv)} /* a page of its own: the editor does not show through (D-111) */
 .start-box{width:min(780px,92vw);text-align:center}.start h1{font-size:30px;letter-spacing:-.02em;margin:0 0 8px}.start p{color:var(--mut);margin:0 0 16px;font-size:15px}
 .choices{display:grid;grid-template-columns:repeat(2,1fr);gap:12px}
-.choices .choice{display:grid;grid-template-columns:auto 1fr;column-gap:14px;row-gap:2px;align-items:center;padding:14px 16px}.choices .choice .ci{grid-row:span 2;margin:0}
+.choices .choice{display:grid;grid-template-columns:auto minmax(0,1fr) auto;column-gap:14px;row-gap:2px;align-items:center;padding:14px 16px}.choices .choice .ci{grid-row:span 2;margin:0}
 /* the start screen's examples (D-062): one even row under the main choices (D-111), each a 3D render of the home (D-113) with
    its name on one line; “All examples” opens the gallery */
 .examples{margin-top:18px;text-align:left}.examples[hidden]{display:none}
@@ -376,8 +378,22 @@ button.gcard:focus-visible{outline:2px solid var(--acc);outline-offset:2px}
 .choice{display:flex;flex-direction:column;gap:6px;align-items:flex-start;text-align:left;height:auto;padding:18px;border-radius:18px;white-space:normal;font-weight:400}
 .choice:hover{background:var(--panel-solid);border-color:var(--acc)}.choice b{font-size:15px;font-weight:600}.choice span{color:var(--mut);line-height:1.45}
 .choice .ci{width:38px;height:38px;border-radius:11px;display:grid;place-items:center;background:var(--acc2);color:var(--acc);margin-bottom:6px}
-.choice.continue{width:100%;margin-bottom:12px;flex-direction:row;align-items:center;justify-content:center;gap:12px;border-color:var(--acc);padding:14px}
-.choice.continue .ic{color:var(--acc)}
+/* your plan (flows.ts startScreen): its drawing, name and facts on the left, “Continue” on the right; the one accent of a return */
+.choice.continue{width:100%;margin-bottom:12px;display:grid;grid-template-columns:auto minmax(0,1fr) auto;column-gap:16px;row-gap:3px;align-items:center;padding:12px 18px 12px 12px;border-color:color-mix(in srgb,var(--acc) 55%,transparent);box-shadow:var(--sh),0 0 0 3px var(--acc2)}
+.cont-pic{grid-row:span 2;display:grid;place-items:center;width:112px;height:72px;border-radius:11px;background:var(--cv);box-shadow:inset 0 0 0 1px var(--line);overflow:hidden;color:var(--acc)}
+.cont-pic canvas{display:block;width:100%;height:100%}
+.choice.continue .cont-name{align-self:end;font-size:16px;max-width:100%;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.choice.continue .cont-facts{align-self:start;display:flex;align-items:center;gap:6px;font-size:13px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.cont-facts .ic{flex:none;color:var(--sub)}
+.choice.continue .cont-go{grid-column:3;grid-row:1/span 2;display:inline-flex;align-items:center;gap:4px;height:34px;padding:0 10px 0 14px;border-radius:10px;background:var(--acc);color:var(--acc-tx);font-weight:600;font-size:13.5px;line-height:1}
+.choice.continue:hover .cont-go{filter:brightness(1.08)}
+/* the heading for a first visit, or for a return to a saved plan (#start[data-back]): shorter, so your plan is higher */
+.start .start-back,.start[data-back] .start-new{display:none}.start[data-back] .start-back{display:block}
+.start[data-back] .logo.big{width:40px;height:40px;border-radius:12px;margin-bottom:12px}.start[data-back] h1{font-size:26px}
+/* the cards' arrow: every choice goes somewhere; dim until hovered */
+.choices .choice>.ic:last-child{grid-column:3;grid-row:1/span 2;color:var(--sub);transition:color .12s,transform .12s}
+.choice:hover>.ic:last-child{color:var(--acc);transform:translateX(2px)}
+@media (max-width:640px){.cont-pic{width:84px;height:56px}.choice.continue{column-gap:12px}.choice.continue .cont-go{padding:0 8px 0 10px}}
 .start-prev{margin-top:16px;background:none;border:0;color:var(--mut);font-size:13px;text-decoration:underline;text-underline-offset:3px;cursor:pointer}.start-prev:hover{color:var(--tx)}.start-prev[hidden]{display:none}
 /* Day / night (D-068): “A” in the corner of the 3D window's button — auto; the tip on hover — how auto works (daynight-tip.js) */
 #daynight-pip.auto{position:relative}#daynight-pip.auto::after{content:'A';position:absolute;right:3px;bottom:2px;font-size:8px;font-weight:700;line-height:1}
@@ -408,7 +424,12 @@ button.gcard:focus-visible{outline:2px solid var(--acc);outline-offset:2px}
 .dev .row:hover .del,.dev .row .del:focus-visible{opacity:1}.dev .row .del:hover,.dev .row.sure .del{color:var(--bad,#e5484d);opacity:1}.dev .row.sure .go{color:var(--bad,#e5484d)}
 /* the “Lights” step: shape tiles (which lamp this is), number of spots, variants, “Next” */
 .ctx .line.forms{gap:3px;padding:5px 2px 2px;border-top:1px solid var(--line)}
-.ctx button.form{width:56px;height:54px;padding:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:4px;border-radius:10px;background:var(--chip);color:var(--tx);font-size:11px;font-weight:500}
+/* the shape tiles: equal columns, the icon on one line for all and the name under it, up to two lines inside the tile (a long
+   name wraps at a space, or is hyphenated in the page's language, never runs into the next tile) */
+.ctx .line.forms{display:grid;grid-template-columns:repeat(7,minmax(70px,1fr));align-items:stretch;gap:4px;padding:6px 0 2px}
+.ctx button.form{width:auto;min-width:0;height:auto;min-height:60px;padding:8px 4px 7px;display:flex;flex-direction:column;align-items:center;justify-content:flex-start;gap:5px;border-radius:10px;background:var(--chip);color:var(--tx);font-size:11px;font-weight:500;white-space:normal;text-align:center;line-height:1.2}
+.ctx button.form .ic{flex:none}
+.ctx button.form span{max-width:100%;display:-webkit-box;-webkit-box-orient:vertical;-webkit-line-clamp:2;overflow:hidden;overflow-wrap:break-word;hyphens:auto;text-wrap:balance}
 .ctx button.form:hover{background:var(--hov)}
 .ctx button.form.guess{box-shadow:inset 0 0 0 1.5px var(--acc);color:var(--acc)}
 .ctx button.form.on{background:var(--acc);color:var(--acc-tx)}
@@ -480,6 +501,9 @@ button.gcard:focus-visible{outline:2px solid var(--acc);outline-offset:2px}
 /* the panel's bottom right corner widens or narrows it (wizard-clip-panel.ts: coachResizeCorner); a double click — automatic width */
 .coach-resize{display:none;position:absolute;right:0;bottom:0;width:26px;height:26px;z-index:2;cursor:nwse-resize;touch-action:none;border-radius:0 0 14px 0}
 .banner.wizard-card.docked .coach-resize{display:block}
+/* the panel moves by its progress line (makeCoachMovable); the dots stay buttons */
+.banner.wizard-card.docked .path{cursor:grab;touch-action:none}.banner.wizard-card.docked.moving,.banner.wizard-card.docked.moving .path{cursor:grabbing}
+.banner.wizard-card.docked.moving{box-shadow:var(--sh-lg),0 0 0 2px var(--acc2)}
 .coach-resize::before{content:'';position:absolute;right:5px;bottom:5px;width:12px;height:12px;opacity:.8;transition:opacity .15s;
   background:linear-gradient(135deg,transparent 0 45%,var(--mut) 45% 53%,transparent 53% 68%,var(--mut) 68% 76%,transparent 76%)}
 .coach-resize:hover::before,.coach-resize.drag::before{opacity:1;background:linear-gradient(135deg,transparent 0 45%,var(--acc) 45% 53%,transparent 53% 68%,var(--acc) 68% 76%,transparent 76%)}
@@ -571,7 +595,7 @@ button.gcard:focus-visible{outline:2px solid var(--acc);outline-offset:2px}
 }
 @media (max-width:640px){
   .ctx{width:calc(100vw - 24px);max-width:calc(100vw - 24px);overflow:auto;transition:none!important}.ctx .line{flex-wrap:wrap}.ctx .line.floors{gap:6px}.ctx b{white-space:normal}.ctx .grip{display:none}
-  .ctx .line.names{max-width:100%}.ctx .line.foot .hint{max-width:none}.ctx .line.forms{gap:4px}.ctx button.form{width:48px;font-size:10px}
+  .ctx .line.names{max-width:100%}.ctx .line.foot .hint{max-width:none}.ctx .line.forms{grid-template-columns:repeat(4,minmax(0,1fr))}.ctx button.form{min-height:56px;font-size:10.5px}
   .banner.wizard-card .wizard-exit span{display:none}.banner.wizard-card .wizard-exit .ic{display:block}
   .wizard-result{grid-template-columns:1fr}.banner.wizard-card .todo{gap:4px}.banner.wizard-card .todo button{font-size:11px}
   .pane.pip{max-width:42vw;max-height:20vh}.modes button>.ic{width:15px;height:15px}
@@ -617,6 +641,9 @@ body[data-look=on] :is(#side,#dock,#banner:not(.in-look),#pill,#topr,#pip-show,#
 .choice.magic>.ic:last-child{grid-column:3;grid-row:1/span 2;color:var(--acc)}
 .choice.magic:hover{background:linear-gradient(var(--panel-solid),var(--panel-solid)) padding-box,linear-gradient(135deg,#6366f1,#a855f7 55%,#f59e0b) border-box;box-shadow:0 12px 32px rgba(99,102,241,.22)}
 /* the card while a build is on its way: its stage, time left and a bar; ready — the home's picture */
+/* how long a build takes, beside its name; on a return the card steps back: your plan is the accent (#start[data-back]) */
+.magic-time{display:inline-flex;align-items:center;gap:4px;margin-left:8px;padding:2px 7px;border-radius:999px;background:var(--chip);color:var(--mut);font-size:11.5px;font-weight:500;vertical-align:2px}
+.start[data-back] .choice.magic:not(:hover){border:1px solid var(--line);background:var(--panel)}
 .choice.magic.aib-following{margin-bottom:6px}
 .choice.magic .aib-start-badge{overflow:hidden}.aib-start-badge img{width:100%;height:100%;object-fit:cover}
 .aib-start-spin{width:18px;height:18px;border-radius:50%;border:2.5px solid rgba(255,255,255,.95);border-right-color:transparent;animation:aib-spin .8s linear infinite}
@@ -779,7 +806,7 @@ button.aib-big{height:46px;padding:0 22px;border-radius:12px;font-size:15px;box-
 .aib-room-state{display:grid;color:var(--acc)}.aib-room[data-state=todo] .aib-room-name{color:var(--mut)}.aib-room[data-state=left]{opacity:.5}
 .aib-room-line{margin-top:-3px;color:var(--mut);font-size:12px;line-height:1.35;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;min-height:1.35em}
 .aib-foot{display:flex;flex-wrap:wrap;justify-content:center;align-items:center;gap:8px 12px;padding-block:12px 20px;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));color:var(--mut);font-size:13px;text-align:center}
-.aib-locked :is(.aib-steps,.aib-foot,.aib-overall){display:none}.aib-floors :is(.aib-foot,.aib-found,.aib-overall){display:none}.aib-locked .aib-progress{grid-template-columns:minmax(0,1fr);width:min(640px,calc(100% - 32px))}
+.aib-locked :is(.aib-steps,.aib-foot,.aib-overall){display:none}.aib-floors :is(.aib-foot,.aib-found,.aib-overall){display:none}.aib-stopped .aib-foot{display:none}.aib-locked .aib-progress{grid-template-columns:minmax(0,1fr);width:min(640px,calc(100% - 32px))}
 @media (max-width:820px){.aib-progress{grid-template-columns:minmax(0,1fr)}.aib-steps{position:static}
   .aib-live{display:contents}.aib-cta{order:-1}.aib-reading,.aib-found{order:1}} /* a phone: what to do first, then the stages, then the rooms */
 @media (max-width:640px){.aib-drops{grid-template-columns:minmax(0,1fr)}.aib-drop{height:180px}.aib-upload h1{font-size:26px}

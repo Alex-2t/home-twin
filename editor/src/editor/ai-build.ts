@@ -2115,6 +2115,8 @@ export function openAiBuild(ed: Editor, options: AiBuildOptions = {}): AiBuildSc
     find(root, '.aib-screen').classList.toggle('aib-locked', !!locked);
     // Stopped on a plan of several floors: the plan photo and what to do; the rooms of the video and "the build goes on" are not.
     find(root, '.aib-screen').classList.toggle('aib-floors', !!s?.severalFloors && !locked);
+    // Stopped: "the build goes on" would not be true.
+    find(root, '.aib-screen').classList.toggle('aib-stopped', !!s?.error && !locked);
     find(root, '.aib-title').textContent = progressTitle(s);
     find(root, '.aib-eta').textContent = s && !locked ? etaText(s.eta) : '';
     const overall = find(root, '.aib-overall');

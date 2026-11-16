@@ -22,10 +22,11 @@
 //                 it has battery — the charge sensor of the same device (device_class battery) and low — the “battery low” binary_sensor, if any;
 //                 vacuum — a robot vacuum for “Cleaning” (area — where its dock is);
 //   entity(e)   — the state as in HA: {state, attributes, last_changed} or null (in HA — hass.states[e]); changes — onState.
-//                 For lamps — light.* and switch.* relays: on / off / unavailable; Preview shows it in 3D too;
+//                 For lamps — light.* and switch.* relays: on / off / unavailable; a light that can be dimmed (supported_color_modes
+//                 other than onoff) has its brightness 0–255 while on; Preview shows it in 3D too;
 //   call(domain, service, data) — a command (in HA — hass.callService): climate.set_hvac_mode / set_temperature / turn_on / turn_off,
 //                 cover.open_cover / close_cover / set_cover_position, valve.open_valve / close_valve, light and switch — turn_on /
-//                 turn_off (Preview and scene lights), vacuum.start / pause / return_to_base. The demo changes the state itself;
+//                 turn_off (Preview and scene lights; light.turn_on with brightness_pct — a room tile's dimmer), vacuum.start / pause / return_to_base. The demo changes the state itself;
 //   moreInfo(e) — the entity card in HA (the hass-more-info event): camera, leak sensor. Not in the demo — Preview draws its own;
 //   url(path)   — the full URL for an HA path (the camera frame entity_picture; in HA — hass.hassUrl). Not in the demo;
 //   weather()   — weather for the “Whole home” header: {entity, condition, temperature, feels, hourly:[{at, condition, temperature}],
@@ -50,7 +51,7 @@
 //                 which opens the areas page in the user's own HA.
 // Until HA is connected — demo data (mockHA).
 import {demoStatistics, demoStateHistory} from './ha-demo.ts';
-import {DEFAULT_MAX_TEMP_C, DEFAULT_MIN_TEMP_C} from '../core/devices.ts';
+import {COVER_TRAVEL_MS, DEFAULT_MAX_TEMP_C, DEFAULT_MIN_TEMP_C, coverModel} from '../core/devices.ts';
 import type {
   DemoHaData,
   DemoHaLayer,
@@ -66,8 +67,11 @@ import type {
   PlanLight,
 } from '../core/types.ts';
 
-/** A demo entity: HA's state, and the timer of a move it is making (a robot going home, a script running). */
-type DemoEntity = HassEntityState & {_t?: ReturnType<typeof setTimeout>};
+/** A demo entity: HA's state, and the timer of a move it is making (a robot going home, a script running, a curtain moving). */
+type DemoEntity = HassEntityState & {_t?: ReturnType<typeof setTimeout> | ReturnType<typeof setInterval>};
+
+// How often a moving demo cover reports its position, as a real one does through HA.
+const COVER_REPORT_MS = 1000;
 
 /**
  * The attributes the demo's commands read and change. The demo's climate entities have all of their numbers and its covers a
@@ -75,6 +79,8 @@ type DemoEntity = HassEntityState & {_t?: ReturnType<typeof setTimeout>};
  */
 type DemoAttributes = HassAttributes & {
   _last?: string;
+  /** Where a moving demo cover is going, 0–100 (a window that joins the link carries the move on). */
+  _to?: number;
   temperature: number;
   current_temperature: number;
   current_position: number;
@@ -87,6 +93,7 @@ type DemoCallData = {
   temperature: number;
   fan_mode: string;
   position: number;
+  brightness_pct: number;
 };
 
 /** A lamp of a saved plan as the merge reads it: an older file's lamp may lack its points or segments. */
@@ -192,13 +199,71 @@ export function mockHA({
   }));
   const subs = new Set<() => void>();
   const ssubs = new Set<() => void>();
+  // A demo window cover moves like a motor (D-122): opening or closing at the pace of its kind (COVER_TRAVEL_MS), its position reported
+  // every COVER_REPORT_MS, then open or closed; stop leaves it where it has got to, a new command sets off from there. A cover that is
+  // not a window's (a valve, a gate) changes at once.
+  function moveCover(entity: string, x: DemoEntity, service: string, position?: number): void {
+    const A = x.attributes as DemoAttributes;
+    clearInterval(x._t);
+    delete A._to;
+    const settle = (): void => {
+      delete A._to;
+      x.state = A.current_position > 0 ? 'open' : 'closed';
+    };
+    const from = A.current_position;
+    const to =
+      service === 'open_cover'
+        ? 100
+        : service === 'close_cover'
+          ? 0
+          : service === 'set_cover_position' && position != null
+            ? Math.max(0, Math.min(100, position))
+            : from;
+    const device = devices.find(d => d.entity === entity);
+    const kind = device ? coverModel({name: device.name, cls: device.cls}) : null;
+    if (to === from || !kind) {
+      A.current_position = to;
+      settle();
+      return;
+    }
+    const percentPerMs = 100 / COVER_TRAVEL_MS[kind];
+    const direction = to > from ? 1 : -1;
+    x.state = direction > 0 ? 'opening' : 'closing';
+    A._to = to;
+    let reportedAt = Date.now();
+    x._t = setInterval(() => {
+      const now = Date.now();
+      const travelled = percentPerMs * (now - reportedAt);
+      reportedAt = now;
+      const next = A.current_position + direction * travelled;
+      const arrived = direction > 0 ? next >= to : next <= to;
+      A.current_position = arrived ? to : next;
+      if (arrived) {
+        clearInterval(x._t);
+        settle();
+      }
+      ssubs.forEach(f => f());
+    }, COVER_REPORT_MS);
+  }
   // Demo lamps: the entity state is L.on of the plan lamps (_lightsFrom), a light / switch command changes it. This way the bulb
   // in the Lights list and Preview see the same thing, and Preview talks to lamps only through entity() and call(), as with HA.
+  // A demo light.* has a dimmer, as most smart lamps do (a switch.* relay is on / off): its brightness 0–255 is kept here, and
+  // like HA it is reported only while the lamp is on.
   let planLights = (): PlanLight[] => [];
   const lampsOf = (e: string): PlanLight[] => planLights().filter(L => L.entity === e);
+  const brightness = new Map<string, number>();
+  const FULL_BRIGHTNESS = 255;
   const lamp = (e: string): HassEntityState | null => {
     const L = lampsOf(e);
-    return L.length ? {state: L.some(x => x.on !== false) ? 'on' : 'off', attributes: {}} : null;
+    if (!L.length) return null;
+    const on = L.some(x => x.on !== false);
+    if (!e.startsWith('light.')) return {state: on ? 'on' : 'off', attributes: {}};
+    const attributes: HassAttributes = {supported_color_modes: ['brightness']};
+    if (on) {
+      attributes.color_mode = 'brightness';
+      attributes.brightness = brightness.get(e) ?? FULL_BRIGHTNESS;
+    }
+    return {state: on ? 'on' : 'off', attributes};
   };
   return {
     demo: true, // demo data: Preview shows “Demo”; in HA — real data
@@ -325,6 +390,10 @@ export function mockHA({
         if (!L.length || !e.startsWith(domain + '.')) return Promise.resolve(false);
         const v = service === 'toggle' ? !L.some(x => x.on !== false) : service === 'turn_on';
         for (const x of L) x.on = v;
+        if (v && domain === 'light' && Number.isFinite(data.brightness_pct)) {
+          const pct = Math.max(1, Math.min(100, data.brightness_pct));
+          brightness.set(e, Math.round((pct / 100) * FULL_BRIGHTNESS));
+        }
         return Promise.resolve(true).then(r => {
           ssubs.forEach(f => f());
           return r;
@@ -358,19 +427,7 @@ export function mockHA({
                   ? 'idle'
                   : 'cooling'
                 : x.state;
-      } else if (domain === 'cover') {
-        if (service === 'stop_cover') return Promise.resolve(true);
-        const pos =
-          service === 'open_cover'
-            ? 100
-            : service === 'close_cover'
-              ? 0
-              : service === 'set_cover_position'
-                ? Math.max(0, Math.min(100, data.position))
-                : A.current_position;
-        A.current_position = pos;
-        x.state = pos > 0 ? 'open' : 'closed';
-      }
+      } else if (domain === 'cover') moveCover(e, x, service, data.position);
       // the valve moves for a couple of seconds, like a real ball-valve actuator: opening / closing → open / closed
       // robot: cleaning, pause; return to dock — it drives and docks a few seconds later
       else if (domain === 'vacuum' && ['start', 'pause', 'return_to_base', 'stop'].includes(service)) {
@@ -421,10 +478,17 @@ export function mockHA({
       });
     }, // as in HA — the answer and the new state come later
     _setEntity(e, state, attrs = {}) {
-      const x = entities[e];
+      const x: DemoEntity | undefined = entities[e];
       if (!x) return;
       x.state = state;
       Object.assign(x.attributes, attrs);
+      // a cover taken on its way (a window joining the link) carries on moving here
+      if (e.startsWith('cover.')) {
+        const to = (x.attributes as DemoAttributes)._to;
+        if ((state === 'opening' || state === 'closing') && to != null)
+          moveCover(e, x, 'set_cover_position', to);
+        else clearInterval(x._t);
+      }
       ssubs.forEach(f => f());
     },
     onChange: f => {

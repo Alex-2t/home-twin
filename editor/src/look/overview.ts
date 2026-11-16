@@ -3,7 +3,7 @@
 // Differences from 3d_floor: translations go through the editor's t() (placeholders {0}, {1}); any home (not only the owner's apartment);
 // TV, vacuum, water and alarm chips — once those devices appear in the HA layer. An open window or door is a “warn” chip.
 import {t, N, getLang, num} from '../i18n/i18n.ts';
-import type {Lang} from '../core/types.ts';
+import type {HassEntityState, Lang} from '../core/types.ts';
 
 /** A room's readings as the dashboard rounds them (look.ts model().climate); null: no sensor or no number. */
 export interface RoomReadings {
@@ -165,6 +165,9 @@ export function co2Level(value: unknown): 'bad' | 'stuffy' | 'ok' | null {
 // Russian accusative case for “Air out the {0}” (Russian UI only): room names are either feminine (endings -a/-ya/-aya) or masculine inanimate.
 // “from:to” endings as one pattern string (not UI text), in order: the first match wins
 const ACC = 'ая:ую|яя:юю|я:ю|а:у'.split('|').map(p => p.split(':')); // allow-cyrillic: Russian grammar endings, used only when the UI language is Russian
+// A room's name inside a sentence (“Air out the {0}”): in lower case, as a common noun is written mid-sentence, except in German,
+// where every noun keeps its capital (“Schlafzimmer lüften”, not “schlafzimmer lüften”).
+export const roomInSentence = (name: string): string => (loc() === 'de' ? name : name.toLowerCase());
 export const accusative = (word: string): string => {
   if (loc() !== 'ru') return word;
   const ending = ACC.find(([from]) => word.endsWith(from));
@@ -220,7 +223,7 @@ export function activeChips({
         'air:' + room.id,
         'warn',
         'wind',
-        t('Air out the {0}', accusative(String(room.short).toLowerCase())),
+        t('Air out the {0}', accusative(roomInSentence(String(room.short)))),
         [{id: room.id, room: room.id}],
       );
   }
@@ -323,6 +326,22 @@ export function lightTile(lamps: TileLamp[] = []): LightTile {
     lit: 0,
     power: {on: true, ids: (main.length ? main : live).map(l => l.id)},
   };
+}
+
+// The full brightness HA reports for a light.
+const HA_FULL_BRIGHTNESS = 255;
+
+/**
+ * How bright a lamp with a dimmer is, 1–100 %; null: it is only on or off (a switch.* relay, a light whose one mode is onoff,
+ * a lamp HA does not know). HA reports the brightness only while the light is on; off, it is the last one seen (last), so the
+ * tile shows where the lamp comes back to.
+ */
+export function lampDim(x: HassEntityState | null | undefined, last = 100): number | null {
+  const modes = x?.attributes?.supported_color_modes;
+  if (!Array.isArray(modes) || !modes.some(m => m !== 'onoff')) return null;
+  const raw = number(x?.attributes?.brightness);
+  if (x?.state !== 'on' || raw === null) return last;
+  return Math.max(1, Math.min(100, Math.round((raw / HA_FULL_BRIGHTNESS) * 100)));
 }
 
 // Second room line: humidity and CO₂ if there are sensors, otherwise whether the lights are on. Segments: CO₂ above normal is colored.

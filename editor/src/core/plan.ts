@@ -276,6 +276,341 @@ export function linkedEdges(plan: Pick<Plan, 'rooms'>, room: Room, i: number): E
   }
   return out;
 }
+// ---------- a corner where rooms meet ----------
+// Rooms are outlines with a wall's width between them: the wall is two parallel edges facing each other (linkedEdges). Dragging
+// one room's corner alone turned that wall into a wedge and left a gap at its end. So the corner is the junction's: the corners
+// across the walls at it move by the same shift, and every wall there stays a strip of one width. Where a neighbour's wall runs
+// straight past the junction (a T), it gets corners across from the ones there, so it bends with them; and each wall that bends
+// gets a corner on its longer side across from the shorter side's far end, so only the stretch up to the next junction turns.
+
+/** A corner that moves with a dragged one: its room, the corner itself (its point in the outline) and where it began. */
+export interface JunctionCorner {
+  room: Room;
+  point: Point;
+  from: Point;
+}
+
+/**
+ * A wall side a junction corner keeps its distance from: the neighbour's edge across from one of the corner's edges (its ends,
+ * as they are now) and how far the corner's edge is from it, signed, along the neighbour edge's left normal.
+ */
+interface FacingSide {
+  start: () => Point;
+  end: () => Point;
+  offset: number;
+}
+
+/** A junction corner whose both edges face a neighbour's edge at the junction: it goes where the two kept distances cross. */
+interface CornerGuide {
+  corner: JunctionCorner;
+  sides: [FacingSide, FacingSide];
+}
+
+/** The corners of a junction, the dragged one first, and the corners put into straight walls for it (taken out if unused). */
+export interface CornerJunction {
+  corners: JunctionCorner[];
+  guides: CornerGuide[];
+  /** Put in for the drag: the junction's own (they move) and where a wall's side bends (they stay). */
+  added: Array<{room: Room; at: () => Point}>;
+}
+
+// How far from the dragged corner the junction reaches, m: across the thickest linked wall (LINK) and diagonally, to the far
+// room of four that meet.
+const JUNCTION_REACH = LINK * Math.SQRT2;
+// A neighbour's corner is the one across from a junction corner when it is this close to where that corner falls on its wall, m.
+const ACROSS_M = 0.02;
+// A corner diagonally across is at most this many wall widths along from where the corner falls on the neighbour's wall.
+const DIAGONAL_SLACK = 1.6;
+// A corner put into a straight wall stays only where it bends it by more than this, m.
+const STRAIGHT_M = 0.002;
+// The two sides of a wall end across from each other when their far ends are this close along it, m.
+const SIDES_ALIGNED_M = 0.01;
+// Two edges face each other across a wall when they overlap along it by at least this, m (as linkedEdges asks).
+const MIN_FACING_M = 0.05;
+
+const distance = (a: Point, b: Point): number => Math.hypot(a[0] - b[0], a[1] - b[1]);
+
+/** Where `p` falls on the segment a–b, kept to it. */
+function across(p: Point, a: Point, b: Point): Point {
+  const [, along] = segDist(p, a, b);
+  return [+(a[0] + (b[0] - a[0]) * along).toFixed(4), +(a[1] + (b[1] - a[1]) * along).toFixed(4)];
+}
+
+/** Whether the room's outline turns at this corner of it (not a corner on a straight wall). */
+function turnsAt(room: Room, point: Point): boolean {
+  const ring = room.polygon;
+  const i = ring.indexOf(point);
+  const count = ring.length;
+  const [offLine] = segDist(point, ring[(i - 1 + count) % count], ring[(i + 1) % count]);
+  return offLine > STRAIGHT_M;
+}
+
+/** The corner's place in its room's outline now. */
+const indexOf = (corner: {room: Room; point: Point}): number => corner.room.polygon.indexOf(corner.point);
+
+/**
+ * The neighbours' edges right across the wall from `room`'s edge: linked to it (linkedEdges) and overlapping it along the wall.
+ * (linkedEdges goes on along the whole wall line, through a room's next edge on it: those are not across from this edge.)
+ */
+function facingEdges(plan: Pick<Plan, 'rooms'>, room: Room, edge: number): EdgeRef[] {
+  const ring = room.polygon;
+  const a = ring[edge];
+  const b = ring[(edge + 1) % ring.length];
+  const length = distance(a, b);
+  if (length < 1e-6) return [];
+  const u: Vector = [(b[0] - a[0]) / length, (b[1] - a[1]) / length];
+  const along = (p: Point): number => (p[0] - a[0]) * u[0] + (p[1] - a[1]) * u[1];
+  return linkedEdges(plan, room, edge).filter(([neighbour, j]) => {
+    if (neighbour === room) return false;
+    const theirs = neighbour.polygon;
+    const s0 = along(theirs[j]);
+    const s1 = along(theirs[(j + 1) % theirs.length]);
+    const overlap = Math.min(length, Math.max(s0, s1)) - Math.max(0, Math.min(s0, s1));
+    return overlap >= MIN_FACING_M;
+  });
+}
+
+/** The room's two edges at its corner `i`: the one ending there and the one starting there. */
+function edgesAt(room: Room, i: number): [number, number] {
+  const count = room.polygon.length;
+  return [(i - 1 + count) % count, i];
+}
+
+/**
+ * The junction at `room`'s corner `i`: the corners across the walls from it, and across from those (four rooms meeting), as far
+ * as JUNCTION_REACH. A wall that passes without a corner across from one gets one there. Then each wall that bends with the
+ * junction gets a corner on its longer side across from the shorter side's far end.
+ */
+export function joinCorners(plan: Pick<Plan, 'rooms' | 'openings'>, room: Room, i: number): CornerJunction {
+  const start = room.polygon[i];
+  const corners: Array<{room: Room; point: Point}> = [{room, point: start}];
+  const added: Array<{room: Room; point: Point}> = [];
+  const known = (r: Room, point: Point): boolean => corners.some(c => c.room === r && c.point === point);
+  for (let next = 0; next < corners.length; next++) {
+    const current = corners[next];
+    const at = current.point;
+    for (const edge of edgesAt(current.room, indexOf(current))) {
+      for (const [neighbour, j] of facingEdges(plan, current.room, edge)) {
+        const ring = neighbour.polygon;
+        const a = ring[j];
+        const b = ring[(j + 1) % ring.length];
+        const target = across(at, a, b);
+        if (distance(target, start) > JUNCTION_REACH) continue;
+        // the neighbour's corner across from this one: right across, or a corner its outline turns at diagonally across (a
+        // room wrapped round this corner); a corner only put into a straight wall counts only right across (a T has two)
+        let point = [a, b].find(end => distance(end, target) <= ACROSS_M);
+        // (diagonally across: about one wall's width along from where this corner falls, as far as across)
+        const wallWidth = distance(at, target);
+        point ??= [a, b]
+          .filter(
+            end => distance(end, target) <= wallWidth * DIAGONAL_SLACK + ACROSS_M && turnsAt(neighbour, end),
+          )
+          .sort((p, q) => distance(p, target) - distance(q, target))[0];
+        if (!point) {
+          // the neighbour's wall runs past here: a corner on it, across from this one
+          insertVertex(plan, neighbour, j, target);
+          point = target;
+          added.push({room: neighbour, point});
+        }
+        if (!known(neighbour, point)) corners.push({room: neighbour, point});
+      }
+    }
+  }
+  const bends = alignWallSides(plan, corners);
+  const moving = corners.map((c): JunctionCorner => ({
+    room: c.room,
+    point: c.point,
+    from: [c.point[0], c.point[1]],
+  }));
+  return {
+    corners: moving,
+    guides: cornerGuides(plan, moving),
+    added: [
+      // a junction corner put in: where it is now (it moves with the drag)
+      ...added.map(c => {
+        // every one put in is a junction corner; moveJunction keeps its point up to date
+        const corner = moving.find(m => m.room === c.room && m.point === c.point)!;
+        return {room: c.room, at: () => corner.point};
+      }),
+      // a bend: it stays where it was put
+      ...bends.map(bend => ({room: bend.room, at: () => bend.point})),
+    ],
+  };
+}
+
+// Two kept distances cross at a usable point only when the walls meet at more than this angle (sine): not along one line.
+const GUIDE_MIN_SINE = Math.sin((10 * Math.PI) / 180);
+
+/** For each junction corner but the dragged one: the neighbours' edges its two edges face, when both do. */
+function cornerGuides(plan: Pick<Plan, 'rooms'>, corners: JunctionCorner[]): CornerGuide[] {
+  // an end of a neighbour's edge as it is now: a junction corner moves, any other end stays
+  const live = (room: Room, point: Point): (() => Point) => {
+    const corner = corners.find(c => c.room === room && c.point === point);
+    return corner ? () => corner.point : () => point;
+  };
+  const isJunctionCorner = (room: Room, point: Point): boolean =>
+    corners.some(c => c.room === room && c.point === point);
+  const guides: CornerGuide[] = [];
+  for (const corner of corners.slice(1)) {
+    const facingSides: FacingSide[] = [];
+    // the corner's own edge that faces no wall of the junction, when its far end stays: the corner slides along it
+    const freeSides: FacingSide[] = [];
+    for (const edge of edgesAt(corner.room, indexOf(corner))) {
+      const facing = facingEdges(plan, corner.room, edge).find(([neighbour, j]) => {
+        const ring = neighbour.polygon;
+        return (
+          isJunctionCorner(neighbour, ring[j]) || isJunctionCorner(neighbour, ring[(j + 1) % ring.length])
+        );
+      });
+      if (facing) {
+        const [neighbour, j] = facing;
+        const ring = neighbour.polygon;
+        const a = ring[j];
+        const b = ring[(j + 1) % ring.length];
+        facingSides.push({
+          start: live(neighbour, a),
+          end: live(neighbour, b),
+          offset: offsetFrom(corner.point, a, b),
+        });
+        continue;
+      }
+      const far = sideFrom(corner.room, corner.point, edge).far;
+      if (isJunctionCorner(corner.room, far)) continue;
+      const was: Point = [corner.point[0], corner.point[1]];
+      freeSides.push({start: () => far, end: () => was, offset: 0});
+    }
+    if (facingSides.length === 2) guides.push({corner, sides: [facingSides[0], facingSides[1]]});
+    // one wall of the junction and a free edge: on that wall's kept distance, along its own free edge (a room further along)
+    else if (facingSides.length === 1 && freeSides.length === 1)
+      guides.push({corner, sides: [facingSides[0], freeSides[0]]});
+  }
+  return guides;
+}
+
+/** How far `p` is from the line a–b, signed along its left normal. */
+function offsetFrom(p: Point, a: Point, b: Point): number {
+  const length = distance(a, b) || 1;
+  return (-(p[0] - a[0]) * (b[1] - a[1]) + (p[1] - a[1]) * (b[0] - a[0])) / length;
+}
+
+/** Where the two kept distances cross now, or null where the walls run along one line. */
+function guidedPlace(guide: CornerGuide): Point | null {
+  const lines = guide.sides.map(side => {
+    const a = side.start();
+    const b = side.end();
+    const length = distance(a, b) || 1;
+    const u: Vector = [(b[0] - a[0]) / length, (b[1] - a[1]) / length];
+    const through: Point = [a[0] - u[1] * side.offset, a[1] + u[0] * side.offset];
+    return {through, u};
+  });
+  const [first, second] = lines;
+  const sine = first.u[0] * second.u[1] - first.u[1] * second.u[0];
+  if (Math.abs(sine) < GUIDE_MIN_SINE) return null;
+  const dx = second.through[0] - first.through[0];
+  const dy = second.through[1] - first.through[1];
+  const along = (dx * second.u[1] - dy * second.u[0]) / sine;
+  return [
+    +(first.through[0] + first.u[0] * along).toFixed(4),
+    +(first.through[1] + first.u[1] * along).toFixed(4),
+  ];
+}
+
+/** A junction room's edge from its junction corner: the far end, and how long it is. */
+function sideFrom(room: Room, corner: Point, edge: number): {far: Point; length: number} {
+  const ring = room.polygon;
+  const a = ring[edge];
+  const b = ring[(edge + 1) % ring.length];
+  const far = a === corner ? b : a;
+  return {far, length: distance(far, corner)};
+}
+
+/**
+ * Each wall at the junction whose both sides move (an edge from a junction corner facing a neighbour's edge from one of theirs)
+ * ends across from itself: the longer side gets a corner across from the shorter side's far end. Then both sides turn about
+ * points across from each other, and the wall stays one width. Returns the corners put in.
+ */
+function alignWallSides(
+  plan: Pick<Plan, 'rooms' | 'openings'>,
+  corners: Array<{room: Room; point: Point}>,
+): Array<{room: Room; point: Point}> {
+  const bends: Array<{room: Room; point: Point}> = [];
+  // a corner put in changes the edges, so the search runs again until none is put in (a few walls at most)
+  for (let pass = 0; pass < 12; pass++) {
+    const bend = oneUnalignedWall(plan, corners);
+    if (!bend) return bends;
+    insertVertex(plan, bend.room, bend.edge, bend.point);
+    bends.push({room: bend.room, point: bend.point});
+  }
+  return bends;
+}
+
+/** One wall at the junction whose sides do not end across from each other: where its longer side needs a corner. */
+function oneUnalignedWall(
+  plan: Pick<Plan, 'rooms'>,
+  corners: Array<{room: Room; point: Point}>,
+): {room: Room; edge: number; point: Point} | null {
+  for (const corner of corners) {
+    for (const edge of edgesAt(corner.room, indexOf(corner))) {
+      for (const [neighbour, j] of facingEdges(plan, corner.room, edge)) {
+        const ring = neighbour.polygon;
+        const theirCorner = corners.find(
+          c => c.room === neighbour && (c.point === ring[j] || c.point === ring[(j + 1) % ring.length]),
+        );
+        if (!theirCorner) continue;
+        const mine = sideFrom(corner.room, corner.point, edge);
+        const theirs = sideFrom(neighbour, theirCorner.point, j);
+        if (Math.abs(mine.length - theirs.length) <= SIDES_ALIGNED_M) continue;
+        const mineLonger = mine.length > theirs.length;
+        const longRoom = mineLonger ? corner.room : neighbour;
+        const longEdge = mineLonger ? edge : j;
+        const shortFar = mineLonger ? theirs.far : mine.far;
+        const longRing = longRoom.polygon;
+        const longStart = longRing[longEdge];
+        const longEnd = longRing[(longEdge + 1) % longRing.length];
+        const point = across(shortFar, longStart, longEnd);
+        // already a corner there (the long side ends just past it): nothing to put in
+        if (distance(point, longStart) <= ACROSS_M || distance(point, longEnd) <= ACROSS_M) continue;
+        return {room: longRoom, edge: longEdge, point};
+      }
+    }
+  }
+  return null;
+}
+
+/** Moves the junction's corners by the shift from where the dragged corner began to `to`. */
+export function moveJunction(junction: CornerJunction, to: Point): void {
+  const start = junction.corners[0].from;
+  const dx = to[0] - start[0];
+  const dy = to[1] - start[1];
+  const place = (corner: JunctionCorner, at: Point): void => {
+    const i = indexOf(corner);
+    if (i < 0) return;
+    corner.room.polygon[i] = at;
+    corner.point = at;
+  };
+  for (const corner of junction.corners)
+    place(corner, [+(corner.from[0] + dx).toFixed(4), +(corner.from[1] + dy).toFixed(4)]);
+  // a corner whose both edges face the junction's walls goes where it keeps both widths (a room wrapped round the corner)
+  for (const guide of junction.guides) {
+    const at = guidedPlace(guide);
+    if (at) place(guide.corner, at);
+  }
+}
+
+/** After the drag: a corner put in for it goes again where its wall is still straight (the drag came back, or barely moved). */
+export function tidyJunction(plan: Pick<Plan, 'rooms' | 'openings'>, junction: CornerJunction): void {
+  // where each one is, read before any goes: taking one out moves the others' places in its room
+  const spots = junction.added.map(added => ({room: added.room, at: added.at()}));
+  for (const spot of spots) {
+    const ring = spot.room.polygon;
+    const i = ring.indexOf(spot.at);
+    if (i < 0) continue;
+    const count = ring.length;
+    const [offLine] = segDist(ring[i], ring[(i - 1 + count) % count], ring[(i + 1) % count]);
+    if (offLine < STRAIGHT_M) removeVertex(plan, spot.room, i);
+  }
+}
+
 // Shift edges by d along normal n from their original position orig (Map id → outline).
 export function moveEdges(edges: EdgeRef[], orig: Map<string, Outline>, n: Vector, d: number): void {
   for (const [r, j] of edges) {
@@ -1050,7 +1385,13 @@ export function openingGap(
   const {l} = edgeOf(r, o.at.edge);
   const c = (o.at.s0 + o.at.s1) / 2;
   const [lo, hi] = wallAt(plan, r, o.at.edge, c / l).seg;
-  return freeGap(openingSpans(plan, r, o.at.edge, o.id), c, Math.max(0.02, lo), Math.min(l - 0.02, hi));
+  // the opening's ends stay out of the walls at the stretch's ends: their faces are WALL.inner in from the corners
+  return freeGap(
+    openingSpans(plan, r, o.at.edge, o.id),
+    c,
+    Math.max(WALL.inner, lo + WALL.inner),
+    Math.min(l - WALL.inner, hi - WALL.inner),
+  );
 }
 // Place an opening on edge i of a room at s (ideally centered on the click point). lo/hi: the wall stretch under the click,
 // outer: the wall is exterior (an entrance door is wider). Less than 40 cm of space → null.
@@ -1063,8 +1404,9 @@ export function addOpening(
   {lo = 0, hi, outer = false}: {lo?: number; hi?: number; outer?: boolean} = {},
 ): Opening | null {
   const {l} = edgeOf(room, i);
-  hi = Math.min(hi ?? l, l - 0.02);
-  lo = Math.max(lo, 0.02);
+  // the opening's ends stay out of the walls at the stretch's ends: their faces are WALL.inner in from the corners
+  hi = Math.min(hi ?? l, l) - WALL.inner;
+  lo = Math.max(lo, 0) + WALL.inner;
   const g = freeGap(openingSpans(plan, room, i), s, lo, hi);
   if (!g || g[1] - g[0] < MIN_OPENING) return null;
   const w = Math.min(kind === 'door' && outer ? ENTRY_W : OPENING[kind].w, g[1] - g[0]);

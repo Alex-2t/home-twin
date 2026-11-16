@@ -1,0 +1,1679 @@
+{
+ "Air conditioner": [
+  "studio",
+  "one-bed"
+ ],
+ "Air monitor CO2": [
+  "family",
+  "townhouse",
+  "bungalow"
+ ],
+ "Air monitor Humidity": [
+  "family",
+  "townhouse",
+  "bungalow"
+ ],
+ "Air monitor PM2.5": [
+  "family"
+ ],
+ "Air monitor Radon": [
+  "bungalow"
+ ],
+ "Air monitor Temperature": [
+  "family",
+  "townhouse",
+  "bungalow"
+ ],
+ "All shutters down": [
+  "house"
+ ],
+ "Aqara thermometer Humidity": [
+  "family"
+ ],
+ "Aqara thermometer Temperature": [
+  "family"
+ ],
+ "Backyard camera": [
+  "bungalow"
+ ],
+ "Balcony": [
+  "euro-two",
+  "old-two",
+  "family",
+  "large"
+ ],
+ "Balcony curtains": [
+  "euro-two"
+ ],
+ "Balcony door": [
+  "euro-two",
+  "old-two",
+  "family",
+  "large"
+ ],
+ "Balcony string lights": [
+  "old-two"
+ ],
+ "Balcony table lamp": [
+  "old-two"
+ ],
+ "Balcony thermometer Temperature": [
+  "euro-two"
+ ],
+ "Balcony wall lamp": [
+  "euro-two"
+ ],
+ "Balcony wall light": [
+  "large"
+ ],
+ "Bath fan": [
+  "bungalow"
+ ],
+ "Bathroom": [
+  "one-bed",
+  "euro-two",
+  "old-two",
+  "family",
+  "altbau",
+  "loft",
+  "minimal",
+  "japandi"
+ ],
+ "Bathroom ceiling light": [
+  "altbau"
+ ],
+ "Bathroom leak": [
+  "euro-two",
+  "old-two",
+  "family",
+  "altbau",
+  "loft",
+  "minimal"
+ ],
+ "Bathroom light": [
+  "bungalow"
+ ],
+ "Bathroom radiator": [
+  "altbau"
+ ],
+ "Bathroom sensor Humidity": [
+  "one-bed",
+  "euro-two",
+  "old-two",
+  "family",
+  "altbau",
+  "loft",
+  "minimal",
+  "japandi"
+ ],
+ "Bathroom sensor Temperature": [
+  "one-bed",
+  "euro-two",
+  "old-two",
+  "family",
+  "altbau",
+  "loft",
+  "minimal",
+  "japandi"
+ ],
+ "Bathroom spots": [
+  "one-bed",
+  "euro-two",
+  "old-two",
+  "family",
+  "large",
+  "loft",
+  "minimal",
+  "japandi"
+ ],
+ "Bathroom underfloor heating": [
+  "loft",
+  "minimal"
+ ],
+ "Bathroom window": [
+  "altbau",
+  "loft"
+ ],
+ "Bay curtains": [
+  "altbau"
+ ],
+ "Bedroom": [
+  "euro-two",
+  "old-two",
+  "family",
+  "large",
+  "altbau",
+  "loft",
+  "minimal",
+  "japandi"
+ ],
+ "Bedroom AC": [
+  "euro-two",
+  "old-two",
+  "family",
+  "large",
+  "loft",
+  "minimal",
+  "japandi"
+ ],
+ "Bedroom air Battery": [
+  "altbau",
+  "loft",
+  "minimal",
+  "japandi"
+ ],
+ "Bedroom air CO2": [
+  "large",
+  "altbau",
+  "loft",
+  "minimal",
+  "japandi"
+ ],
+ "Bedroom air Humidity": [
+  "large",
+  "altbau",
+  "loft",
+  "minimal",
+  "japandi"
+ ],
+ "Bedroom air Temperature": [
+  "large",
+  "altbau",
+  "loft",
+  "minimal",
+  "japandi"
+ ],
+ "Bedroom blackout blind": [
+  "euro-two",
+  "loft"
+ ],
+ "Bedroom blind left": [
+  "altbau"
+ ],
+ "Bedroom blind right": [
+  "altbau"
+ ],
+ "Bedroom ceiling light": [
+  "euro-two",
+  "old-two",
+  "large",
+  "altbau",
+  "loft",
+  "japandi"
+ ],
+ "Bedroom cove light": [
+  "minimal"
+ ],
+ "Bedroom curtains": [
+  "euro-two",
+  "old-two",
+  "family",
+  "large",
+  "loft",
+  "minimal",
+  "japandi"
+ ],
+ "Bedroom humidifier": [
+  "japandi"
+ ],
+ "Bedroom radiator": [
+  "altbau"
+ ],
+ "Bedroom sensor Battery": [
+  "euro-two",
+  "old-two",
+  "family"
+ ],
+ "Bedroom sensor CO2": [
+  "euro-two",
+  "old-two"
+ ],
+ "Bedroom sensor Humidity": [
+  "euro-two",
+  "old-two",
+  "family"
+ ],
+ "Bedroom sensor Temperature": [
+  "euro-two",
+  "old-two",
+  "family"
+ ],
+ "Bedroom side blind": [
+  "large"
+ ],
+ "Bedroom window": [
+  "euro-two",
+  "family",
+  "minimal",
+  "japandi"
+ ],
+ "Bedside lamp": [
+  "large",
+  "bungalow"
+ ],
+ "Bedside lamps": [
+  "one-bed",
+  "family",
+  "bungalow"
+ ],
+ "Bedside plug Device temperature": [
+  "family"
+ ],
+ "Bedside sconces": [
+  "loft"
+ ],
+ "Bedside wall lights": [
+  "minimal"
+ ],
+ "Bedtime": [
+  "bungalow"
+ ],
+ "Boiler Flow temperature": [
+  "house"
+ ],
+ "Boiler Modulation": [
+  "house"
+ ],
+ "Ceiling cove": [
+  "euro-two",
+  "large",
+  "loft"
+ ],
+ "Ceiling cove light": [
+  "family",
+  "house"
+ ],
+ "Ceiling lamp": [
+  "family"
+ ],
+ "Ceiling light": [
+  "one-bed",
+  "family",
+  "large",
+  "bungalow"
+ ],
+ "Chandelier": [
+  "altbau"
+ ],
+ "Chest freezer Temperature": [
+  "bungalow"
+ ],
+ "Closet light": [
+  "large",
+  "loft",
+  "minimal"
+ ],
+ "CO detector Carbon monoxide": [
+  "altbau"
+ ],
+ "Computer Energy": [
+  "family",
+  "japandi"
+ ],
+ "Console table lamp": [
+  "large",
+  "altbau",
+  "house"
+ ],
+ "Console table lamps": [
+  "bungalow"
+ ],
+ "Cosy evening": [
+  "townhouse"
+ ],
+ "Countertop strip": [
+  "bungalow"
+ ],
+ "Cove strip": [
+  "old-two"
+ ],
+ "Curtain light": [
+  "studio"
+ ],
+ "Curtains": [
+  "studio"
+ ],
+ "Desk lamp": [
+  "family",
+  "large",
+  "altbau",
+  "loft",
+  "minimal",
+  "japandi",
+  "bungalow",
+  "house"
+ ],
+ "Dining floor lamp": [
+  "altbau"
+ ],
+ "Dining pendant": [
+  "studio",
+  "one-bed",
+  "minimal",
+  "japandi"
+ ],
+ "Dining pendants": [
+  "family",
+  "large",
+  "loft",
+  "townhouse",
+  "bungalow",
+  "house"
+ ],
+ "Dining room": [
+  "altbau",
+  "house"
+ ],
+ "Dining room heating": [
+  "house"
+ ],
+ "Dining room radiator": [
+  "altbau"
+ ],
+ "Dining room sensor Humidity": [
+  "altbau"
+ ],
+ "Dining room sensor Temperature": [
+  "altbau"
+ ],
+ "Dining room shutter east": [
+  "house"
+ ],
+ "Dining room shutter south": [
+  "house"
+ ],
+ "Dining room thermostat Humidity": [
+  "house"
+ ],
+ "Dining room thermostat Temperature": [
+  "house"
+ ],
+ "Dinner": [
+  "euro-two",
+  "family",
+  "large",
+  "altbau",
+  "loft",
+  "minimal",
+  "japandi",
+  "townhouse",
+  "bungalow",
+  "house"
+ ],
+ "Dishwasher Energy": [
+  "studio",
+  "euro-two",
+  "large",
+  "loft",
+  "minimal",
+  "japandi",
+  "townhouse",
+  "bungalow",
+  "house"
+ ],
+ "Dishwasher leak": [
+  "loft"
+ ],
+ "Doorbell": [
+  "bungalow"
+ ],
+ "Doorbell camera": [
+  "euro-two",
+  "minimal",
+  "japandi"
+ ],
+ "Dresser table lamp": [
+  "altbau"
+ ],
+ "Driveway camera": [
+  "bungalow",
+  "house"
+ ],
+ "Dryer": [
+  "large"
+ ],
+ "Dryer Energy": [
+  "euro-two",
+  "large",
+  "minimal"
+ ],
+ "Entrance camera": [
+  "family",
+  "large",
+  "loft"
+ ],
+ "Entrance light": [
+  "house"
+ ],
+ "Entry": [
+  "bungalow"
+ ],
+ "Entry ceiling light": [
+  "bungalow"
+ ],
+ "Entry hall": [
+  "loft",
+  "minimal",
+  "japandi"
+ ],
+ "Entry table lamp": [
+  "bungalow"
+ ],
+ "Espresso machine": [
+  "loft"
+ ],
+ "Espresso machine Energy": [
+  "loft"
+ ],
+ "Evening": [
+  "studio",
+  "old-two",
+  "minimal",
+  "house"
+ ],
+ "Extractor fan": [
+  "studio",
+  "one-bed",
+  "family"
+ ],
+ "Firewood rack": [
+  "house"
+ ],
+ "Floor heating": [
+  "bungalow"
+ ],
+ "Floor lamp": [
+  "studio",
+  "one-bed",
+  "euro-two",
+  "family",
+  "altbau",
+  "loft",
+  "minimal",
+  "townhouse",
+  "bungalow",
+  "house"
+ ],
+ "Focus": [
+  "loft"
+ ],
+ "Fridge Energy": [
+  "studio",
+  "one-bed",
+  "euro-two",
+  "old-two",
+  "family",
+  "large",
+  "loft",
+  "minimal",
+  "japandi"
+ ],
+ "Fridge Temperature": [
+  "studio",
+  "one-bed",
+  "euro-two",
+  "family",
+  "large",
+  "loft",
+  "minimal",
+  "japandi",
+  "townhouse",
+  "bungalow"
+ ],
+ "Front door": [
+  "studio",
+  "one-bed",
+  "euro-two",
+  "old-two",
+  "family",
+  "large",
+  "altbau",
+  "loft",
+  "minimal",
+  "japandi",
+  "townhouse",
+  "bungalow",
+  "house"
+ ],
+ "Front door lock": [
+  "euro-two",
+  "family",
+  "large",
+  "loft",
+  "minimal",
+  "japandi",
+  "townhouse",
+  "bungalow",
+  "house"
+ ],
+ "Front door sensor Battery": [
+  "townhouse"
+ ],
+ "Garage": [
+  "bungalow",
+  "house"
+ ],
+ "Garage door": [
+  "bungalow",
+  "house"
+ ],
+ "Garage entry lock": [
+  "bungalow"
+ ],
+ "Garage light": [
+  "house"
+ ],
+ "Garage lights": [
+  "bungalow"
+ ],
+ "Garage sensor Humidity": [
+  "bungalow"
+ ],
+ "Garage sensor Temperature": [
+  "bungalow"
+ ],
+ "Garden": [
+  "townhouse"
+ ],
+ "Garden awning": [
+  "townhouse"
+ ],
+ "Garden camera": [
+  "townhouse"
+ ],
+ "Garden door": [
+  "townhouse"
+ ],
+ "Garden socket": [
+  "townhouse"
+ ],
+ "Garden string lights": [
+  "townhouse"
+ ],
+ "Garden wall light": [
+  "townhouse"
+ ],
+ "Gas boiler": [
+  "altbau"
+ ],
+ "Gas boiler Flow temperature": [
+  "altbau"
+ ],
+ "Gas boiler Water pressure": [
+  "altbau"
+ ],
+ "Gas leak sensor": [
+  "old-two"
+ ],
+ "Gas meter Gas": [
+  "altbau"
+ ],
+ "Gas water heater Outlet temperature": [
+  "old-two"
+ ],
+ "Good morning": [
+  "one-bed"
+ ],
+ "Good night": [
+  "euro-two",
+  "family",
+  "large",
+  "loft",
+  "minimal",
+  "japandi"
+ ],
+ "Guest bathroom": [
+  "large"
+ ],
+ "Guest bathroom leak": [
+  "large"
+ ],
+ "Guest bathroom spots": [
+  "large"
+ ],
+ "Guest bathroom underfloor heating": [
+  "large"
+ ],
+ "Guest mode": [
+  "family"
+ ],
+ "Guest room": [
+  "bungalow"
+ ],
+ "Guest WC": [
+  "loft",
+  "minimal",
+  "house"
+ ],
+ "Guest WC light": [
+  "house"
+ ],
+ "Hall bathroom": [
+  "bungalow"
+ ],
+ "Hall mirror light": [
+  "one-bed",
+  "old-two",
+  "japandi"
+ ],
+ "Hall pendant": [
+  "townhouse"
+ ],
+ "Hall pendants": [
+  "altbau"
+ ],
+ "Hall sensor Humidity": [
+  "loft"
+ ],
+ "Hall sensor Temperature": [
+  "loft"
+ ],
+ "Hall spots": [
+  "family",
+  "loft"
+ ],
+ "Hallway": [
+  "studio",
+  "one-bed",
+  "euro-two",
+  "old-two",
+  "family",
+  "large",
+  "altbau",
+  "townhouse",
+  "bungalow",
+  "house"
+ ],
+ "Hallway lights": [
+  "bungalow"
+ ],
+ "Hallway linear light": [
+  "minimal"
+ ],
+ "Hallway motion Battery": [
+  "one-bed"
+ ],
+ "Hallway motion Illuminance": [
+  "one-bed"
+ ],
+ "Hallway night light": [
+  "bungalow"
+ ],
+ "Hallway spots": [
+  "studio",
+  "one-bed",
+  "euro-two",
+  "old-two",
+  "large",
+  "japandi",
+  "house"
+ ],
+ "Heating: away": [
+  "altbau"
+ ],
+ "Holiday mode": [
+  "house"
+ ],
+ "Island pendants": [
+  "euro-two",
+  "large",
+  "loft",
+  "minimal",
+  "bungalow"
+ ],
+ "Kettle": [
+  "studio",
+  "one-bed",
+  "euro-two",
+  "old-two",
+  "family",
+  "japandi"
+ ],
+ "Kettle Energy": [
+  "family"
+ ],
+ "Kettle Power": [
+  "family",
+  "japandi"
+ ],
+ "Kids' room": [
+  "family",
+  "large",
+  "bungalow"
+ ],
+ "Kids' room AC": [
+  "family",
+  "large"
+ ],
+ "Kids' room blind": [
+  "large",
+  "bungalow"
+ ],
+ "Kids' room roller blind": [
+  "family"
+ ],
+ "Kids' room sensor Battery": [
+  "large"
+ ],
+ "Kids' room sensor CO2": [
+  "family"
+ ],
+ "Kids' room sensor Humidity": [
+  "family",
+  "large"
+ ],
+ "Kids' room sensor Illuminance": [
+  "family"
+ ],
+ "Kids' room sensor Temperature": [
+  "family",
+  "large",
+  "bungalow"
+ ],
+ "Kids' room window": [
+  "large",
+  "bungalow"
+ ],
+ "Kitchen": [
+  "one-bed",
+  "old-two",
+  "family",
+  "large",
+  "altbau",
+  "loft",
+  "minimal",
+  "japandi",
+  "bungalow",
+  "house"
+ ],
+ "Kitchen AC": [
+  "loft"
+ ],
+ "Kitchen air CO2": [
+  "altbau"
+ ],
+ "Kitchen air Humidity": [
+  "altbau"
+ ],
+ "Kitchen air Temperature": [
+  "altbau"
+ ],
+ "Kitchen blinds": [
+  "loft"
+ ],
+ "Kitchen ceiling light": [
+  "old-two",
+  "altbau"
+ ],
+ "Kitchen heating": [
+  "house"
+ ],
+ "Kitchen pendant": [
+  "altbau"
+ ],
+ "Kitchen plinth light": [
+  "minimal"
+ ],
+ "Kitchen radiator": [
+  "altbau"
+ ],
+ "Kitchen recessed lights": [
+  "bungalow"
+ ],
+ "Kitchen roller blind": [
+  "one-bed",
+  "old-two",
+  "family",
+  "large",
+  "altbau",
+  "japandi",
+  "townhouse"
+ ],
+ "Kitchen sensor Humidity": [
+  "one-bed",
+  "euro-two",
+  "old-two",
+  "large",
+  "loft",
+  "minimal",
+  "japandi"
+ ],
+ "Kitchen sensor Temperature": [
+  "one-bed",
+  "euro-two",
+  "old-two",
+  "large",
+  "loft",
+  "minimal",
+  "japandi"
+ ],
+ "Kitchen shutter": [
+  "house"
+ ],
+ "Kitchen sink leak": [
+  "bungalow"
+ ],
+ "Kitchen spots": [
+  "one-bed",
+  "euro-two",
+  "family",
+  "large",
+  "minimal",
+  "japandi",
+  "townhouse",
+  "house"
+ ],
+ "Kitchen table pendant": [
+  "old-two"
+ ],
+ "Kitchen thermostat Humidity": [
+  "house"
+ ],
+ "Kitchen thermostat Temperature": [
+  "house"
+ ],
+ "Kitchen track": [
+  "studio",
+  "loft"
+ ],
+ "Kitchen window": [
+  "altbau",
+  "house"
+ ],
+ "Kitchen-living room": [
+  "euro-two",
+  "large",
+  "loft",
+  "minimal",
+  "townhouse"
+ ],
+ "Laundry": [
+  "euro-two"
+ ],
+ "Laundry leak": [
+  "large"
+ ],
+ "Laundry light": [
+  "euro-two",
+  "bungalow"
+ ],
+ "Laundry room": [
+  "large",
+  "bungalow"
+ ],
+ "Laundry sensor Humidity": [
+  "large"
+ ],
+ "Laundry sensor Temperature": [
+  "large"
+ ],
+ "Lawn mower": [
+  "townhouse"
+ ],
+ "Leak under the bathtub": [
+  "one-bed"
+ ],
+ "Leak under the sink": [
+  "studio",
+  "one-bed",
+  "euro-two",
+  "old-two",
+  "family",
+  "large",
+  "altbau",
+  "loft",
+  "minimal",
+  "japandi",
+  "townhouse",
+  "house"
+ ],
+ "Leak under the washer": [
+  "studio",
+  "euro-two",
+  "minimal",
+  "japandi"
+ ],
+ "Leave home": [
+  "minimal"
+ ],
+ "Leaving home": [
+  "studio",
+  "old-two",
+  "townhouse"
+ ],
+ "Left bedside lamp": [
+  "euro-two",
+  "old-two",
+  "large",
+  "altbau",
+  "japandi"
+ ],
+ "Living room": [
+  "studio",
+  "old-two",
+  "family",
+  "large",
+  "altbau",
+  "loft",
+  "minimal",
+  "japandi",
+  "bungalow",
+  "house"
+ ],
+ "Living room AC": [
+  "euro-two",
+  "old-two",
+  "family",
+  "large",
+  "loft",
+  "minimal",
+  "japandi"
+ ],
+ "Living room air CO2": [
+  "large",
+  "loft",
+  "minimal",
+  "japandi"
+ ],
+ "Living room air Humidity": [
+  "large",
+  "loft",
+  "minimal",
+  "japandi"
+ ],
+ "Living room air PM2.5": [
+  "japandi"
+ ],
+ "Living room air Temperature": [
+  "large",
+  "loft",
+  "minimal",
+  "japandi"
+ ],
+ "Living room blinds": [
+  "loft"
+ ],
+ "Living room ceiling light": [
+  "old-two",
+  "house"
+ ],
+ "Living room cove light": [
+  "minimal"
+ ],
+ "Living room curtains": [
+  "euro-two",
+  "old-two",
+  "family",
+  "large",
+  "minimal",
+  "townhouse"
+ ],
+ "Living room curtains 1": [
+  "japandi"
+ ],
+ "Living room curtains 2": [
+  "japandi"
+ ],
+ "Living room curtains 3": [
+  "japandi"
+ ],
+ "Living room east blinds": [
+  "loft"
+ ],
+ "Living room heating": [
+  "house"
+ ],
+ "Living room light level": [
+  "minimal"
+ ],
+ "Living room pendant": [
+  "studio",
+  "family"
+ ],
+ "Living room radiator": [
+  "old-two",
+  "altbau"
+ ],
+ "Living room recessed lights": [
+  "bungalow"
+ ],
+ "Living room sensor CO2": [
+  "euro-two"
+ ],
+ "Living room sensor Humidity": [
+  "euro-two",
+  "old-two",
+  "family",
+  "altbau"
+ ],
+ "Living room sensor Temperature": [
+  "euro-two",
+  "old-two",
+  "family",
+  "altbau"
+ ],
+ "Living room shade 1": [
+  "bungalow"
+ ],
+ "Living room shade 2": [
+  "bungalow"
+ ],
+ "Living room sheer curtains": [
+  "minimal"
+ ],
+ "Living room shutter south": [
+  "house"
+ ],
+ "Living room shutter west": [
+  "house"
+ ],
+ "Living room spots": [
+  "minimal",
+  "townhouse"
+ ],
+ "Living room thermostat": [
+  "townhouse"
+ ],
+ "Living room thermostat Humidity": [
+  "house"
+ ],
+ "Living room thermostat Temperature": [
+  "house"
+ ],
+ "Living room track": [
+  "euro-two",
+  "large",
+  "loft"
+ ],
+ "Living room underfloor heating": [
+  "loft",
+  "minimal"
+ ],
+ "Main bathroom": [
+  "large"
+ ],
+ "Main bathroom leak": [
+  "large"
+ ],
+ "Main bathroom sensor Humidity": [
+  "large"
+ ],
+ "Main bathroom sensor Temperature": [
+  "large"
+ ],
+ "Main bathroom underfloor heating": [
+  "large"
+ ],
+ "Main meter Energy": [
+  "studio",
+  "one-bed",
+  "euro-two",
+  "old-two",
+  "family",
+  "large",
+  "altbau",
+  "loft",
+  "minimal",
+  "japandi"
+ ],
+ "Media wall cove": [
+  "japandi"
+ ],
+ "Media wall Energy": [
+  "loft"
+ ],
+ "Mirror light": [
+  "studio",
+  "one-bed",
+  "euro-two",
+  "old-two",
+  "family",
+  "large",
+  "altbau",
+  "loft",
+  "minimal",
+  "japandi",
+  "bungalow"
+ ],
+ "Morning": [
+  "japandi"
+ ],
+ "Movie": [
+  "one-bed",
+  "euro-two",
+  "family",
+  "large",
+  "loft",
+  "minimal"
+ ],
+ "Movie night": [
+  "bungalow"
+ ],
+ "NAS CPU temperature": [
+  "large",
+  "loft",
+  "house"
+ ],
+ "NAS Energy": [
+  "large",
+  "loft"
+ ],
+ "Night light": [
+  "family",
+  "large"
+ ],
+ "Outdoor sensor Battery": [
+  "townhouse"
+ ],
+ "Outdoor sensor Humidity": [
+  "townhouse",
+  "bungalow"
+ ],
+ "Outdoor sensor Temperature": [
+  "altbau",
+  "townhouse",
+  "bungalow",
+  "house"
+ ],
+ "P1 meter Energy import": [
+  "townhouse"
+ ],
+ "P1 meter Gas": [
+  "townhouse"
+ ],
+ "P1 meter Power": [
+  "townhouse"
+ ],
+ "P1 meter Wi-Fi signal": [
+  "townhouse"
+ ],
+ "Panel monitor Energy": [
+  "bungalow"
+ ],
+ "Panel monitor Power": [
+  "bungalow"
+ ],
+ "Paper pendant": [
+  "japandi"
+ ],
+ "Patio": [
+  "bungalow"
+ ],
+ "Patio door": [
+  "bungalow"
+ ],
+ "Patio string lights": [
+  "bungalow"
+ ],
+ "Patio wall light": [
+  "bungalow"
+ ],
+ "Peephole camera": [
+  "old-two"
+ ],
+ "Pegboard": [
+  "bungalow"
+ ],
+ "Pendant over the table": [
+  "altbau"
+ ],
+ "Piano picture light": [
+  "altbau"
+ ],
+ "Picture light": [
+  "large",
+  "altbau",
+  "loft",
+  "house"
+ ],
+ "Plinth strip": [
+  "one-bed",
+  "japandi"
+ ],
+ "Plug-in floor lamp": [
+  "family"
+ ],
+ "Porch light": [
+  "townhouse",
+  "bungalow"
+ ],
+ "Primary bath sensor Humidity": [
+  "bungalow"
+ ],
+ "Primary bath sensor Temperature": [
+  "bungalow"
+ ],
+ "Primary bath spots": [
+  "bungalow"
+ ],
+ "Primary bathroom": [
+  "bungalow"
+ ],
+ "Primary bedroom": [
+  "bungalow"
+ ],
+ "Primary bedroom curtains": [
+  "bungalow"
+ ],
+ "Primary bedroom sensor Battery": [
+  "bungalow"
+ ],
+ "Primary bedroom sensor Temperature": [
+  "bungalow"
+ ],
+ "PV inverter Energy": [
+  "house"
+ ],
+ "PV inverter Power": [
+  "house"
+ ],
+ "Raised bed": [
+  "townhouse"
+ ],
+ "Reading": [
+  "altbau",
+  "japandi"
+ ],
+ "Reading floor lamp": [
+  "one-bed",
+  "euro-two",
+  "old-two",
+  "family",
+  "large",
+  "altbau",
+  "loft",
+  "minimal",
+  "japandi",
+  "bungalow",
+  "house"
+ ],
+ "Reading lamp": [
+  "minimal"
+ ],
+ "Reading wall lamp": [
+  "studio"
+ ],
+ "Right bedside lamp": [
+  "euro-two",
+  "old-two",
+  "large",
+  "altbau",
+  "japandi"
+ ],
+ "Robot vacuum": [
+  "studio",
+  "one-bed",
+  "euro-two",
+  "old-two",
+  "family",
+  "large",
+  "altbau",
+  "loft",
+  "minimal",
+  "japandi",
+  "townhouse",
+  "bungalow",
+  "house"
+ ],
+ "Room": [
+  "one-bed"
+ ],
+ "Room curtains": [
+  "one-bed"
+ ],
+ "Room pendant": [
+  "one-bed"
+ ],
+ "Room sensor Battery": [
+  "studio",
+  "one-bed"
+ ],
+ "Room sensor CO2": [
+  "studio",
+  "one-bed"
+ ],
+ "Room sensor Humidity": [
+  "studio",
+  "one-bed"
+ ],
+ "Room sensor Temperature": [
+  "studio",
+  "one-bed"
+ ],
+ "Room window": [
+  "one-bed"
+ ],
+ "Router CPU temperature": [
+  "euro-two",
+  "loft",
+  "minimal",
+  "japandi"
+ ],
+ "Second kids' room": [
+  "large"
+ ],
+ "Second kids' room AC": [
+  "large"
+ ],
+ "Second kids' room air CO2": [
+  "large"
+ ],
+ "Second kids' room air Humidity": [
+  "large"
+ ],
+ "Second kids' room air Temperature": [
+  "large"
+ ],
+ "Second kids' room blind": [
+  "large"
+ ],
+ "Shed": [
+  "townhouse"
+ ],
+ "Shed light": [
+  "townhouse"
+ ],
+ "Shower leak": [
+  "japandi"
+ ],
+ "Shower room": [
+  "studio"
+ ],
+ "Shower room sensor Humidity": [
+  "studio"
+ ],
+ "Shower room sensor Temperature": [
+  "studio"
+ ],
+ "Shower room spots": [
+  "studio"
+ ],
+ "Side table lamp": [
+  "euro-two",
+  "japandi"
+ ],
+ "Sideboard table lamp": [
+  "studio",
+  "house"
+ ],
+ "Sideboard table lamps": [
+  "altbau"
+ ],
+ "Smart meter Energy": [
+  "house"
+ ],
+ "Smart meter Power": [
+  "house"
+ ],
+ "Sofa table lamp": [
+  "old-two",
+  "altbau"
+ ],
+ "Solar inverter Energy": [
+  "townhouse"
+ ],
+ "Solar inverter Power": [
+  "townhouse"
+ ],
+ "Stair LED strip": [
+  "house"
+ ],
+ "Stair light": [
+  "townhouse"
+ ],
+ "Steel column": [
+  "loft"
+ ],
+ "Stove flue": [
+  "house"
+ ],
+ "Study": [
+  "loft",
+  "minimal",
+  "japandi",
+  "house"
+ ],
+ "Study AC": [
+  "loft"
+ ],
+ "Study air CO2": [
+  "loft"
+ ],
+ "Study air Humidity": [
+  "loft"
+ ],
+ "Study air monitor Battery": [
+  "house"
+ ],
+ "Study air monitor CO2": [
+  "house"
+ ],
+ "Study air monitor Humidity": [
+  "house"
+ ],
+ "Study air monitor Temperature": [
+  "house"
+ ],
+ "Study air Temperature": [
+  "loft"
+ ],
+ "Study blind": [
+  "loft",
+  "minimal"
+ ],
+ "Study ceiling light": [
+  "loft",
+  "minimal",
+  "japandi",
+  "house"
+ ],
+ "Study heating": [
+  "house"
+ ],
+ "Study roller blind": [
+  "japandi"
+ ],
+ "Study sensor Humidity": [
+  "minimal",
+  "japandi"
+ ],
+ "Study sensor Temperature": [
+  "minimal",
+  "japandi"
+ ],
+ "Study shutter": [
+  "house"
+ ],
+ "Study window": [
+  "loft",
+  "minimal",
+  "japandi",
+  "house"
+ ],
+ "Table lamp": [
+  "family",
+  "townhouse"
+ ],
+ "Terrace door": [
+  "house"
+ ],
+ "Terrace door shutter": [
+  "house"
+ ],
+ "Thermostat": [
+  "bungalow"
+ ],
+ "Thermostat Humidity": [
+  "bungalow"
+ ],
+ "Thermostat Temperature": [
+  "townhouse",
+  "bungalow"
+ ],
+ "Thermostat Wi-Fi signal": [
+  "bungalow"
+ ],
+ "Toilet": [
+  "old-two",
+  "townhouse"
+ ],
+ "Toilet light": [
+  "old-two"
+ ],
+ "Toilet pendant": [
+  "townhouse"
+ ],
+ "Towel rail": [
+  "one-bed",
+  "euro-two",
+  "old-two",
+  "family",
+  "altbau",
+  "minimal",
+  "japandi"
+ ],
+ "TV backlight": [
+  "one-bed",
+  "euro-two",
+  "old-two",
+  "family",
+  "large",
+  "loft",
+  "townhouse"
+ ],
+ "TV Energy": [
+  "one-bed",
+  "old-two",
+  "family",
+  "minimal",
+  "townhouse",
+  "bungalow"
+ ],
+ "TV plug Device temperature": [
+  "studio"
+ ],
+ "Under-bed light": [
+  "minimal"
+ ],
+ "Under-bed strip": [
+  "japandi"
+ ],
+ "Underfloor heating": [
+  "studio",
+  "euro-two",
+  "family",
+  "japandi"
+ ],
+ "Utility room": [
+  "house"
+ ],
+ "Utility room light": [
+  "house"
+ ],
+ "Utility room window": [
+  "house"
+ ],
+ "Vacation mode": [
+  "bungalow"
+ ],
+ "Vanity light": [
+  "bungalow"
+ ],
+ "Video doorbell": [
+  "townhouse",
+  "house"
+ ],
+ "Walk-in closet": [
+  "large",
+  "loft",
+  "minimal"
+ ],
+ "Wall sconces": [
+  "altbau"
+ ],
+ "Wallbox": [
+  "house"
+ ],
+ "Wallbox charging": [
+  "house"
+ ],
+ "Wallbox Energy": [
+  "house"
+ ],
+ "Wallbox Power": [
+  "house"
+ ],
+ "Washer Energy": [
+  "bungalow"
+ ],
+ "Washer leak": [
+  "bungalow"
+ ],
+ "Washer Power": [
+  "bungalow"
+ ],
+ "Washing machine Energy": [
+  "studio",
+  "one-bed",
+  "euro-two",
+  "old-two",
+  "family",
+  "large",
+  "altbau",
+  "minimal",
+  "japandi",
+  "house"
+ ],
+ "Washing machine leak": [
+  "house"
+ ],
+ "Water heater leak": [
+  "bungalow"
+ ],
+ "Water main valve": [
+  "bungalow",
+  "house"
+ ],
+ "Water shut-off valve": [
+  "studio",
+  "one-bed",
+  "euro-two",
+  "old-two",
+  "family",
+  "large",
+  "altbau",
+  "loft",
+  "minimal",
+  "japandi",
+  "townhouse"
+ ],
+ "WC leak": [
+  "loft"
+ ],
+ "WC light": [
+  "loft",
+  "minimal"
+ ],
+ "Window": [
+  "studio"
+ ],
+ "Wood stove": [
+  "house"
+ ],
+ "Workbench strip": [
+  "bungalow"
+ ],
+ "Worktop strip": [
+  "studio",
+  "one-bed",
+  "euro-two",
+  "old-two",
+  "family",
+  "large",
+  "altbau",
+  "loft",
+  "japandi",
+  "townhouse",
+  "house"
+ ]
+}

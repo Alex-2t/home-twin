@@ -1,7 +1,7 @@
 // Version history: snapshots at meaningful moments, no duplicates, at most 40, old autosaves go first.
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {createVersions, VER_MAX, AUTO_MS} from './versions.ts';
+import {createVersions, VER_MAX, AUTO_MS, EDITS_PER_AUTO} from './versions.ts';
 import type {Plan} from '../core/types.ts';
 import type {StoreOp} from './idb.ts';
 
@@ -60,29 +60,43 @@ test('a snapshot is the plan as it was at call time; an identical one in a row i
   assert.equal(V2.list().length, 0);
 });
 
-test('at most 40: the oldest autosaves go first', async () => {
-  let now = 1;
+test('at most 100: autosaves are thinned where they are densest, steps stay, the newest stays', async () => {
+  let now = 0;
   const V = createVersions({store: mem(), now: () => now});
   await V.open('a');
   await V.add(plan({id: 'a', n: -1}), {kind: 'step', what: 'rect'}); // the oldest, but not an autosave — it stays
+  // a day ago: an autosave an hour for ten hours; then today, one a minute
+  for (let i = 0; i < 10; i++) {
+    now += 3600e3;
+    await V.add(plan({id: 'a', old: i}), {kind: 'auto'});
+  }
   for (let i = 0; i < VER_MAX + 5; i++) {
-    now++;
+    now += 60e3;
     await V.add(plan({id: 'a', n: i}), {kind: 'auto'});
   }
   const L = V.list();
   assert.equal(L.length, VER_MAX);
   assert.equal(L.at(-1)!.kind, 'step');
-  assert.equal(JSON.parse(L[0].plan).n, VER_MAX + 4);
+  assert.equal(JSON.parse(L[0].plan).n, VER_MAX + 4, 'the newest stays');
+  const oldKept = L.filter(v => JSON.parse(v.plan).old !== undefined).length;
+  assert.equal(oldKept, 10, 'the hourly ones of long ago are kept: the dense minutes thin out first');
 });
 
-test('autosave every 10 minutes', async () => {
+test('an autosave every third edit, or the first edit after 10 minutes', async () => {
   let now = 0;
   const V = createVersions({store: mem(), now: () => now});
   await V.open('a');
   assert.equal(V.due(), true, 'no versions — due');
   await V.add(plan({id: 'a', x: 1}));
-  now = AUTO_MS - 1;
-  assert.equal(V.due(), false);
+  assert.equal(V.due(), false, 'just kept');
+  for (let i = 1; i < EDITS_PER_AUTO; i++) V.edited();
+  assert.equal(V.due(), false, 'two edits — not yet');
+  V.edited();
+  assert.equal(V.due(), true, 'the third edit');
+  await V.add(plan({id: 'a', x: 2}));
+  assert.equal(V.due(), false, 'kept: counted anew');
   now = AUTO_MS;
-  assert.equal(V.due(), true);
+  assert.equal(V.due(), false, '10 minutes without an edit — nothing to keep');
+  V.edited();
+  assert.equal(V.due(), true, 'an edit after 10 minutes');
 });

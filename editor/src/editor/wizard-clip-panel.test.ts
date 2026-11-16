@@ -11,7 +11,6 @@ const wide: CoachRoom = {
   containerWidth: 1440,
   bottomLimit: 828,
   cardHeight: 90,
-  planBox: null,
 };
 
 test('on a wide screen the clip starts open, 30 % of the screen up to 420 px', () => {
@@ -19,23 +18,15 @@ test('on a wide screen the clip starts open, 30 % of the screen up to 420 px', (
   assert.deepEqual(fitCoachPanel({...wide, containerWidth: 1280}, null), {width: 384, clip: 'open'});
 });
 
-test('where the plan would keep less than 700 px beside it, the clip starts folded', () => {
-  assert.deepEqual(fitCoachPanel({...wide, containerWidth: 1024}, null), {width: 360, clip: 'folded'});
-  // beside the open catalog on a laptop
+test('with no choice the clip starts open on any screen it fits: at 1024 px and beside the open catalog too', () => {
+  assert.deepEqual(fitCoachPanel({...wide, containerWidth: 1024}, null), {width: 360, clip: 'open'});
   assert.deepEqual(fitCoachPanel({...wide, left: 304, containerWidth: 1280}, null), {
     width: 384,
-    clip: 'folded',
+    clip: 'open',
   });
 });
 
-test('a clip that would cover the plan the user set starts folded', () => {
-  const planUnder = {left: 200, top: 200, width: 600, height: 400};
-  assert.equal(fitCoachPanel({...wide, planBox: planUnder}, null).clip, 'folded');
-  const planBeside = {left: 600, top: 100, width: 600, height: 500};
-  assert.equal(fitCoachPanel({...wide, planBox: planBeside}, null).clip, 'open');
-});
-
-test("the user's choice wins over the rule", () => {
+test("the user's choice is kept: folded stays folded", () => {
   assert.equal(fitCoachPanel(wide, 'closed').clip, 'folded');
   assert.equal(fitCoachPanel({...wide, containerWidth: 1024}, 'open').clip, 'open');
 });

@@ -12,6 +12,7 @@ import {
   acView,
   coverView,
   moveTo,
+  shareStackedCovers,
 } from './devices.ts';
 import {emptyPlan, migrate} from './plan.ts';
 import type {HaDevice, HassEntityState, Plan} from './types.ts';
@@ -396,4 +397,41 @@ test('a terrace, garden or garage door contact finds its door; a central thermos
   assert.equal(recOf(p, 'binary_sensor.garage')?.opening, ids[2], 'the wide gate');
   assert.ok(!recOf(p, 'climate.ecobee'), 'a central thermostat: nothing hung on the wall');
   assert.ok(!p.furniture.some(f => f.model === 'aircon'));
+});
+
+test('by hand: three roller blinds onto one window share it as sections, left to right; one taken away — the two share it again', () => {
+  const p = plan();
+  const blinds = [1, 2, 3].map(i => devs.find(d => d.entity === 'cover.k' + i)!);
+  for (const d of blinds) assert.ok(placeOn(p, d, {opening: 'op_1'}));
+  const items = blinds.map(d => p.furniture.find(f => f.id === recOf(p, d.entity)!.furn)!);
+  // the window is 2 m wide: three sections of about 2/3 m, side by side, not on top of each other
+  assert.ok(
+    items.every(f => Math.abs(f.w - (2 / 3 - 0.02)) < 1e-3),
+    items.map(f => f.w).join(),
+  );
+  const xs = items.map(f => f.x).sort((a, b) => a - b);
+  assert.ok(xs[1] - xs[0] > 0.6 && xs[2] - xs[1] > 0.6, xs.join());
+  unplace(p, recOf(p, 'cover.k2')!);
+  const left = [1, 3].map(i => p.furniture.find(f => f.id === recOf(p, 'cover.k' + i)!.furn)!);
+  assert.ok(
+    left.every(f => Math.abs(f.w - (1 - 0.02)) < 1e-3),
+    left.map(f => f.w).join(),
+  );
+});
+
+test('three roller blinds an older editor stacked on one window, each the whole window wide: they share it as sections', () => {
+  const p = plan();
+  const blinds = [1, 2, 3].map(i => devs.find(d => d.entity === 'cover.k' + i)!);
+  for (const d of blinds) assert.ok(placeOn(p, d, {opening: 'op_1'}));
+  // as an older editor left them: every one the whole window wide, at the same place
+  const items = blinds.map(d => p.furniture.find(f => f.id === recOf(p, d.entity)!.furn)!);
+  for (const f of items) Object.assign(f, {x: items[0].x, y: items[0].y, w: 1.98});
+  assert.equal(shareStackedCovers(p), 1);
+  assert.ok(
+    items.every(f => Math.abs(f.w - (2 / 3 - 0.02)) < 1e-3),
+    items.map(f => f.w).join(),
+  );
+  const xs = items.map(f => f.x);
+  assert.ok(xs[0] < xs[1] && xs[1] < xs[2], xs.join()); // in the order they were placed, left to right
+  assert.equal(shareStackedCovers(p), 0, 'shared once: the next time nothing changes');
 });

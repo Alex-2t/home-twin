@@ -3,12 +3,12 @@
 // the clip kept across redraws of the same step, the buttons that fold and unfold it, the remembered choice, and how wide the
 // panel is and whether its clip is open for the room on the left.
 // Folded, the panel keeps its progress line, hint and buttons (the step's buttons must stay at hand) and a “Watch how” button
-// that unfolds it. With no stored choice the clip starts open only where the plan keeps enough room beside the panel (not at
-// 1024 px, nor beside the open catalog on a laptop). Where even the narrowest panel with its clip does not fit above the toolbar,
+// that unfolds it. The clip starts open unless the user folded it (the choice is remembered). Where even the narrowest panel with its clip does not fit above the toolbar,
 // “Watch how” opens the clip over the page instead. On a phone and a tablet held upright the card stays at the bottom and its
 // “Watch how” pill opens the clip over the page.
 // The user may widen or narrow the panel by its bottom right corner (the clip grows with it); the width is remembered, and a
-// double click on the corner gives the automatic width back.
+// double click on the corner gives the automatic width back. The panel also moves by its progress line, and stays where it was
+// put; a double click on the line puts it back in its own place.
 import {t} from '../i18n/i18n.ts';
 import {el, esc} from './ui.ts';
 import {icon} from './icons.ts';
@@ -32,11 +32,9 @@ export interface CoachRoom {
   bottomLimit: number;
   /** The panel's height without its clip: the progress line, the hint and the buttons. */
   cardHeight: number;
-  /** Where the plan is on screen, if there is one: with no stored choice a clip that would cover it starts folded. */
-  planBox: ClipBox | null;
 }
 
-/** How the clip is shown in the panel: open, folded by the user or the rule, or folded because no clip fits. */
+/** How the clip is shown in the panel: open, folded by the user, or folded because no clip fits. */
 export type ClipState = 'open' | 'folded' | 'no-room';
 
 /** The panel's width and its clip's state. */
@@ -53,6 +51,7 @@ export const DOCK_QUERY = '(min-width: 761px)';
 
 const CHOICE_KEY = 'home-twin-editor:step-clip';
 const WIDTH_KEY = 'home-twin-editor:coach-width';
+const SPOT_KEY = 'home-twin-editor:coach-spot';
 const DETAIL_KEY = 'home-twin-editor:step-detail';
 // The panel's width: about 30 % of the screen, from 360 to 420 px; narrower, down to 300 px, only to keep above the toolbar.
 const WIDTH_SHARE = 0.3;
@@ -69,8 +68,6 @@ const PANEL_INSET = 13;
 const CLIP_GAP = 8;
 // Kept free between the panel and the screen's edge.
 const GAP = 12;
-// Without a stored choice the clip starts open only if this much of the screen is left beside the panel for the plan.
-const PLAN_ROOM_TO_OPEN = 700;
 
 // ---------- the remembered choice ----------
 
@@ -117,6 +114,94 @@ function setCoachWidth(width: number | null, store: boolean): void {
   }
 }
 
+/** A place in the work area, px from its top left corner. */
+export interface CoachSpot {
+  x: number;
+  y: number;
+}
+
+/** Where the user moved the panel by its progress line; null: its own place. Read from storage once, then kept here. */
+let handSpot: CoachSpot | null | undefined;
+
+export function coachSpot(): CoachSpot | null {
+  if (handSpot !== undefined) return handSpot;
+  handSpot = null;
+  try {
+    const saved: unknown = JSON.parse(localStorage.getItem(SPOT_KEY) || 'null');
+    const spot = saved as Partial<CoachSpot> | null;
+    if (spot && Number.isFinite(spot.x) && Number.isFinite(spot.y)) handSpot = {x: spot.x!, y: spot.y!};
+  } catch {
+    // storage blocked or not a place: its own place
+  }
+  return handSpot;
+}
+
+function setCoachSpot(spot: CoachSpot | null, store: boolean): void {
+  handSpot = spot;
+  if (!store) return;
+  try {
+    if (spot == null) localStorage.removeItem(SPOT_KEY);
+    else localStorage.setItem(SPOT_KEY, JSON.stringify(spot));
+  } catch {
+    // storage blocked: the place lasts until the page is closed only
+  }
+}
+
+/** How far the pointer goes before a press on the progress line becomes a drag (a click on a step's dot stays a click). */
+const DRAG_START_PX = 4;
+
+/**
+ * The panel on the left moves by its progress line (the step dots and the step's name): dragged, it stays where it was put, on
+ * every step and after a reload; a double click on the line puts it back in its own place. The card is the banner, which stays
+ * the same element across steps, so this is set up once.
+ */
+export function makeCoachMovable(card: HTMLElement, relayout: () => void): void {
+  const handleOf = (target: EventTarget | null): HTMLElement | null => {
+    if (!(target instanceof Element) || !card.classList.contains('docked')) return null;
+    // a step's dot that can be opened stays a button; the ones that cannot (not reached yet) are part of the line
+    if (target.closest('button:not(:disabled),a,input')) return null;
+    return target.closest<HTMLElement>('.path');
+  };
+  card.addEventListener('pointerdown', event => {
+    const handle = handleOf(event.target);
+    if (!handle || event.button !== 0) return;
+    event.preventDefault();
+    handle.setPointerCapture(event.pointerId);
+    const startX = event.clientX;
+    const startY = event.clientY;
+    const startLeft = card.offsetLeft;
+    const startTop = card.offsetTop;
+    let dragging = false;
+    const move = (moveEvent: PointerEvent): void => {
+      const dx = moveEvent.clientX - startX;
+      const dy = moveEvent.clientY - startY;
+      if (!dragging && Math.hypot(dx, dy) < DRAG_START_PX) return;
+      dragging = true;
+      card.classList.add('moving');
+      setCoachSpot({x: Math.round(startLeft + dx), y: Math.round(startTop + dy)}, false);
+      relayout();
+    };
+    const up = (): void => {
+      handle.removeEventListener('pointermove', move);
+      for (const type of ['pointerup', 'pointercancel', 'lostpointercapture'])
+        handle.removeEventListener(type, up);
+      card.classList.remove('moving');
+      if (!dragging) return;
+      // keep the place the panel took (it stays inside the work area)
+      setCoachSpot({x: card.offsetLeft, y: card.offsetTop}, true);
+      relayout();
+    };
+    handle.addEventListener('pointermove', move);
+    for (const type of ['pointerup', 'pointercancel', 'lostpointercapture'])
+      handle.addEventListener(type, up);
+  });
+  card.addEventListener('dblclick', event => {
+    if (!handleOf(event.target)) return;
+    setCoachSpot(null, true);
+    relayout();
+  });
+}
+
 /** Whether the step's longer hint is open in the docked panel: open unless the user folded it (one choice for every step). */
 export function detailWanted(): boolean {
   try {
@@ -139,21 +224,8 @@ export function storeDetail(open: boolean): void {
 /** The clip's height with the gap above it, for a panel this wide. */
 const clipHeight = (width: number): number => Math.round((width - 2 * PANEL_INSET) / CLIP_RATIO) + CLIP_GAP;
 
-/** Whether a panel this wide with its clip open leaves the plan enough room beside it and covers none of it (the plan may
- * have been fitted while the panel was elsewhere, e.g. before the catalog opened beside it). */
-function leavesPlanFree(room: CoachRoom, width: number): boolean {
-  const right = room.left + width;
-  if (room.containerWidth - right < PLAN_ROOM_TO_OPEN) return false;
-  const plan = room.planBox;
-  if (!plan) return true;
-  const panelBottom = room.top + room.cardHeight + clipHeight(width);
-  const coversAcross = plan.left < right + GAP && plan.left + plan.width > room.left;
-  const coversDown = plan.top < panelBottom && plan.top + plan.height > room.top;
-  return !(coversAcross && coversDown);
-}
-
 /** How wide the panel is and whether its clip is open: the widest from the preferred width down whose clip fits above the
- * bottom limit; the user's choice, or with none the plan's room, says whether it is open. */
+ * bottom limit; open unless the user folded it. */
 export function fitCoachPanel(
   room: CoachRoom,
   choice: ClipChoice = storedChoice(),
@@ -175,7 +247,7 @@ export function fitCoachPanel(
     }
   }
   if (fitting == null) return {width: widest, clip: 'no-room'};
-  const wantsOpen = choice ? choice === 'open' : leavesPlanFree(room, fitting);
+  const wantsOpen = choice !== 'closed';
   return wantsOpen ? {width: fitting, clip: 'open'} : {width: widest, clip: 'folded'};
 }
 

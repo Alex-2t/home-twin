@@ -260,6 +260,8 @@ export interface EditorMode {
   ctxKey?(): string;
   /** The panel is about more than the selection (the step's room): a panel dragged aside stays while it is the same. */
   ctxPin?(): string | null;
+  /** The panel stays where it is when the selection moves on (it moves only where it would cover the new one or not fit). */
+  ctxSteady?(): boolean;
   dblclick?(e: MouseEvent, p: Point): void;
   /** "Split" (Tab): turns the split line by 90°. */
   flipCut?(): void;

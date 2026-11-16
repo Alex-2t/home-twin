@@ -28,6 +28,7 @@ import {
   activeChips,
   climateTile,
   lightTile,
+  lampDim,
   roomLine,
   dayLine,
   homeRange,
@@ -64,6 +65,9 @@ import {
 import {FAV_DOMAINS, favView, favCommand} from '../look/favorites.ts';
 import {tipWanted} from '../core/daynight.ts';
 import {dayNightTip} from './daynight-tip.ts';
+import {createNotes, NOTES_MARKUP, NOTE_SETTINGS_MARKUP, NOTE_EASE_STYLE} from './look-notes.ts';
+import {alertCatalog, linkCatalog} from '../look/home-events.ts';
+import type {EventItem, EventState} from '../look/home-events.ts';
 import type {
   HaEnergyPrefs,
   HaEntityItem,
@@ -101,8 +105,12 @@ interface LookLamp {
   name: string;
   kind: string;
   form: LightForm;
+  /** The form's option (a strip under a cabinet or along the floor, a floor or a table lamp): picks its icon. */
+  opt: string | undefined;
   on: boolean;
   status: string;
+  /** A lamp with a dimmer: its brightness 1–100 % (off: the one it comes back to); null: only on or off. */
+  dim: number | null;
 }
 
 /** An air conditioner or a heater of a room as the card shows it; a: what devices.ts says of it. */
@@ -223,8 +231,17 @@ const ROOM_IC: Record<RoomKind, string> = {
   garage: 'home',
   room: 'home',
 };
-const lampIcon = (form: LightForm): string =>
-  form === 'strip' ? 'strip' : form === 'line' ? 'cove' : 'bulb';
+// A lamp's icon on its room tile: by its form, and for a strip and a standing lamp by where it is.
+function lampIcon(form: LightForm, opt: string | undefined): string {
+  if (form === 'strip')
+    return opt === 'under' ? 'strip-under' : opt === 'floor' || opt === 'plinth' ? 'strip-floor' : 'strip';
+  if (form === 'lamp') return opt === 'table' ? 'lamp-table' : 'lamp-floor';
+  if (form === 'line') return 'cove';
+  if (form === 'pendant') return 'lamp-pendant';
+  if (form === 'spots') return 'lamp-spots';
+  if (form === 'wall') return 'lamp-wall';
+  return 'lamp-ceiling';
+}
 const KIND: Partial<Record<LightForm, string>> = {
   ceiling: 'ceiling',
   pendant: 'ceiling',
@@ -266,6 +283,9 @@ const DARK: Record<string, string> = {
 const OWN = `:host{position:absolute;inset:0;z-index:5;display:block;pointer-events:none}
 .shell{background:transparent!important}.map-card{background:transparent!important;border-color:transparent!important}.canvas-wrap,.room-strip{pointer-events:none}
 .sidebar,.room-strip>*,.view-controls{pointer-events:auto}
+.notifications{pointer-events:none}.notification-card,.note-gear,.note-settings{pointer-events:auto}.notification.leaving .notification-card{pointer-events:none}
+.notifications.raised{pointer-events:auto;touch-action:pan-y}
+@container twin (width<600px) or (height<500px){.notifications,.note-gear,.note-settings{display:none}}
 .scene-editor-actions{bottom:-17px}
 .scene-editor-actions .all-off{color:var(--ink);background:var(--fill-hi);font-size:12px;font-weight:500;transition:background .15s}
 .scene-editor-actions .all-off:hover{background:color-mix(in srgb,var(--ink) 19%,var(--card))}
@@ -385,8 +405,8 @@ export function createLook(ed: LookEditor, host0: HTMLElement): LookPanel {
   host0.append(host);
   const root = host.attachShadow({mode: 'open'});
   root.innerHTML = `<style>${CARD_CSS}\n${OWN}</style>
-    <div class="shell night" data-level="overview"><main class="main"><div class="workspace">
-      <section class="map-card" aria-label="${escape(t('Interactive 3D model of the home'))}"><div class="canvas-wrap"><div class="pins"></div></div>
+    <div class="shell night" data-level="overview" style="${NOTE_EASE_STYLE}"><main class="main"><div class="workspace">
+      <section class="map-card" aria-label="${escape(t('Interactive 3D model of the home'))}"><div class="canvas-wrap"><div class="pins"></div>${NOTES_MARKUP()}</div>
         <div class="view-controls"></div><nav class="room-strip" aria-label="${escape(t('Rooms|spaces'))}"></nav>
         <aside class="layout-tray" aria-label="${escape(t('Add to panel'))}" hidden></aside></section>
       <aside class="sidebar" aria-label="${escape(t('Home controls'))}">
@@ -409,7 +429,7 @@ export function createLook(ed: LookEditor, host0: HTMLElement): LookPanel {
         <section class="stats-panel is-empty" aria-label="${escape(t('Statistics'))}"><div class="section-head"><span>${escape(t('Statistics'))}</span></div><div class="stats-tile-host"></div></section>
         <section class="room-panel" aria-live="polite" hidden></section><section class="stats-view" aria-label="${escape(t('Statistics'))}" hidden></section><section class="scene-editor" hidden></section>
         <section class="layout-editor" aria-label="${escape(t('Panel layout'))}" hidden></section>
-      </aside></div></main></div>`;
+      </aside></div></main>${NOTE_SETTINGS_MARKUP()}</div>`;
   // our own markup inside the panel, typed as present like ui.ts $ (a missing one fails at its first use; a check still works)
   const $ = <ElementType extends Element = HTMLElement>(s: string): ElementType =>
     root.querySelector(s) as ElementType;
@@ -445,6 +465,20 @@ export function createLook(ed: LookEditor, host0: HTMLElement): LookPanel {
     from: number;
     value: number;
   } | null = null;
+  // a dimmable lamp's tile under the pointer: its node and lamp, the pointer and where it went down, whether it has moved into
+  // a drag yet, the brightness under it, and the last one sent with when
+  let dimming: {
+    node: HTMLElement;
+    id: string;
+    pid: number;
+    x: number;
+    moved: boolean;
+    level: number;
+    sent: number;
+    at: number;
+  } | null = null;
+  // a drag ends in a click on the tile, which is not a tap: clicks on it are ignored until then
+  let dimClickUntil = 0;
   // “Security”: devices; the valve asks {entity, action}; commands in flight
   let sec: SecurityDevices = {camera: null, water: [], leaks: []};
   let vac: VacuumDevice[] = [];
@@ -472,6 +506,102 @@ export function createLook(ed: LookEditor, host0: HTMLElement): LookPanel {
   };
   const cur = (): string | null => nav.current.room || null;
 
+  // ---------- notifications (look-notes.ts): the devices whose changes the stack tells of ----------
+  const notes = createNotes({
+    root,
+    ha: () => ed.ha,
+    catalog: () => noteCatalog(model()),
+    read: noteRead,
+  });
+  function noteCatalog(M: LookModel): EventItem[] {
+    const items: EventItem[] = [];
+    const seen = new Set<string>();
+    // a lamp of several parts, or a device seen twice, is one item
+    const push = (item: EventItem): void => {
+      if (seen.has(item.key)) return;
+      seen.add(item.key);
+      items.push(item);
+    };
+    const roomName = (id: string | null | undefined): string | null =>
+      M.rooms.find(r => r.id === id)?.name || null;
+    for (const room of M.rooms) {
+      for (const lamp of room.lamps) {
+        const planLamp = ed.plan.lights.find(L => L.id === lamp.id);
+        // a lamp HA answers for has its entity; one of the plan alone (the demo without HA) is read from the plan
+        const entity = haLamp(planLamp) ? planLamp!.entity! : null;
+        const key = entity || 'lamp:' + lamp.id;
+        const icon = lampIcon(lamp.form, lamp.opt);
+        push({key, entity, kind: 'light', name: lamp.name, room: room.name, icon});
+      }
+      for (const cover of room.covers) {
+        const icon = cover.blind ? 'blind' : 'curtain';
+        push({
+          key: cover.entity,
+          entity: cover.entity,
+          kind: 'cover',
+          name: cover.name,
+          room: room.name,
+          icon,
+        });
+      }
+      for (const climate of room.climate) {
+        const icon = climate.heater ? 'flame' : 'wind';
+        push({
+          key: climate.id,
+          entity: climate.id,
+          kind: 'climate',
+          name: climate.name,
+          room: room.name,
+          icon,
+        });
+      }
+      const co2 = room.sens.co2?.entity;
+      if (co2) push({key: co2, entity: co2, kind: 'co2', name: room.name, room: room.name, icon: 'wind'});
+    }
+    const security = secOf(M);
+    for (const valve of security.water) {
+      if (!valve.entity || valve.status === 'unbound') continue;
+      const room = roomName(valve.room);
+      push({
+        key: valve.entity,
+        entity: valve.entity,
+        kind: 'water',
+        name: valve.name,
+        room,
+        icon: 'droplet',
+        source: room || valve.name,
+      });
+    }
+    for (const robot of vacOf(M)) {
+      push({
+        key: robot.entity,
+        entity: robot.entity,
+        kind: 'vacuum',
+        name: robot.name,
+        room: robot.roomName,
+        icon: 'vacuum',
+      });
+    }
+    const roomOfAreaName = (area: string | null): string | null => {
+      const room = area ? roomOfArea(ed.plan, area) : null;
+      return room ? roomName(room.id) : null;
+    };
+    for (const alert of alertCatalog(ed.ha?.entities?.() || [], roomOfAreaName, ed.areaName)) push(alert);
+    const deviceIds = new Map<string, string>();
+    for (const device of ed.ha?.devices?.() || []) {
+      if (device.device) deviceIds.set(device.entity, device.device);
+    }
+    for (const link of linkCatalog(items, entity => deviceIds.get(entity) || null)) push(link);
+    return items;
+  }
+  function noteRead(item: EventItem): EventState | null {
+    if (item.entity) return ed.ha?.entity?.(item.entity) || null;
+    const lampId = item.key.slice('lamp:'.length);
+    const planLamp = ed.plan.lights.find(L => L.id === lampId);
+    if (!planLamp) return null;
+    return {state: planLamp.on !== false ? 'on' : 'off'};
+  }
+
   // ---------- data: our plan and the HA layer → what the 3d_floor rules expect ----------
   function model(): LookModel {
     const R = overview(ed.plan, ed.sensorCtx(), ed.areaName, ed.ha);
@@ -490,6 +620,7 @@ export function createLook(ed: LookEditor, host0: HTMLElement): LookPanel {
         name: l.name,
         kind: KIND[l.form] || l.form,
         form: l.form,
+        opt: ed.plan.lights.find(x => x.id === l.id)?.opt,
         ...lampState(l.id),
       }));
       const climate = r.dev.acs.map((a): LookClimate => {
@@ -531,21 +662,36 @@ export function createLook(ed: LookEditor, host0: HTMLElement): LookPanel {
   // a lamp in HA: has an entity — its state; none — the plan's L.on
   const haLamp = (L: PlanLight | undefined): HassEntityState | null =>
     (L?.entity && ed.ha?.entity?.(L.entity)) || null;
-  function lampState(id: string): {on: boolean; status: string} {
+  // the last brightness each dimmable entity reported: HA leaves it out while the lamp is off
+  const lastDim = new Map<string, number>();
+  function lampState(id: string): {on: boolean; status: string; dim: number | null} {
     const L = ed.plan.lights.find(x => x.id === id);
     const x = haLamp(L);
-    if (!x) return {on: L?.on !== false, status: 'available'};
+    if (!x) return {on: L?.on !== false, status: 'available', dim: null};
+    const entity = L!.entity!; // haLamp found the lamp's entity
+    const dim = lampDim(x, lastDim.get(entity));
+    if (dim !== null) lastDim.set(entity, dim);
     return {
       on: x.state === 'on',
       status: ['unavailable', 'unknown'].includes(x.state) ? 'unavailable' : 'available',
+      dim,
     };
   }
-  // 3D follows HA: a lamp (and its part of the fixture) is lit if its entity is on. shown — what is already shown, so the scene is not churned
+  // 3D follows HA: a lamp (and its part of the fixture) is lit if its entity is on, and a dimmed one is that much darker.
+  // shown — what is already shown, so the scene is not churned
   const shown = new Map<string, boolean>();
+  const shownDim = new Map<string, number>();
+  // a lamp's dimmer in 3D, only when it changes: each call to the view draws a frame and its shadows again
+  function showDim(id: string, pct: number): void {
+    if ((shownDim.get(id) ?? 100) === pct) return;
+    shownDim.set(id, pct);
+    ed.view.setLightDim?.(id, pct / 100);
+  }
   function syncLights(): void {
     for (const L of ed.plan.lights) {
       const x = haLamp(L);
       if (!x || (x.state !== 'on' && x.state !== 'off')) continue;
+      showDim(L.id, lampDim(x, lastDim.get(L.entity!)) ?? 100); // haLamp found the lamp's entity
       const v = x.state === 'on';
       if (shown.get(L.id) === v && (L.on !== false) === v) continue;
       L.on = v;
@@ -1820,6 +1966,7 @@ export function createLook(ed: LookEditor, host0: HTMLElement): LookPanel {
   const coverStatus = (c: RoomCover): string => {
     const v = c.blind;
     if (!c.ok) return t('Device unavailable');
+    if (c.moving && c.closing) return v ? t('Lowering…') : t('Closing…');
     if (c.moving) return v ? t('Raising…') : t('Opening…|plural');
     // an available cover has its position
     if (c.pos! >= 99) return v ? t('Raised') : t('Open|plural');
@@ -1842,11 +1989,33 @@ export function createLook(ed: LookEditor, host0: HTMLElement): LookPanel {
       <div class="bar" style="--level:${level}%"><input type="range" min="0" max="100" step="1" value="${level}" data-cover="${escape(c.entity)}" aria-label="${escape(t('Position'))}: ${escape(c.name)}" ${dis}>
         <span class="bar-value">${valueText}</span></div></div>`;
   }
-  const lightTileOf = (
-    l: LookLamp,
-    r: LookRoom,
-  ): string => `<button class="tile ${l.on ? 'on' : ''}" data-action="ltile-lamp" data-id="${escape(l.id)}" aria-pressed="${l.on}" aria-label="${escape(l.name)} — ${escape(r.short)}">
-      <span class="tile-chip">${icon(lampIcon(l.form))}</span><span class="tile-text"><strong>${escape(l.name)}</strong><small>${l.on ? t('On|entity') : t('Off|entity')}</small></span></button>`;
+  // A lamp's tile (as the “glows by itself” design the owner chose): lit, it glows; off, only its name. A lamp with a dimmer glows
+  // across as far as its brightness, its percent under the name: tap turns it on or off, a drag sideways (or ← →) sets the
+  // brightness. No “Off” line: the glow says it. The percent's line is kept while it is off, so turning it on does not resize it.
+  function lightTileOf(l: LookLamp, r: LookRoom): string {
+    const gone = l.status === 'unavailable';
+    const lit = l.on && !gone;
+    const dim = l.dim !== null && !gone;
+    const level = dim ? l.dim! : 100;
+    const status = gone ? t('Unavailable') : dim && lit ? `${level}%` : '';
+    const label = `${l.name} — ${r.short}${dim && lit ? `, ${level}%` : ''}`;
+    const classes = ['tile', 'light-tile', lit ? 'on' : '', dim ? 'dim' : ''].filter(Boolean).join(' ');
+    const tip = dim ? ` title="${escape(t('Brightness: drag sideways or ← →'))}"` : '';
+    return `<button class="${classes}" data-action="ltile-lamp" data-id="${escape(l.id)}"${dim ? ` data-dim="${level}"` : ''} aria-pressed="${lit}"
+      aria-label="${escape(label)}"${tip} style="--lv:${level}%" ${gone ? 'disabled' : ''}><span class="light-glow"></span>
+      <span class="tile-chip">${icon(lampIcon(l.form, l.opt))}</span><span class="tile-text"><strong>${escape(l.name)}</strong>${status ? `<small>${escape(status)}</small>` : dim ? '<small class="light-idle" aria-hidden="true">&nbsp;</small>' : ''}</span></button>`;
+  }
+  // “Lighting” and, for more than one lamp, how many are on and the room's switch: off turns off all that is on, on turns on
+  // the main light (lightTile's power, as the room tile's bulb in the overview)
+  function lightsHead(r: LookRoom): string {
+    const title = `<span>${escape(t('Lighting'))}</span>`;
+    const L = r.light;
+    if (r.lamps.length < 2 || !L) return `<div class="section-label">${title}</div>`;
+    const lit = L.state === 'on';
+    const name = lit ? t('Turn lights off') : t('Turn lights on');
+    const toggle = `<button class="toggle light-master" data-action="ltile-power" data-room="${escape(r.id)}" aria-pressed="${lit}" aria-label="${escape(r.short)}: ${escape(name)}" title="${escape(name)}" ${L.power ? '' : 'disabled'}></button>`;
+    return `<div class="section-label light-head">${title}<span class="light-head-end">${lit ? `<span>${escape(L.status)}</span>` : ''}${toggle}</span></div>`;
+  }
   // “More in the room”: window and door sensors and other area sensors (except service ones and those already shown as badges). They are
   // readings, not controls: rows of icon, name and value, with no button look and no hover (the owner: “sensors must not look like buttons”)
   const reading = (ic: string, name: string, value: string, on = false): string =>
@@ -1892,7 +2061,7 @@ export function createLook(ed: LookEditor, host0: HTMLElement): LookPanel {
     ac: acs(r),
     covers: r.covers.length ? `<div class="tiles">${r.covers.map(coverTile).join('')}</div>` : '',
     lights: r.lamps.length
-      ? `<div class="section-label">${escape(t('Lighting'))}</div><div class="tiles">${r.lamps.map(l => lightTileOf(l, r)).join('')}</div>`
+      ? `${lightsHead(r)}<div class="tiles light-tiles">${r.lamps.map(l => lightTileOf(l, r)).join('')}</div>`
       : '',
     extras: extras(r),
   });
@@ -1902,7 +2071,7 @@ export function createLook(ed: LookEditor, host0: HTMLElement): LookPanel {
     if (!r) return '';
     const P = roomParts(r, M);
     const all = favItems();
-    return layout(r.id)
+    const parts = layout(r.id)
       .map(c => {
         const html = !isFav(c)
           ? P[c.id]
@@ -1912,6 +2081,14 @@ export function createLook(ed: LookEditor, host0: HTMLElement): LookPanel {
         return html.trim() ? `<div class="room-part" data-part="${escape(c.id)}">${html}</div>` : '';
       })
       .join('');
+    return parts || roomEmpty();
+  }
+  // A room with no light and no device: say so, and where they come from (in an example there is nothing to add them with).
+  function roomEmpty(): string {
+    const how = ed.ha?.demo
+      ? ''
+      : `<small>${escape(t('Place its lights in the editor: they show up here.'))}</small>`;
+    return `<div class="room-empty">${icon('bulb')}<p>${escape(t('No lights or devices in this room'))}</p>${how}</div>`;
   }
 
   function strip(M: LookModel): void {
@@ -1983,6 +2160,7 @@ export function createLook(ed: LookEditor, host0: HTMLElement): LookPanel {
   function render(): void {
     if (!on) return;
     const M = model();
+    notes.collect(noteCatalog(M));
     const sb = $('.sidebar');
     const y = sb.scrollTop;
     const active = root.activeElement as HTMLElement | null; // the panel's controls are HTML elements
@@ -1993,6 +2171,11 @@ export function createLook(ed: LookEditor, host0: HTMLElement): LookPanel {
       : null;
     if (active?.matches?.('input[type=range],select')) return; // a slider is being dragged or a list is open — do not redraw under the user's hand
     if (dial) return; // the remote's dial is being dragged — the same
+    if (dimming?.moved) {
+      // a lamp's brightness is being dragged: its tile stays under the hand, the 3D still follows what HA reports
+      syncLights();
+      return;
+    }
     syncLights();
     vac = vacOf(M);
     theme();
@@ -2164,6 +2347,7 @@ export function createLook(ed: LookEditor, host0: HTMLElement): LookPanel {
         false,
       );
     else if (a === 'ltile-lamp') {
+      if (performance.now() < dimClickUntil) return; // the end of a brightness drag, not a tap
       const L = ed.plan.lights.find(x => x.id === id);
       if (L) turn([id], !lampState(id).on);
     } else if (a === 'ltile-power') {
@@ -2349,6 +2533,113 @@ export function createLook(ed: LookEditor, host0: HTMLElement): LookPanel {
     sendSetpoint(id, temperature);
   });
 
+  // ---------- a lamp's dimmer on its room tile ----------
+  // Tap: on / off (the click action ltile-lamp). Drag sideways: the brightness follows the pointer, is sent to HA a few times a
+  // second while dragging (the real lamp follows the hand) and once more when let go. ← → step it by 10 %.
+  const DIM_SEND_MS = 250;
+  const DIM_STEP = 10;
+  // a few pixels of slack, so a tap that wobbles stays a tap and a vertical swipe scrolls the panel
+  const DIM_SLACK_PX = 6;
+  const dimAt = (node: HTMLElement, clientX: number): number => {
+    const box = node.getBoundingClientRect();
+    const share = (clientX - box.left) / (box.width || 1);
+    return Math.max(1, Math.min(100, Math.round(share * 100)));
+  };
+  // the tile shows a brightness before HA answers: lit, its glow and track that far, the percentage under the name
+  function paintDim(node: HTMLElement, level: number): void {
+    node.style.setProperty('--lv', level + '%');
+    node.dataset.dim = String(level);
+    node.classList.add('on');
+    node.setAttribute('aria-pressed', 'true');
+    const text = node.querySelector('.tile-text') as HTMLElement; // every lamp tile has its text
+    let small = text.querySelector('small');
+    if (!small) small = text.appendChild(document.createElement('small'));
+    small.textContent = level + '%';
+  }
+  function sendDim(id: string, level: number): void {
+    const L = ed.plan.lights.find(x => x.id === id);
+    // a tile has a dimmer only for a light HA reports one for
+    if (L?.entity) call('light', 'turn_on', {entity_id: L.entity, brightness_pct: level});
+  }
+  onRoot('pointerdown', e => {
+    if (lay || e.button > 0) return;
+    const node = (e.target as Element).closest?.<HTMLButtonElement>('.light-tile[data-dim]');
+    if (!node || node.disabled) return;
+    const level = +(node.dataset.dim as string); // a dimmable tile carries its brightness
+    dimming = {
+      node,
+      id: node.dataset.id as string,
+      pid: e.pointerId,
+      x: e.clientX,
+      moved: false,
+      level,
+      sent: level,
+      at: 0,
+    };
+  });
+  onRoot('pointermove', e => {
+    if (!dimming || e.pointerId !== dimming.pid) return;
+    if (!dimming.moved) {
+      if (Math.abs(e.clientX - dimming.x) < DIM_SLACK_PX) return;
+      // an HA update may have drawn the tile again since the pointer went down
+      if (!dimming.node.isConnected) {
+        const again = root.querySelector<HTMLElement>(
+          `.light-tile[data-dim][data-id="${CSS.escape(dimming.id)}"]`,
+        );
+        if (!again) {
+          dimming = null;
+          return;
+        }
+        dimming.node = again;
+      }
+      dimming.moved = true;
+      dimming.node.setPointerCapture(e.pointerId);
+      dimming.node.classList.add('dragging');
+    }
+    e.preventDefault();
+    dimming.level = dimAt(dimming.node, e.clientX);
+    paintDim(dimming.node, dimming.level);
+    const now = performance.now();
+    if (dimming.level !== dimming.sent && now - dimming.at > DIM_SEND_MS) {
+      sendDim(dimming.id, dimming.level);
+      dimming.sent = dimming.level;
+      dimming.at = now;
+    }
+  });
+  onRoot('pointerup', e => {
+    if (!dimming || e.pointerId !== dimming.pid) return;
+    const {id, moved, level, sent, node} = dimming;
+    dimming = null;
+    if (!moved) return; // a tap: the click turns the lamp on or off
+    node.classList.remove('dragging');
+    dimClickUntil = performance.now() + 400;
+    if (level !== sent) sendDim(id, level);
+    render();
+  });
+  onRoot('pointercancel', e => {
+    if (!dimming || e.pointerId !== dimming.pid) return;
+    const moved = dimming.moved;
+    dimming = null;
+    if (moved) render(); // back to the brightness HA has
+  });
+  onRoot('keydown', e => {
+    const node = (e.target as Element).closest?.<HTMLButtonElement>('.light-tile[data-dim]');
+    if (!node || node.disabled) return;
+    const step = e.key === 'ArrowRight' ? DIM_STEP : e.key === 'ArrowLeft' ? -DIM_STEP : 0;
+    if (!step) return;
+    e.preventDefault();
+    const from = +(node.dataset.dim as string); // a dimmable tile carries its brightness
+    // off, → turns it on where it was; on, the brightness steps along the tens
+    const lit = node.classList.contains('on');
+    const level =
+      !lit && step > 0
+        ? from
+        : Math.max(1, Math.min(100, Math.round((from + step) / DIM_STEP) * DIM_STEP || 1));
+    if (lit && level === from) return;
+    paintDim(node, level);
+    sendDim(node.dataset.id as string, level);
+  });
+
   onRoot('change', e => {
     // change comes from the scene and AC lists and the curtain sliders
     const i = e.target as HTMLInputElement | HTMLSelectElement;
@@ -2376,8 +2667,10 @@ export function createLook(ed: LookEditor, host0: HTMLElement): LookPanel {
       nav.home();
       host.hidden = false;
       shown.clear();
+      shownDim.clear();
       st.tile = st.html = '';
       unsub = ed.ha?.onState?.(render) || null;
+      notes.open();
       render();
       wxT = setInterval(() => {
         if (on && nav.current.level === 'overview' && !editing) weather();
@@ -2390,6 +2683,7 @@ export function createLook(ed: LookEditor, host0: HTMLElement): LookPanel {
       host.hidden = true;
       unsub?.();
       unsub = null;
+      notes.close();
       clearTimeout(flashT);
       flashT = 0;
       clearInterval(wxT);

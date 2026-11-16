@@ -16,6 +16,7 @@ import {routeHash} from './route.ts';
 import {OUTLINE_LIVING_SHARE} from './wizard-state.ts';
 import {holdFocus, menuKeys, focusMenuStart} from './keyboard.ts';
 import {cardPicture, factsLine, fetchGallery, galleryView, homeFacts} from './gallery.ts';
+import {drawPlan, changedWhen} from './versions-panel.ts';
 import {EXAMPLE, GALLERY_KIND} from './example-info.ts';
 import {SHOWCASE} from './showcase.ts';
 import type {ExampleInfo} from './example-info.ts';
@@ -187,12 +188,40 @@ export function createFlows(
     hideGallery();
     const box = $('start');
     box.hidden = false;
-    find(box, '[data-a=continue]').hidden = !canContinue;
+    box.toggleAttribute('data-back', canContinue);
+    const continueCard = find(box, '[data-a=continue]');
+    continueCard.hidden = !canContinue;
+    if (canContinue) fillContinueCard(continueCard);
     syncPrev();
     f.syncRoute();
     startHeld?.release();
     startHeld = holdFocus(box);
   };
+  // “Continue” as the plan it goes back to: its drawing, its name, its area and rooms, and when it was last changed
+  // (drawPlan sizes the drawing by its box, so the card is on screen by now)
+  function fillContinueCard(card: HTMLElement): void {
+    const plan = ed.plan;
+    const example = exampleOf(plan);
+    const name = plan.name || (example ? exampleHome(example).name : t('My home'));
+    find(card, '.cont-name').textContent = name;
+    card.title = name;
+    const picture = find(card, '.cont-pic');
+    const hasRooms = plan.rooms.length > 0;
+    if (hasRooms) {
+      picture.innerHTML = '<canvas></canvas>';
+      drawPlan(find<HTMLCanvasElement>(picture, 'canvas'), plan);
+    } else picture.innerHTML = icon('house', 24);
+    const facts: string[] = [];
+    if (hasRooms) facts.push(factsLine(homeFacts(plan.rooms)));
+    const changedAt = ed.history.lastAt();
+    const factsBox = find(card, '.cont-facts');
+    factsBox.textContent = facts.join(' · ');
+    if (changedAt) {
+      if (facts.length) factsBox.append(' · ');
+      factsBox.insertAdjacentHTML('beforeend', icon('clock', 13));
+      factsBox.append(changedWhen(changedAt));
+    }
+  }
   // a plan opens: the start screen and the gallery go
   const hideStart = (): void => {
     $('start').hidden = true;

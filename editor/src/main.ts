@@ -7,6 +7,8 @@ import {EXAMPLES} from './gen/examples.gen.js';
 import {hashRouter} from './editor/route.ts';
 import {linkWindows} from './editor/link.ts';
 import {openAiFromAddress, aiService, aiStartCard} from './editor/ai-build.ts';
+import {localizeDemo} from './i18n/demo-names.ts';
+import {getLang} from './i18n/i18n.ts';
 import type {ExampleHome} from './core/types.ts';
 
 /** A home the standalone editor can open: an example, or the build's own demo home with its plan photo. */
@@ -16,7 +18,9 @@ type StartHome = ExampleHome & {UNDERLAY?: unknown};
 // Home Assistant is not connected — each example's own demo data through the same interface as the real one (editor/ha.js, ha-live.js).
 // The example in the address (#/example/<id>, D-066) or else the one opened last: after a reload its plan meets its own lights, sensors and devices.
 const own: StartHome = {id: 'demo', HA, DEMO, UNDERLAY: DEMO_UNDERLAY};
-const list: StartHome[] = [...(DEMO_NAME === 'typical' ? [] : [own]), ...EXAMPLES];
+// The examples' rooms, lamps and devices are named in the UI language (D-120); the build's own home keeps the names it has.
+const examples: StartHome[] = EXAMPLES.map(example => localizeDemo(example, getLang()));
+const list: StartHome[] = [...(DEMO_NAME === 'typical' ? [] : [own]), ...examples];
 const router = hashRouter();
 const inAddress = router.read()?.ex;
 let picked: string | null | undefined = list.some(x => x.id === inAddress) ? inAddress : null;

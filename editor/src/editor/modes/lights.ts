@@ -225,6 +225,8 @@ export function lightsMode(ed: Editor): LightsMode {
   m.asking = asking;
   m.ctxKey = () => asking()?.id || ''; // a panel about another lamp — back at its own place
   m.ctxPin = () => (wizOn() && sess != null ? 'room:' + sess : null); // in the step the panel is about the room: a dragged one stays while it is in it
+  // in the step the panel goes from room to room: it stays where it is, not beside each room in turn (the owner: it jumped)
+  m.ctxSteady = () => wizOn() && sess != null;
   function stepBanner(): void {
     if (!wizOn()) {
       if (stepKey) {
@@ -333,12 +335,14 @@ export function lightsMode(ed: Editor): LightsMode {
     ctxPanel();
     return true;
   };
+  // a lamp confirmed: its area to HA, no longer a draft, and no snapshot to go back to (the room keeps its other ones)
+  const confirmLamp = (L: PlanLight): void => {
+    toHA(L);
+    delete L.was;
+    delete L.draft;
+  };
   const save = (k: string | null | undefined): void => {
-    for (const L of mine(k)) {
-      toHA(L);
-      delete L.was;
-      delete L.draft;
-    }
+    for (const L of mine(k)) confirmLamp(L);
   };
   // A lamp has no area in HA but was placed in a room with an area — write it to HA (the owner: the link is stored
   // there — voice assistants, “kitchen lights” automations, other dashboards). A lamp with an area is not touched: in HA it has its own.
@@ -467,6 +471,14 @@ export function lightsMode(ed: Editor): LightsMode {
       sess = tk;
       leaving = null;
     } else if (leaving && T) leaving = null; // back in our own room — no question needed
+    // the lamp just left for another one of this room (in its list or on the plan) is set: it is confirmed at once and gets its
+    // check mark, not only when the whole room is (the owner)
+    const left = find(held.light);
+    const movedOn = left && left.id !== sel().light && left.id !== cur;
+    if (movedOn && left.placed && left.draft && cellKey(left) === sess) {
+      confirmLamp(left);
+      ch = true;
+    }
     if (clean(sess)) ch = true;
     if (hold(sess)) ch = true;
     if (!sel().light) {

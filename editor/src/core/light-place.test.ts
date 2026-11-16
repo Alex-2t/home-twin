@@ -284,3 +284,28 @@ test('a room given another area: the auto-placed HA light leaves, the lamp the v
   assert.equal(byId(plan, 'p').placed, false);
   assert.deepEqual(byId(plan, 'r1_i1'), pendant);
 });
+
+test('a stand-in the AI build guessed goes for any HA light of its room, and comes back when that light leaves', () => {
+  const standIn = seen('bed_light', 'bed', 'ceiling', [2, 1.5], {guessed: true});
+  const kitchenStandIn = seen('k_light', 'k', 'ceiling', [5.5, 1.5], {guessed: true});
+  const plan = home([structuredClone(standIn), kitchenStandIn, fromHA('lamp', 'Bedside lamp', 'bedroom')]);
+  const before = structuredClone(plan);
+  assert.equal(autoPlace(plan), 1);
+  const light = byId(plan, 'lamp');
+  // placed by its own guess (a table lamp), not where the ceiling stand-in hung
+  const expected = structuredClone(byId(before, 'lamp'));
+  placeForm(before, expected, light.form!, light.opt, lampCell(before, expected)!);
+  assert.equal(light.form, 'lamp');
+  assert.deepEqual(light.points, expected.points);
+  assert.deepEqual(
+    seenLeft(plan),
+    ['k_light'],
+    'the bedroom stand-in is off the plan, the kitchen one stays',
+  );
+  assert.equal(light.seen?.[0].id, 'bed_light');
+  // moved into the kitchen: it holds the kitchen's stand-in, the bedroom's is back as it was
+  placeLight(plan, light, 'ceiling', undefined, lampCell(plan, {room: 'k'})!);
+  assert.deepEqual(seenLeft(plan), ['bed_light']);
+  assert.deepEqual(byId(plan, 'bed_light'), standIn);
+  assert.equal(light.seen?.[0].id, 'k_light');
+});

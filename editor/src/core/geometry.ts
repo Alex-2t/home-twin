@@ -329,7 +329,10 @@ export function attachOpening<Ends extends {a: Point; b: Point}>(
       const [s1, d1] = project(o.b);
       if (Math.abs(d0) > 0.35 || Math.abs(d1) > 0.35) continue;
       if (Math.max(s0, s1) < -0.05 || Math.min(s0, s1) > l + 0.05) continue;
-      const score = Math.abs(d0) + Math.abs(d1);
+      // the edge nearest across, and of edges as near (a wall split by a corner, two rooms' sides of one wall) the one that holds
+      // the most of the opening: a piece holding only its tip would shrink it, or hide it where the piece is short
+      const outside = Math.max(0, -Math.min(s0, s1)) + Math.max(0, Math.max(s0, s1) - l);
+      const score = Math.abs(d0) + Math.abs(d1) + outside;
       if (!best || score < best.score) best = {room: r.id, edge: i, s0, s1, d: (d0 + d1) / 2, score};
     }
   }
@@ -368,8 +371,9 @@ export function openingCoords<Placed extends {at: OpeningAt}>(
   if (l < 1e-6) return null;
   const ux = dx / l;
   const uy = dy / l;
-  // If the edge was shortened, the opening shrinks to fit within it.
-  const clamp = (s: number): number => Math.max(0.02, Math.min(l - 0.02, s));
+  // If the edge was shortened, the opening shrinks to fit within it. Its ends stay out of the walls across the edge's ends: their
+  // faces are WALL.inner in from the corners, and an opening reaching past one cut a sliver out of that wall.
+  const clamp = (s: number): number => Math.max(WALL.inner, Math.min(l - WALL.inner, s));
   // a file may lack the offset across the wall (the file check lets it through): the middle of the edge's line
   const across = o.at.d || 0;
   const pt = (s: number): Point => [a[0] + ux * clamp(s) - uy * across, a[1] + uy * clamp(s) + ux * across];
@@ -410,19 +414,29 @@ export const edgeThickness = (r: Room, i: number, outer = OUTER): number => {
   const own = r.wt?.[i];
   return own != null && own > 0 ? own : outer;
 };
-// No wall at the edge: cut out a strip from the room outward, as deep as the gap to the neighbor (or the exterior wall).
-function openCut(rooms: Room[], r: Room, i: number, outer: number): ClipPolygon | null {
+// A room's edge as a frame: its start, length, direction along it and the normal pointing out of the room.
+interface EdgeFrame {
+  a: Point;
+  l: number;
+  u: Vector;
+  n: Vector;
+}
+function edgeFrame(r: Room, i: number): EdgeFrame {
   const p = r.polygon;
   const a = p[i];
   const b = p[(i + 1) % p.length];
   const dx = b[0] - a[0];
   const dy = b[1] - a[1];
   const l = Math.hypot(dx, dy);
-  if (l < 0.15) return null;
-  const u = [dx / l, dy / l];
+  const u: Vector = l > 0 ? [dx / l, dy / l] : [1, 0];
   const s = area(p) > 0 ? 1 : -1;
-  const n = [u[1] * s, -u[0] * s];
-  const e = WALL.inner;
+  const n: Vector = [u[1] * s, -u[0] * s];
+  return {a, l, u, n};
+}
+// How far out the neighbour's edge facing edge i is, across the wall between them: the nearest parallel edge of another room
+// within half a metre that runs alongside the stretch [from, to] of edge i. Null when none does: the wall there is exterior.
+function facingGap(rooms: Room[], r: Room, i: number, from: number, to: number): number | null {
+  const {a, u, n} = edgeFrame(r, i);
   let gap: number | null = null;
   for (const o of rooms) {
     if (o === r) continue;
@@ -437,10 +451,40 @@ function openCut(rooms: Room[], r: Room, i: number, outer: number): ClipPolygon 
       if (off < -0.02 || off > 0.5) continue;
       const s0 = (c[0] - a[0]) * u[0] + (c[1] - a[1]) * u[1];
       const s1 = (f[0] - a[0]) * u[0] + (f[1] - a[1]) * u[1];
-      if (Math.max(s0, s1) < 0.05 || Math.min(s0, s1) > l - 0.05) continue;
+      if (Math.max(s0, s1) < from || Math.min(s0, s1) > to) continue;
       gap = gap == null ? off : Math.min(gap, off);
     }
   }
+  return gap;
+}
+// How far out of the room the wall at edge i reaches along the stretch [from, to]: across to the neighbour's inner face, or the
+// exterior wall's outer face.
+const wallReach = (rooms: Room[], r: Room, i: number, from: number, to: number, outer: number): number => {
+  const gap = facingGap(rooms, r, i, from, to);
+  return gap !== null ? gap + WALL.inner : edgeThickness(r, i, outer) - WALL.inner;
+};
+// An opening's hole: through its own wall from face to face (1 cm past each, so no film of wall is left), and no further. A hole
+// as wide as the thickest wall on both sides of the opening's line reached into a wall across its end, and cut a sliver out of it.
+// An opening without a room (none found by its place) keeps the old generous hole.
+function openingHole(rooms: Room[], o: WallOpening, outer: number): ClipPolygon {
+  const r = o.at ? rooms.find(room => room.id === o.at!.room) : undefined;
+  if (!r) return rect(o.a, o.b, 0.42);
+  const {a, l, u, n} = edgeFrame(r, o.at!.edge);
+  const along = (q: Point): number => (q[0] - a[0]) * u[0] + (q[1] - a[1]) * u[1];
+  const from = Math.max(0, Math.min(along(o.a), along(o.b)));
+  const to = Math.min(l, Math.max(along(o.a), along(o.b)));
+  const inside = WALL.inner + 0.01;
+  const outside = wallReach(rooms, r, o.at!.edge, from, to, outer) + 0.01;
+  const at = (s: number, k: number): Point => [a[0] + u[0] * s + n[0] * k, a[1] + u[1] * s + n[1] * k];
+  return poly([at(from, -inside), at(to, -inside), at(to, outside), at(from, outside)]);
+}
+// No wall at the edge: cut out a strip from the room outward, as deep as the gap to the neighbor (or the exterior wall).
+function openCut(rooms: Room[], r: Room, i: number, outer: number): ClipPolygon | null {
+  const {a, l, u, n} = edgeFrame(r, i);
+  if (l < 0.15) return null;
+  const b: Point = [a[0] + u[0] * l, a[1] + u[1] * l];
+  const e = WALL.inner;
+  const gap = facingGap(rooms, r, i, 0.05, l - 0.05);
   const depth = (gap ?? edgeThickness(r, i, outer) - e) + e + 0.01;
   const A = [a[0] + u[0] * e, a[1] + u[1] * e];
   const B = [b[0] - u[0] * e, b[1] - u[1] * e];
@@ -581,13 +625,8 @@ function buildRaw(
     return {id, shape};
   });
   const interior = solid(taken.length && walls.length ? pc.difference(walls, ...taken) : walls);
-  // an opening cuts all the way through the wall: its depth is the wall thickness at its edge
-  const ops = openings.map(o => {
-    const r = rooms.find(r => r.id === o.at?.room);
-    // a room found by the opening's place: the opening has one
-    const depth = r ? edgeThickness(r, o.at!.edge, outer) : 0;
-    return {...o, poly: rect(o.a, o.b, Math.max(0.42, depth))};
-  });
+  // an opening cuts all the way through its own wall
+  const ops = openings.map(o => ({...o, poly: openingHole(rooms, o, outer)}));
   // A window's glass is hidden together with the side whose wall holds most of its opening.
   const openingSide = ops.map(o => {
     let best: FacadeSideId | null = null;

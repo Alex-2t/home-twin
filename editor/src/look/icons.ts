@@ -27,13 +27,29 @@ const shapes: Record<string, string> = {
   door: '<path d="M5 21V3h14v18M3 21h18M15 12h.01"/>',
   camera: '<path d="M14 8l7-4v16l-7-4"/><rect x="3" y="6" width="11" height="12" rx="2"/>',
   window: '<path d="M3 3h18v18H3zm9 0v18M3 12h18"/>',
-  strip: '<path d="M3 7h18v4H3zm3 8v4m6-4v6m6-6v4"/>',
+  strip: '<g transform="translate(0 -2)"><path d="M3 7h18v4H3zm3 8v4m6-4v6m6-6v4"/></g>',
+  // lamps on a room's tiles, by form (look.ts lampIcon); each drawing is moved to the middle of its 24×24 box (a lamp's disc
+  // on the tile is round: a drawing high in its box looked off centre)
+  'lamp-ceiling':
+    '<g transform="translate(0 2.75)"><path d="M4 4h16M6 4a6 4.5 0 0 0 12 0"/><path d="M12 12v2.5M7.2 11l-1.4 2M16.8 11l1.4 2"/></g>',
+  'lamp-pendant':
+    '<g transform="translate(0 2)"><path d="M12 3v5.5"/><path d="M5 15a7 6.5 0 0 1 14 0Z"/><path d="M10 15a2 2 0 0 0 4 0"/></g>',
+  'lamp-spots':
+    '<g transform="translate(0 3.5)"><path d="M3 4h18"/><path d="M5 4v1.5a1.5 1.5 0 0 0 3 0V4m2.5 0v1.5a1.5 1.5 0 0 0 3 0V4M16 4v1.5a1.5 1.5 0 0 0 3 0V4"/><path d="m6 10.5-.8 2.5M12 10.5V13M18 10.5l.8 2.5"/></g>',
+  'lamp-wall':
+    '<g transform="translate(2 0.5)"><path d="M4 5v14M4 15h6.5v-3"/><path d="M7 4h9l-1.6 8H8.6Z"/></g>',
+  'lamp-floor': '<path d="M8 3h8l2.5 6.5h-13Z"/><path d="M12 9.5V21M8.5 21h7"/>',
+  'lamp-table':
+    '<g transform="translate(0 -0.75)"><path d="M7 5h10l2.5 7h-15Z"/><path d="M12 12v6M8 20.5h8M9.5 18h5"/></g>',
+  'strip-under':
+    '<g transform="translate(0 0.5)"><path d="M3 3.5h18v6H3z"/><path d="M5 12h14"/><path d="m7.5 15.5-1 3M12 15.5v4M16.5 15.5l1 3"/></g>',
+  'strip-floor': '<path d="M4 4v12M4 16h17M3 20h18"/><path d="M7 13v-1.5M11 13v-2.5M15 13v-2M19 13v-1"/>',
   device: '<rect x="3" y="5" width="18" height="12" rx="2"/><path d="M8 21h8m-4-4v4"/>',
   link: '<path d="m10 13 4-4m-6 6-2 2a4 4 0 0 1-6-6l5-5a4 4 0 0 1 6 0m2 2 2-2a4 4 0 0 1 6 6l-5 5a4 4 0 0 1-6 0" transform="translate(1 0) scale(.95)"/>',
   check: '<path d="m5 12 4 4L19 6"/>',
   curtain: '<path d="M2 3h20M6 3v18M18 3v18"/><path d="M6 3c3.6 2 3.6 13 0 18M18 3c-3.6 2-3.6 13 0 18"/>',
   blind: '<path d="M3 3h18v3.5H3z"/><path d="M12 6.5v6M8.5 12.5h7v2.5h-7z"/>',
-  cove: '<path d="M3 4h18M5 4v3.5h14V4"/><path d="M7 11.5c1.5 1 3.1 1.5 5 1.5s3.5-.5 5-1.5M9.5 15.4c.8.5 1.6.8 2.5.8s1.7-.3 2.5-.8"/>',
+  cove: '<g transform="translate(0 1.9)"><path d="M3 4h18M5 4v3.5h14V4"/><path d="M7 11.5c1.5 1 3.1 1.5 5 1.5s3.5-.5 5-1.5M9.5 15.4c.8.5 1.6.8 2.5.8s1.7-.3 2.5-.8"/></g>',
   'cover-open': '<path d="M12 4v16"/><path d="m9 9-3.5 3L9 15M15 9l3.5 3L15 15"/>',
   'cover-close': '<path d="M12 4v16"/><path d="m5.5 9 3.5 3-3.5 3M18.5 9 15 12l3.5 3"/>',
   'cover-up': '<path d="M12 20V5"/><path d="m6 11 6-6 6 6"/>',

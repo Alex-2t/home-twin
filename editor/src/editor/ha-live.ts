@@ -8,6 +8,7 @@ import type {
   HaBoard,
   HaDevice,
   HaLayer,
+  LogbookEntry,
   HaStateChange,
   HaStatisticsRow,
   HaWeatherHour,
@@ -351,6 +352,13 @@ export function liveHA(initial: Hass): LiveHaLayer {
             ),
           )
         : Promise.resolve({}),
+    // what caused each change (look/home-events.ts markAutomated): the logbook answers with a list of entries
+    logbook: (ids, {start, end}) =>
+      ids.length
+        ? ws({type: 'logbook/get_events', start_time: iso(start), end_time: iso(end), entity_ids: ids}).then(
+            answer => (Array.isArray(answer) ? (answer as LogbookEntry[]) : []),
+          )
+        : Promise.resolve([]),
     energy: () =>
       ws({type: 'energy/get_prefs'})
         .then(answer => {

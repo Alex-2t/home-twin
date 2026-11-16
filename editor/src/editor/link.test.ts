@@ -81,7 +81,7 @@ test('a command and day / night in one window happen in the other', async () => 
   phone.ed.toggleNight();
   await delivered();
   assert.equal(phone.plan.lights[0].on, true, 'the lamp is on in the phone');
-  assert.equal(phone.ha.entity('cover.curtain')!.state, 'open', 'the curtain is open in the phone');
+  assert.equal(phone.ha.entity('cover.curtain')!.state, 'opening', 'the curtain is opening in the phone');
   assert.equal(desk.ed.dayMode(), 'auto', 'day / night stepped in the phone is stepped on the desktop');
   assert.equal(desk.plan.lights[0].on, true, 'a command that came in is not run twice');
 });
@@ -98,7 +98,11 @@ test('a window that joins later takes what the first one shows', async () => {
     phone.plan.lights.map(lamp => lamp.on),
     [false, true, true],
   );
-  assert.equal(phone.ha.entity('cover.curtain')!.state, 'open');
+  assert.equal(
+    phone.ha.entity('cover.curtain')!.state,
+    'opening',
+    'the curtain carries on opening in the phone',
+  );
 });
 
 test('another home or another link takes nothing', async () => {

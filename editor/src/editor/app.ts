@@ -2,7 +2,15 @@
 import {t, num} from '../i18n/i18n.ts';
 import {setCeiling} from '../core/ceiling.ts';
 import {createView} from '../core/scene.ts';
-import {validate, wallsAt, offsetVar, edgeThickness, ceilingOf, WALL} from '../core/geometry.ts';
+import {
+  validate,
+  wallsAt,
+  offsetVar,
+  edgeThickness,
+  ceilingOf,
+  openingCoords,
+  WALL,
+} from '../core/geometry.ts';
 import {migrate, emptyPlan, roomById, wallDefaults, closeOuterOpen} from '../core/plan.ts';
 import {furnitureConflicts} from '../core/layout.ts';
 import {syncRuns} from '../core/runs.ts';
@@ -48,7 +56,7 @@ import {SHOWCASE} from './showcase.ts';
 import {eveningRooms, shownByDay} from '../core/evening.ts';
 import {homeFacts} from './gallery.ts';
 import {NOT_ADMIN_CSS} from '../look/roles.ts';
-import {liveScene} from '../core/devices.ts';
+import {liveScene, shareStackedCovers} from '../core/devices.ts';
 import {planWalls, planFurniture, planSpots} from '../core/plan-scene.ts';
 import {createPath, fitProgressLine} from './wizard-path.ts';
 import {
@@ -57,9 +65,11 @@ import {
   clipStillShown,
   coachClip,
   coachResizeCorner,
+  coachSpot,
   coachWidth,
   detailWanted,
   fitCoachPanel,
+  makeCoachMovable,
   storeDetail,
   stepClipCardPill,
 } from './wizard-clip-panel.ts';
@@ -286,7 +296,10 @@ export function createApp({haLights, ha, photos}: AppOptions): Editor {
   }
   ed.focusStep = () => {
     const bn = $('banner');
-    const buttons = [...bn.querySelectorAll<HTMLElement>(':scope > button, .wizard-actions > button')];
+    // a keyboard-only button (“Type the size”) is never the step's main one: focused, it would show up on its own
+    const buttons = [...bn.querySelectorAll<HTMLElement>(':scope > button, .wizard-actions > button')].filter(
+      b => !b.classList.contains('kb-only'),
+    );
     const main = buttons.find(b => b.classList.contains('primary')) || buttons.at(-1);
     main?.focus({preventScroll: true});
   };
@@ -401,7 +414,7 @@ export function createApp({haLights, ha, photos}: AppOptions): Editor {
     store: idbStore,
   });
   // Version history (versions.js, the dialog — versions-panel.js): mark — a snapshot now ('step' — a step passed, 'before' — before
-  // a large edit, 'auto'); tick — after an edit, once every 10 minutes. Written with a delay, and the undo steps — before the tab closes.
+  // a large edit, 'auto'); tick — after an edit, every third one (or the first after 10 minutes). Written with a delay, and the undo steps — before the tab closes.
   {
     const V = createVersions({store: idbStore});
     const photo = (): UnderlaySnapshot | null => ed.underlay?.snapshot() ?? null;
@@ -412,6 +425,7 @@ export function createApp({haLights, ha, photos}: AppOptions): Editor {
       mark: (kind, what = null, o = {}) =>
         ed.plan?.rooms?.length ? V.add(ed.plan, {kind, what, photo: photo(), ...o}) : Promise.resolve(null),
       tick: () => {
+        V.edited();
         if (V.due()) ed.versions.mark('auto');
       },
     };
@@ -448,6 +462,8 @@ export function createApp({haLights, ha, photos}: AppOptions): Editor {
     step = null;
     Object.values(ed.modes).forEach(md => md.reset?.()); // another plan — the previous wizard step is not about it
     ed.plan = migrate(plan);
+    // covers placed on top of each other at one window by an older editor share it as sections
+    shareStackedCovers(ed.plan);
     ed.plan.lights = mergeLights(ed.plan.lights);
     ed.sel = {};
     ed.forgetView?.();
@@ -528,6 +544,8 @@ export function createApp({haLights, ha, photos}: AppOptions): Editor {
     ed.cancelDrag?.();
     restore(ed.history.redo());
   };
+  // the 3D's day or night follows the mode in the editor (set below, with day / night: showNight)
+  let syncNight = (): void => {};
   ed.setMode = id => {
     ed.cancelDrag?.();
     if (ed.mode.id !== id && ed.modes.lights.guardLeave?.(() => ed.setMode(id))) return;
@@ -541,6 +559,7 @@ export function createApp({haLights, ha, photos}: AppOptions): Editor {
       .querySelectorAll<HTMLElement>('.modes [data-mode]')
       .forEach(b => b.classList.toggle('on', b.dataset.mode === id));
     document.body.dataset.mode = id;
+    syncNight();
     ed.mode.refresh?.();
     ed.update();
     ed.refreshCursor?.();
@@ -667,6 +686,7 @@ export function createApp({haLights, ha, photos}: AppOptions): Editor {
       ed.view.setSensors(ed.spots!); // update set them before this frame
       ed.view.setClimate?.(live.climate);
       ed.view.setContacts?.(live.contacts);
+      ed.view.setVacuums?.(live.vacuums);
       const placed = plan.lights.filter(l => l.placed);
       const ceiling = ceilingOf(plan);
       const lk = JSON.stringify([placed, plan.rooms, ceiling]);
@@ -716,6 +736,7 @@ export function createApp({haLights, ha, photos}: AppOptions): Editor {
     let text = '';
     let warn = false;
     let go = null;
+    let tip = '';
     if (ed.errors.length) {
       const e = ed.errors[0];
       const nm = roomById(ed.plan, e.room)?.name;
@@ -740,16 +761,26 @@ export function createApp({haLights, ha, photos}: AppOptions): Editor {
     } else if (ed.mode.id === 'rooms' && ed.hidden) {
       warn = true;
       text = t("Openings that don't fit the wall: {0}", ed.hidden);
+      // they are drawn nowhere, so nothing else selects them: a click takes them out, one step to undo
+      tip = t('Click to remove them. ⌘Z brings them back.');
+      go = () => {
+        ed.plan.openings = ed.plan.openings.filter(o => openingCoords(ed.plan.rooms, o));
+        ed.commit();
+      };
     }
     pill.hidden = !text;
     pill.textContent = text;
     pill.classList.toggle('warn', warn);
     pill.onclick = go;
+    pill.title = tip;
   };
   // The panel above the selection: the mode provides the content (refresh) and the selection frame in meters (anchor).
   // On the right of the first row — a handle: the panel can be moved aside if it covers something needed. The offset holds while the same thing is selected
   // (and moves with it); something else selected — the panel is back in its place. A double click on the handle resets it.
   let ctxOff: {key: string; l: number; t: number} | null = null;
+  // The steady panel's side and width the plan was last fitted for: a plan at its automatic fit is fitted again beside the panel
+  // once, when it appears or changes side or width, so only a view the user set can be covered.
+  let steadyFitKey = '';
   // what the panel is about: another object — the panel is at it again. A mode can say broader (ctxPin): in the “Lights” step — the room, and
   // a dragged panel stays in place while the lamps of this room are gone through
   const selKey = (): string => {
@@ -885,9 +916,16 @@ export function createApp({haLights, ha, photos}: AppOptions): Editor {
     const w = c.offsetWidth;
     const h = c.offsetHeight;
     let sr = floatingOpen() ? side.getBoundingClientRect().right - cr.left + 8 : 6;
-    // the step card docked on the left (D-111) is a column of its own: the panel stays right of it
+    // the panel's right limit: the canvas's edge
+    let sl = ed.v.w - 6;
+    // the step card docked as the coach panel (D-111) is a column of its own on its side (the user may move it to the right):
+    // the panel stays beside it, on the plan's side
     const card = dockedCardBox();
-    if (card) sr = Math.max(sr, card.left + card.width + 8 - (cr.left - work.getBoundingClientRect().left));
+    if (card) {
+      const shift = cr.left - work.getBoundingClientRect().left;
+      if (cardOnLeft(card)) sr = Math.max(sr, card.left + card.width + 8 - shift);
+      else sl = Math.min(sl, card.left - 8 - shift);
+    }
     // a collapsed left panel — the header under the logo: also at the top
     const bounds = (x: number): [number, number] => {
       const across = (id: string): DOMRect | null => {
@@ -914,12 +952,24 @@ export function createApp({haLights, ha, photos}: AppOptions): Editor {
         ),
       ];
     };
-    let x = Math.max(sr + w / 2, Math.min(ed.v.w - w / 2 - 6, X));
+    let x = Math.max(sr + w / 2, Math.min(sl - w / 2, X));
     const [minTop, maxBot] = bounds(x);
     if (ctxOff && ctxOff.key !== ctxKey()) ctxOff = null;
     if (ctxHold && (ctxHold.key !== selKey() || ctxHold.sc !== ed.v.sc)) ctxHold = null;
+    // Kept steady (ctxSteady: the “Lights” step, going from room to room): the panel has a place of its own, the top corner across
+    // from the step card, and stays there from room to room (the owner: beside each room in turn, it jumped at every one). The plan
+    // at its automatic fit leaves room for it (fit: steadyPanelSide).
+    if (!ed.mode.ctxSteady?.()) steadyFitKey = '';
+    else if (!ctxOff) {
+      const panelSide = steadyPanelSide();
+      const dockX = panelSide === 'left' ? sr + w / 2 : sl - w / 2;
+      const [mt] = bounds(dockX);
+      putCtx(dockX, mt, true);
+      refitForSteadyPanel(panelSide, w);
+      return;
+    }
     if (!ctxOff && ctxHold) {
-      const hx = Math.max(sr + w / 2, Math.min(ed.v.w - w / 2 - 6, X + ctxHold.dx));
+      const hx = Math.max(sr + w / 2, Math.min(sl - w / 2, X + ctxHold.dx));
       const [mt, mb] = bounds(hx);
       const hy = ctxHold.below ? Math.max(mt, Math.min(mb - h, Y + ctxHold.dy)) : Y + ctxHold.dy;
       putCtx(hx, hy, ctxHold.below);
@@ -982,7 +1032,7 @@ export function createApp({haLights, ha, photos}: AppOptions): Editor {
       const oh = bottom - top;
       const ow = X1 - X0;
       const ocy = (top + bottom) / 2;
-      const W = ed.v.w - 6;
+      const W = sl;
       const cand: Array<{cx: number; ty: number; g: number; beside: boolean}> = [];
       // the gap: right against it (12 px) or, if only a wall is left to the plan edge, — right behind it
       const gaps = (d: number): number[] =>
@@ -1094,7 +1144,7 @@ export function createApp({haLights, ha, photos}: AppOptions): Editor {
           pip.right - cr.left,
           pip.bottom - cr.top,
         ];
-        const cl = (cx: number): number => Math.max(sr + w / 2, Math.min(ed.v.w - w / 2 - 6, cx));
+        const cl = (cx: number): number => Math.max(sr + w / 2, Math.min(sl - w / 2, cx));
         const cand = [
           [cl(X1 + 12 + w / 2), top],
           [cl(X0 - 12 - w / 2), top],
@@ -1376,30 +1426,9 @@ export function createApp({haLights, ha, photos}: AppOptions): Editor {
       for (const type of ['pointerup', 'pointercancel', 'lostpointercapture']) g.addEventListener(type, up);
     });
   }
-  // A click on the small window swaps the views: on the plan — always, on 3D — if it was not rotated.
+  // A click on the small plan window swaps the views (the plan there is only a picture). A click on the small 3D window does not:
+  // the 3D there is turned and looked at; the views swap by its ⇆ button or Tab (the owner).
   find(panes.plan, '.pip-cover').onclick = () => ed.swap();
-  {
-    let d: {x: number; y: number; t: number} | null = null;
-    const p = panes['3d'];
-    p.addEventListener(
-      'pointerdown',
-      e => {
-        d =
-          ed.role('3d') === 'win' && !(e.target as Element).closest('button,.pip-grip') // a press on an element
-            ? {x: e.clientX, y: e.clientY, t: performance.now()}
-            : null;
-      },
-      true,
-    );
-    p.addEventListener(
-      'pointerup',
-      e => {
-        if (d && Math.hypot(e.clientX - d.x, e.clientY - d.y) < 5 && performance.now() - d.t < 400) ed.swap();
-        d = null;
-      },
-      true,
-    );
-  }
   const div = $('divider');
   const setView = (pct: number): void => {
     ui.view = Math.round(Math.max(20, Math.min(75, pct)));
@@ -1423,37 +1452,21 @@ export function createApp({haLights, ha, photos}: AppOptions): Editor {
   div.ondblclick = () => setView(50);
   addEventListener('resize', layout);
 
-  // Where the plan is on screen, in the work area's coordinates: its rooms, or the plan photo while there are none yet.
-  function planScreenBox(): ClipBox | null {
-    let points: Point[] = ed.plan.rooms.flatMap(r => r.polygon);
-    if (!points.length && ed.underlay.ready && ed.underlay.visible) {
-      const {width, height} = ed.underlay.img!; // a ready photo has its image
-      const corners: Point[] = [
-        [0, 0],
-        [width, 0],
-        [width, height],
-        [0, height],
-      ];
-      points = corners.map(ed.underlay.toWorld);
-    }
-    if (!points.length) return null;
-    const canvas = ed.v.cv.getBoundingClientRect();
-    const area = work.getBoundingClientRect();
-    const xs = points.map(p => ed.v.S(p)[0] + canvas.left - area.left);
-    const ys = points.map(p => ed.v.S(p)[1] + canvas.top - area.top);
-    const left = Math.min(...xs);
-    const top = Math.min(...ys);
-    return {left, top, width: Math.max(...xs) - left, height: Math.max(...ys) - top};
-  }
   // The guided path's card as the coach panel on the left (D-111): under the side panel's header (under the logo while the side
   // panel is hidden), or right of the open side panel; as wide as fitCoachPanel says, its clip open or folded, never reaching
   // the toolbar or the test panel. Elsewhere (a phone, a tablet held upright, Preview, a card that is not a step of the path)
   // the card is placed by the coach as before: at its area or at the bottom.
   const dockMedia = matchMedia(DOCK_QUERY);
+  // the docked panel is never shorter than this, px: it scrolls inside below it
+  const DOCK_MIN_HEIGHT = 160;
+  makeCoachMovable($('banner'), () => placeFloats());
   function placeCoach(): void {
     const bn = $('banner');
     const docked = !bn.hidden && bn.classList.contains('wizard-card') && dockMedia.matches && !look;
     bn.classList.toggle('docked', docked);
+    // only the panel on the left moves by its progress line
+    const progressLine = bn.querySelector<HTMLElement>(':scope>.path');
+    if (progressLine) progressLine.title = docked ? t('Drag to move. Double-click: back in place') : '';
     if (!docked) {
       dockPlace = null;
       bn.classList.remove('clip-open', 'clip-no-room');
@@ -1466,10 +1479,13 @@ export function createApp({haLights, ha, photos}: AppOptions): Editor {
     const sideShown = !side.hidden;
     const sideOpen = sideShown && !side.classList.contains('closed');
     const brand = $('brand');
-    const left = sideOpen ? side.offsetLeft + side.offsetWidth + 12 : 12;
+    let left = sideOpen ? side.offsetLeft + side.offsetWidth + 12 : 12;
     let top = brand.offsetTop + brand.offsetHeight + 12;
     if (sideOpen) top = side.offsetTop;
     else if (sideShown) top = side.offsetTop + side.offsetHeight + 12;
+    // moved by its progress line (makeCoachMovable): where the user put it, its whole width inside the work area
+    const spot = coachSpot();
+    if (spot) left = Math.max(12, Math.min(spot.x, work.clientWidth - bn.offsetWidth - 12));
     // what the panel keeps above: the toolbar and the test panel, where they are across from its widest
     const workBox = work.getBoundingClientRect();
     const reach = left + Math.max(420, coachWidth() ?? 0) + 12;
@@ -1480,6 +1496,10 @@ export function createApp({haLights, ha, photos}: AppOptions): Editor {
       const across = box.left - workBox.left < reach && box.right - workBox.left > left - 12;
       if (across && box.width) bottomLimit = Math.min(bottomLimit, box.top - workBox.top - 12);
     }
+    // moved: its top where the user put it, with room below for at least its line, hint and buttons
+    // (never over the top bars: the logo, the modes and the buttons on the right are all as high as the logo's bar)
+    const belowTopBars = brand.offsetTop + brand.offsetHeight + 12;
+    if (spot) top = Math.max(belowTopBars, Math.min(spot.y, bottomLimit - DOCK_MIN_HEIGHT));
     const clip = bn.querySelector<HTMLElement>('.coach-clip');
     const clipNow = clip?.offsetHeight ? clip.offsetHeight + 8 : 0; // with the gap above it
     const detail = bn.querySelector<HTMLElement>('.wizard-detail');
@@ -1491,12 +1511,11 @@ export function createApp({haLights, ha, photos}: AppOptions): Editor {
       bottomLimit,
       // the clip goes first: the panel's fit leaves the longer hint out
       cardHeight: bn.offsetHeight - clipNow - detailNow,
-      planBox: ed.v.fitted ? null : planScreenBox(),
     };
     // a card without a clip (the summary, devices, sensors) is as wide as one with its clip folded
     const fit: CoachFit = clip ? fitCoachPanel(room) : fitCoachPanel(room, 'closed');
     bn.style.setProperty('--wiz-w', fit.width + 'px');
-    bn.style.setProperty('--dock-max-h', Math.max(160, bottomLimit - top) + 'px');
+    bn.style.setProperty('--dock-max-h', Math.max(DOCK_MIN_HEIGHT, bottomLimit - top) + 'px');
     bn.classList.toggle('clip-open', fit.clip === 'open');
     bn.classList.toggle('clip-no-room', fit.clip === 'no-room');
     // short of height with the clip in place, the longer hint folds rather than the panel scrolling
@@ -1517,7 +1536,22 @@ export function createApp({haLights, ha, photos}: AppOptions): Editor {
     help.title = label;
     help.setAttribute('aria-label', label);
   }
-  /** The docked card's box in the work area, or null where the card is not the panel on the left. */
+  /** The side the steady panel stands on: across from the docked step card (on the right while the card is on the left). */
+  function steadyPanelSide(): 'left' | 'right' {
+    const card = dockedCardBox();
+    return card && !cardOnLeft(card) ? 'left' : 'right';
+  }
+  function refitForSteadyPanel(side: 'left' | 'right', width: number): void {
+    const key = side + ':' + Math.round(width / 40);
+    if (key === steadyFitKey) return;
+    steadyFitKey = key;
+    if (ed.v.fitted) requestAnimationFrame(() => ed.fit());
+  }
+  /** Whether the docked card stands on the left half of the work area (its own place); moved by the user, it may be on the right. */
+  function cardOnLeft(card: ClipBox): boolean {
+    return card.left + card.width / 2 < work.clientWidth / 2;
+  }
+  /** The docked card's box in the work area, or null where the card is not the coach panel. */
   function dockedCardBox(): ClipBox | null {
     const bn = $('banner');
     if (!dockPlace || bn.hidden) return null;
@@ -1839,16 +1873,26 @@ export function createApp({haLights, ha, photos}: AppOptions): Editor {
     if (card) {
       const canvas = ed.v.cv.getBoundingClientRect();
       const area = work.getBoundingClientRect();
-      const besideCard = {
-        ...ins,
-        l: Math.max(ins.l, card.left + card.width + 12 - (canvas.left - area.left)),
-      };
+      // beside it on the plan's side: right of a card on the left, left of one the user moved to the right
+      const besideCard = cardOnLeft(card)
+        ? {...ins, l: Math.max(ins.l, card.left + card.width + 12 - (canvas.left - area.left))}
+        : {...ins, r: Math.max(ins.r ?? 0, canvas.right - area.left - card.left + 12)};
       const belowCard = {...ins, t: Math.max(ins.t, card.top + card.height + 12 - (canvas.top - area.top))};
       options = [besideCard, belowCard];
     }
+    // the steady panel (the “Lights” step) has its own place in a top corner: the plan goes beside it
+    const ctxBox = $('ctx');
+    if (r === 'main' && ed.mode.ctxSteady?.() && !ctxBox.hidden) {
+      const reserve = ctxBox.offsetWidth + 24;
+      options = options.map(option =>
+        steadyPanelSide() === 'left'
+          ? {...option, l: Math.max(option.l, reserve)}
+          : {...option, r: Math.max(option.r ?? 0, reserve)},
+      );
+    }
     if (r === 'main' && pipMode() === 'win')
       options = options.flatMap(option => [
-        {...option, r: pw + 24},
+        {...option, r: Math.max(option.r ?? 0, pw + 24)},
         {...option, b: ph + 24},
       ]);
     let bestScale = -Infinity;
@@ -2377,6 +2421,7 @@ export function createApp({haLights, ha, photos}: AppOptions): Editor {
     }
     look = v;
     document.body.dataset.look = v ? 'on' : '';
+    syncNight();
     document
       .querySelectorAll<HTMLElement>('.modes [data-mode]')
       .forEach(b => b.classList.toggle('on', !v && b.dataset.mode === ed.mode.id));
@@ -2633,6 +2678,8 @@ export function createApp({haLights, ha, photos}: AppOptions): Editor {
   };
   // Day / night (D-068): auto — by the sun (it opens as it is outside, turns night after sunset and day after sunrise), or always day,
   // always night (core/daynight.js). The button steps auto → day → night; the label says the mode, the icon what is shown now.
+  // The mode is Preview's (and the showcase's): in the editor the 3D is by day while the home is drawn and furnished, and at night
+  // from the lights on (the lights, devices and sensors), so the lamps are seen; the editor's own buttons stay hidden.
   // The sun: ha.sunDown (sun.sun in HA, the weather profile in the demo), checked on HA changes and once a minute (the demo has no sun events)
   let night: boolean | null = null;
   // the showcase opens at night (the evening, D-116), and a viewer's choice there is not kept for the editor
@@ -2650,14 +2697,16 @@ export function createApp({haLights, ha, photos}: AppOptions): Editor {
       b.setAttribute('aria-label', title);
     }
   };
+  const NIGHT_MODES: ReadonlySet<ModeId> = new Set(['lights', 'devices', 'sensors']);
   const showNight = (force = false): void => {
-    const n = isNight(dayMode, ha.sunDown?.());
+    const n = look ? isNight(dayMode, ha.sunDown?.()) : NIGHT_MODES.has(ed.mode.id);
     if (n === night && !force) return;
     night = n;
     ed.view.setNight(n);
     dnButtons();
     if (look) lookUI.refresh();
   };
+  syncNight = () => showNight();
   ed.night = () => night;
   ed.dayMode = () => dayMode;
   ed.toggleNight = () => {

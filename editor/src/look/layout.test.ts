@@ -155,16 +155,16 @@ test('room screen: its own parts and “Favorites”, default — nothing in the
   assert.deepEqual(ids(resolveLayout(undefined, ROOM_BUILTIN)), R);
   assert.equal(layoutToSave(resolveLayout(null, ROOM_BUILTIN), ROOM_BUILTIN), null);
   let c = resolveLayout(null, ROOM_BUILTIN);
-  c = move(c, 'lights', -1);
+  c = move(c, 'covers', -1);
   c = c.filter(x => x.id !== 'extras');
   c = addEntity(c, 'switch.kettle', 'Favorites');
   const saved = layoutToSave(c, ROOM_BUILTIN);
   assert.deepEqual(saved!.removed, ['extras']);
-  assert.deepEqual(ids(resolveLayout(saved, ROOM_BUILTIN)), ['climate', 'ac', 'lights', 'covers', 'fav1']);
+  assert.deepEqual(ids(resolveLayout(saved, ROOM_BUILTIN)), ['lights', 'climate', 'covers', 'ac', 'fav1']);
   assert.deepEqual(addable(c, ROOM_BUILTIN), ['extras', 'entities']);
   assert.deepEqual(
     ids(resolveLayout({cards: [{id: 'now'}, {id: 'lights'}]}, ROOM_BUILTIN)),
-    ['climate', 'ac', 'covers', 'lights', 'extras'],
+    ['lights', 'climate', 'ac', 'covers', 'extras'],
     'foreign ids are dropped',
   );
 });

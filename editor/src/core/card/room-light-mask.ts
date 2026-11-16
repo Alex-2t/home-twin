@@ -30,10 +30,39 @@ const isLight = (object: Object3D): object is Light => (object as Light).isLight
 const isStandard = (material: Material): material is MeshStandardMaterial =>
   (material as MeshStandardMaterial).isMeshStandardMaterial === true;
 
+/** A material's own compile hooks, before any mask wrapped them. */
+interface OwnHooks {
+  onBeforeCompile: Material['onBeforeCompile'];
+  customProgramCacheKey: Material['customProgramCacheKey'];
+}
+
+// Kept the first time a mask covers a material: a new mask wraps these, not the previous mask.
+const ownHooks = new WeakMap<Material, OwnHooks>();
+
+const meshMaterials = (mesh: Mesh): Material[] =>
+  Array.isArray(mesh.material) ? mesh.material : [mesh.material];
+
+// Every material in the model gets its own hooks back: the previous mask is gone, whether a new one is installed or not.
+function removeMask(model: Object3D): void {
+  model.traverse(o => {
+    if (!isMesh(o)) return;
+    for (const material of meshMaterials(o)) {
+      const hooks = ownHooks.get(material);
+      if (!hooks) continue;
+      material.onBeforeCompile = hooks.onBeforeCompile;
+      material.customProgramCacheKey = hooks.customProgramCacheKey;
+      material.needsUpdate = true;
+    }
+  });
+}
+
 // Confine device lights to their room in world space. Ambient light, sun and
 // visible emitters remain unchanged. Light-to-room lookup runs on the CPU;
 // each fragment evaluates each room boundary once, not once per light.
+// A mesh added to the model later (an item rebuilt when a curtain moves or its colour changes, a new item) is covered on the first
+// frame it is drawn: before, it had no mask until the lights or rooms changed, and every lamp in reach lit it through the walls.
 export function installRoomLightMask(model: Object3D, groups: RoomLights[], scene: Scene): void {
+  removeMask(model);
   const active = groups.filter(g => g.lights.length);
   const lights = active.flatMap(g => g.lights);
   if (!lights.length) return;
@@ -66,6 +95,8 @@ export function installRoomLightMask(model: Object3D, groups: RoomLights[], scen
   `;
     })
     .join('\n');
+  // The model is usually the scene itself (scene.ts): its meshes are then covered in the walk that finds the lights.
+  const coverInSceneWalk = model === scene;
   const roomByLight = new Map(active.flatMap((g, i) => g.lights.map((l): [Light, number] => [l, i + 1])));
   const uniforms: Record<string, {value: number[]}> = {
     confinedAreaRooms: {value: []},
@@ -81,7 +112,12 @@ export function installRoomLightMask(model: Object3D, groups: RoomLights[], scen
     const visible: Light[] = [];
     scene.traverseVisible(o => {
       if (isLight(o) && o.layers.test(camera.layers)) visible.push(o);
+      else if (coverInSceneWalk && isMesh(o)) coverMesh(o);
     });
+    if (!coverInSceneWalk)
+      model.traverseVisible(o => {
+        if (isMesh(o)) coverMesh(o);
+      });
     visible.sort(
       // map: a SpotLight's texture; other lights have none
       (a, b) =>
@@ -153,16 +189,23 @@ export function installRoomLightMask(model: Object3D, groups: RoomLights[], scen
     'RE_Direct_RectArea( rectAreaLight, geometryPosition, geometryNormal, geometryViewDir, geometryClearcoatNormal, material, reflectedLight );';
   if (!chunk.includes(areaCall)) throw new Error('Unsupported Three.js area-light evaluation');
   chunk = chunk.replace(areaCall, `if(any(greaterThan(rectAreaLight.color,vec3(0.0)))) { ${areaCall} }`);
-  const materials = new Set<Material>();
-  model.traverse(o => {
-    if (isMesh(o)) for (const m of Array.isArray(o.material) ? o.material : [o.material]) materials.add(m);
-  });
-  for (const material of materials) {
-    if (!isStandard(material)) continue;
-    const previous = material.onBeforeCompile;
-    const cacheKey = material.customProgramCacheKey();
+  // The materials this mask has wrapped. A material is wrapped once; one shared by several meshes is not wrapped twice.
+  const covered = new WeakSet<Material>();
+  function cover(material: Material): void {
+    if (!isStandard(material) || covered.has(material)) return;
+    covered.add(material);
+    let hooks = ownHooks.get(material);
+    if (!hooks) {
+      hooks = {
+        onBeforeCompile: material.onBeforeCompile,
+        customProgramCacheKey: material.customProgramCacheKey,
+      };
+      ownHooks.set(material, hooks);
+    }
+    const ownCompile = hooks.onBeforeCompile;
+    const cacheKey = hooks.customProgramCacheKey.call(material);
     material.onBeforeCompile = function (shader, renderer) {
-      previous.call(this, shader, renderer);
+      ownCompile.call(this, shader, renderer);
       Object.assign(shader.uniforms, uniforms);
       shader.fragmentShader =
         declarations + shader.fragmentShader.replace('#include <lights_fragment_begin>', chunk);
@@ -170,4 +213,10 @@ export function installRoomLightMask(model: Object3D, groups: RoomLights[], scen
     material.customProgramCacheKey = () => `${cacheKey}:room-mask:${declarations}`;
     material.needsUpdate = true;
   }
+  function coverMesh(mesh: Mesh): void {
+    for (const material of meshMaterials(mesh)) cover(material);
+  }
+  model.traverse(o => {
+    if (isMesh(o)) coverMesh(o);
+  });
 }

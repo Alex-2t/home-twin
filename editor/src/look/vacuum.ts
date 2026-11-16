@@ -3,8 +3,9 @@
 // the device screen with “Return to dock”. An unavailable robot shows in the overview as a small tile in “Security”.
 // Only the HA standard, the same for any integration (Roborock, Xiaomi, iRobot, Ecovacs…): the vacuum.* state (cleaning,
 // docked, returning, paused, idle, error), buttons by supported_features bits, commands vacuum.start / pause /
-// return_to_base. Not carried over from 3d_floor: the robot on the model and the cleaning percentage (HA gives neither coordinates
-// nor progress — the route there was made up), “Hallway closet” (a single apartment) — replaced by the dock room from the robot's area.
+// return_to_base. Not carried over from 3d_floor: the cleaning percentage (HA gives no progress), “Hallway closet” (a single
+// apartment) — replaced by the dock room from the robot's area. The robot on the model drives a route of its own while it cleans
+// (D-125: core/vacuum-route.ts, scene.ts), as HA gives no coordinates.
 // No DOM: look.js lays out the markup.
 import {t, N} from '../i18n/i18n.ts';
 import type {HaLayer} from '../core/types.ts';

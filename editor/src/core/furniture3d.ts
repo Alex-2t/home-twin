@@ -12,6 +12,7 @@ import type {RugOutline} from './rug-pattern.ts';
 import type {RugSpec} from './rug-pattern-spec.ts';
 import {car as car3d} from './car3d.ts';
 import {checkItem, buildItem} from './parts.ts';
+import {robotOnDock} from './vacuum-route.ts';
 import type {RunGeo, RunSide} from './runs.ts';
 import type {FurnitureItem, MultiPolygon, Point, Segment, Vec3, Vector} from './types.ts';
 
@@ -26,7 +27,7 @@ const isMesh = (object: THREE.Object3D): object is THREE.Mesh => (object as THRE
  * An item as the 3D view builds it (plan-scene.ts planFurniture): a plan item; a built-in run with its shape on the plan
  * (runs.ts runGeo); curtains or a blind as far open as HA says (0–1).
  */
-export type Item3d = FurnitureItem & {geo?: RunGeo | null; open?: number};
+export type Item3d = FurnitureItem & {geo?: RunGeo | null; open?: number; heading?: 1 | -1};
 
 /** What the shared builders read of an item: its size, its colour, its worktop and its variant. */
 type Look = Pick<FurnitureItem, 'w' | 'd' | 'h' | 'color' | 'top' | 'v'>;
@@ -51,6 +52,15 @@ const mat = (color: number | string, rough = 0.62, metal = 0): THREE.MeshStandar
   // made just above when it was missing
   return mats.get(k)!;
 };
+// the dark disc under a robot vacuum, made once (the shadow it does not cast)
+let roverShadow: THREE.MeshBasicMaterial | null = null;
+const ROVER_SHADOW = (): THREE.MeshBasicMaterial =>
+  (roverShadow ??= new THREE.MeshBasicMaterial({
+    color: 0x000000,
+    transparent: true,
+    opacity: 0.22,
+    depthWrite: false,
+  }));
 // metal by color key: chrome and steel are shiny, the rest is painted
 const finish = (k: string | undefined): THREE.MeshStandardMaterial =>
   k === 'chrome'
@@ -447,6 +457,98 @@ function serpentine(
   }
   return path;
 }
+// How far a pleated panel stands out at t (0 at its left edge, 1 at its right): a wave of folds, amp deep.
+const foldDepth = (t: number, folds: number, amp: number): number =>
+  (Math.sin(t * folds * Math.PI * 2) + 0.35 * Math.sin(t * folds * 1.7 * Math.PI * 2 + 1.3)) * amp;
+// Parts that move with a cover's motor (D-122) go into a group of their own: bake leaves it as it is, so the parts can be moved in
+// place, frame by frame, without building the item again.
+function movingGroup(g: THREE.Group): THREE.Group {
+  const moving = new THREE.Group();
+  moving.userData.moves = true;
+  g.add(moving);
+  return moving;
+}
+// A drape that gathers and spreads in place: → set(x0, x1, folds, amp) gives it its width, its folds (a fraction is fine: the
+// folds change smoothly) and their depth. maxFolds is the most it is ever given.
+function movingDrape(
+  g: THREE.Object3D,
+  m: THREE.Material,
+  y0: number,
+  hh: number,
+  z: number,
+  maxFolds: number,
+): (x0: number, x1: number, folds: number, amp: number) => void {
+  const geo = new THREE.PlaneGeometry(1, hh, Math.max(16, Math.ceil(maxFolds) * 10), 1);
+  const position = geo.attributes.position;
+  // where each vertex is across the panel, 0–1
+  const across = Array.from({length: position.count}, (_, i) => position.getX(i) + 0.5);
+  const mesh = new THREE.Mesh(geo, m);
+  mesh.position.set(0, y0 + hh / 2, z);
+  mesh.castShadow = true;
+  mesh.receiveShadow = true;
+  g.add(mesh);
+  return (x0, x1, folds, amp) => {
+    const width = x1 - x0;
+    for (let i = 0; i < position.count; i++) {
+      position.setX(i, (across[i] - 0.5) * width);
+      position.setZ(i, foldDepth(across[i], folds, amp));
+    }
+    position.needsUpdate = true;
+    geo.computeVertexNormals();
+    geo.computeBoundingSphere();
+    geo.computeBoundingBox();
+    mesh.position.x = (x0 + x1) / 2;
+  };
+}
+// Many copies of one part in one mesh (a venetian blind's slats, a day-night blind's stripes): one draw call however many there
+// are. → place(i, matrix) puts copy i, done() sends the new places to the GPU.
+function movingCopies(
+  g: THREE.Object3D,
+  part: THREE.BufferGeometry,
+  m: THREE.Material,
+  count: number,
+  shadow = true,
+): {place: (i: number, matrix: THREE.Matrix4) => void; done: () => void} {
+  const one = part.index ? part.toNonIndexed() : part;
+  const shapePosition = one.attributes.position.array as Float32Array;
+  const shapeNormal = one.attributes.normal.array as Float32Array;
+  const size = shapePosition.length;
+  const geo = new THREE.BufferGeometry();
+  const position = new THREE.BufferAttribute(new Float32Array(size * count), 3);
+  const normal = new THREE.BufferAttribute(new Float32Array(size * count), 3);
+  geo.setAttribute('position', position);
+  geo.setAttribute('normal', normal);
+  geo.setAttribute('uv', new THREE.BufferAttribute(new Float32Array((size / 3) * 2 * count), 2));
+  const mesh = new THREE.Mesh(geo, m);
+  mesh.castShadow = shadow;
+  mesh.receiveShadow = true;
+  g.add(mesh);
+  const point = new THREE.Vector3();
+  const normalMatrix = new THREE.Matrix3();
+  const place = (i: number, matrix: THREE.Matrix4): void => {
+    const start = i * size;
+    normalMatrix.getNormalMatrix(matrix);
+    for (let k = 0; k < size; k += 3) {
+      point
+        .fromArray(shapePosition, k)
+        .applyMatrix4(matrix)
+        .toArray(position.array, start + k);
+      point
+        .fromArray(shapeNormal, k)
+        .applyMatrix3(normalMatrix)
+        .normalize()
+        .toArray(normal.array, start + k);
+    }
+  };
+  const done = (): void => {
+    position.needsUpdate = true;
+    normal.needsUpdate = true;
+    geo.computeBoundingSphere();
+    geo.computeBoundingBox();
+  };
+  return {place, done};
+}
+const clamp01 = (x: number): number => Math.max(0, Math.min(1, x));
 // Pleated fabric: a panel of width pw and height hh, a wave across the width (folds — how many folds, amp — their depth).
 function drape(
   g: THREE.Object3D,
@@ -463,13 +565,7 @@ function drape(
   const pw = x1 - x0;
   const geo = new THREE.PlaneGeometry(pw, hh, Math.max(16, folds * 10), 1);
   const a = geo.attributes.position;
-  for (let i = 0; i < a.count; i++) {
-    const t = a.getX(i) / pw + 0.5;
-    a.setZ(
-      i,
-      (Math.sin(t * folds * Math.PI * 2) + 0.35 * Math.sin(t * folds * 1.7 * Math.PI * 2 + 1.3)) * amp,
-    );
-  }
+  for (let i = 0; i < a.count; i++) a.setZ(i, foldDepth(a.getX(i) / pw + 0.5, folds, amp));
   geo.computeVertexNormals();
   const mesh = new THREE.Mesh(geo, m);
   mesh.position.set((x0 + x1) / 2, y0 + hh / 2, z);
@@ -1247,6 +1343,102 @@ const VASE: Record<string, (g: THREE.Group, o: VaseArgs) => void> = {
   },
   empty() {},
 };
+// A blind's hanging part, built at its longest: → hang(drop) shows it drop metres below the cassette (top is the cassette's bottom).
+// A roller blind's sheet: the part still unrolled.
+function rollerSheet(
+  g: THREE.Group,
+  w: number,
+  top: number,
+  z: number,
+  fab: THREE.Material,
+): (drop: number) => void {
+  const sheet = part(g, w - 0.02, top, 0.003, fab, 0, 0, z, 0.0008);
+  return drop => {
+    sheet.scale.y = drop / top;
+    sheet.position.y = top - drop / 2;
+  };
+}
+// A day-night blind: opaque and sheer stripes 5 cm each that roll up with the bottom bar into the cassette.
+function dayNightStripes(
+  g: THREE.Group,
+  w: number,
+  top: number,
+  z: number,
+  fab: THREE.Material,
+): (drop: number) => void {
+  const stripe = 0.05;
+  const sheer = new THREE.MeshStandardMaterial({
+    color: (fab as THREE.MeshStandardMaterial).color,
+    roughness: 0.9,
+    transparent: true,
+    opacity: 0.35,
+    side: THREE.DoubleSide,
+    depthWrite: false,
+  });
+  const pairs = Math.ceil(top / stripe / 2);
+  const shape = new RoundedBoxGeometry(w - 0.02, stripe, 0.003, 2, 0.0005);
+  const opaque = movingCopies(g, shape, fab, pairs);
+  const seeThrough = movingCopies(g, shape, sheer, pairs, false);
+  const matrix = new THREE.Matrix4();
+  // a stripe or a slat rolled up into the cassette: flattened to nothing inside it
+  const rolledUp = new THREE.Matrix4().makeScale(1, 1e-6, 1).setPosition(0, top + 0.02, z);
+  return drop => {
+    const bottom = top - drop;
+    for (let i = 0; i < pairs * 2; i++) {
+      // counting up from the bottom bar; the part of a stripe above the cassette's bottom is rolled up
+      const low = bottom + i * stripe;
+      const high = Math.min(top, low + stripe);
+      const copies = i % 2 === 0 ? opaque : seeThrough;
+      if (high - low < 1e-4) copies.place(i >> 1, rolledUp);
+      else
+        copies.place(
+          i >> 1,
+          matrix.makeScale(1, (high - low) / stripe, 1).setPosition(0, (low + high) / 2, z),
+        );
+    }
+    opaque.done();
+    seeThrough.done();
+  };
+}
+// Venetian blinds: slats 2.5 cm apart; raised, the bottom bar lifts them into a stack, flat, under the cassette.
+function venetianSlats(g: THREE.Group, w: number, top: number, z: number, c: number): (drop: number) => void {
+  const count = Math.max(4, Math.round(top / 0.025));
+  const pitch = top / count;
+  const stackedGap = 0.004;
+  const slats = movingCopies(
+    g,
+    new RoundedBoxGeometry(w - 0.02, 0.002, 0.025, 2, 0.0008),
+    mat(c, 0.5),
+    count,
+  );
+  const cords = [-0.3, 0.3].map(side =>
+    cyl(g, 0.0015, top, mat(0xdddddd, 0.8), side * w, 0, z + 0.012, {seg: 4}),
+  );
+  const matrix = new THREE.Matrix4();
+  // a stripe or a slat rolled up into the cassette: flattened to nothing inside it
+  const rolledUp = new THREE.Matrix4().makeScale(1, 1e-6, 1).setPosition(0, top + 0.02, z);
+  const tilt = new THREE.Matrix4();
+  return drop => {
+    const barTop = top - drop;
+    for (let i = 0; i < count; i++) {
+      const hanging = top - 0.02 - i * pitch;
+      const stacked = barTop + (count - 1 - i) * stackedGap;
+      const y = Math.max(hanging, stacked) + 0.001;
+      if (y > top) {
+        slats.place(i, rolledUp);
+        continue;
+      }
+      // a slat tilts while it hangs and lies flat once the stack has reached it
+      const angle = 0.5 * clamp01((hanging - stacked) / 0.02);
+      slats.place(i, matrix.makeTranslation(0, y, z).multiply(tilt.makeRotationX(angle)));
+    }
+    slats.done();
+    for (const cord of cords) {
+      cord.scale.y = drop / top;
+      cord.position.y = top - drop / 2;
+    }
+  };
+}
 const GEN: Record<string, Generator> = {
   // Our own generic model: two compartments, recessed handles, no brand and no external assets.
   // The bounding box includes the doors; all parts stay within w/d/h for an accurate plan.
@@ -2247,13 +2439,23 @@ const GEN: Record<string, Generator> = {
       0.01,
       false,
     );
+    // the drapes are built once and gather or spread in place as the motor runs (D-122, g.userData.setOpen)
     const bw = Math.max(0.2, Math.min(0.45, w * 0.15));
-    const k = open != null ? 1 - Math.max(0, Math.min(1, open)) : v === 'closed' ? 1 : 0;
-    const pw = bw + (w / 2 - 0.014 - bw) * k; // k — how closed they are
-    const n = Math.max(4, Math.round(4 + (pw / 0.12 - 4) * k));
-    const amp = 0.045 - 0.017 * k;
-    drape(g, cloth, -w / 2 + 0.01, -w / 2 + 0.01 + pw, 0.01, drop, zc, n, amp);
-    drape(g, cloth, w / 2 - 0.01 - pw, w / 2 - 0.01, 0.01, drop, zc, n, amp);
+    const widest = w / 2 - 0.014;
+    const moving = movingGroup(g);
+    const maxFolds = Math.max(4, widest / 0.12);
+    const left = movingDrape(moving, cloth, 0.01, drop, zc, maxFolds);
+    const right = movingDrape(moving, cloth, 0.01, drop, zc, maxFolds);
+    const setOpen = (opened?: number): void => {
+      const k = opened != null ? 1 - clamp01(opened) : v === 'closed' ? 1 : 0; // k — how closed they are
+      const pw = bw + (widest - bw) * k;
+      const folds = Math.max(4, 4 + (pw / 0.12 - 4) * k);
+      const amp = 0.045 - 0.017 * k;
+      left(-w / 2 + 0.01, -w / 2 + 0.01 + pw, folds, amp);
+      right(w / 2 - 0.01 - pw, w / 2 - 0.01, folds, amp);
+    };
+    setOpen(open);
+    g.userData.setOpen = setOpen;
   },
   // ---------- tables, chairs, floor lamp (instead of Kenney models: any size and color) ----------
   // Coffee table: tabletop, lower shelf, tapered legs; round — an oval sized to fit, on three legs.
@@ -2998,19 +3200,33 @@ const GEN: Record<string, Generator> = {
     cyl(g, 0.01, d - 0.04, mt, w * 0.16, 0.012, 0, {axis: 'z', seg: 10});
     part(g, 0.14, 0.008, d * 0.8, mt, -w / 2 + 0.07, h - T - 0.01, 0, 0.003);
   },
-  // Robot vacuum with a dock: the dock at the wall, a round robot with a bumper and a top sensor in front of it.
+  // Robot vacuum with a dock: the dock at the wall, a round robot with a bumper and a top sensor in front of it. The robot is its
+  // own moving part (g.userData.rover): it drives round the home while HA says it is cleaning (scene.ts, vacuum-route.ts). It
+  // faces away from the dock, its sensor towards the back, and a dark window in its bumper shows its front as it turns. It casts
+  // no shadow of its own (the sun's shadow map would be drawn again every frame it moves): a soft dark disc under it stands in.
   robotVacuum(g, {w, d, h, color}) {
     const c = tone(color, {black: 0x2a2b2e, white: 0xf3f3f1});
     const m = mat(c, 0.3);
     const dk = mat(0x1d1e21, 0.4);
     const bh = Math.max(0.1, h);
-    const r = Math.min(w / 2, (d - 0.12) / 2) - 0.005;
+    const {radius: r, z} = robotOnDock({w, d});
     part(g, Math.min(w, 0.3), bh, 0.12, m, 0, 0, -d / 2 + 0.06, 0.02);
     part(g, Math.min(w, 0.3) - 0.04, 0.025, 0.004, dk, 0, bh * 0.55, -d / 2 + 0.122, 0.003);
-    const z = d / 2 - r - 0.005;
-    cyl(g, r, 0.08, m, 0, 0.01, z, {seg: 40});
-    cyl(g, r + 0.003, 0.03, dk, 0, 0.012, z, {seg: 40});
-    cyl(g, 0.04, 0.018, dk, 0, 0.09, z - r * 0.3, {seg: 24});
+    const rover = movingGroup(g);
+    rover.position.set(0, 0, z);
+    cyl(rover, r, 0.08, m, 0, 0.01, 0, {seg: 40});
+    cyl(rover, r + 0.003, 0.03, dk, 0, 0.012, 0, {seg: 40});
+    cyl(rover, 0.04, 0.018, dk, 0, 0.09, -r * 0.3, {seg: 24});
+    part(rover, r * 0.9, 0.022, 0.012, dk, 0, 0.05, r - 0.008, 0.004);
+    rover.traverse(o => {
+      o.castShadow = false;
+    });
+    const shadow = new THREE.Mesh(new THREE.CircleGeometry(r * 1.06, 40), ROVER_SHADOW());
+    shadow.rotation.x = -Math.PI / 2;
+    shadow.position.y = 0.003;
+    shadow.receiveShadow = false;
+    rover.add(shadow);
+    g.userData.rover = rover;
   },
   // ---------- storage ----------
   // Corner wardrobe: L-shaped, doors on the inner sides.
@@ -3735,50 +3951,29 @@ const GEN: Record<string, Generator> = {
   },
   // Roller blind (lowered to two thirds), venetian blinds (slats) or “Day-night” (stripes); a cassette on top.
   // open (0…1) — for blinds from HA (D-048): how far raised; closed — all the way down, open — rolled into the cassette.
+  // What hangs below the cassette is built once and moved in place as the motor runs (D-122, g.userData.setOpen).
   blind(g, {w, d, h, color, v, open}) {
     const c = hexOf(color);
     const fab = new THREE.MeshStandardMaterial({color: c, roughness: 0.92, side: THREE.DoubleSide});
     const cas = mat(0xf2f2f0, 0.4);
     const z = d / 2 - 0.02;
     const top = h - 0.07;
-    const drop = open != null ? Math.max(0.03, top * (1 - Math.max(0, Math.min(1, open)))) : top * 0.68;
     part(g, w, 0.07, d, cas, 0, top, 0, 0.012);
-    if (v === 'venetian') {
-      const n = Math.max(4, Math.round(drop / 0.025));
-      for (let i = 0; i < n; i++) {
-        const q = part(g, w - 0.02, 0.002, 0.025, mat(c, 0.5), 0, top - 0.02 - (i * drop) / n, z, 0.0008);
-        q.rotation.x = 0.5;
-      }
-      for (const s2 of [-0.3, 0.3])
-        cyl(g, 0.0015, drop, mat(0xdddddd, 0.8), s2 * w, top - drop, z + 0.012, {seg: 4});
-    } else if (v === 'daynight') {
-      const n = Math.round(drop / 0.05);
-      for (let i = 0; i < n; i++) {
-        const op = i % 2 === 0;
-        const q = part(
-          g,
-          w - 0.02,
-          0.05,
-          0.003,
-          op
-            ? fab
-            : new THREE.MeshStandardMaterial({
-                color: c,
-                roughness: 0.9,
-                transparent: true,
-                opacity: 0.35,
-                side: THREE.DoubleSide,
-                depthWrite: false,
-              }),
-          0,
-          top - (i + 1) * 0.05,
-          z,
-          0.0005,
-        );
-        if (!op) q.castShadow = false;
-      }
-    } else part(g, w - 0.02, drop, 0.003, fab, 0, top - drop, z, 0.0008);
-    part(g, w - 0.02, 0.02, 0.012, cas, 0, top - drop - 0.02, z, 0.004);
+    const moving = movingGroup(g);
+    const bar = part(moving, w - 0.02, 0.02, 0.012, cas, 0, 0, z, 0.004);
+    const hang =
+      v === 'venetian'
+        ? venetianSlats(moving, w, top, z, c)
+        : v === 'daynight'
+          ? dayNightStripes(moving, w, top, z, fab)
+          : rollerSheet(moving, w, top, z, fab);
+    const setOpen = (raised?: number): void => {
+      const drop = raised != null ? Math.max(0.03, top * (1 - clamp01(raised))) : top * 0.68;
+      bar.position.y = top - drop - 0.01;
+      hang(drop);
+    };
+    setOpen(open);
+    g.userData.setOpen = setOpen;
   },
   // ---------- third batch (P2) ----------
   // Recliner: an armchair; reclined — the footrest is extended (deeper forward), the back tilts slightly.
@@ -4712,6 +4907,9 @@ const GEN: Record<string, Generator> = {
 // (the owner: so it doesn't lag on weak devices). It looks the same. If merging fails, it stays as it was.
 const ATTR = ['position', 'normal', 'uv'];
 function bake(inner: THREE.Group): THREE.Group {
+  // a group of parts that move (movingGroup) stays as it is
+  const moving = inner.children.filter(o => o.userData.moves);
+  for (const o of moving) inner.remove(o);
   inner.updateMatrixWorld(true);
   const groups = new Map<string, {m: THREE.Material; cast: boolean; list: Part3d[]}>();
   inner.traverse(o => {
@@ -4736,6 +4934,7 @@ function bake(inner: THREE.Group): THREE.Group {
     const merged = geos.length === 1 ? geos[0] : mergeGeometries(geos, false);
     if (!merged) {
       geos.forEach(x => x.dispose());
+      for (const o of moving) inner.add(o);
       return inner;
     }
     if (geos.length > 1) geos.forEach(x => x.dispose());
@@ -4745,6 +4944,7 @@ function bake(inner: THREE.Group): THREE.Group {
     out.add(mesh);
   }
   inner.traverse(o => isPart(o) && o.geometry.dispose());
+  for (const o of moving) out.add(o);
   return out;
 }
 // ---------- Kenney ----------
@@ -5053,6 +5253,9 @@ function modelObject(item: Item3d, c: Entry): THREE.Group {
   b.position.y = zOf(item);
   if (item.mx) b.scale.x = -1;
   g.add(b);
+  // curtains and blinds move in place (D-122); a robot vacuum drives off its dock
+  if (inner.userData.setOpen) g.userData.setOpen = inner.userData.setOpen;
+  if (inner.userData.rover) g.userData.rover = inner.userData.rover;
   return g;
 }
 // Pictures for the catalog: each item is rendered separately.

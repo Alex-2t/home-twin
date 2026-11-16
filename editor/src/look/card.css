@@ -341,6 +341,36 @@ button.light-control.extra:hover .light-label strong{color:var(--green)}
 .tile-more:hover{color:var(--tile-accent)}
 .tile .swatches{margin-top:0}
 
+/* A lamp's tile (look.ts lightTileOf), the "glows by itself" design. Lit, it glows from its icon; off, only its name, no "Off"
+   line. A lamp with a dimmer glows across as far as its brightness (--lv), its percent under the name; it is dragged sideways.
+   No track: the glow is the level. Its percent's line is kept while it is off (.light-idle), so the tile keeps its height. */
+.light-tile{position:relative;overflow:hidden;isolation:isolate;touch-action:pan-y;
+  transition:border-color .25s,box-shadow .25s,background .2s;--lamp-lit:#ffd58f}
+.light-glow{position:absolute;inset:0;z-index:-1;opacity:0;pointer-events:none;transition:opacity .3s;
+  background:
+    radial-gradient(90% 150% at 0 0,color-mix(in srgb,var(--tile-accent) 34%,transparent),transparent 70%),
+    linear-gradient(90deg,color-mix(in srgb,var(--tile-accent) 22%,transparent) 0,
+      color-mix(in srgb,var(--tile-accent) 13%,transparent) calc(var(--lv,100%) - 8%),transparent calc(var(--lv,100%) + 8%))}
+.light-tile.on .light-glow{opacity:1}
+.light-tile.on{border-color:color-mix(in srgb,var(--tile-accent) 38%,var(--line));
+  box-shadow:0 0 22px -9px color-mix(in srgb,var(--tile-accent) 70%,transparent)}
+.light-tile .tile-chip{border-radius:50%;transition:background .25s,color .25s,box-shadow .25s}
+/* off: the icon alone, dim, no disc behind it (the disc is the lit lamp) */
+.light-tile:not(.on) .tile-chip{background:transparent;color:var(--muted)}
+.light-tile.on .tile-chip{background:var(--lamp-lit);color:#6b4513;
+  box-shadow:0 0 14px 1px color-mix(in srgb,var(--lamp-lit) 55%,transparent)}
+.light-tile:not(.on) .tile-text strong{color:color-mix(in srgb,var(--ink) 72%,var(--muted))}
+.light-tile.on .tile-text small{color:color-mix(in srgb,var(--tile-accent) 75%,var(--ink));font-variant-numeric:tabular-nums}
+.light-tile .light-idle{visibility:hidden}
+.light-tile.dragging{cursor:ew-resize}
+.light-tile.dragging .light-glow{transition:none}
+/* an odd last lamp takes the whole row: no hole beside it */
+.light-tiles>.light-tile:last-child:nth-child(odd){grid-column:1/-1}
+/* "Lighting", how many are on and the room's switch */
+.light-head{display:flex;align-items:center;justify-content:space-between;gap:10px}
+.light-head-end{display:flex;align-items:center;gap:10px;font-size:11px;letter-spacing:0;text-transform:none}
+.light-master[aria-pressed="true"]{background:var(--tile-accent)}
+
 /* A full-width brightness slider in the tile, as with ulm_card_light_enable_slider. */
 .bar{position:relative;height:44px;border-radius:14px;background:var(--fill);overflow:hidden}
 .bar::before{content:"";position:absolute;left:0;top:0;bottom:0;width:var(--level,0%);
@@ -488,7 +518,16 @@ div.tile:not(.wide){cursor:default}
     background:color-mix(in srgb,var(--paper) 62%,transparent);
     backdrop-filter:blur(26px) saturate(1.25);
     -webkit-backdrop-filter:blur(26px) saturate(1.25);
-    border-left:1px solid color-mix(in srgb,var(--ink) 10%,transparent);
+  }
+  /* The panel's left edge has no line: a strip just outside it carries the same tint and blur and
+     fades them in, so the model dissolves into the panel instead of meeting a border. */
+  .map-card::after{
+    content:"";position:absolute;top:0;bottom:0;right:var(--panel-w);width:56px;z-index:5;pointer-events:none;
+    background:linear-gradient(to right,transparent,color-mix(in srgb,var(--paper) 62%,transparent));
+    backdrop-filter:blur(26px) saturate(1.25);
+    -webkit-backdrop-filter:blur(26px) saturate(1.25);
+    -webkit-mask-image:linear-gradient(to right,transparent,#000);
+    mask-image:linear-gradient(to right,transparent,#000);
   }
   .room-strip{padding-right:calc(var(--panel-w) + 17px)}
   .note-gear{right:calc(var(--panel-w) + 20px)}
@@ -728,6 +767,7 @@ div.tile:not(.wide){cursor:default}
 .now-chip.alert{--k:rgb(var(--color-red,219,68,55));font-weight:500}
 .now-empty{display:flex;align-items:center;gap:7px;margin:0 4px;font-size:12px;color:var(--muted)}
 .now-empty svg{width:15px;height:15px}
+.room-empty{display:flex;flex-direction:column;align-items:center;gap:6px;margin-top:26px;padding:26px 16px;border:1px dashed var(--line);border-radius:14px;color:var(--muted);text-align:center}.room-empty svg{width:22px;height:22px;margin-bottom:4px}.room-empty p{font-size:12px;color:var(--ink)}.room-empty small{font-size:11px;line-height:1.5;max-width:240px}
 
 /* Air conditioner mode — the color for the button, the tile, the “Now” chip and the icon in
    the room row. The same colors as the remote and the airflow in the model, but from

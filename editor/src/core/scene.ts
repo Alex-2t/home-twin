@@ -4,6 +4,7 @@ import * as THREE from 'three';
 import {OrbitControls} from 'three/addons/controls/OrbitControls.js';
 import {RoomEnvironment} from 'three/addons/environments/RoomEnvironment.js';
 import {WALL, pointIn} from './geometry.ts';
+import {outline as itemOutline} from './layout.ts';
 import {trimBoxes} from './trim.ts';
 import {formFor, lineForm, shadeOf, housingOf} from './fixtures.ts';
 import {isHex, hexNum, shadeHex} from './color.ts';
@@ -12,7 +13,20 @@ import {partsKey} from './parts.ts';
 import {createAirflow} from './airflow.ts';
 import {createRoomGlow} from './room-glow.ts';
 import {zOf, byId} from './catalog.ts';
+import {COVER_TRAVEL_MS} from './devices.ts';
+import type {VacuumSpot} from './devices.ts';
+import {
+  cleaningRoute,
+  dockSpot,
+  headingOf,
+  placeOnRoute,
+  routeHome,
+  routeLength,
+  vacuumMap,
+} from './vacuum-route.ts';
+import type {RouteStep, VacuumMap} from './vacuum-route.ts';
 import {LABEL, itemH} from './sensors.ts';
+import {t, locale} from '../i18n/i18n.ts';
 import {RectAreaLightUniformsLib} from 'three/addons/lights/RectAreaLightUniformsLib.js';
 // Lighting is a copy of the card code from 3d_floor (card/), D-006.
 import {buildDeviceLights, setDeviceLighting} from './card/lighting.ts';
@@ -147,6 +161,8 @@ export interface SceneView {
   spin(angle: number): boolean;
   setClimate(list: ClimateSpot[]): void;
   setContacts(list: ContactSpot[]): void;
+  /** Robot vacuums: each drives round the home from its dock while HA says it is cleaning (vacuum-route.ts). */
+  setVacuums(list: VacuumSpot[]): void;
   /** To a saved view, smoothly; none: home. */
   flyTo(view?: HomeView | null): void;
   /** Outlines a room on the floor (none: no outline). */
@@ -168,6 +184,8 @@ export interface SceneView {
   setLightOn(id: string, on: boolean | undefined): void;
   /** A lamp's brightness 0–1 while it blinks; null: as it is. */
   setLightLevel(id: string, level: number | null): void;
+  /** A dimmable lamp's brightness 0–1 when it is on, as HA reports it; 1: full. Kept across setLights. */
+  setLightDim(id: string, dim: number): void;
   /** A lamp shines for a moment (selected, placed or changed). */
   shine(id: string, t0?: number): void;
   /** Light only in this room (null: everywhere); with ids, only these lamps, in a darkened scene. */
@@ -677,6 +695,10 @@ export function createView(host: HTMLElement): SceneView {
     floors = new Map();
     occluders = [];
     plan2dNow = plan2d;
+    floorChanged('walls', String(++wallsBuilt));
+    // new walls: the open doors' labels find their wall faces again at the next setContacts
+    for (const o of opens.values()) dropContact(o);
+    opens.clear();
     // walls come with their rooms and openings: set(null) is the only call without them
     const roomList = rooms!;
     const openingList = openings!;
@@ -805,55 +827,156 @@ export function createView(host: HTMLElement): SceneView {
   scene.add(furn);
   const objs = new Map<string, THREE.Group>();
   function setFurniture(items: Item3d[], selected?: string | null): void {
+    itemsNow = items;
+    floorChanged('items', itemsKey(items));
     const keep = new Set<string>();
     for (const it of items) {
-      const key = [
-        it.model,
-        it.w,
-        it.d,
-        it.h,
-        it.color,
-        it.color2,
-        it.top,
-        it.v,
-        it.pat,
-        it.patSpec ? JSON.stringify(it.patSpec) : '',
-        it.mx,
-        it.z,
-        it.geo?.key,
-        it.open?.toFixed(2),
-        partsKey(it.parts),
-      ].join('|');
-      let o = objs.get(it.id);
-      if (!o || o.userData.key !== key) {
-        if (o) {
-          furn.remove(o);
-          o.traverse(m => isMesh(m) && m.geometry.dispose());
-        }
-        o = makeObject(it);
-        o.userData.key = key;
-        objs.set(it.id, o);
-        furn.add(o);
-      }
-      o.userData.id = it.id; // pick() names the item under the pointer
-      // a built-in wardrobe (it.geo) is built directly in plan coordinates; it hides piece by piece, each wall has its own
-      if (it.geo) {
-        o.position.set(0, 0, 0);
-        o.rotation.y = 0;
-        o.userData.tall = false;
-      } else {
-        o.position.set(it.x, 0, -it.y);
-        // a file may lack the rotation (the file check lets it through): facing south, as the plan draws it
-        o.rotation.y = THREE.MathUtils.degToRad(it.rot || 0);
-        o.userData.tall = zOf(it) + it.h > 1.5 && !byId(it.model)?.free;
-      }
+      placeItem(coverAsShown(it));
       keep.add(it.id);
     }
     for (const [id, o] of objs)
       if (!keep.has(id)) {
         furn.remove(o);
         objs.delete(id);
+        coverMotions.delete(id);
+        coverShown.delete(id);
       }
+    // an item built again has its robot back on the dock: put each robot where it is
+    for (const rover of rovers.values()) showRover(rover);
+  }
+  // An item is built again only when something it is built from has changed; otherwise it is only moved (and a cover only set to how
+  // far it is open).
+  function placeItem(it: Item3d): void {
+    const key = [
+      it.model,
+      it.w,
+      it.d,
+      it.h,
+      it.color,
+      it.color2,
+      it.top,
+      it.v,
+      it.pat,
+      it.patSpec ? JSON.stringify(it.patSpec) : '',
+      it.mx,
+      it.z,
+      it.geo?.key,
+      partsKey(it.parts),
+    ].join('|');
+    let o = objs.get(it.id);
+    if (!o || o.userData.key !== key) {
+      if (o) {
+        furn.remove(o);
+        o.traverse(m => isMesh(m) && m.geometry.dispose());
+      }
+      o = makeObject(it);
+      o.userData.key = key;
+      objs.set(it.id, o);
+      furn.add(o);
+    }
+    o.userData.id = it.id; // pick() names the item under the pointer
+    // curtains and blinds are not built again as they move: they are set to where they have got to (D-122)
+    o.userData.setOpen?.(it.open);
+    // a built-in wardrobe (it.geo) is built directly in plan coordinates; it hides piece by piece, each wall has its own
+    if (it.geo) {
+      o.position.set(0, 0, 0);
+      o.rotation.y = 0;
+      o.userData.tall = false;
+    } else {
+      o.position.set(it.x, 0, -it.y);
+      // a file may lack the rotation (the file check lets it through): facing south, as the plan draws it
+      o.rotation.y = THREE.MathUtils.degToRad(it.rot || 0);
+      o.userData.tall = zOf(it) + it.h > 1.5 && !byId(it.model)?.free;
+    }
+  }
+  // Curtains and blinds move as their motor does (D-122): what is drawn travels toward the position HA (or the demo) reports at the
+  // pace of its kind (COVER_TRAVEL_MS), speeding up and slowing down over COVER_RAMP_MS. HA reports a moving cover's position only now
+  // and then (about once a second): while it says the cover is opening or closing, the model carries on past the last report, at most
+  // COVER_LEAD_MS of travel ahead of it, so it glides instead of stopping at each report. A cover drawn for the first time, and every
+  // cover with reduced motion, is shown where it is at once.
+  const COVER_RAMP_MS = 400;
+  const COVER_LEAD_MS = 1500;
+  const COVER_LONGEST_FRAME_MS = 100;
+  interface CoverMotion {
+    item: Item3d;
+    /** What is drawn now, 0–1. */
+    shown: number;
+    /** How fast and which way it is moving, open per millisecond. */
+    velocity: number;
+    /** The position last reported and when it came. */
+    reported: number;
+    reportedAt: number;
+  }
+  const coverMotions = new Map<string, CoverMotion>();
+  const coverShown = new Map<string, number>();
+  let coversSteppedAt = 0;
+  const travelMs = (it: Item3d): number =>
+    it.model === 'blind' ? COVER_TRAVEL_MS.blind : COVER_TRAVEL_MS.curtains;
+  // → the item as it is drawn now: its opening is where the cover has got to, not where it is going
+  function coverAsShown(it: Item3d): Item3d {
+    if (it.open == null) {
+      coverMotions.delete(it.id);
+      coverShown.delete(it.id);
+      return it;
+    }
+    const reported = Math.max(0, Math.min(1, it.open));
+    const shown = coverShown.get(it.id);
+    if (shown == null || reducedMotion()) {
+      coverMotions.delete(it.id);
+      coverShown.set(it.id, reported);
+      return it;
+    }
+    const motion = coverMotions.get(it.id);
+    if (motion) {
+      if (motion.reported !== reported) motion.reportedAt = performance.now();
+      motion.reported = reported;
+      motion.item = it;
+    } else if (Math.abs(reported - shown) > 0.002 || it.heading) {
+      if (!coverMotions.size) coversSteppedAt = performance.now();
+      coverMotions.set(it.id, {item: it, shown, velocity: 0, reported, reportedAt: performance.now()});
+    }
+    return {...it, open: shown};
+  }
+  // Where the cover is heading this frame: the last report, or past it while HA says the motor is running.
+  function coverGoal(motion: CoverMotion, now: number, topSpeed: number): number {
+    const heading = motion.item.heading;
+    if (!heading) return motion.reported;
+    const sinceReportMs = Math.min(COVER_LEAD_MS, now - motion.reportedAt);
+    return Math.max(0, Math.min(1, motion.reported + heading * topSpeed * sinceReportMs));
+  }
+  // one frame of every cover on its way; → whether any is still moving
+  function stepCovers(): boolean {
+    if (!coverMotions.size) return false;
+    const now = performance.now();
+    const frameMs = Math.min(COVER_LONGEST_FRAME_MS, now - coversSteppedAt);
+    coversSteppedAt = now;
+    for (const [id, motion] of coverMotions) {
+      const topSpeed = 1 / travelMs(motion.item);
+      const acceleration = topSpeed / COVER_RAMP_MS;
+      const goal = coverGoal(motion, now, topSpeed);
+      const remaining = goal - motion.shown;
+      // as fast as it can go while still able to stop at the goal
+      const wanted =
+        Math.sign(remaining) * Math.min(topSpeed, Math.sqrt(2 * acceleration * Math.abs(remaining)));
+      const change = Math.max(
+        -acceleration * frameMs,
+        Math.min(acceleration * frameMs, wanted - motion.velocity),
+      );
+      motion.velocity += change;
+      const next = motion.shown + motion.velocity * frameMs;
+      const overshot = Math.sign(goal - next) !== Math.sign(remaining);
+      motion.shown = overshot ? goal : next;
+      if (overshot) motion.velocity = 0;
+      const arrived = !motion.item.heading && Math.abs(goal - motion.shown) < 0.0005 && motion.velocity === 0;
+      if (arrived) {
+        motion.shown = goal;
+        coverMotions.delete(id);
+      }
+      coverShown.set(id, motion.shown);
+      placeItem({...motion.item, open: motion.shown});
+    }
+    shadows.markChanged();
+    return true;
   }
   // ---------- lights ----------
   const fixtures = new THREE.Group();
@@ -1267,6 +1390,8 @@ export function createView(host: HTMLElement): SceneView {
   }
   function setLights(list: PlanLight[], rooms: Room[], ceiling = WALL.height): void {
     lightsCeiling = ceiling;
+    lightsNow = list;
+    floorChanged('lights', JSON.stringify(list.map(light => [light.form, light.opt, light.points])));
     const was = new Map(devs.map(d => [d.L.id, d.solo]));
     for (const d of devs) {
       d.meshes.forEach(m => {
@@ -1403,21 +1528,10 @@ export function createView(host: HTMLElement): SceneView {
     }
     inkSens();
   }
-  // The “light does not leave the room” mask is set again after every edit: first restore the materials' original hooks.
+  // The “light does not leave the room” mask is set again when the lights or rooms change (the mask gives the materials their own
+  // hooks back first). An item built later (a curtain moved, a colour changed) is covered when it is first drawn.
   function applyMask(rooms: Room[]): number {
     scene.onBeforeRender = baseOBR;
-    scene.traverse(o => {
-      if (!isMesh(o)) return;
-      for (const m of Array.isArray(o.material) ? o.material : [o.material]) {
-        if ('obc' in m.userData) {
-          m.onBeforeCompile = m.userData.obc;
-          m.customProgramCacheKey = m.userData.cpk;
-        } else {
-          m.userData.obc = m.onBeforeCompile;
-          m.userData.cpk = m.customProgramCacheKey;
-        }
-      }
-    });
     const t = performance.now();
     installRoomLightMask(
       scene,
@@ -1437,6 +1551,10 @@ export function createView(host: HTMLElement): SceneView {
   let soloKey = '';
   let soloRaf = 0;
   let amb = 1;
+  // A dimmer's level by lamp id (setLightDim); none: full. Kept here, not on Dev, so setLights rebuilding the lamps keeps it.
+  const dims = new Map<string, number>();
+  // The darkest a dimmed lamp gets in 3D: at 1 % a real lamp still glows, a zero light would read as off.
+  const DIM_FLOOR = 0.08;
   const soloOf = (d: Pick<Dev, 'L' | 'room'>): number =>
     soloRoom == null ? 1 : soloIds ? (soloIds.includes(d.L.id) ? 1 : 0) : d.room.id === soloRoom ? 1 : 0;
   // blinks even when off, so you can see where it is; selected in a dark scene it is twice as bright: its light on walls and floor is visible at once
@@ -1444,7 +1562,9 @@ export function createView(host: HTMLElement): SceneView {
   function applyLevel(d: Dev): void {
     const sh = shines.get(d.L.id);
     const lit = d.blink != null || d.on;
-    const k = d.solo * (d.blink ?? 1);
+    // a blink is a flash at its own strength; otherwise a dimmed lamp is as bright as its dimmer
+    const dim = d.blink == null ? Math.max(DIM_FLOOR, dims.get(d.L.id) ?? 1) : 1;
+    const k = d.solo * (d.blink ?? 1) * dim;
     const level = sh && !lit ? sh.e * Math.max(d.solo, 0.6) : k;
     setDeviceLighting(d.lights, d.glow, d.device, {
       on: (lit || !!sh) && level > 0,
@@ -1511,6 +1631,14 @@ export function createView(host: HTMLElement): SceneView {
     soloRaf = requestAnimationFrame(step);
   }
   // brightness 0…1 for blinking a new lamp (does not change whether it is on)
+  function setLightDim(id: string, dim: number): void {
+    const level = Math.min(1, Math.max(0, dim));
+    if ((dims.get(id) ?? 1) === level) return;
+    if (level === 1) dims.delete(id);
+    else dims.set(id, level);
+    const d = devs.find(d => d.L.id === id);
+    if (d) applyLevel(d);
+  }
   function setLightLevel(id: string, k: number | null): void {
     const d = devs.find(d => d.L.id === id);
     if (d) {
@@ -1743,6 +1871,8 @@ export function createView(host: HTMLElement): SceneView {
   function setNight(n: boolean): void {
     night = n;
     applyAmb();
+    // the open doors' paint: light at night, as the readings' in a dark room
+    for (const o of opens.values()) paintContact(o);
   }
   // ---------- readings on walls (D-033) ----------
   // A label is “paint” on the wall, with no backing: a canvas with a transparent background on a plane 6 mm in front of the face. As in 3d_floor,
@@ -2252,67 +2382,333 @@ export function createView(host: HTMLElement): SceneView {
         airs.delete(id);
       }
   }
-  // Contact sensor: an open opening glows warm and breathes softly; on an exterior wall it hides together with the facade.
+  // Contact sensor: an open door or window is written on its wall, above it, in the readings' own paint (D-033): a small caption
+  // (“DOOR”, “WINDOW”) and “Open” in amber, as “TEMP. 23.1°” is (the owner: an open door is a small thing and must not take the
+  // eye — the opening used to glow and breathe, then a round badge floated over it). On each face of the wall that is a room's,
+  // hidden by what stands in front as paint is; a closed opening has nothing. On an exterior wall it hides with the facade.
   // list: [{id, a, b, bottom, top, n (normal into the room), open}]
   const doorGrp = new THREE.Group();
   scene.add(doorGrp);
-  const opens = new Map<string, THREE.Mesh<THREE.PlaneGeometry, THREE.MeshBasicMaterial>>();
-  const openMat = (): THREE.MeshBasicMaterial =>
-    new THREE.MeshBasicMaterial({
-      color: 0xff9a2e,
-      transparent: true,
-      opacity: 0.45,
-      depthWrite: false,
-      side: THREE.DoubleSide,
-      toneMapped: false,
-    });
-  const frameMat = new THREE.LineBasicMaterial({color: 0xff8a1a, toneMapped: false});
+  // per open opening: its label planes (one per room face of the wall), the canvas they share and what it was painted for
+  type ContactLabel = {
+    planes: THREE.Mesh[];
+    tex: THREE.CanvasTexture;
+    cv: HTMLCanvasElement;
+    kind: 'door' | 'window';
+    key: string;
+  };
+  const opens = new Map<string, ContactLabel>();
+  // the label's lettering, metres: the caption as the readings' captions, the value smaller than a reading's
+  const OPEN_CAPTION_M = LABEL.ls;
+  const OPEN_VALUE_M = 0.12;
+  const OPEN_ABOVE_M = 0.2;
+  const OPEN_TOP_M = 2.42;
+  const openText = (kind: 'door' | 'window'): {caption: string; value: string} => ({
+    caption: t(kind === 'door' ? 'Door' : 'Window').toLocaleUpperCase(locale()),
+    value: t('Open'),
+  });
+  function paintContact(o: ContactLabel): void {
+    const P = night ? INK.light : INK.dark;
+    const {caption, value} = openText(o.kind);
+    const g = o.cv.getContext('2d') as CanvasRenderingContext2D;
+    g.font = `600 ${Math.round(OPEN_VALUE_M * LPX)}px ${LFONT}`;
+    const valueW = g.measureText(value).width;
+    g.font = `600 ${Math.round(OPEN_CAPTION_M * LPX)}px ${LFONT}`;
+    const captionW = g.measureText(caption).width * 1.1;
+    const pad = LABEL.pad * LPX;
+    o.cv.width = Math.ceil(Math.max(valueW, captionW) + 2 * pad);
+    o.cv.height = Math.ceil((OPEN_CAPTION_M * 1.3 + OPEN_VALUE_M) * LPX + 2 * pad);
+    g.clearRect(0, 0, o.cv.width, o.cv.height);
+    g.textAlign = 'center';
+    const cx = o.cv.width / 2;
+    g.fillStyle = P.muted;
+    g.font = `600 ${Math.round(OPEN_CAPTION_M * LPX)}px ${LFONT}`;
+    if ('letterSpacing' in g) g.letterSpacing = Math.round(OPEN_CAPTION_M * LPX * 0.08) + 'px';
+    g.fillText(caption, cx, pad + OPEN_CAPTION_M * LPX * 0.95);
+    if ('letterSpacing' in g) g.letterSpacing = '0px';
+    g.fillStyle = P.lvl[1];
+    g.font = `600 ${Math.round(OPEN_VALUE_M * LPX)}px ${LFONT}`;
+    g.fillText(value, cx, pad + (OPEN_CAPTION_M * 1.3 + OPEN_VALUE_M * 0.9) * LPX);
+    o.tex.needsUpdate = true;
+    for (const plane of o.planes) plane.scale.set(o.cv.width / LPX, o.cv.height / LPX, 1);
+  }
+  // How far the wall's face is from its middle line at c along dir, at height y (null: no wall there, or no room beyond it).
+  function faceAt(c: Point, dir: Vector, y: number): number | null {
+    if (!plan2dNow) return null;
+    const bands = [...plan2dNow.interior, ...plan2dNow.sides.flatMap(side => side.bands)].filter(
+      band => band.bottom <= y && band.top > y,
+    );
+    const inWall = (q: Point): boolean => bands.some(band => inMP(q, band.mp));
+    for (let d = 0.01; d <= 0.5; d += 0.01) {
+      const q: Point = [c[0] + dir[0] * d, c[1] + dir[1] * d];
+      if (inWall(q)) continue;
+      // past the face: a room's side only, not the street
+      return inMP(q, plan2dNow.footprint) ? d : null;
+    }
+    return null;
+  }
+  function dropContact(o: ContactLabel): void {
+    for (const plane of o.planes) {
+      doorGrp.remove(plane);
+      (plane.material as THREE.Material).dispose();
+      plane.geometry.dispose();
+    }
+    o.tex.dispose();
+  }
   function setContacts(list: ContactSpot[]): void {
     const keep = new Set<string>();
     for (const c of list) {
       if (!c.open) continue;
       keep.add(c.id);
-      let m: THREE.Mesh<THREE.PlaneGeometry, THREE.MeshBasicMaterial> | null | undefined = opens.get(c.id);
-      const l = Math.hypot(c.b[0] - c.a[0], c.b[1] - c.a[1]);
       // An opening without heights (older files) makes the numbers below NaN, as it always did.
       const bottom = c.bottom as number;
       const top = c.top as number;
-      const hgt = top - bottom;
-      const key = [c.a, c.b, c.bottom, c.top].join();
-      if (m && m.userData.key !== key) {
-        doorGrp.remove(m);
-        m.geometry.dispose();
-        m.material.dispose();
-        // its frame
-        (m.children[0] as THREE.LineSegments | undefined)?.geometry.dispose();
-        m = null;
+      const kind = bottom > 0.3 ? 'window' : 'door';
+      const key = [c.a, c.b, c.bottom, c.top, kind].join();
+      let o = opens.get(c.id);
+      if (o && o.key !== key) {
+        dropContact(o);
+        opens.delete(c.id);
+        o = undefined;
       }
-      if (!m) {
-        const g = new THREE.PlaneGeometry(l, hgt);
-        m = new THREE.Mesh(g, openMat());
-        m.add(new THREE.LineSegments(new THREE.EdgesGeometry(g), frameMat));
-        m.userData.key = key;
-        m.raycast = () => {};
-        doorGrp.add(m);
-        opens.set(c.id, m);
+      if (o) continue;
+      const mid: Point = [(c.a[0] + c.b[0]) / 2, (c.a[1] + c.b[1]) / 2];
+      const y = Math.min(top + OPEN_ABOVE_M, OPEN_TOP_M);
+      const cv = document.createElement('canvas');
+      const tex = new THREE.CanvasTexture(cv);
+      tex.colorSpace = THREE.SRGBColorSpace;
+      tex.anisotropy = 4;
+      const planes: THREE.Mesh[] = [];
+      for (const dir of [c.n, [-c.n[0], -c.n[1]] as Vector]) {
+        const face = faceAt(mid, dir, y);
+        if (face == null) continue;
+        const plane = new THREE.Mesh(
+          new THREE.PlaneGeometry(1, 1),
+          new THREE.MeshBasicMaterial({map: tex, transparent: true, depthWrite: false, toneMapped: false}),
+        );
+        plane.raycast = () => {};
+        const at: Point = [mid[0] + dir[0] * (face + 0.006), mid[1] + dir[1] * (face + 0.006)];
+        plane.position.set(at[0], y, -at[1]);
+        plane.rotation.set(0, Math.atan2(dir[0], -dir[1]), 0);
+        plane.userData.side = sideOfLabel({c: at, n: dir, y});
+        doorGrp.add(plane);
+        planes.push(plane);
       }
-      m.position.set((c.a[0] + c.b[0]) / 2, (bottom + top) / 2, -(c.a[1] + c.b[1]) / 2);
-      m.rotation.set(0, Math.atan2(c.b[1] - c.a[1], c.b[0] - c.a[0]), 0);
-      m.userData.side = sideOfLabel({
-        c: [(c.a[0] + c.b[0]) / 2, (c.a[1] + c.b[1]) / 2],
-        n: c.n,
-        y: bottom > 0.3 ? bottom - 0.15 : top + 0.15,
-      });
-    } // side comes from the wall under the window or above the door
-    for (const [id, m] of opens)
+      // no wall face found (the walls are not built yet): tried again at the next call
+      if (!planes.length) {
+        tex.dispose();
+        continue;
+      }
+      o = {planes, tex, cv, kind, key};
+      paintContact(o);
+      opens.set(c.id, o);
+    }
+    for (const [id, o] of opens)
       if (!keep.has(id)) {
-        doorGrp.remove(m);
-        m.geometry.dispose();
-        m.material.dispose();
-        // its frame
-        (m.children[0] as THREE.LineSegments | undefined)?.geometry.dispose();
+        dropContact(o);
         opens.delete(id);
       }
+  }
+  // Robot vacuums (D-125). HA tells what a robot is doing, not where it is: while it says “cleaning”, the robot on the model backs
+  // off its dock and sweeps the rooms in lanes on a route of its own (vacuum-route.ts), around the furniture, and comes back;
+  // “returning” or “docked” takes it home from wherever it is; “paused”, “idle” or an error leaves it where it stands, and
+  // “cleaning” again carries on from there. A robot found cleaning when the model opens is put as far along its route as it would
+  // have got since HA says it started. A home where the robot cannot leave its dock (no room in front of it), and reduced motion,
+  // keep it on the dock.
+  const ROVER_SPEED_M_S = 0.3;
+  const ROVER_TURN_RAD_S = 2.4;
+  // it turns on the spot before it drives on, unless the turn is this small
+  const ROVER_TURN_FIRST_RAD = 0.05;
+  // between one cleaning and the next (HA still says cleaning when the route is done): a rest on the dock
+  const ROVER_REST_MS = 5000;
+  // a plan being edited changes many times a second: the route is made again once it has been still this long
+  const ROVER_REPLAN_MS = 400;
+  const ROVER_LONGEST_FRAME_S = 0.1;
+  type RoverMode = 'clean' | 'home' | 'still';
+  interface Rover {
+    id: string;
+    dock: string;
+    activity: string | null;
+    mode: RoverMode;
+    route: RouteStep[];
+    step: number;
+    p: Point;
+    heading: number;
+    /** On its dock: it is drawn where the dock is now, even while the dock is being dragged. */
+    docked: boolean;
+    /** Not before then (ms) does it set off on the next cleaning. */
+    restUntil: number;
+  }
+  const rovers = new Map<string, Rover>();
+  let itemsNow: Item3d[] = [];
+  let lightsNow: PlanLight[] = [];
+  // What the floor the robots drive on is made of changed: the walls (always a new plan), the furniture or the lamps, each told
+  // by a key of what a robot bumps into. The maps are made again once the changes settle (ROVER_REPLAN_MS).
+  const floorKeys = {walls: '', items: '', lights: ''};
+  let wallsBuilt = 0;
+  let floorVersion = 0;
+  let floorChangedAt = 0;
+  const roverMaps = new Map<string, {version: number; map: VacuumMap | null}>();
+  function floorChanged(what: keyof typeof floorKeys, key: string): void {
+    if (floorKeys[what] === key) return;
+    floorKeys[what] = key;
+    floorVersion++;
+    floorChangedAt = performance.now();
+  }
+  // what of the furniture a robot bumps into: where each item stands and how big it is (not a curtain's opening)
+  const itemsKey = (items: Item3d[]): string =>
+    JSON.stringify(
+      items.map(it => [it.id, it.model, it.x, it.y, it.w, it.d, it.rot, it.z, it.v, it.mx, it.geo?.key]),
+    );
+  const dockItem = (rover: Rover): Item3d | undefined => itemsNow.find(it => it.id === rover.dock);
+  function mapOf(rover: Rover): VacuumMap | null {
+    const kept = roverMaps.get(rover.dock);
+    if (kept && kept.version === floorVersion) return kept.map;
+    const dock = dockItem(rover);
+    const map =
+      dock && plan2dNow
+        ? vacuumMap({rooms: roomsNow, furniture: itemsNow, lights: lightsNow}, plan2dNow, dock)
+        : null;
+    roverMaps.set(rover.dock, {version: floorVersion, map});
+    return map;
+  }
+  // the robot's spot and heading on the model: inside its dock item, as the item stands now
+  function showRover(rover: Rover): void {
+    const dock = dockItem(rover);
+    const part: THREE.Object3D | undefined = objs.get(rover.dock)?.userData.rover;
+    if (!dock || !part) return;
+    if (rover.docked) {
+      const spot = dockSpot(dock);
+      rover.p = spot.home;
+      rover.heading = spot.heading;
+    }
+    const rot = ((dock.rot || 0) * Math.PI) / 180;
+    const dx = rover.p[0] - dock.x;
+    const dy = rover.p[1] - dock.y;
+    part.position.x = dx * Math.cos(rot) + dy * Math.sin(rot);
+    part.position.z = dx * Math.sin(rot) - dy * Math.cos(rot);
+    part.rotation.y = rover.heading - rot;
+    // over a rug, on top of it
+    const rug = itemsNow.find(it => it.model === 'rug' && pointIn(rover.p, itemOutline(it).pts));
+    part.position.y = rug ? zOf(rug) + rug.h : 0;
+  }
+  const modeOf = (activity: string | null): RoverMode =>
+    activity === 'cleaning' ? 'clean' : activity === 'returning' || activity === 'docked' ? 'home' : 'still';
+  // a route from where the robot is now, for what it is doing
+  function routeRover(rover: Rover, map: VacuumMap): void {
+    rover.step = 0;
+    if (rover.mode === 'clean') rover.route = cleaningRoute(map, rover.docked ? map.home : rover.p);
+    else if (rover.mode === 'home') rover.route = rover.docked ? [] : routeHome(map, rover.p);
+    else rover.route = [];
+  }
+  function setVacuums(list: VacuumSpot[]): void {
+    const keep = new Set<string>();
+    for (const spot of list) {
+      keep.add(spot.id);
+      let rover = rovers.get(spot.id);
+      const mode = modeOf(spot.activity);
+      if (rover && rover.dock !== spot.f.id) {
+        rovers.delete(spot.id);
+        rover = undefined;
+      }
+      if (!rover) {
+        const home = dockSpot(spot.f);
+        rover = {
+          id: spot.id,
+          dock: spot.f.id,
+          activity: spot.activity,
+          mode,
+          route: [],
+          step: 0,
+          p: home.home,
+          heading: home.heading,
+          docked: true,
+          restUntil: 0,
+        };
+        rovers.set(spot.id, rover);
+        const map = mode === 'clean' && !reducedMotion() ? mapOf(rover) : null;
+        if (map) {
+          // as far along as it has got since it started
+          routeRover(rover, map);
+          const startedMs = spot.since ?? Date.now();
+          const length = routeLength(rover.route, map.home);
+          const gone =
+            length > 0 ? ((Math.max(0, Date.now() - startedMs) / 1000) * ROVER_SPEED_M_S) % length : 0;
+          if (gone > 0) {
+            const place = placeOnRoute(rover.route, map.home, map.homeHeading, gone);
+            rover.step = place.step;
+            rover.p = place.p;
+            rover.heading = place.heading;
+            rover.docked = false;
+          }
+        }
+      } else if (rover.activity !== spot.activity) {
+        rover.activity = spot.activity;
+        const resuming = rover.mode === 'still' && mode === 'clean' && rover.step < rover.route.length;
+        const wasCleaning = rover.mode === 'clean';
+        rover.mode = mode;
+        // paused, then cleaning again: on along the same route
+        const map = mode === 'still' || resuming || reducedMotion() ? null : mapOf(rover);
+        if (map && !(wasCleaning && mode === 'clean')) routeRover(rover, map);
+        rover.restUntil = 0;
+      }
+      showRover(rover);
+    }
+    for (const id of [...rovers.keys()]) if (!keep.has(id)) rovers.delete(id);
+    if ([...rovers.values()].some(rover => rover.mode !== 'still')) redraw();
+  }
+  let roversSteppedAt = performance.now();
+  // one frame of every robot on its way; → whether any moved
+  function stepRovers(): boolean {
+    const now = performance.now();
+    const dt = Math.min(ROVER_LONGEST_FRAME_S, (now - roversSteppedAt) / 1000);
+    roversSteppedAt = now;
+    let moved = false;
+    for (const rover of rovers.values()) {
+      if (rover.mode === 'still' || reducedMotion()) continue;
+      // the plan changed under it: a new route from where it is, once the editing has settled
+      const kept = roverMaps.get(rover.dock);
+      if (kept && kept.version !== floorVersion && now - floorChangedAt > ROVER_REPLAN_MS) {
+        const map = mapOf(rover);
+        if (map) routeRover(rover, map);
+      }
+      if (rover.step >= rover.route.length) {
+        // done: on the dock; still cleaning, it sets off again after a rest
+        if (rover.mode !== 'clean') continue;
+        if (!rover.restUntil) rover.restUntil = now + ROVER_REST_MS;
+        if (now < rover.restUntil) continue;
+        rover.restUntil = 0;
+        const map = mapOf(rover);
+        if (!map) continue;
+        routeRover(rover, map);
+      }
+      const target = rover.route[rover.step];
+      const dx = target.p[0] - rover.p[0];
+      const dy = target.p[1] - rover.p[1];
+      const left = Math.hypot(dx, dy);
+      if (left > 1e-4) {
+        const wanted = headingOf(rover.p, target.p, target.reverse);
+        const turn = Math.atan2(Math.sin(wanted - rover.heading), Math.cos(wanted - rover.heading));
+        const most = ROVER_TURN_RAD_S * dt;
+        rover.heading += Math.max(-most, Math.min(most, turn));
+        moved = true;
+        rover.docked = false;
+        if (Math.abs(turn) > ROVER_TURN_FIRST_RAD) {
+          showRover(rover);
+          continue;
+        }
+      }
+      const travel = ROVER_SPEED_M_S * dt;
+      if (travel >= left) {
+        rover.p = target.p;
+        rover.step++;
+        // back on the dock
+        if (rover.step >= rover.route.length && target.reverse) rover.docked = true;
+      } else rover.p = [rover.p[0] + (dx / left) * travel, rover.p[1] + (dy / left) * travel];
+      moved = true;
+      showRover(rover);
+    }
+    return moved;
   }
   let lastT = performance.now();
   function tickDevices(): boolean {
@@ -2325,14 +2721,14 @@ export function createView(host: HTMLElement): SceneView {
         a.tick(dt);
         moving = true;
       }
-    const k = reducedMotion() ? 0.45 : 0.38 + 0.14 * Math.sin(now / 520);
-    for (const m of opens.values()) {
-      m.material.opacity = k;
-      const sd = m.userData.side;
-      m.visible = !sd || sides.find(s => s.id === sd)?.grp.visible !== false;
-    }
-    return moving || (opens.size > 0 && !reducedMotion());
-  } // airflow and open windows breathing are animations: frames while they last
+    // an open door's label hides with its facade
+    for (const o of opens.values())
+      for (const plane of o.planes) {
+        const sd = plane.userData.side;
+        plane.visible = !sd || sides.find(s => s.id === sd)?.grp.visible !== false;
+      }
+    return moving;
+  } // airflow is an animation: frames while it lasts
   // A panel can float over the 3D view: the model fits into the free part and sits in its center (camera frame offset).
   let insetL = 0;
   let insetR = 0;
@@ -2471,7 +2867,9 @@ export function createView(host: HTMLElement): SceneView {
     const glowing = stepGlow();
     const camChanged = camMoved();
     const calm = tickDevices();
-    const fast = tweening || damping || glowing || camChanged;
+    const covering = stepCovers();
+    const driving = stepRovers();
+    const fast = tweening || damping || glowing || camChanged || covering || driving;
     // the sun stays while the view moves (by hand, damping out or flying) and comes after it once it is still
     camera.getWorldDirection(dir);
     dir.y = 0;
@@ -2576,6 +2974,7 @@ export function createView(host: HTMLElement): SceneView {
     spin,
     setClimate,
     setContacts,
+    setVacuums,
     flyTo,
     setOutline,
     setGlow,
@@ -2591,6 +2990,7 @@ export function createView(host: HTMLElement): SceneView {
     applyMask,
     setLightOn,
     setLightLevel,
+    setLightDim,
     shine,
     setSolo,
     setNight,

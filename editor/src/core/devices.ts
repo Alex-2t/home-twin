@@ -62,6 +62,8 @@ export type DeviceTarget =
 export interface LiveScene {
   /** How open each cover's item is, 0–1, by the item's id. */
   open: Map<string, number>;
+  /** The covers on the move, by the item's id: 1 opening, -1 closing (the model carries on between HA's position reports). */
+  heading: Map<string, 1 | -1>;
   /** Each air conditioner's airflow: its entity, its item, on, the mode's tone and the fan. */
   climate: Array<{id: string; f: FurnitureItem; on: boolean; tone?: string; fan?: string}>;
   /** Each contact sensor: its entity, its opening, open, the opening's ends and heights, the edge's inward normal. */
@@ -75,6 +77,18 @@ export interface LiveScene {
     top?: number;
     n: Vector;
   }>;
+  /** Each robot vacuum with a dock on the plan: its entity, its dock item, what HA says it is doing and since when. */
+  vacuums: VacuumSpot[];
+}
+/**
+ * A robot vacuum on the model: its entity, its dock (a robotVacuum item), HA's state (cleaning, returning, docked, paused, idle,
+ * error; null: unavailable) and when it last changed, ms (null: HA does not say).
+ */
+export interface VacuumSpot {
+  id: string;
+  f: FurnitureItem;
+  activity: string | null;
+  since: number | null;
 }
 /** A stretch [from, to], metres along a wall. */
 type Interval = [number, number];
@@ -357,6 +371,73 @@ const coverNear = (
       })(),
   );
 
+// The device covers hanging at an opening (a window, a glazed door): the items bound to devices, near it on its room's side,
+// left to right as seen from the room.
+function coversAt(plan: DevicePlan, W: OpeningSide): FurnitureItem[] {
+  const bound = new Set((plan.devices || []).map(x => x.furn).filter(Boolean));
+  const along = (f: FurnitureItem): number => (f.x - W.e.a[0]) * W.e.u[0] + (f.y - W.e.a[1]) * W.e.u[1];
+  const lr = W.e.u[0] * -W.e.n[1] + W.e.u[1] * W.e.n[0] > 0; // the edge runs left to right, as coverItem reads it
+  return plan.furniture
+    .filter(f => bound.has(f.id) && (f.model === 'blind' || f.model === 'curtains') && inRoom(f, W.r))
+    .filter(f => {
+      const t = along(f);
+      const o = (f.x - W.e.a[0]) * W.e.n[0] + (f.y - W.e.a[1]) * W.e.n[1];
+      return o < 0.5 && t > W.s0 - 0.05 && t < W.s1 + 0.05;
+    })
+    .sort((a, b) => (lr ? along(a) - along(b) : along(b) - along(a)));
+}
+// The opening a cover hangs at, if any.
+function openingOfCover(plan: DevicePlan, f: FurnitureItem): OpeningSide | null {
+  for (const o of plan.openings) {
+    if (!coverFits(o)) continue;
+    const W = coverSide(plan, o);
+    if (W && coversAt(plan, W).includes(f)) return W;
+  }
+  return null;
+}
+// The covers of one kind at an opening share it: equal sections, left to right (three roller blinds of one window). Curtains
+// and a blind are not sections of each other: curtains hang in front of a blind.
+function shareOpening(plan: DevicePlan, W: OpeningSide, model: string, order: FurnitureItem[]): void {
+  const same = order.filter(f => f.model === model);
+  same.forEach((f, k) => {
+    const it = coverItem(plan, model, W, k, same.length);
+    Object.assign(f, {x: it.x, y: it.y, rot: it.rot, w: it.w, h: it.h});
+    if ('z' in it) f.z = it.z;
+  });
+}
+
+/**
+ * Covers of one kind that hang on top of each other at one opening (placed by hand before they shared it: three roller blinds
+ * each the whole window wide, the lowest one hiding the others) share it as sections, left to right in the order they were
+ * placed. Run when a plan opens. → how many openings were shared.
+ */
+export function shareStackedCovers(plan: DevicePlan): number {
+  let shared = 0;
+  for (const o of plan.openings) {
+    if (!coverFits(o)) continue;
+    const W = coverSide(plan, o);
+    if (!W) continue;
+    const hanging = coversAt(plan, W);
+    for (const model of ['blind', 'curtains']) {
+      const same = hanging.filter(f => f.model === model);
+      const stacked = same.some((f, i) =>
+        same.some((g, j) => j > i && Math.hypot(f.x - g.x, f.y - g.y) < 0.05 && Math.abs(f.w - g.w) < 0.05),
+      );
+      if (!stacked) continue;
+      // the order they were bound in: the first placed on the left
+      const order = (plan.devices || []).map(x => x.furn);
+      shareOpening(
+        plan,
+        W,
+        model,
+        [...same].sort((a, b) => order.indexOf(a.id) - order.indexOf(b.id)),
+      );
+      shared += 1;
+    }
+  }
+  return shared;
+}
+
 const GARAGE = /гараж|garag|garaż|车库/i;
 const ENTRY =
   /входн|парадн|front|entrance|entry|main door|haustür|eingang|entrée|porte d'entrée|entrada|puerta principal|ingresso|porta d'ingresso|voordeur|wejści|入户|大门|前门|正门/i;
@@ -535,9 +616,17 @@ export function placeOn(plan: DevicePlan, d: HaDevice, target: DeviceTarget): Pl
       if (!coverFits(o)) return null;
       const W = coverSide(plan, o);
       if (!W) return null;
-      const it = coverItem(plan, coverModel(d), W);
+      const model = coverModel(d);
+      const hanging = coversAt(plan, W);
+      const it = coverItem(plan, model, W);
       plan.furniture.push(it);
       rec = {furn: it.id, made: true};
+      // another cover of its kind is at the opening already: they share it, the new one on the right
+      if (model && hanging.some(f => f.model === model)) {
+        plan.devices.push({id: newId(plan, 'd'), entity: d.entity, ...rec});
+        shareOpening(plan, W, model, [...hanging, it]);
+        return plan.devices[plan.devices.length - 1];
+      }
     }
   }
   if (!rec) return null;
@@ -576,17 +665,27 @@ export function moveTo(plan: DevicePlan, d: HaDevice, target: DeviceTarget): boo
   if (k === 'cover' && f && coverFits(o)) {
     const W = coverSide(plan, o);
     if (!W) return false;
+    const from = openingOfCover(plan, f);
+    if (from && from.o.id === W.o.id) return true; // onto its own opening: it is there, as it was
+    const hanging = coversAt(plan, W);
     const it = coverItem(plan, f.model, W);
     Object.assign(f, {x: it.x, y: it.y, rot: it.rot, w: it.w, h: it.h});
     if ('z' in it) f.z = it.z;
+    // the opening it left: the others of its kind there widen again; the one it went to: shared, the moved one on the right
+    if (from) shareOpening(plan, from, f.model, coversAt(plan, from));
+    if (hanging.some(x => x.model === f.model)) shareOpening(plan, W, f.model, [...hanging, f]);
     return true;
   }
   return false;
 }
 // Remove from the model: the binding goes, and so does the item if it was placed together with the device.
 export function unplace(plan: DevicePlan, rec: PlanDevice): void {
+  const f = rec.furn ? plan.furniture.find(x => x.id === rec.furn) : undefined;
+  const at = f && (f.model === 'blind' || f.model === 'curtains') ? openingOfCover(plan, f) : null;
   plan.devices = (plan.devices || []).filter(x => x !== rec);
-  if (rec.made && rec.furn) plan.furniture = plan.furniture.filter(f => f.id !== rec.furn);
+  if (rec.made && rec.furn) plan.furniture = plan.furniture.filter(x => x.id !== rec.furn);
+  // a section taken away: the others of its kind at that opening share it again
+  if (at && f) shareOpening(plan, at, f.model, coversAt(plan, at));
 }
 
 // ---------- state ----------
@@ -613,6 +712,9 @@ export const TONE: Record<string, string> = {
 // the setpoint range of an air conditioner or heater that does not give its own (min_temp, max_temp), °C
 export const DEFAULT_MIN_TEMP_C = 7;
 export const DEFAULT_MAX_TEMP_C = 35;
+// How long a cover's motor takes from fully open to fully closed (D-122): a curtain motor moves about 15 cm/s, each drape over 1–1.5 m;
+// a tubular roller-blind motor about 7 cm/s over a 1.5 m window. The demo's covers move at this pace and the model glides at it.
+export const COVER_TRAVEL_MS = {curtains: 10000, blind: 20000} as const;
 export function acView(x: EntityState | null | undefined): AcView {
   if (!x || ['unavailable', 'unknown'].includes(x.state)) return {ok: false, on: false};
   const A: HassAttributes = x.attributes || {};
@@ -637,7 +739,13 @@ export function coverView(x: EntityState | null | undefined): CoverView {
   if (!x || ['unavailable', 'unknown'].includes(x.state)) return {ok: false, open: 0};
   const p = x.attributes?.current_position;
   const pos = finite(p) ? p : x.state === 'open' || x.state === 'opening' ? 100 : 0;
-  return {ok: true, pos, open: pos / 100, moving: x.state === 'opening' || x.state === 'closing'};
+  return {
+    ok: true,
+    pos,
+    open: pos / 100,
+    moving: x.state === 'opening' || x.state === 'closing',
+    closing: x.state === 'closing',
+  };
 }
 export const contactView = (x: EntityState | null | undefined): ContactView => ({
   ok: !!x && !['unavailable', 'unknown'].includes(x.state),
@@ -650,8 +758,9 @@ export function liveScene(
   plan: DevicePlan,
   ha: Pick<HaLayer, 'devices' | 'entity'> | null | undefined,
 ): LiveScene {
-  const out: LiveScene = {open: new Map(), climate: [], contacts: []};
+  const out: LiveScene = {open: new Map(), heading: new Map(), climate: [], contacts: [], vacuums: []};
   if (!ha?.devices) return out;
+  out.vacuums = vacuumSpots(plan, ha);
   const byE = new Map(ha.devices().map(d => [d.entity, d]));
   for (const rec of plan.devices || []) {
     const d = byE.get(rec.entity);
@@ -661,8 +770,11 @@ export function liveScene(
     if (rec.furn) {
       const f = plan.furniture.find(f => f.id === rec.furn);
       if (!f) continue;
-      if (k === 'cover') out.open.set(f.id, coverView(x).open);
-      else if (k === 'ac') {
+      if (k === 'cover') {
+        const view = coverView(x);
+        out.open.set(f.id, view.open);
+        if (view.moving) out.heading.set(f.id, view.closing ? -1 : 1);
+      } else if (k === 'ac') {
         const v = acView(x);
         out.climate.push({id: rec.entity, f, on: v.on, tone: v.tone, fan: v.fan});
       }
@@ -683,4 +795,54 @@ export function liveScene(
     }
   }
   return out;
+}
+
+// Robot vacuums and their docks (D-125): a robotVacuum item on the plan is the dock of an HA robot vacuum without any binding to
+// make: the one bound to it in plan.devices, else the robot whose area is the dock's room, else the next robot left (a home
+// with one robot and one dock, the usual one, needs nothing). A dock with no robot left stays still, as any furniture does.
+const VACUUM_STATES = new Set(['cleaning', 'returning', 'docked', 'idle', 'paused', 'error']);
+export function vacuumSpots(
+  plan: Pick<DevicePlan, 'rooms' | 'furniture'> & Partial<Pick<DevicePlan, 'devices'>>,
+  ha: Pick<HaLayer, 'devices' | 'entity'>,
+): VacuumSpot[] {
+  const docks = plan.furniture.filter(f => f.model === 'robotVacuum');
+  if (!docks.length) return [];
+  const robots = ha
+    .devices()
+    .filter(d => d.domain === 'vacuum')
+    .sort((a, b) => nat(a.entity, b.entity));
+  const dockOf = new Map<string, FurnitureItem>();
+  const taken = new Set<string>();
+  const pair = (robot: HaDevice, dock: FurnitureItem | undefined): void => {
+    if (!dock || dockOf.has(robot.entity) || taken.has(dock.id)) return;
+    dockOf.set(robot.entity, dock);
+    taken.add(dock.id);
+  };
+  for (const robot of robots) {
+    const bound = plan.devices?.find(rec => rec.entity === robot.entity && rec.furn);
+    const boundDock = docks.find(dock => dock.id === bound?.furn);
+    pair(robot, boundDock);
+  }
+  for (const robot of robots) {
+    const room = roomOfArea(plan, robot.area);
+    pair(robot, room ? docks.find(dock => !taken.has(dock.id) && inRoom(dock, room)) : undefined);
+  }
+  for (const robot of robots) {
+    const anyDock = docks.find(dock => !taken.has(dock.id));
+    pair(robot, anyDock);
+  }
+  return robots.flatMap(robot => {
+    const dock = dockOf.get(robot.entity);
+    if (!dock) return [];
+    const state = ha.entity(robot.entity);
+    const changed = state?.last_changed ? Date.parse(state.last_changed) : NaN;
+    return [
+      {
+        id: robot.entity,
+        f: dock,
+        activity: state && VACUUM_STATES.has(state.state) ? state.state : null,
+        since: Number.isFinite(changed) ? changed : null,
+      },
+    ];
+  });
 }

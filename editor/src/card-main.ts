@@ -87,14 +87,15 @@ const EXPAND =
   '<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 3h6v6M9 21H3v-6M21 3l-7 7M3 21l7-7"/></svg>';
 // inside the panel (look.js): it is as tall as the card, not as the browser window; settings buttons — administrators only (look/roles.ts)
 const IN_CARD = ':host(.embedded) .shell{height:100%;min-height:0}';
-// compact: the model fills the card, “Now” lies over its top, the room strip — over its bottom, nothing else of the panel
+// compact: the model fills the card, “Now” lies over its top, the room strip — over its bottom, nothing else of the panel (no notifications)
 const COMPACT = `:host(.compact) .main{padding:0!important}:host(.compact) .workspace{display:block!important;position:relative;height:100%}
 :host(.compact) .map-card{position:absolute!important;inset:0;height:auto!important;border:0;border-radius:0}
 :host(.compact) .sidebar{position:absolute!important;left:12px;right:58px;top:12px;bottom:auto!important;width:auto!important;padding:0!important;background:none!important;
   border:0!important;backdrop-filter:none!important;-webkit-backdrop-filter:none!important;overflow:visible!important;pointer-events:none}
 :host(.compact) .sidebar>:not(.now-panel),:host(.compact) .now-panel .section-head{display:none!important}:host(.compact) .now-chips{pointer-events:auto}
 :host(.compact) .room-strip{display:grid!important;padding:28px 10px 10px!important}
-:host(.compact) .view-controls,:host(.compact) .workspace::before,:host(.compact) .workspace::after{display:none!important}`;
+:host(.compact) .view-controls,:host(.compact) .workspace::before,:host(.compact) .workspace::after{display:none!important}
+:host(.compact) .notifications,:host(.compact) .note-gear,:host(.compact) .note-settings{display:none!important}`;
 
 export async function createCard(card: CardHost, hass0: Hass, config0: CardConfig): Promise<CardApp> {
   let hass = hass0;
@@ -288,6 +289,7 @@ export async function createCard(card: CardHost, hass0: Hass, config0: CardConfi
     view.setSensors(planSpots(plan, ed.sensorCtx(), {cam: view.homeCam?.()}));
     view.setClimate?.(l.climate);
     view.setContacts?.(l.contacts);
+    view.setVacuums?.(l.vacuums);
   }
   // no home yet: say so, and administrators get a way to the editor
   function empty(on: boolean): void {

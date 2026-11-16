@@ -143,3 +143,51 @@ test('a built-in wardrobe can reach the ceiling of a 2.7 m room', () => {
   const wardrobe = byId('wardrobeRun')!; // the catalog has it
   assert.ok(wardrobe.max[2] >= 2.7);
 });
+// Curtains and blinds move in place as their motor runs (D-122): the same meshes, set to any position, not only whole percents, and
+// set in place they look as built at that position.
+test('curtains and blinds: set in place to any position, the same as built there', async () => {
+  const THREE = await import('three');
+  // every mesh's box, where it is drawn
+  const extent = (g: THREE.Object3D): number[] => {
+    g.updateMatrixWorld(true);
+    const out: number[] = [];
+    g.traverse(o => {
+      if (!isMesh(o)) return;
+      const box = new THREE.Box3().setFromObject(o, true);
+      out.push(...[...box.min.toArray(), ...box.max.toArray()].map(x => Math.round(x * 1e5) / 1e5));
+    });
+    return out;
+  };
+  const meshes = (g: THREE.Object3D): string[] => {
+    const ids: string[] = [];
+    g.traverse(o => isMesh(o) && ids.push(o.uuid));
+    return ids;
+  };
+  const covers: Array<Partial<Item3d>> = [
+    ...['roller', 'venetian', 'daynight'].map(v => ({
+      model: 'blind',
+      w: 1.2,
+      d: 0.1,
+      h: 1.6,
+      color: 'white',
+      v,
+    })),
+    {model: 'curtains', w: 2, d: 0.2, h: 2.6, color: 'linen'},
+  ];
+  for (const cover of covers) {
+    const name = `${cover.model} ${cover.v ?? ''}`;
+    const g = makeObject(itemOf({...cover, open: 0}));
+    const setOpen = g.userData.setOpen as (open?: number) => void;
+    assert.equal(typeof setOpen, 'function', name);
+    const before = meshes(g);
+    setOpen(0.5);
+    const half = extent(g);
+    setOpen(0.503);
+    assert.notDeepEqual(extent(g), half, `${name}: moves by less than a percent`);
+    assert.deepEqual(meshes(g), before, `${name}: built again`);
+    for (const open of [0, 0.37, 1]) {
+      setOpen(open);
+      assert.deepEqual(extent(g), extent(makeObject(itemOf({...cover, open}))), `${name} at ${open}`);
+    }
+  }
+});

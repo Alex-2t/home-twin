@@ -1,8 +1,9 @@
 // The demo HA layer behaves like HA: lamps are light / switch entities with turn_on / turn_off commands, a valve exposed as a cover moves and reports
 // a cover state. “Preview” talks to them only via entity() and call(), so the real HA layer drops in without changes.
-import test from 'node:test';
+import test, {mock} from 'node:test';
 import assert from 'node:assert/strict';
 import {mockHA} from './ha.ts';
+import {COVER_TRAVEL_MS} from '../core/devices.ts';
 import type {DemoHaData, PlanLight} from '../core/types.ts';
 
 const base = (): DemoHaData => ({areas: {kitchen: 'Kitchen'}, lights: []});
@@ -41,6 +42,44 @@ test('demo valve-as-cover: closes with a cover command, state closed', async () 
   });
   await ha.call('cover', 'close_cover', {entity_id: 'cover.water_valve'});
   assert.equal(ha.entity('cover.water_valve')!.state, 'closed');
+});
+
+test('demo curtains and blinds move like a motor: opening / closing at their pace, the position reported as they go, stop where they are', async () => {
+  mock.timers.enable({apis: ['setInterval', 'Date']});
+  try {
+    const ha = mockHA({
+      ...base(),
+      entities: {
+        'cover.curtain': {state: 'closed', attributes: {current_position: 0}},
+        'cover.blind': {state: 'open', attributes: {current_position: 100}},
+      },
+      devices: [
+        {entity: 'cover.curtain', name: 'Curtain', area: 'kitchen', domain: 'cover', cls: 'curtain'},
+        {entity: 'cover.blind', name: 'Blind', area: 'kitchen', domain: 'cover', cls: 'blind'},
+      ],
+    });
+    const curtain = () => ha.entity('cover.curtain')!;
+    const blind = () => ha.entity('cover.blind')!;
+    await ha.call('cover', 'open_cover', {entity_id: 'cover.curtain'});
+    await ha.call('cover', 'close_cover', {entity_id: 'cover.blind'});
+    assert.equal(curtain().state, 'opening');
+    assert.equal(blind().state, 'closing');
+    mock.timers.tick(COVER_TRAVEL_MS.curtains / 2);
+    assert.equal(
+      Math.round(curtain().attributes.current_position as number),
+      50,
+      'half way after half its travel',
+    );
+    assert.equal(Math.round(blind().attributes.current_position as number), 75, 'a blind is slower');
+    await ha.call('cover', 'stop_cover', {entity_id: 'cover.blind'});
+    assert.equal(blind().state, 'open', 'stopped part way: open, as HA says');
+    mock.timers.tick(COVER_TRAVEL_MS.curtains / 2);
+    assert.equal(curtain().state, 'open');
+    assert.equal(curtain().attributes.current_position, 100);
+    assert.equal(Math.round(blind().attributes.current_position as number), 75, 'a stopped blind stays');
+  } finally {
+    mock.timers.reset();
+  }
 });
 
 test('demo air conditioner: the setpoint stays in its range; one without min_temp and max_temp gets the usual 7–35 °C', async () => {

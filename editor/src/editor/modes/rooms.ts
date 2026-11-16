@@ -38,8 +38,11 @@ import {
   removeRoom,
   insertVertex,
   removeVertex,
+  joinCorners,
   linkedEdges,
   moveEdges,
+  moveJunction,
+  tidyJunction,
   setEdgeLength,
   snapshot,
   roomById,
@@ -67,6 +70,7 @@ import {openingsTool} from './openings.ts';
 import {typedOutlineSize} from '../wizard-state.ts';
 import {focusIndexIn, refocusAt} from '../keyboard.ts';
 import type {OpeningHit, OpeningsTool} from './openings.ts';
+import type {CornerJunction} from '../../core/plan.ts';
 import type {
   EdgeFinish,
   EdgeRef,
@@ -238,11 +242,12 @@ interface ThickDrag {
   moved?: boolean;
 }
 
-/** A corner being dragged. */
+/** A corner being dragged; once it moves, the corners of the rooms meeting at it move with it (joinCorners). */
 interface VertexDrag {
   kind: 'vertex';
   room: Room;
   i: number;
+  junction?: CornerJunction;
   start?: undefined;
   moved?: boolean;
 }
@@ -807,7 +812,7 @@ export function roomsMode(ed: Editor): RoomsMode {
 
   // ---------- “Split”: a line through the pointer; direction follows the mouse movement, at a wall — parallel to it, Tab — rotate ----------
   // Moving up and down — the line is horizontal and follows the pointer, left and right — vertical (like dragging a ruler).
-  // Right at a wall (closer than NEAR pixels) — parallel to it: this is a strong hint “the wall is here”. Tab rotates and holds the direction
+  // Right at a wall (closer than NEAR pixels, in a narrow room a fifth of its depth) — parallel to it: this is a strong hint “the wall is here”. Tab rotates and holds the direction
   // until the pointer comes to a wall or leaves the room. The position snaps to the corners of other rooms and to the grid; Shift — no snapping.
   const NEAR = 25;
   let cutDir: Vector | null = null;
@@ -856,7 +861,14 @@ export function roomsMode(ed: Editor): RoomsMode {
     const nn: Vector = [-u[1], u[0]];
     const along = (q: Vector): number => Math.abs(q[0] * u[0] + q[1] * u[1]);
     const across = (q: Vector): number => Math.abs(q[0] * nn[0] + q[1] * nn[1]);
-    if (nearest.d * v().sc < NEAR) {
+    // In a narrow room NEAR from both long walls would cover the whole room and the line could never turn across it,
+    // so the band at a wall is at most a fifth of the room's depth across that wall.
+    const depthOffWall = ((): number => {
+      const offsets = r.polygon.map(q => q[0] * nn[0] + q[1] * nn[1]);
+      return Math.max(...offsets) - Math.min(...offsets);
+    })();
+    const nearPx = Math.min(NEAR, (depthOffWall * v().sc) / 5);
+    if (nearest.d * v().sc < nearPx) {
       cutDir = u;
       cutLock = false;
       mv = [0, 0];
@@ -1361,13 +1373,15 @@ export function roomsMode(ed: Editor): RoomsMode {
       return;
     }
     // the callbacks below run at once, while the drag is the kind checked here
-    if (drag.kind === 'vertex')
-      drag.room.polygon[drag.i] = snapPoint(
-        p,
-        (r, i) => r === (drag as VertexDrag).room && i === (drag as VertexDrag).i,
-        free,
-      );
-    else if (drag.kind === 'edge') {
+    if (drag.kind === 'vertex') {
+      // the junction is found on the first move: a click on a corner changes nothing
+      drag.junction ??= joinCorners(plan(), drag.room, drag.i);
+      const corners = drag.junction.corners;
+      // none of the junction's corners is a place to snap to: they move along
+      const moving = (r: Room, i: number): boolean =>
+        corners.some(c => c.room === r && c.point === r.polygon[i]);
+      moveJunction(drag.junction, snapPoint(p, moving, free));
+    } else if (drag.kind === 'edge') {
       const n = drag.n;
       const a0 = drag.orig.get(drag.room.id)![drag.i]; // the snapshot has every room
       let d = (p[0] - drag.start[0]) * n[0] + (p[1] - drag.start[1]) * n[1];
@@ -1442,6 +1456,7 @@ export function roomsMode(ed: Editor): RoomsMode {
         ed.draw();
         return;
       } // a click on a wall selects it
+      if (d.kind === 'vertex' && d.junction) tidyJunction(plan(), d.junction);
       if (moved) ed.commit();
       else ed.draw();
     }
@@ -2220,7 +2235,9 @@ export function roomsMode(ed: Editor): RoomsMode {
         ...(W.open
           ? [tog, ...(W.interior ? [mg] : [])]
           : guided
-            ? [put('window'), put('door')]
+            ? // the step is windows and doors, but a wall between rooms can still be removed right here: a wall drawn by
+              // mistake, or one remembered late, is fixed without going back a step
+              [put('window'), put('door'), ...(W.interior ? [tog] : [])]
             : W.rail
               ? [glass, rail, ...moreIfAny]
               : W.interior
@@ -2233,7 +2250,6 @@ export function roomsMode(ed: Editor): RoomsMode {
       if (extra) {
         const measurements = el('<div class="line"></div>');
         measurements.append(L);
-        if (W.interior) measurements.append(tog);
         extra.append(measurements);
         lines.push(extra);
       }

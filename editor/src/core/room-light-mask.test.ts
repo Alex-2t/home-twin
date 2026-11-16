@@ -65,3 +65,58 @@ test('room light mask: a room returns 0 outside its box widened by the feather',
     'an outline without an area gets no box (no Infinity in the shader)',
   );
 });
+
+/** What a material's shader becomes when it is compiled now. */
+function compiledFragment(material: THREE.Material): string {
+  const shader = {
+    uniforms: {},
+    vertexShader: '',
+    fragmentShader: 'void main() {\n#include <lights_fragment_begin>\n}',
+  } as unknown as THREE.WebGLProgramParametersWithUniforms;
+  material.onBeforeCompile(shader, {} as THREE.WebGLRenderer);
+  return shader.fragmentShader;
+}
+
+/** The scene's hook before a frame, as the renderer calls it. */
+function drawFrame(scene: THREE.Scene): void {
+  const camera = new THREE.PerspectiveCamera();
+  // the scene's own hook has no geometry, material or group (three.js passes nulls for it)
+  const none = null as never;
+  scene.onBeforeRender({} as THREE.WebGLRenderer, scene, camera, none, none, none);
+}
+
+test('room light mask: an item built after the mask is covered when it is first drawn (a lowered blind lit through the wall)', () => {
+  const scene = new THREE.Scene();
+  scene.add(new THREE.Mesh(new THREE.BoxGeometry(), new THREE.MeshStandardMaterial()));
+  const lamp = new THREE.PointLight();
+  scene.add(lamp);
+  installRoomLightMask(scene, [{room: {polygon: ROOM}, lights: [lamp]}], scene);
+  // the blind is rebuilt with a new material once its position changes
+  const blindMaterial = new THREE.MeshStandardMaterial();
+  scene.add(new THREE.Mesh(new THREE.BoxGeometry(), blindMaterial));
+  assert.ok(!compiledFragment(blindMaterial).includes('confinedMasks'), 'not covered before it is drawn');
+  drawFrame(scene);
+  assert.ok(compiledFragment(blindMaterial).includes('confinedMasks'), 'covered on its first frame');
+  assert.ok(blindMaterial.customProgramCacheKey().includes(':room-mask:'), 'its program is the masked one');
+});
+
+test('room light mask: a new mask wraps the material once; with no lamps the material is back to its own hooks', () => {
+  const scene = new THREE.Scene();
+  const material = new THREE.MeshStandardMaterial();
+  let ownCalls = 0;
+  material.onBeforeCompile = () => {
+    ownCalls += 1;
+  };
+  scene.add(new THREE.Mesh(new THREE.BoxGeometry(), material));
+  const lamp = new THREE.PointLight();
+  scene.add(lamp);
+  installRoomLightMask(scene, [{room: {polygon: ROOM}, lights: [lamp]}], scene);
+  installRoomLightMask(scene, [{room: {polygon: ROOM}, lights: [lamp]}], scene);
+  const fragment = compiledFragment(material);
+  assert.equal(ownCalls, 1, 'its own hook runs once');
+  assert.equal(count(fragment, 'float confinedMasks['), 1, 'the mask is in the shader once');
+  installRoomLightMask(scene, [{room: {polygon: ROOM}, lights: []}], scene);
+  assert.ok(!compiledFragment(material).includes('confinedMasks'), 'no lamps: no mask');
+  assert.equal(ownCalls, 2, 'its own hook still runs');
+  assert.ok(!material.customProgramCacheKey().includes(':room-mask:'), 'its own program key');
+});

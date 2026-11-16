@@ -16,7 +16,7 @@ export interface PlanWalls {
   hidden: number;
 }
 /** An item as the 3D view takes it: a built-in run with its shape, a cover as open as HA says (0–1). */
-export type SceneItem = FurnitureItem & {geo?: RunGeo | null; open?: number};
+export type SceneItem = FurnitureItem & {geo?: RunGeo | null; open?: number; heading?: 1 | -1};
 
 // The rooms the dashboard card can build walls for: a room the plan check finds a problem in (its outline crosses itself, a side
 // under 5 cm, it overlaps another) is left out, so one room drawn wrong does not hide the whole home (the editor says what is
@@ -56,11 +56,14 @@ export function tryPlanWalls(plan: Pick<Plan, 'rooms' | 'openings' | 'wall'>): P
 // furniture as the view takes it: built-in runs with their shape, curtains and doors as open as HA says (live — devices.js: liveScene)
 export const planFurniture = (
   plan: Pick<Plan, 'rooms' | 'furniture'>,
-  live: Pick<LiveScene, 'open'>,
+  live: Pick<LiveScene, 'open'> & Partial<Pick<LiveScene, 'heading'>>,
 ): SceneItem[] =>
-  plan.furniture.map((f): SceneItem =>
-    isRun(f) ? {...f, geo: runGeo(plan, f)} : live.open.has(f.id) ? {...f, open: live.open.get(f.id)} : f,
-  );
+  plan.furniture.map((f): SceneItem => {
+    if (isRun(f)) return {...f, geo: runGeo(plan, f)};
+    if (!live.open.has(f.id)) return f;
+    const heading = live.heading?.get(f.id);
+    return heading ? {...f, open: live.open.get(f.id), heading} : {...f, open: live.open.get(f.id)};
+  });
 
 // readings on the walls (D-033): ctx — sensors, areas, state (editor/app.js: sensorCtx); cam — the home view direction; moving — the one being dragged
 export const planSpots = (
