@@ -2,6 +2,13 @@
 
 Reviewed 2026-11-07. This file keeps proposals and already implemented ideas with links to decisions. The current development queue is in [status.md](status.md); an idea being recorded does not mean it has been included in the nearest release.
 
+## Pins sent to the developer: what D-129 left for later (2026-11-16)
+
+- **Report a pin the service says it made.** Now only a pin that came back has the button; a pin marked made that still looks wrong can only be pinned again.
+- **A written reply** from the developer beyond the note of "Can't be done", e.g. a question back.
+- **Buttons in Telegram** for the statuses (looking, can't be done) instead of the server's command.
+- **The fix's choice dialog** marks what changed in each room's drawing; now the user compares two small drawings by eye.
+
 ## Example cards as short looping videos (owner, 2026-11-15) — parked, not to be done now
 
 The example cards on the start screen and in the gallery could show a short video that simply turns the model round, instead of the still render: no turning by hand, no drag, no lamp — just a plain looping video of the camera going round the home, rendered at 30–60 fps (about 300–500 KB, loaded only when a card is hovered or comes into view; the still render stays as the poster and as the fallback, e.g. on an iPhone in Low Power Mode). Tried first as pre-rendered frame sheets turned by hover and drag with a day/night lamp (D-114, 2026-11-15): 24, then 72 frames with a cross-fade still looked choppy, so it was reverted the same day and the cards are still renders again.
