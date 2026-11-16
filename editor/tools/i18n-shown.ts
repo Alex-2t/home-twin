@@ -1,7 +1,7 @@
 // What the examples show untranslated (D-120). Opens each example as the company's site shows it (?show, Preview), the home
 // panel and every room's panel, in English and in each language asked for, and collects every visible text, tooltip and
 // accessible name, the panel's Shadow DOM included. A text a language shows exactly as English shows it is reported, and in
-// Russian and Chinese also any English word inside a text ("Проветрить bedroom"). Names the language keeps (Home Assistant, CO₂,
+// Russian and Chinese also any English word inside a text (the Russian "Air out" before an English "bedroom"). Names the language keeps (Home Assistant, CO₂,
 // key names) are not. The 3D labels drawn on a canvas are not seen.
 //   node tools/i18n-shown.ts [--lang ru,de] [--only loft,studio]   (default: every language, every example)
 // It builds the editor first. Chrome: CHROME_PATH, or the usual macOS place.
