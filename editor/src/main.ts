@@ -8,6 +8,8 @@ import {hashRouter} from './editor/route.ts';
 import {linkWindows} from './editor/link.ts';
 import {openAiFromAddress, aiService, aiStartCard} from './editor/ai-build.ts';
 import {watchFixes} from './editor/ai-fix.ts';
+import {haOriginOfTab} from './editor/ha-handoff.ts';
+import {sendToHa} from './editor/ai-from-ha.ts';
 import {localizeDemo} from './i18n/demo-names.ts';
 import {getLang} from './i18n/i18n.ts';
 import type {ExampleHome} from './core/types.ts';
@@ -59,4 +61,10 @@ aiService().then(ok => {
   // a home taken from the AI build is offered the developer's fixes of its pins (D-129)
   watchFixes(ed);
 });
+// A tab opened from Home Assistant's panel (D-130): the home goes back to it from the plan menu, and when a build is done.
+const haOrigin = haOriginOfTab();
+if (haOrigin) {
+  document.querySelector<HTMLElement>('#file-menu [data-a=send-ha]')!.hidden = false; // the shell has it
+  ed.flows.sendToHa = () => sendToHa(ed, haOrigin);
+}
 openAiFromAddress(ed);

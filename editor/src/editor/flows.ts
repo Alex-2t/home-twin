@@ -1578,6 +1578,7 @@ export function createFlows(
     prev: () => swapPrev(),
     versions: () => ed.showVersions(),
     board: () => f.addBoard(),
+    'send-ha': () => f.sendToHa?.(),
   };
   document.querySelectorAll<HTMLElement>('.menu [data-a]').forEach(
     b =>
@@ -1651,8 +1652,11 @@ export function createFlows(
       ed.banner(text, [[t('Got it'), () => ed.banner()]]);
       return;
     }
+    await f.takePlan(plan, 'file');
+  };
+  f.takePlan = async (plan, why) => {
+    ed.versions.mark('before', why);
     // Another project has no photo in its JSON. The previous plan photo must not end up under the new home.
-    ed.versions.mark('before', 'file');
     if (plan.id !== ed.plan.id) {
       await keepPrev();
       await ed.underlay.clear();

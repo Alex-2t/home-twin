@@ -7,6 +7,7 @@ import {browserPhotos} from './editor/underlay.ts';
 import {t, setFormats} from './i18n/i18n.ts';
 import {haRouter} from './editor/route.ts';
 import {buildOf, reloadPanel, showEditorUpdateNotice, watchBuild} from './frontend-build.ts';
+import {aiBuildInPanel} from './editor/ai-from-ha.ts';
 import type {Hass} from './core/types.ts';
 import type {Editor} from './editor/editor-types.ts';
 import type {PanelRoute, PanelRouter} from './editor/route.ts';
@@ -87,11 +88,14 @@ export async function start(panel: PanelHost): Promise<PanelApp> {
   if (asked) ask();
   // the subscription is made on HA's page's connection, which outlives this iframe: it is ended when the panel closes (below)
   const stopWatchingBuild = watchBuild(hass(), buildOf(import.meta.url), showUpdated, {panel: true});
+  // The AI build (D-130): on our site in a tab of its own, its home comes back here. HA's page is the panel iframe's top window.
+  const stopTakingAiHomes = aiBuildInPanel(ed, window.top!);
   addEventListener('pagehide', () => {
     plans.flush();
     photos.flush();
     ed.history.flush();
     stopWatchingBuild();
+    stopTakingAiHomes();
   });
   let online = panel.hass?.connected;
   return {

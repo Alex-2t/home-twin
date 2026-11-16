@@ -1760,5 +1760,17 @@
  "Walls and windows": "墙和窗",
  "What is wrong? Not required": "哪里不对？可不填",
  "You changed these since. Keep yours, or take the fixed one?": "这些你之后改过。保留你的，还是用修复后的？",
- "Yours": "你的"
+ "Yours": "你的",
+ "A home built by AI arrived. Replace your plan with it?": "AI 构建的住宅已送达。用它替换你的平面图吗？",
+ "Allow pop-ups for this site, then try again.": "请允许此网站的弹出窗口，然后重试。",
+ "Before the home built by AI": "AI 构建住宅之前",
+ "Home Assistant did not answer.": "Home Assistant 没有响应。",
+ "Open Home Assistant": "打开 Home Assistant",
+ "Replace": "替换",
+ "Send to Home Assistant": "发送到 Home Assistant",
+ "Sending to Home Assistant…": "正在发送到 Home Assistant…",
+ "Waiting for Home Assistant. Sign in there if it asks.": "正在等待 Home Assistant。如有提示，请在那里登录。",
+ "Your home is here. Link its rooms to Home Assistant.": "住宅已就位。将它的房间关联到 Home Assistant。",
+ "Your home is in Home Assistant.": "住宅已在 Home Assistant 中。",
+ "Your home is ready. Send it to Home Assistant.": "你的住宅已完成。把它发送到 Home Assistant。"
 }

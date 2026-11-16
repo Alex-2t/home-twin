@@ -1760,5 +1760,17 @@
  "Walls and windows": "Стены и окна",
  "What is wrong? Not required": "Что не так? Необязательно",
  "You changed these since. Keep yours, or take the fixed one?": "Это вы с тех пор меняли. Оставить ваше или взять исправленное?",
- "Yours": "Ваша"
+ "Yours": "Ваша",
+ "A home built by AI arrived. Replace your plan with it?": "Пришёл дом, собранный AI. Заменить им ваш план?",
+ "Allow pop-ups for this site, then try again.": "Разрешите всплывающие окна для этого сайта и попробуйте снова.",
+ "Before the home built by AI": "До дома, собранного AI",
+ "Home Assistant did not answer.": "Home Assistant не ответил.",
+ "Open Home Assistant": "Открыть Home Assistant",
+ "Replace": "Заменить",
+ "Send to Home Assistant": "Отправить в Home Assistant",
+ "Sending to Home Assistant…": "Отправляем в Home Assistant…",
+ "Waiting for Home Assistant. Sign in there if it asks.": "Ждём Home Assistant. Войдите в него, если попросит.",
+ "Your home is here. Link its rooms to Home Assistant.": "Дом здесь. Привяжите его комнаты к Home Assistant.",
+ "Your home is in Home Assistant.": "Дом в Home Assistant.",
+ "Your home is ready. Send it to Home Assistant.": "Дом готов. Отправьте его в Home Assistant."
 }

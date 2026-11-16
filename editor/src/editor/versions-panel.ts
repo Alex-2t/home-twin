@@ -27,6 +27,7 @@ const BEFORE: Record<string, string> = {
   removeRoom: N('Before deleting a room'),
   rotate: N('Before rotating the plan'),
   file: N('Before opening a file'),
+  aiHome: N('Before the home built by AI'),
   restore: N('Before restoring a version'),
 };
 const STEP: Record<string, string> = Object.fromEntries([...MAND, ...OPT].map(s => [s[0], s[1]]));

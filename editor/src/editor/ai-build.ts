@@ -64,6 +64,8 @@ import {totalSeconds, videoConcern, videoConcernText, videosFacts} from './video
 import {FEW_PHOTOS, MOST_PHOTOS, MOST_VIDEOS, isPlanFile, showable, sortMedia} from './media-files.ts';
 import type {VideoConcern} from './video-note.ts';
 import {UploadFailed, browserTransport, uploadBuild} from './ai-upload.ts';
+import {keptHaOrigin} from './ha-handoff.ts';
+import {sendToHa} from './ai-from-ha.ts';
 import type {UploadJob} from './ai-upload.ts';
 import type {Estimate, RoundSize} from './ai-estimate.ts';
 import type {Outline, Plan} from '../core/types.ts';
@@ -847,8 +849,9 @@ export async function openAiFromAddress(
   const back = readReturn(location.href);
   if (back.found) history.replaceState(history.state, '', back.clean);
   const params = new URLSearchParams(location.search);
-  const id = params.get('build');
   const upload = params.get(UPLOAD_PARAM) === UPLOAD_VALUE;
+  // "Build with AI" in Home Assistant's panel always asks for the upload (D-130): while a build is on its way, that build
+  const id = params.get('build') || (upload && keptHaOrigin() ? followedBuild() : null);
   if (!id && !upload && !back.found) return null;
   let notice: string | null = null;
   let claimed: Account | null = null;
@@ -2294,6 +2297,14 @@ export function openAiBuild(ed: Editor, options: AiBuildOptions = {}): AiBuildSc
     ed.setMain('3d');
     ed.view.home();
     quietSetup();
+    // opened from Home Assistant's panel (D-130): the home is to go back there
+    const haOrigin = keptHaOrigin();
+    if (haOrigin) {
+      ed.banner(t('Your home is ready. Send it to Home Assistant.'), [
+        [t('Send to Home Assistant'), () => sendToHa(ed, haOrigin), true],
+      ]);
+      return;
+    }
     ed.banner(t('Your home is ready. Change anything you like.'), [[t('Got it'), () => ed.banner(), true]]);
   }
 

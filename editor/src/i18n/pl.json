@@ -1760,5 +1760,17 @@
  "Walls and windows": "Ściany i okna",
  "What is wrong? Not required": "Co jest nie tak? Opcjonalnie",
  "You changed these since. Keep yours, or take the fixed one?": "Od tego czasu to zmieniłeś. Zostawić Twoją wersję czy wziąć poprawioną?",
- "Yours": "Twoja"
+ "Yours": "Twoja",
+ "A home built by AI arrived. Replace your plan with it?": "Przyszedł dom zbudowany przez AI. Zastąpić nim twój plan?",
+ "Allow pop-ups for this site, then try again.": "Zezwól na wyskakujące okna dla tej strony i spróbuj ponownie.",
+ "Before the home built by AI": "Przed domem zbudowanym przez AI",
+ "Home Assistant did not answer.": "Home Assistant nie odpowiedział.",
+ "Open Home Assistant": "Otwórz Home Assistant",
+ "Replace": "Zastąp",
+ "Send to Home Assistant": "Wyślij do Home Assistant",
+ "Sending to Home Assistant…": "Wysyłanie do Home Assistant…",
+ "Waiting for Home Assistant. Sign in there if it asks.": "Czekamy na Home Assistant. Zaloguj się tam, jeśli poprosi.",
+ "Your home is here. Link its rooms to Home Assistant.": "Twój dom jest tutaj. Powiąż jego pokoje z Home Assistant.",
+ "Your home is in Home Assistant.": "Twój dom jest w Home Assistant.",
+ "Your home is ready. Send it to Home Assistant.": "Twój dom jest gotowy. Wyślij go do Home Assistant."
 }
