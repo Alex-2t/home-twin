@@ -7,6 +7,7 @@ import {EXAMPLES} from './gen/examples.gen.js';
 import {hashRouter} from './editor/route.ts';
 import {linkWindows} from './editor/link.ts';
 import {openAiFromAddress, aiService, aiStartCard} from './editor/ai-build.ts';
+import {watchFixes} from './editor/ai-fix.ts';
 import {localizeDemo} from './i18n/demo-names.ts';
 import {getLang} from './i18n/i18n.ts';
 import type {ExampleHome} from './core/types.ts';
@@ -53,6 +54,9 @@ linkWindows(ha, ed);
 // Back from the checkout (?payment_id=…) the payment is counted on the account, then the page it left opens again (D-086,
 // D-088); back from a sign-in with Google or GitHub, the same page opens signed in.
 aiService().then(ok => {
-  if (ok) ed.flows.offerAi(card => aiStartCard(ed, card));
+  if (!ok) return;
+  ed.flows.offerAi(card => aiStartCard(ed, card));
+  // a home taken from the AI build is offered the developer's fixes of its pins (D-129)
+  watchFixes(ed);
 });
 openAiFromAddress(ed);

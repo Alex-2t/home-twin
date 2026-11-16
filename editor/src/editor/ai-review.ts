@@ -10,8 +10,8 @@ import {t} from '../i18n/i18n.ts';
 import {zOf} from '../core/catalog.ts';
 import {$, el, esc, find} from './ui.ts';
 import {icon} from './icons.ts';
-import {newPin, pinLabel, changeCount, MAX_PIN_PHOTOS, MISSED_REASON} from './ai-pins.ts';
-import type {Pin, PinHit, PinNotes, PinRetry, PinRound, RoundPin} from './ai-pins.ts';
+import {newPin, pinLabel, changeCount, MAX_PIN_PHOTOS, MISSED_REASON, reportOf} from './ai-pins.ts';
+import type {Pin, PinHit, PinNotes, PinRetry, PinRound, ReportView, RoundPin} from './ai-pins.ts';
 import type {CanvasPoint, Editor, Pane} from './editor-types.ts';
 
 /** A thing the service could not place clear (it stands where the editor draws it red): which, where, and what to call it. */
@@ -46,7 +46,9 @@ export interface ReviewOptions {
   lastRound?: PinRound | null;
   pastRounds?: PinRound[];
   unplaced?: UnplacedThing[];
-  onReport?: ((pin: Pin) => Promise<unknown>) | null;
+  onReport?: ((pin: Pin, comment: string) => Promise<unknown>) | null;
+  /** The pins sent to the developer and where each stands (D-129): shown on the pin instead of the button. */
+  reports?: ReportView[];
   account?: ((slot: HTMLElement) => void) | null;
 }
 
@@ -129,9 +131,11 @@ export function openReview(
     pastRounds = [],
     unplaced = [],
     onReport = null,
+    reports: reportsAtStart = [],
     account = null,
   }: ReviewOptions,
-): {close(): void} {
+): {close(): void; setReports(reports: ReportView[]): void} {
+  let reports = reportsAtStart;
   // The pins of earlier rounds that were made: listed faded in the panel, not on the home; one shows on the home while its row is
   // pointed at or opened (one that was not done after all can be pinned again).
   const pastPins: PastPin[] = pastRounds.flatMap(round =>
@@ -198,7 +202,18 @@ export function openReview(
       <header><span class="aib-num"></span><span class="aib-pop-target"></span></header>
       <p class="aib-retry" hidden></p>
       <p class="aib-understood" hidden></p>
-      ${onReport ? `<button class="soft aib-report" data-act="pin-report" hidden title="${esc(t('The developer sees your pin and what we answered, and teaches the app to do it'))}"><span></span></button>` : ''}
+      ${
+        onReport
+          ? `<div class="aib-report-box" hidden>
+        <button class="soft aib-report" data-act="pin-report" title="${esc(t('The developer sees your pin and what we answered, and teaches the app to do it'))}">${esc(t('Send to the developer'))}</button>
+        <div class="aib-report-form" hidden>
+          <input class="aib-report-line" maxlength="300" placeholder="${esc(t('What is wrong? Not required'))}">
+          <button class="primary" data-act="pin-report-send">${esc(t('Send'))}</button>
+        </div>
+        <p class="aib-report-status" hidden></p>
+      </div>`
+          : ''
+      }
       <textarea rows="3" placeholder="${esc(t('What is wrong here?'))}"></textarea>
       ${upload ? '<div class="aib-thumbs"></div><input type="file" accept="image/*" multiple hidden>' : ''}
       <small class="aib-photo-err" hidden></small>
@@ -777,7 +792,7 @@ export function openReview(
       ...notes.pins.map((pin, i) => {
         const row = el(`<li class="aib-note" data-i="${i}">
           <span class="aib-num">${i + 1}</span>
-          <span class="aib-note-body"><small></small><span></span><em class="aib-retry" hidden></em><em class="aib-understood" hidden></em></span>
+          <span class="aib-note-body"><small></small><span></span><em class="aib-retry" hidden></em><em class="aib-understood" hidden></em><em class="aib-report-status" hidden></em></span>
           ${pin.photos?.length ? `<span class="aib-note-photos" title="${esc(t('{0, plural, one {# photo} other {# photos}}', pin.photos.length))}">${icon('image', 12)}${pin.photos.length}</span>` : ''}
           <button class="ib" data-act="pin-delete" title="${esc(t('Delete'))}">${icon('trash', 14)}</button>
         </li>`);
@@ -789,6 +804,7 @@ export function openReview(
         const understood = find(row, '.aib-understood');
         understood.textContent = understoodText(pin.retry);
         understood.hidden = !understood.textContent;
+        showReportStatus(find(row, '.aib-report-status'), pin);
         const words = find(row, '.aib-note-body>span');
         words.textContent = pin.text.trim() || t('What is wrong here?');
         words.classList.toggle('muted', !pin.text.trim());
@@ -906,24 +922,64 @@ export function openReview(
 
   // ---------- sending a pin to the developer ----------
 
-  // A pin that came back (not done, can't do yet, not understood) can go to the developer, once: the button says it went.
+  // A pin that came back (not done, can't do yet, not understood) can go to the developer, once, with a line of the owner's
+  // own (D-129). Then the pin shows where it stands instead of the button: sent, being looked at, fixed, or can't be done
+  // with the developer's note.
   const reporting = new Set<Pin>();
-  function renderReport(pin: Pin): void {
-    const button = pop.querySelector<HTMLButtonElement>('.aib-report');
-    if (!button) return;
-    button.hidden = !pin?.retry;
-    const sent = !!pin?.retry?.reported;
-    button.disabled = sent || reporting.has(pin);
-    find(button, 'span').textContent = sent ? t('Sent to the developer') : t('Send to the developer');
+  // The pin whose line is open, before it is sent.
+  let reportOpen: Pin | null = null;
+
+  /** What the pin says of its report, or '' when it was not sent. */
+  function reportStatusText(pin: Pin): string {
+    const report = reportOf(pin, reports);
+    if (!report && !pin.retry?.reported) return '';
+    const status = report?.status ?? 'sent';
+    if (status === 'looking') return t('The developer is looking at it');
+    if (status === 'fixed') return t('Fixed by the developer');
+    if (status === 'cannot') return report?.note ? t('Can’t be done: {0}', report.note) : t('Can’t be done');
+    return t('Sent to the developer');
   }
+
+  function showReportStatus(line: HTMLElement, pin: Pin): void {
+    const text = reportStatusText(pin);
+    line.textContent = text;
+    line.hidden = !text;
+    line.dataset.status = reportOf(pin, reports)?.status ?? 'sent';
+  }
+
+  function renderReport(pin: Pin): void {
+    const reportBox = pop.querySelector<HTMLElement>('.aib-report-box');
+    if (!reportBox) return;
+    reportBox.hidden = !pin?.retry;
+    if (!pin?.retry) return;
+    const statusLine = find(reportBox, '.aib-report-status');
+    showReportStatus(statusLine, pin);
+    const sent = !statusLine.hidden;
+    const formOpen = !sent && reportOpen === pin;
+    find(reportBox, '.aib-report').hidden = sent || formOpen;
+    find(reportBox, '.aib-report-form').hidden = !formOpen;
+    find<HTMLButtonElement>(reportBox, '[data-act=pin-report-send]').disabled = reporting.has(pin);
+  }
+
+  function openReportLine(pin: Pin | undefined): void {
+    if (!pin?.retry || pin.retry.reported) return;
+    reportOpen = pin;
+    renderReport(pin);
+    const line = find<HTMLInputElement>(pop, '.aib-report-line');
+    line.value = '';
+    line.focus();
+  }
+
   async function report(pin: Pin | undefined): Promise<void> {
     if (!pin?.retry || pin.retry.reported || reporting.has(pin)) return;
+    const comment = find<HTMLInputElement>(pop, '.aib-report-line').value.trim();
     reporting.add(pin);
     renderReport(pin);
     try {
       // The button that leads here is there only with onReport.
-      await onReport!(pin);
+      await onReport!(pin, comment);
       pin.retry = {...pin.retry, reported: true};
+      reportOpen = null;
       changed();
     } catch {
       photoError(t('Not sent: check the connection and try again'));
@@ -931,6 +987,13 @@ export function openReview(
       reporting.delete(pin);
       if (active != null && notes.pins[active] === pin) renderReport(pin);
     }
+  }
+
+  /** The reports as the service tells them now: the pin open and the list show where each stands. */
+  function setReports(next: ReportView[]): void {
+    reports = next;
+    renderNotes();
+    if (active != null && notes.pins[active]) renderReport(notes.pins[active]);
   }
 
   // ---------- input ----------
@@ -956,7 +1019,8 @@ export function openReview(
     if (act === 'pin-sketch' && active != null) return openSketch(notes.pins[active]);
     if (act === 'past-close') return closePast();
     if (act === 'past-again') return pinAgain();
-    if (act === 'pin-report' && active != null) return report(notes.pins[active]);
+    if (act === 'pin-report' && active != null) return openReportLine(notes.pins[active]);
+    if (act === 'pin-report-send' && active != null) return report(notes.pins[active]);
     if (act === 'photo-remove' && active != null) {
       notes.pins[active].photos.splice(Number(target.dataset.k), 1);
       changed();
@@ -1013,6 +1077,19 @@ export function openReview(
     renderSend();
   });
   general.addEventListener('keydown', e => e.stopPropagation());
+  // The line sent with a pin to the developer: Enter sends it, Escape closes it unsent.
+  pop.querySelector('.aib-report-line')?.addEventListener('keydown', event => {
+    const e = event as KeyboardEvent;
+    e.stopPropagation();
+    if (active == null) return;
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      report(notes.pins[active]);
+    } else if (e.key === 'Escape') {
+      reportOpen = null;
+      renderReport(notes.pins[active]);
+    }
+  });
   // Photos: chosen, pasted into the bubble, or dropped onto it or onto a pin's row.
   pop.querySelector('input[type=file]')?.addEventListener('change', e => {
     // The file input the handler is on; a file input always has its list.
@@ -1126,7 +1203,8 @@ export function openReview(
   // Keys: V and P choose the tool, Esc closes the bubble; the editor's shortcuts are off while the review is open. What is
   // typed into the review's fields and the sign-in (ai-account-ui.ts) is theirs.
   function keys(e: KeyboardEvent): void {
-    if (targetOf(e).closest?.('.aib-review textarea, .aib-sign')) return;
+    // typing in a field is not a shortcut: a letter or Backspace in the line sent to the developer stays in it
+    if (targetOf(e).closest?.('.aib-review textarea, .aib-review input, .aib-sign')) return;
     const key = e.key.toLowerCase();
     if (key === 'v') setTool('look');
     else if (key === 'p') setTool('pin');
@@ -1181,5 +1259,5 @@ export function openReview(
   renderUnplaced();
   renderPast();
   loop();
-  return {close};
+  return {close, setReports};
 }

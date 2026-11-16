@@ -162,6 +162,8 @@ export function readPlan(text: string): Plan {
     );
   }
   optional(p, 'panel', isPanelLayout); // the overview layout
+  // the AI build a home came from (D-129): its id and a round number
+  optional(p, 'source', s => obj(s) && str(s.build) && Number.isInteger(s.round) && Number(s.round) >= 0);
   if (p.view != null) {
     check(obj(p.view));
     check(isList(p.view.t) && p.view.t.length === 3 && p.view.t.every(Number.isFinite));

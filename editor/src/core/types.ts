@@ -602,6 +602,22 @@ export interface Plan {
   panel?: PanelLayout;
   /** The home view in 3D, as the card opens it. */
   view?: HomeView;
+  /** The AI build this home came from and the version taken (D-129): a fix of one of its pins is offered to it later. */
+  source?: PlanSource;
+}
+
+/** Where an AI-built home came from: the build, and the round of it the home was taken after (0: before any round). */
+export interface PlanSource {
+  build: string;
+  round: number;
+  /** The home's rooms and walls as it came into the editor (core/ai-fix.ts): what the user changed since is told by them. */
+  prints?: ContentPrints;
+}
+
+/** Short prints of a home's contents: each room's (furniture, lights, finishes) by its id, and the walls and openings. */
+export interface ContentPrints {
+  rooms: Record<string, string>;
+  walls: string;
 }
 
 /**

@@ -111,6 +111,33 @@ export interface SentPin {
   view?: string;
   camera?: HomeView;
   photos?: string[];
+  /** The pin of an earlier round this one says again: the developer sees how many times it was tried (D-129). */
+  retryOf?: {round: number; n: number};
+}
+
+/** Where a pin sent to the developer stands (D-129; the service's tools/feedback.ts). */
+export type ReportStatus = 'sent' | 'looking' | 'fixed' | 'cannot';
+
+/** A pin sent to the developer as the build's status tells it: the pin by its round and number, and where it stands. */
+export interface ReportView {
+  round: number;
+  n: number;
+  status: ReportStatus;
+  at: string;
+  /** The developer's note: why it cannot be done, what to do by hand. */
+  note?: string;
+  /** The round of the build that made the fix. */
+  fixRound?: number;
+}
+
+/** The report of a pin that came back, if it was sent (its retry's round and number). */
+export function reportOf(
+  pin: Pick<Pin, 'retry'> | null | undefined,
+  reports: ReportView[],
+): ReportView | null {
+  const retry = pin?.retry;
+  if (retry?.round == null || retry.n == null) return null;
+  return reports.find(report => report.round === retry.round && report.n === retry.n) || null;
 }
 
 // A pin on an exterior wall seen from outside lands outside its room: the nearest room within this many metres counts.
@@ -202,6 +229,9 @@ export function pinsToSend(pins: Pin[]): SentPin[] {
       ...(pin.view ? {view: pin.view} : {}),
       ...(pin.camera ? {camera: pin.camera} : {}),
       ...(pin.photos?.length ? {photos: pin.photos.slice(0, MAX_PIN_PHOTOS)} : {}),
+      ...(pin.retry?.round != null && pin.retry.n != null
+        ? {retryOf: {round: pin.retry.round, n: pin.retry.n}}
+        : {}),
     }));
 }
 

@@ -10,8 +10,9 @@ import {
   refreshRetries,
   changeCount,
   MAX_PIN_PHOTOS,
+  reportOf,
 } from './ai-pins.ts';
-import type {Pin, PinPlan, PinRound} from './ai-pins.ts';
+import type {Pin, PinPlan, PinRound, ReportView} from './ai-pins.ts';
 import type {HomeView} from '../core/types.ts';
 
 const plan: PinPlan = {
@@ -103,6 +104,16 @@ test("a pin's pictures go with it: what the owner saw and their photos, at most 
   // A pin put in 3D keeps the camera it was put from (D-081): the service looks at the changed home from there.
   const camera: HomeView = {t: [2, 0.4, -1], theta: 0.6, phi: 1, fit: [6, 4]};
   assert.deepEqual(pinsToSend([{...newPin(plan, {p: [2, 1]}), text: 'a lamp', camera}])[0].camera, camera);
+  // A pin said again carries the pin it came back from (D-129): the developer sees how many times it was tried.
+  const again: Pin = {
+    ...newPin(plan, {p: [2, 1]}),
+    text: 'again',
+    retry: {round: 2, n: 3, made: 'no', codes: []},
+  };
+  assert.deepEqual(pinsToSend([again])[0].retryOf, {round: 2, n: 3});
+  const reports: ReportView[] = [{round: 2, n: 3, status: 'looking', at: 'x'}];
+  assert.equal(reportOf(again, reports)?.status, 'looking');
+  assert.equal(reportOf({retry: {round: 1, n: 3, made: 'no', codes: []}}, reports), null);
   const [bare] = pinsToSend([{...newPin(plan, {p: [2, 1]}), text: 'a lamp'}]);
   assert.equal('view' in bare || 'photos' in bare, false);
 });

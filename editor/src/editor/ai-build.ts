@@ -37,7 +37,8 @@ import {byId} from '../core/catalog.ts';
 import {openReview} from './ai-review.ts';
 import type {UnplacedThing} from './ai-review.ts';
 import {changeCount, pinsToSend, pinsToRetry, refreshRetries} from './ai-pins.ts';
-import type {Pin, PinNotes, PinRetry, PinRound} from './ai-pins.ts';
+import {markSource} from './ai-fix.ts';
+import type {Pin, PinNotes, PinRetry, PinRound, ReportView} from './ai-pins.ts';
 import {
   accountOffer,
   balanceMeter,
@@ -165,6 +166,8 @@ interface BuildStatus {
   live?: BuildLive;
   lastRound?: PinRound | null;
   rounds?: PinRound[];
+  /** The pins sent to the developer and where each stands (D-129); a service from before says nothing. */
+  reports?: ReportView[];
   /** The things it could not place clear, each with one phrase in the owner's language. */
   unplaced?: UnplacedThing[];
   /** The build stopped on the files themselves (D-117): which, said in words with a way to upload others. */
@@ -889,7 +892,7 @@ export function openAiBuild(ed: Editor, options: AiBuildOptions = {}): AiBuildSc
   let buildId = id;
   let status: BuildStatus | null = null;
   let screen: 'upload' | 'progress' | 'review' | null = null;
-  let review: {close(): void} | null = null;
+  let review: ReturnType<typeof openReview> | null = null;
   let timer: ReturnType<typeof setTimeout> | number = 0;
   let closed = false;
   // The checkpoint answered just now: until the build moves on, it does not count as waiting.
@@ -1325,6 +1328,10 @@ export function openAiBuild(ed: Editor, options: AiBuildOptions = {}): AiBuildSc
       noteSpending(status);
       if (status.has?.plan && !planRead) await loadPlanRead();
       if (status.waiting !== 'final') shownFinal = false;
+      review?.setReports(status.reports || []);
+      // The developer's fix of a pin is being made while the owner is in the review (D-129): the progress shows it, and the
+      // review opens again with the fixed home.
+      if (screen === 'review' && !answered && status.revising) showProgress();
       // The home is ready: straight to it, the pin in hand.
       if (status.waiting === 'final' && screen === 'progress' && !shownFinal) {
         shownFinal = true;
@@ -2184,6 +2191,8 @@ export function openAiBuild(ed: Editor, options: AiBuildOptions = {}): AiBuildSc
     const plan = readPlan(await res.text());
     cover(false);
     ed.setPlan(plan, {fit: false});
+    // The home remembers the build and the version it was taken at: a fix of one of its pins is offered to it later (D-129).
+    if (buildId) markSource(ed, buildId, status?.rounds?.at(-1)?.round ?? 0);
     quietSetup();
   }
 
@@ -2220,8 +2229,13 @@ export function openAiBuild(ed: Editor, options: AiBuildOptions = {}): AiBuildSc
       unplaced: status?.unplaced || [],
       account: renderReviewAccount,
       // Only a pin that came back has the button (ai-review.ts report).
-      onReport: pin =>
-        post('/feedback', {round: (pin.retry as PinRetry).round, n: (pin.retry as PinRetry).n}),
+      onReport: (pin, comment) =>
+        post('/feedback', {
+          round: (pin.retry as PinRetry).round,
+          n: (pin.retry as PinRetry).n,
+          ...(comment ? {comment} : {}),
+        }),
+      reports: status?.reports || [],
     });
   }
 
