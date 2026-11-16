@@ -2,6 +2,13 @@
 
 Reviewed 2026-11-07. This file keeps proposals and already implemented ideas with links to decisions. The current development queue is in [status.md](status.md); an idea being recorded does not mean it has been included in the nearest release.
 
+## A plan PDF of many pages: what D-131 left for later (2026-11-16)
+
+- **The furniture plan as a hint.** A designer's project draws where each piece goes, with sizes; the build guesses that from the video or photos now. The picker could take a second page, "furniture", for the room calls.
+- **The renders as photos** of the rooms that have no photo of their own. A render shows the design, not what was built, so the owner's photos stay first.
+- **An upload from a phone that survives a reload.** The tester's upload stopped at 4 of 6 files (the phone slept or the tab closed); the service keeps what came, but a new page starts the upload again. Keep the upload's id and the files' names in the browser and go on from what the service has.
+- **A multi-page PDF from an editor page left open since before D-131** still goes up whole and is read from its first page: the build could find the plan's page itself then.
+
 ## The AI build from Home Assistant: what D-130 left for later (2026-11-16)
 
 - **A pin's fix reaching a home in HA.** The panel cannot ask our site about a build: the account is a cookie of our site. A home sent to HA keeps `plan.source`, so the site could offer "Send to Home Assistant" again when a fix comes, or the panel could ask through a token the site gives it.

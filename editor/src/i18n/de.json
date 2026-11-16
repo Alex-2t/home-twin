@@ -1772,5 +1772,17 @@
  "Waiting for Home Assistant. Sign in there if it asks.": "Warte auf Home Assistant. Melde dich dort an, falls gefragt.",
  "Your home is here. Link its rooms to Home Assistant.": "Dein Zuhause ist da. Verknüpfe seine Räume mit Home Assistant.",
  "Your home is in Home Assistant.": "Dein Zuhause ist in Home Assistant.",
- "Your home is ready. Send it to Home Assistant.": "Dein Zuhause ist fertig. Sende es an Home Assistant."
+ "Your home is ready. Send it to Home Assistant.": "Dein Zuhause ist fertig. Sende es an Home Assistant.",
+ "Looking for the plan in the PDF…": "Suche den Grundriss im PDF…",
+ "Which page is the floor plan?": "Auf welcher Seite ist der Grundriss?",
+ "We picked page {0}. Tap another if it is wrong.": "Wir haben Seite {0} gewählt. Falls falsch, tippe eine andere an.",
+ "No plan found here. Tap its page, or add another file.": "Hier wurde kein Grundriss gefunden. Tippe seine Seite an oder füge eine andere Datei hinzu.",
+ "Several floors: we build one for now. Pick its plan.": "Mehrere Etagen: Wir bauen vorerst eine. Wähle ihren Grundriss.",
+ "The first {0} of {1} pages": "Die ersten {0} von {1} Seiten",
+ "Use page {0}": "Seite {0} nehmen",
+ "Pick a page": "Wähle eine Seite",
+ "Page {0} of {1}": "Seite {0} von {1}",
+ "Change page": "Ändern",
+ "Could not open this PDF: add it again, or a photo of the plan.": "Dieses PDF ließ sich nicht öffnen. Füge es erneut hinzu oder ein Foto des Grundrisses.",
+ "Our pick": "Unsere Wahl"
 }

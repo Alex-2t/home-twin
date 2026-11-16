@@ -1772,5 +1772,17 @@
  "Waiting for Home Assistant. Sign in there if it asks.": "正在等待 Home Assistant。如有提示，请在那里登录。",
  "Your home is here. Link its rooms to Home Assistant.": "住宅已就位。将它的房间关联到 Home Assistant。",
  "Your home is in Home Assistant.": "住宅已在 Home Assistant 中。",
- "Your home is ready. Send it to Home Assistant.": "你的住宅已完成。把它发送到 Home Assistant。"
+ "Your home is ready. Send it to Home Assistant.": "你的住宅已完成。把它发送到 Home Assistant。",
+ "Looking for the plan in the PDF…": "正在 PDF 中查找平面图…",
+ "Which page is the floor plan?": "哪一页是平面图？",
+ "We picked page {0}. Tap another if it is wrong.": "我们选了第 {0} 页。不对的话，点另一页。",
+ "No plan found here. Tap its page, or add another file.": "这里没找到平面图。点它所在的页，或换一个文件。",
+ "Several floors: we build one for now. Pick its plan.": "有多个楼层：目前只建一层。请选它的平面图。",
+ "The first {0} of {1} pages": "共 {1} 页中的前 {0} 页",
+ "Use page {0}": "使用第 {0} 页",
+ "Pick a page": "选择一页",
+ "Page {0} of {1}": "第 {0} 页，共 {1} 页",
+ "Change page": "更换",
+ "Could not open this PDF: add it again, or a photo of the plan.": "无法打开这个 PDF。请重新添加，或添加平面图的照片。",
+ "Our pick": "我们的选择"
 }

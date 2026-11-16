@@ -1772,5 +1772,17 @@
  "Waiting for Home Assistant. Sign in there if it asks.": "Wachten op Home Assistant. Log daar in als het erom vraagt.",
  "Your home is here. Link its rooms to Home Assistant.": "Je huis is er. Koppel de kamers aan Home Assistant.",
  "Your home is in Home Assistant.": "Je huis staat in Home Assistant.",
- "Your home is ready. Send it to Home Assistant.": "Je huis is klaar. Stuur het naar Home Assistant."
+ "Your home is ready. Send it to Home Assistant.": "Je huis is klaar. Stuur het naar Home Assistant.",
+ "Looking for the plan in the PDF…": "Plattegrond zoeken in de pdf…",
+ "Which page is the floor plan?": "Op welke pagina staat de plattegrond?",
+ "We picked page {0}. Tap another if it is wrong.": "We kozen pagina {0}. Klopt dat niet, tik dan een andere aan.",
+ "No plan found here. Tap its page, or add another file.": "Hier is geen plattegrond gevonden. Tik de pagina aan of voeg een ander bestand toe.",
+ "Several floors: we build one for now. Pick its plan.": "Meerdere verdiepingen: we bouwen er nu één. Kies de plattegrond ervan.",
+ "The first {0} of {1} pages": "De eerste {0} van {1} pagina’s",
+ "Use page {0}": "Pagina {0} gebruiken",
+ "Pick a page": "Kies een pagina",
+ "Page {0} of {1}": "Pagina {0} van {1}",
+ "Change page": "Wijzigen",
+ "Could not open this PDF: add it again, or a photo of the plan.": "Deze pdf kon niet worden geopend. Voeg hem opnieuw toe, of een foto van de plattegrond.",
+ "Our pick": "Onze keuze"
 }

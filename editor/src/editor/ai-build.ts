@@ -64,6 +64,8 @@ import {totalSeconds, videoConcern, videoConcernText, videosFacts} from './video
 import {FEW_PHOTOS, MOST_PHOTOS, MOST_VIDEOS, isPlanFile, showable, sortMedia} from './media-files.ts';
 import type {VideoConcern} from './video-note.ts';
 import {UploadFailed, browserTransport, uploadBuild} from './ai-upload.ts';
+import {isPdfFile, openPagePicker, pagePlanFile, splitPlanPdf} from './plan-pages.ts';
+import type {PlanPages} from './plan-pages.ts';
 import {keptHaOrigin} from './ha-handoff.ts';
 import {sendToHa} from './ai-from-ha.ts';
 import type {UploadJob} from './ai-upload.ts';
@@ -1469,6 +1471,81 @@ export function openAiBuild(ed: Editor, options: AiBuildOptions = {}): AiBuildSc
       showable(file)
         ? `<img alt="">`
         : `<span class="aib-drop-name">${icon(file.type === 'application/pdf' || /\.pdf$/i.test(file.name) ? 'file' : 'image', 22)}<em>${esc(file.name)}</em></span>`;
+    // The plan's box: the plan chosen (its picture, or an icon and its name), with a caption for a page taken from a PDF.
+    const planLabel = find(root, '.aib-drop[data-kind=plan]');
+    const planShown = find(planLabel, '.aib-drop-file');
+    let planCaption: string | null = null;
+    const showPlan = (plan: File | null, caption: string | null = null): void => {
+      chosen.plan = plan;
+      planCaption = caption;
+      planShown.hidden = !plan;
+      planLabel.classList.toggle('has', !!plan);
+      planShown.innerHTML = plan ? pictureOrName(plan) : '';
+      if (plan && caption)
+        planShown.insertAdjacentHTML(
+          'beforeend',
+          `<small class="aib-drop-page">${esc(caption)} · <button type="button" class="aib-link" data-act="change-page">${esc(t('Change page'))}</button></small>`,
+        );
+      const img = planShown.querySelector<HTMLImageElement>('img');
+      if (plan && img) img.src = URL.createObjectURL(plan);
+      syncStart();
+    };
+    // While the service reads a PDF: its name and a spinner; no plan yet, so the build cannot start.
+    const showPlanBusy = (pdf: File): void => {
+      chosen.plan = null;
+      planShown.hidden = false;
+      planLabel.classList.add('has');
+      planShown.innerHTML = `<span class="aib-drop-name">${icon('file', 22)}<em>${esc(pdf.name)}</em><span class="aib-drop-busy"><i class="spin"></i>${esc(t('Looking for the plan in the PDF…'))}</span></span>`;
+      syncStart();
+    };
+    // A PDF of many pages (plan-pages.ts, D-131): the service finds the plan's page, the owner confirms it or picks another,
+    // and that page, drawn large, is the plan that goes up. A newer choice of plan makes an older answer moot (pdfTurn).
+    let pdfTurn = 0;
+    let pdfChoice: {pdf: File; pages: PlanPages; page: number} | null = null;
+    const pickPdfPage = async (pdf: File, pages: PlanPages, pickedBefore: number | null): Promise<void> => {
+      const turn = pdfTurn;
+      const before = {plan: chosen.plan, caption: planCaption};
+      const page = await openPagePicker(root, {api, pages, pickedBefore});
+      if (turn !== pdfTurn || screen !== 'upload') return;
+      if (!page) return showPlan(before.plan, before.caption);
+      showPlanBusy(pdf);
+      try {
+        const file = await pagePlanFile(api, pages, page, pdf.name);
+        if (turn !== pdfTurn) return;
+        pdfChoice = {pdf, pages, page};
+        showPlan(file, t('Page {0} of {1}', page, pages.pages));
+      } catch {
+        if (turn !== pdfTurn) return;
+        showPlan(before.plan, before.caption);
+        sayWrongFile(t('Could not open this PDF: add it again, or a photo of the plan.'));
+      }
+    };
+    const takePdf = async (pdf: File): Promise<void> => {
+      const turn = ++pdfTurn;
+      pdfChoice = null;
+      showPlanBusy(pdf);
+      let pages: PlanPages;
+      try {
+        pages = await splitPlanPdf(api, pdf);
+      } catch {
+        if (turn !== pdfTurn) return;
+        showPlan(null);
+        sayWrongFile(t('Could not open this PDF: add it again, or a photo of the plan.'));
+        return;
+      }
+      if (turn !== pdfTurn || screen !== 'upload') return;
+      // One page is the plan itself: it goes up as a PDF always did.
+      if (pages.pages === 1) return showPlan(pdf);
+      showPlan(null);
+      await pickPdfPage(pdf, pages, null);
+    };
+    // "Change page" on the plan's caption opens the pages again, not the file dialog of the box around it.
+    planLabel.addEventListener('click', e => {
+      if (!targetOf(e).closest('[data-act=change-page]') || !pdfChoice) return;
+      e.preventDefault();
+      e.stopPropagation();
+      pickPdfPage(pdfChoice.pdf, pdfChoice.pages, pdfChoice.page);
+    });
     const setFiles = (kind: string | undefined, list: File[]): void => {
       const label = find(root, `.aib-drop[data-kind=${kind}]`);
       const shownFile = find(label, '.aib-drop-file');
@@ -1476,10 +1553,14 @@ export function openAiBuild(ed: Editor, options: AiBuildOptions = {}): AiBuildSc
         const plan = list.find(isPlanFile);
         // A video or a document dropped on the plan: said, not silently taken for nothing.
         if (!plan) return sayWrongFile(t('This is not a floor plan: add a photo, a scan or a PDF'));
-        chosen.plan = plan;
-        shownFile.innerHTML = pictureOrName(plan);
-        const img = shownFile.querySelector<HTMLImageElement>('img');
-        if (img) img.src = URL.createObjectURL(plan);
+        if (isPdfFile(plan)) {
+          takePdf(plan);
+          return;
+        }
+        pdfTurn++;
+        pdfChoice = null;
+        showPlan(plan);
+        return;
       } else {
         const sorted = sortMedia(list);
         const {videos, photos} = sorted;

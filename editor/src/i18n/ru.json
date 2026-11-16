@@ -1772,5 +1772,17 @@
  "Waiting for Home Assistant. Sign in there if it asks.": "Ждём Home Assistant. Войдите в него, если попросит.",
  "Your home is here. Link its rooms to Home Assistant.": "Дом здесь. Привяжите его комнаты к Home Assistant.",
  "Your home is in Home Assistant.": "Дом в Home Assistant.",
- "Your home is ready. Send it to Home Assistant.": "Дом готов. Отправьте его в Home Assistant."
+ "Your home is ready. Send it to Home Assistant.": "Дом готов. Отправьте его в Home Assistant.",
+ "Looking for the plan in the PDF…": "Ищем план в PDF…",
+ "Which page is the floor plan?": "На какой странице план?",
+ "We picked page {0}. Tap another if it is wrong.": "Мы выбрали страницу {0}. Если не та — нажмите другую.",
+ "No plan found here. Tap its page, or add another file.": "План здесь не нашли. Нажмите его страницу или добавьте другой файл.",
+ "Several floors: we build one for now. Pick its plan.": "Здесь несколько этажей, пока строим один. Выберите его план.",
+ "The first {0} of {1} pages": "Первые {0} из {1} страниц",
+ "Use page {0}": "Взять страницу {0}",
+ "Pick a page": "Выберите страницу",
+ "Page {0} of {1}": "Стр. {0} из {1}",
+ "Change page": "Сменить",
+ "Could not open this PDF: add it again, or a photo of the plan.": "Не удалось открыть этот PDF. Добавьте его ещё раз или фото плана.",
+ "Our pick": "Наш выбор"
 }
