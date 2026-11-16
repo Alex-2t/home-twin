@@ -229,11 +229,30 @@ export function drawPlan(ed: Editor): void {
         ctx.stroke();
       }
     };
+    // a glazed door with no leaf drawn (D-128): two panes side by side, each over a little more than half the doorway,
+    // one nearer each face — the sliding glass door of a printed plan; the window's three lines across the whole opening
+    // made it read as a window (an AI build's porch: "a door here, not a window?!")
+    const panes = (): void => {
+      ctx.strokeStyle = pal.win;
+      ctx.lineWidth = 2;
+      const share = 0.55;
+      const ends: [Point, Point, number][] = [
+        [o.a, [o.a[0] + (o.b[0] - o.a[0]) * share, o.a[1] + (o.b[1] - o.a[1]) * share], 0.07],
+        [[o.b[0] + (o.a[0] - o.b[0]) * share, o.b[1] + (o.a[1] - o.b[1]) * share], o.b, 0.17],
+      ];
+      for (const [start, end, k] of ends) {
+        ctx.beginPath();
+        ctx.moveTo(...v.S([start[0] + n[0] * k, start[1] + n[1] * k]));
+        ctx.lineTo(...v.S([end[0] + n[0] * k, end[1] + n[1] * k]));
+        ctx.stroke();
+      }
+    };
     if (o.kind === 'door') {
       const L = Math.hypot(o.b[0] - o.a[0], o.b[1] - o.a[1]);
-      if (o.glass) glass();
       // an opening without a door — just a hole in the wall; in old plans wide “doors” (over 1.15 m) are openings too
-      if (o.leaf === false || (o.swing == null && L > 1.15)) continue;
+      const noLeaf = o.leaf === false || (o.swing == null && L > 1.15);
+      if (o.glass) (noLeaf ? panes : glass)();
+      if (noLeaf) continue;
       const sw = swingOf(o);
       const a = sw.hinge ? o.b : o.a;
       const u: Vector = sw.hinge

@@ -17,6 +17,12 @@ New decisions are appended at the top of their section, old ones are not rewritt
 
 ## Decisions
 
+### D-128. A glazed door with no leaf no longer looks like a window on the plan — **accepted** (2026-11-16)
+- The owner, on an AI-built home: "a door here, not a window?!" The home's front door was there, a glazed door with no leaf (an AI build writes every door without one, D-071). The plan drew it with a window's three lines across the opening, so nothing on the plan said "door".
+- **Now** (`editor/draw.ts`) a glazed door with no leaf is drawn as two panes side by side, like a sliding glass door on a printed plan. Each pane covers a little more than half the doorway, one nearer each face of the wall. A glazed door with a leaf keeps the window's glass lines with its leaf and swing; windows and plain doors look as before.
+- The AI build no longer glazes an entrance porch's doors either: a porch, terrace or balcony with a door to the outside in its outer side is closed, so it keeps its walls and plain doors (the AI build's own change).
+- Refines D-071 ("glass lines in the plan, with its leaf if it has one").
+
 ### D-127. The editor after a session of use: a return start screen, a movable coach panel, corners that keep walls whole, steadier panels — **accepted** (2026-11-16)
 - The owner used the editor on a real flat for a session and reported what got in the way. Each point below is one of those reports; the fixes are for every home.
 - **Start screen.** With a saved plan it says "Welcome back" and the one accent is your plan: its drawing, name, area, rooms and when it was last changed, with "Continue" (flows.ts `fillContinueCard`). The AI card shows "About 15 min" (the price stays off it, D-094) and steps back to a plain border; every choice has an arrow.
