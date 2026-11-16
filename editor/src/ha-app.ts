@@ -88,14 +88,13 @@ export async function start(panel: PanelHost): Promise<PanelApp> {
   if (asked) ask();
   // the subscription is made on HA's page's connection, which outlives this iframe: it is ended when the panel closes (below)
   const stopWatchingBuild = watchBuild(hass(), buildOf(import.meta.url), showUpdated, {panel: true});
-  // The AI build (D-130): on our site in a tab of its own, its home comes back here. HA's page is the panel iframe's top window.
-  const stopTakingAiHomes = aiBuildInPanel(ed, window.top!);
+  // The AI build (D-132): its screens here, its requests through the integration, which holds the account
+  void aiBuildInPanel(ed, hass());
   addEventListener('pagehide', () => {
     plans.flush();
     photos.flush();
     ed.history.flush();
     stopWatchingBuild();
-    stopTakingAiHomes();
   });
   let online = panel.hass?.connected;
   return {

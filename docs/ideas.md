@@ -9,11 +9,6 @@ Reviewed 2026-11-07. This file keeps proposals and already implemented ideas wit
 - **An upload from a phone that survives a reload.** The tester's upload stopped at 4 of 6 files (the phone slept or the tab closed); the service keeps what came, but a new page starts the upload again. Keep the upload's id and the files' names in the browser and go on from what the service has.
 - **A multi-page PDF from an editor page left open since before D-131** still goes up whole and is read from its first page: the build could find the plan's page itself then.
 
-## The AI build from Home Assistant: what D-130 left for later (2026-11-16)
-
-- **A pin's fix reaching a home in HA.** The panel cannot ask our site about a build: the account is a cookie of our site. A home sent to HA keeps `plan.source`, so the site could offer "Send to Home Assistant" again when a fix comes, or the panel could ask through a token the site gives it.
-- **The build's progress in the panel.** The card in HA only opens the site; it could show the build on its way, as the site's start screen does, once the panel can ask about the account's builds.
-
 ## Pins sent to the developer: what D-129 left for later (2026-11-16)
 
 - **Report a pin the service says it made.** Now only a pin that came back has the button; a pin marked made that still looks wrong can only be pinned again.

@@ -1761,18 +1761,8 @@
  "What is wrong? Not required": "Cosa non va? Facoltativo",
  "You changed these since. Keep yours, or take the fixed one?": "Nel frattempo li hai modificati. Tenere la tua versione o prendere quella corretta?",
  "Yours": "La tua",
- "A home built by AI arrived. Replace your plan with it?": "È arrivata una casa costruita dall’IA. Sostituire la tua pianta con questa?",
- "Allow pop-ups for this site, then try again.": "Consenti i pop-up per questo sito, poi riprova.",
  "Before the home built by AI": "Prima della casa costruita dall’IA",
- "Home Assistant did not answer.": "Home Assistant non ha risposto.",
- "Open Home Assistant": "Apri Home Assistant",
- "Replace": "Sostituisci",
- "Send to Home Assistant": "Invia a Home Assistant",
- "Sending to Home Assistant…": "Invio a Home Assistant…",
- "Waiting for Home Assistant. Sign in there if it asks.": "In attesa di Home Assistant. Accedi lì se te lo chiede.",
  "Your home is here. Link its rooms to Home Assistant.": "La tua casa è qui. Collega le sue stanze a Home Assistant.",
- "Your home is in Home Assistant.": "La tua casa è in Home Assistant.",
- "Your home is ready. Send it to Home Assistant.": "La tua casa è pronta. Inviala a Home Assistant.",
  "Looking for the plan in the PDF…": "Cerco la planimetria nel PDF…",
  "Which page is the floor plan?": "In quale pagina è la planimetria?",
  "We picked page {0}. Tap another if it is wrong.": "Abbiamo scelto la pagina {0}. Se è sbagliata, toccane un’altra.",
@@ -1784,5 +1774,8 @@
  "Page {0} of {1}": "Pagina {0} di {1}",
  "Change page": "Cambia",
  "Could not open this PDF: add it again, or a photo of the plan.": "Impossibile aprire questo PDF. Aggiungilo di nuovo, o una foto della planimetria.",
- "Our pick": "La nostra scelta"
+ "Our pick": "La nostra scelta",
+ "Pay in the new tab. The package shows here once it is paid.": "Paga nella nuova scheda. Il pacchetto compare qui appena pagato.",
+ "The package is paid. Go back to Home Assistant: it is there.": "Il pacchetto è pagato. Torna in Home Assistant: è lì.",
+ "You can close this page: the build goes on, and shows on the start screen.": "Puoi chiudere questa pagina: la costruzione continua e compare nella schermata iniziale."
 }

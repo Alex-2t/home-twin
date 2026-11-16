@@ -1578,7 +1578,6 @@ export function createFlows(
     prev: () => swapPrev(),
     versions: () => ed.showVersions(),
     board: () => f.addBoard(),
-    'send-ha': () => f.sendToHa?.(),
   };
   document.querySelectorAll<HTMLElement>('.menu [data-a]').forEach(
     b =>

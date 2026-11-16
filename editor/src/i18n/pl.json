@@ -1761,18 +1761,8 @@
  "What is wrong? Not required": "Co jest nie tak? Opcjonalnie",
  "You changed these since. Keep yours, or take the fixed one?": "Od tego czasu to zmieniłeś. Zostawić Twoją wersję czy wziąć poprawioną?",
  "Yours": "Twoja",
- "A home built by AI arrived. Replace your plan with it?": "Przyszedł dom zbudowany przez AI. Zastąpić nim twój plan?",
- "Allow pop-ups for this site, then try again.": "Zezwól na wyskakujące okna dla tej strony i spróbuj ponownie.",
  "Before the home built by AI": "Przed domem zbudowanym przez AI",
- "Home Assistant did not answer.": "Home Assistant nie odpowiedział.",
- "Open Home Assistant": "Otwórz Home Assistant",
- "Replace": "Zastąp",
- "Send to Home Assistant": "Wyślij do Home Assistant",
- "Sending to Home Assistant…": "Wysyłanie do Home Assistant…",
- "Waiting for Home Assistant. Sign in there if it asks.": "Czekamy na Home Assistant. Zaloguj się tam, jeśli poprosi.",
  "Your home is here. Link its rooms to Home Assistant.": "Twój dom jest tutaj. Powiąż jego pokoje z Home Assistant.",
- "Your home is in Home Assistant.": "Twój dom jest w Home Assistant.",
- "Your home is ready. Send it to Home Assistant.": "Twój dom jest gotowy. Wyślij go do Home Assistant.",
  "Looking for the plan in the PDF…": "Szukamy planu w PDF…",
  "Which page is the floor plan?": "Na której stronie jest plan?",
  "We picked page {0}. Tap another if it is wrong.": "Wybraliśmy stronę {0}. Jeśli to nie ta, stuknij inną.",
@@ -1784,5 +1774,8 @@
  "Page {0} of {1}": "Strona {0} z {1}",
  "Change page": "Zmień",
  "Could not open this PDF: add it again, or a photo of the plan.": "Nie udało się otworzyć tego PDF. Dodaj go ponownie albo zdjęcie planu.",
- "Our pick": "Nasz wybór"
+ "Our pick": "Nasz wybór",
+ "Pay in the new tab. The package shows here once it is paid.": "Zapłać w nowej karcie. Pakiet pojawi się tutaj po opłaceniu.",
+ "The package is paid. Go back to Home Assistant: it is there.": "Pakiet jest opłacony. Wróć do Home Assistant: już tam jest.",
+ "You can close this page: the build goes on, and shows on the start screen.": "Możesz zamknąć tę stronę: budowa trwa dalej i widać ją na ekranie startowym."
 }

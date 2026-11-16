@@ -18,6 +18,9 @@ The dashboard card (D-059): frontend/card.js is a small file HA loads on every p
 picker without setup; the 3D itself (frontend/card-app.js) loads only where a card is shown. The card follows the plan with
 home_twin/plan/subscribe: the plan now and after every write.
 
+The AI build (D-131, ai.py) runs in the panel; its requests go to our service through /api/home_twin/ai/<key>/…, with the
+account's session kept in .storage/home_twin.ai for the whole home.
+
 The panel and the card are served build by build (serve.py, D-097): a new editor build put into frontend/ (an update) is taken up
 without restarting HA — within a minute, or as soon as a page asks for it — and panels and cards already open are told
 (home_twin/frontend/subscribe) so they offer a reload; an open editor is never reloaded by itself. A change to this Python code still
@@ -63,6 +66,7 @@ from .const import (
     STORE_KEY,
     STORE_VERSION,
 )
+from .ai import async_setup_ai
 from .serve import Build, FrontendFiles, FrontendView
 
 _LOGGER = logging.getLogger(__name__)
@@ -97,6 +101,8 @@ async def async_setup(hass: HomeAssistant, config: ConfigType) -> bool:
         ws_frontend_update_panel,
     ):
         websocket_api.async_register_command(hass, command)
+    # the AI build through HA (D-131): the account's session is kept here, the panel's requests go on to the service
+    await async_setup_ai(hass)
     return True
 
 

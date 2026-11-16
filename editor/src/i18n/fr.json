@@ -1761,18 +1761,8 @@
  "What is wrong? Not required": "Qu’est-ce qui ne va pas ? Facultatif",
  "You changed these since. Keep yours, or take the fixed one?": "Vous avez modifié ceci depuis. Garder votre version ou prendre la version corrigée ?",
  "Yours": "La vôtre",
- "A home built by AI arrived. Replace your plan with it?": "Un logement construit par l’IA est arrivé. Remplacer votre plan par celui-ci ?",
- "Allow pop-ups for this site, then try again.": "Autorisez les fenêtres pop-up pour ce site, puis réessayez.",
  "Before the home built by AI": "Avant le logement construit par l’IA",
- "Home Assistant did not answer.": "Home Assistant n’a pas répondu.",
- "Open Home Assistant": "Ouvrir Home Assistant",
- "Replace": "Remplacer",
- "Send to Home Assistant": "Envoyer vers Home Assistant",
- "Sending to Home Assistant…": "Envoi vers Home Assistant…",
- "Waiting for Home Assistant. Sign in there if it asks.": "En attente de Home Assistant. Connectez-vous-y s’il le demande.",
  "Your home is here. Link its rooms to Home Assistant.": "Votre logement est là. Associez ses pièces à Home Assistant.",
- "Your home is in Home Assistant.": "Votre logement est dans Home Assistant.",
- "Your home is ready. Send it to Home Assistant.": "Votre logement est prêt. Envoyez-le vers Home Assistant.",
  "Looking for the plan in the PDF…": "Recherche du plan dans le PDF…",
  "Which page is the floor plan?": "Quelle page contient le plan ?",
  "We picked page {0}. Tap another if it is wrong.": "Nous avons choisi la page {0}. Si ce n’est pas la bonne, touchez-en une autre.",
@@ -1784,5 +1774,8 @@
  "Page {0} of {1}": "Page {0} sur {1}",
  "Change page": "Changer",
  "Could not open this PDF: add it again, or a photo of the plan.": "Impossible d’ouvrir ce PDF. Ajoutez-le à nouveau, ou une photo du plan.",
- "Our pick": "Notre choix"
+ "Our pick": "Notre choix",
+ "Pay in the new tab. The package shows here once it is paid.": "Payez dans le nouvel onglet. Le forfait s’affiche ici une fois payé.",
+ "The package is paid. Go back to Home Assistant: it is there.": "Le forfait est payé. Retournez dans Home Assistant : il y est.",
+ "You can close this page: the build goes on, and shows on the start screen.": "Vous pouvez fermer cette page : la construction continue et s’affiche sur l’écran d’accueil."
 }

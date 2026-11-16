@@ -45,6 +45,7 @@ import {
   buyButtonInner,
   checkoutUrl,
   claimPayment,
+  claimPaymentSignedOut,
   currentAccount,
   emptyStartText,
   forgetOldWallet,
@@ -66,8 +67,6 @@ import type {VideoConcern} from './video-note.ts';
 import {UploadFailed, browserTransport, uploadBuild} from './ai-upload.ts';
 import {isPdfFile, openPagePicker, pagePlanFile, splitPlanPdf} from './plan-pages.ts';
 import type {PlanPages} from './plan-pages.ts';
-import {keptHaOrigin} from './ha-handoff.ts';
-import {sendToHa} from './ai-from-ha.ts';
 import type {UploadJob} from './ai-upload.ts';
 import type {Estimate, RoundSize} from './ai-estimate.ts';
 import type {Outline, Plan} from '../core/types.ts';
@@ -713,7 +712,11 @@ const MORE_BUILDS_SHOWN = 2;
  * none, signed in, is offered the account's builds instead (offeredBuilds): the newest in the card, a few more in rows under
  * it. Opens the build, or the upload for a new one.
  */
-export function aiStartCard(ed: Editor, card: HTMLElement, {api = ''}: {api?: string} = {}): void {
+export function aiStartCard(
+  ed: Editor,
+  card: HTMLElement,
+  {api = '', inHa = false}: {api?: string; inHa?: boolean} = {},
+): void {
   const idle = card.innerHTML;
   const more = el(`<div class="aib-start-more" hidden></div>`);
   const another = el(
@@ -727,7 +730,7 @@ export function aiStartCard(ed: Editor, card: HTMLElement, {api = ''}: {api?: st
   // "Start another build" on an offered build: the offer stays away while this page is open.
   let offerDismissed = false;
 
-  const open = (id: string | null): AiBuildScreen => openAiBuild(ed, {api, id});
+  const open = (id: string | null): AiBuildScreen => openAiBuild(ed, {api, id, inHa});
   card.onclick = () => open(shown?.id || null);
   another.onclick = () => {
     follow(null);
@@ -851,13 +854,28 @@ export async function openAiFromAddress(
   const back = readReturn(location.href);
   if (back.found) history.replaceState(history.state, '', back.clean);
   const params = new URLSearchParams(location.search);
+  const id = params.get('build');
   const upload = params.get(UPLOAD_PARAM) === UPLOAD_VALUE;
-  // "Build with AI" in Home Assistant's panel always asks for the upload (D-130): while a build is on its way, that build
-  const id = params.get('build') || (upload && keptHaOrigin() ? followedBuild() : null);
   if (!id && !upload && !back.found) return null;
   let notice: string | null = null;
   let claimed: Account | null = null;
   const paymentFailed = !!back.paymentStatus && back.paymentStatus !== 'succeeded';
+  // Bought from Home Assistant's panel (D-132): the panel's integration holds the account, so this browser is not signed in.
+  // The payment is counted all the same, to the account that paid, and the package shows in the panel.
+  if (back.payment && params.get('from') === 'ha') {
+    history.replaceState(history.state, '', withoutParam(location.href, 'from'));
+    let text = t('The package is paid. Go back to Home Assistant: it is there.');
+    if (paymentFailed) text = t('The payment did not go through');
+    else {
+      try {
+        await claimPaymentSignedOut(api, back.payment);
+      } catch (error) {
+        text = paymentClaimText(error);
+      }
+    }
+    ed.banner(text, [[t('Got it'), () => ed.banner(), true]]);
+    return null;
+  }
   if (back.payment && paymentFailed) notice = t('The payment did not go through');
   else if (back.payment) {
     try {
@@ -868,6 +886,13 @@ export async function openAiFromAddress(
   }
   const signInNotice = back.signIn === 'failed' ? t('Could not sign in. Try again or use your email.') : null;
   return openAiBuild(ed, {api, id, notice, account: claimed, signInNotice});
+}
+
+/** The address without one of its parameters. */
+function withoutParam(address: string, name: string): string {
+  const url = new URL(address);
+  url.searchParams.delete(name);
+  return url.href;
 }
 
 /** What openAiBuild is given besides the editor. */
@@ -883,14 +908,26 @@ export interface AiBuildOptions {
   account?: Account | null;
   /** A provider's sign-in did not go through: the sign-in opens again, saying so. */
   signInNotice?: string | null;
+  /**
+   * In Home Assistant's panel (D-132): the service is reached through the integration, which holds the account's session.
+   * The page never leaves: no sign-in with a provider, the checkout in a tab of its own, no build in the address; the home
+   * replaces the plan only once it is taken (until then HA's plan and the dashboard stay as they are).
+   */
+  inHa?: boolean;
 }
+
+/** Where the checkout comes back to when the package was bought from Home Assistant: our site says to go back there. */
+export const HA_CHECKOUT_RETURN = '/?from=ha';
+/** How often, and how long, the panel looks for the package bought in the checkout's tab. */
+const PACKAGE_POLL_MS = 5000;
+const PACKAGE_WAIT_MS = 30 * 60 * 1000;
 
 /**
  * Opens the AI build over the editor: the upload screen, or a build's progress when its id is known (the page's ?build=<id>,
  * the start screen's card).
  */
 export function openAiBuild(ed: Editor, options: AiBuildOptions = {}): AiBuildScreen {
-  const {api = '', id = null, flows = ed.flows, notice = null, signInNotice = null} = options;
+  const {api = '', id = null, flows = ed.flows, notice = null, signInNotice = null, inHa = false} = options;
   const root = el(`<div class="aib"></div>`);
   document.body.append(root);
   flows?.hideStart();
@@ -921,6 +958,8 @@ export function openAiBuild(ed: Editor, options: AiBuildOptions = {}): AiBuildSc
 
   // The address names the page shown: the upload, a build, or neither (the editor).
   function setAddress(page: 'upload' | {build: string} | null): void {
+    // Home Assistant's panel has an address of its own (HA's): the build followed is remembered in the browser instead
+    if (inHa) return;
     const url = new URL(location.href);
     url.searchParams.delete('build');
     url.searchParams.delete(UPLOAD_PARAM);
@@ -1060,7 +1099,8 @@ export function openAiBuild(ed: Editor, options: AiBuildOptions = {}): AiBuildSc
     if (fromBuildButton) startWhenSignedIn = true;
     signInSheet = openSignIn(root, {
       api,
-      offer,
+      // a provider's sign-in would sign in this browser, not the integration that holds the session
+      offer: inHa ? {...offer, signIn: offer.signIn.filter(way => way === 'email')} : offer,
       reason,
       notice: line,
       returnPath: () => pathOf(location.href),
@@ -1121,6 +1161,20 @@ export function openAiBuild(ed: Editor, options: AiBuildOptions = {}): AiBuildSc
     accountLineIsHint = false;
     if (button) button.disabled = true;
     try {
+      if (offer.payments === 'dodo' && inHa) {
+        // a tab of its own, opened straight from the click (a browser opens one only then), its address once known
+        const tab = window.open('', '_blank');
+        if (tab) tab.opener = null;
+        if (button) button.textContent = t('Opening the payment…');
+        const url = await checkoutUrl(api, HA_CHECKOUT_RETURN);
+        if (tab) tab.location.href = url;
+        else window.open(url, '_blank', 'noopener');
+        accountLine = t('Pay in the new tab. The package shows here once it is paid.');
+        accountLineIsHint = true;
+        waitForPackage();
+        renderAccount();
+        return;
+      }
       if (offer.payments === 'dodo') {
         if (button) button.textContent = t('Opening the payment…');
         const url = await checkoutUrl(api, pathOf(location.href));
@@ -1139,6 +1193,28 @@ export function openAiBuild(ed: Editor, options: AiBuildOptions = {}): AiBuildSc
       else accountLine = t('Could not top up: {0}', refusalText(error));
     }
     renderAccount();
+  }
+
+  // Home Assistant's panel: the package bought in the checkout's tab shows here once the payment is counted (the checkout's
+  // return to our site counts it, or the provider's webhook). A build waiting for it goes on by itself on the service.
+  let packageTimer: ReturnType<typeof setTimeout> | number = 0;
+  function waitForPackage(): void {
+    clearTimeout(packageTimer);
+    const before = account?.balance.packages ?? 0;
+    const until = Date.now() + PACKAGE_WAIT_MS;
+    const look = async (): Promise<void> => {
+      if (closed || Date.now() > until) return;
+      const now = await currentAccount(api).catch(() => null);
+      if (now && now.balance.packages > before) {
+        account = now;
+        accountLine = null;
+        accountLineIsHint = false;
+        renderAccount();
+        return;
+      }
+      packageTimer = setTimeout(look, PACKAGE_POLL_MS);
+    };
+    packageTimer = setTimeout(look, PACKAGE_POLL_MS);
   }
 
   // The build is not shown here: the page says why and stops asking until the owner signs in.
@@ -1721,10 +1797,13 @@ export function openAiBuild(ed: Editor, options: AiBuildOptions = {}): AiBuildSc
       return;
     }
     uploading = null;
-    // A new home: the plan open now is kept aside ("Restore previous plan"), the editor starts clean.
-    await flows?.keepPrev?.();
-    await ed.underlay.clear();
-    ed.setPlan(emptyPlan(), {fit: false});
+    // A new home: the plan open now is kept aside ("Restore previous plan"), the editor starts clean. In Home Assistant the plan
+    // is the home's, on its dashboard too: it stays until the new home is taken (loadIntoEditor).
+    if (!inHa) {
+      await flows?.keepPrev?.();
+      await ed.underlay.clear();
+      ed.setPlan(emptyPlan(), {fit: false});
+    }
     quietSetup();
     buildId = buildStarted;
     follow(buildId);
@@ -1768,22 +1847,28 @@ export function openAiBuild(ed: Editor, options: AiBuildOptions = {}): AiBuildSc
           </section>
         </main>
         <footer class="aib-foot">
-          <span>${esc(t('You can close this page: the build goes on. Come back by this link.'))}</span>
-          <button class="soft" data-act="copy">${esc(t('Copy link'))}</button>
+          ${
+            inHa
+              ? `<span>${esc(t('You can close this page: the build goes on, and shows on the start screen.'))}</span>`
+              : `<span>${esc(t('You can close this page: the build goes on. Come back by this link.'))}</span>
+          <button class="soft" data-act="copy">${esc(t('Copy link'))}</button>`
+          }
         </footer>
       </div>`;
     find(root, '.aib-exit').before(newHeadBar(true));
     find(root, '[data-act=exit]').onclick = exit;
-    find(root, '[data-act=copy]').onclick = async e => {
-      // The button the handler is on.
-      const button = e.currentTarget as HTMLButtonElement;
-      try {
-        await navigator.clipboard.writeText(location.href);
-        button.textContent = t('Copied');
-      } catch {
-        button.textContent = location.href;
-      }
-    };
+    const copy = root.querySelector<HTMLElement>('[data-act=copy]');
+    if (copy)
+      copy.onclick = async e => {
+        // The button the handler is on.
+        const button = e.currentTarget as HTMLButtonElement;
+        try {
+          await navigator.clipboard.writeText(location.href);
+          button.textContent = t('Copied');
+        } catch {
+          button.textContent = location.href;
+        }
+      };
     find(root, '.aib-cta').addEventListener('click', onCta);
     renderProgress();
   }
@@ -2268,13 +2353,19 @@ export function openAiBuild(ed: Editor, options: AiBuildOptions = {}): AiBuildSc
 
   // ---------- the review ----------
 
+  // The build whose home replaced the plan in Home Assistant: its later rounds only update it.
+  let takenFor: string | null = null;
   async function loadIntoEditor(): Promise<void> {
     // the format this editor reads: a service that writes a newer one can answer in this one, or say to update (D-121)
     const res = await fetch(`${base()}/home?format=${PLAN_VERSION}`, {cache: 'no-store'});
     if (!res.ok) throw new Error(res.statusText);
     const plan = readPlan(await res.text());
     cover(false);
-    ed.setPlan(plan, {fit: false});
+    // In Home Assistant the plan open is replaced only now, once per build: kept as a version and as "Restore previous plan"
+    if (inHa && takenFor !== buildId && flows) {
+      takenFor = buildId;
+      await flows.takePlan(plan, 'aiHome');
+    } else ed.setPlan(plan, {fit: false});
     // The home remembers the build and the version it was taken at: a fix of one of its pins is offered to it later (D-129).
     if (buildId) markSource(ed, buildId, status?.rounds?.at(-1)?.round ?? 0);
     quietSetup();
@@ -2362,6 +2453,7 @@ export function openAiBuild(ed: Editor, options: AiBuildOptions = {}): AiBuildSc
   function close(): void {
     closed = true;
     clearTimeout(timer);
+    clearTimeout(packageTimer);
     closeReview();
     closeSignIn();
     root.remove();
@@ -2378,11 +2470,20 @@ export function openAiBuild(ed: Editor, options: AiBuildOptions = {}): AiBuildSc
     ed.setMain('3d');
     ed.view.home();
     quietSetup();
-    // opened from Home Assistant's panel (D-130): the home is to go back there
-    const haOrigin = keptHaOrigin();
-    if (haOrigin) {
-      ed.banner(t('Your home is ready. Send it to Home Assistant.'), [
-        [t('Send to Home Assistant'), () => sendToHa(ed, haOrigin), true],
+    // In Home Assistant the home is linked next: its rooms to HA's areas, then its lights and devices
+    if (inHa) {
+      ed.banner(t('Your home is here. Link its rooms to Home Assistant.'), [
+        [
+          t('Link rooms'),
+          () => {
+            ed.banner();
+            // rooms are linked by clicking them on the plan
+            ed.setMain('plan');
+            ed.path.go('names');
+          },
+          true,
+        ],
+        [t('Later'), () => ed.banner()],
       ]);
       return;
     }

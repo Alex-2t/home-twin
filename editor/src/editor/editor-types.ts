@@ -408,8 +408,6 @@ export interface EditorFlows {
   keepPrev(): Promise<boolean>;
   /** Opens a home from elsewhere (a file, the AI build) in place of the plan open now; why names the version kept before it. */
   takePlan(plan: Plan, why: string): Promise<void>;
-  /** "Send to Home Assistant" in the plan menu: set where the page was opened from Home Assistant's panel (D-130). */
-  sendToHa?: () => void;
   /** "Restore previous plan": swaps the open plan and the one kept aside. */
   swapPrev(): Promise<void>;
   hasPrev(): boolean;

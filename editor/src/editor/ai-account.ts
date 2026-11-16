@@ -16,7 +16,8 @@
 //   POST <api>/pay/checkout                  {return, lang} → {url}: the provider's checkout for one package; it comes back to
 //                                            <return>?paid=1&payment_id=…&status=…
 //   POST <api>/pay/payments/<id>/claim       the payment checked with the provider and counted once → the account;
-//                                            402 PAYMENT_FAILED, 404 PAYMENT_UNKNOWN, 409 PAYMENT_NOT_OURS
+//                                            402 PAYMENT_FAILED, 404 PAYMENT_UNKNOWN, 409 PAYMENT_NOT_OURS. Signed out
+//                                            (bought from Home Assistant, D-132): only {credited}
 //   POST <api>/pay/test/top-up               a free test package, only where the service takes no payments
 // Public POSTs are JSON (the service refuses anything else). A refusal says why in {error}: a code such as SIGNED_OUT.
 // Where the AI build runs without the service (local work), /pay/offer answers 404: there are no accounts, builds are free.
@@ -246,6 +247,14 @@ export async function claimPayment(api: string, payment: string): Promise<Accoun
   return accountFrom(
     await answerOf(await postTo(`${api}/pay/payments/${encodeURIComponent(payment)}/claim`)),
   );
+}
+
+/**
+ * A payment counted from a browser that is not signed in (D-132: bought from Home Assistant's panel, whose integration holds the
+ * session); the service then says only that it was counted.
+ */
+export async function claimPaymentSignedOut(api: string, payment: string): Promise<void> {
+  await answerOf(await postTo(`${api}/pay/payments/${encodeURIComponent(payment)}/claim`));
 }
 
 /** Until D-088 this browser kept its package's key here; the balance is on the account now, and the key is of no use. */

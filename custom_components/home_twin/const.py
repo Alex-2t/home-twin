@@ -13,3 +13,7 @@ PHOTO_URL = "/api/home_twin/photo"  # the plan photo itself (the image the rooms
 PHOTO_FILE = "home_twin.photo"  # file .storage/home_twin.photo
 PHOTO_MAX_BYTES = 15_000_000  # HA accepts request bodies up to 16 MB; the editor shrinks big photos before sending
 PLACE_MAX_BYTES = 10_000  # photo placement: a few numbers
+AI_SERVICE = "https://twin.sync.md"  # the AI build's service (D-131); HOME_TWIN_AI_SERVICE in HA's environment overrides it
+AI_URL = "/api/home_twin/ai"  # the service through HA: /api/home_twin/ai/<key>/<path> (ai.py)
+AI_STORE_KEY = "home_twin.ai"  # file .storage/home_twin.ai: the account's session with the service, for the whole home
+AI_STORE_VERSION = 1

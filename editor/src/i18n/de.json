@@ -1761,18 +1761,8 @@
  "What is wrong? Not required": "Was stimmt nicht? Optional",
  "You changed these since. Keep yours, or take the fixed one?": "Das hast du inzwischen geändert. Deine Version behalten oder die korrigierte nehmen?",
  "Yours": "Deine",
- "A home built by AI arrived. Replace your plan with it?": "Ein von der KI gebautes Zuhause ist da. Deinen Plan damit ersetzen?",
- "Allow pop-ups for this site, then try again.": "Erlaube Pop-ups für diese Seite und versuche es erneut.",
  "Before the home built by AI": "Vor dem von der KI gebauten Zuhause",
- "Home Assistant did not answer.": "Home Assistant hat nicht geantwortet.",
- "Open Home Assistant": "Home Assistant öffnen",
- "Replace": "Ersetzen",
- "Send to Home Assistant": "An Home Assistant senden",
- "Sending to Home Assistant…": "Wird an Home Assistant gesendet …",
- "Waiting for Home Assistant. Sign in there if it asks.": "Warte auf Home Assistant. Melde dich dort an, falls gefragt.",
  "Your home is here. Link its rooms to Home Assistant.": "Dein Zuhause ist da. Verknüpfe seine Räume mit Home Assistant.",
- "Your home is in Home Assistant.": "Dein Zuhause ist in Home Assistant.",
- "Your home is ready. Send it to Home Assistant.": "Dein Zuhause ist fertig. Sende es an Home Assistant.",
  "Looking for the plan in the PDF…": "Suche den Grundriss im PDF…",
  "Which page is the floor plan?": "Auf welcher Seite ist der Grundriss?",
  "We picked page {0}. Tap another if it is wrong.": "Wir haben Seite {0} gewählt. Falls falsch, tippe eine andere an.",
@@ -1784,5 +1774,8 @@
  "Page {0} of {1}": "Seite {0} von {1}",
  "Change page": "Ändern",
  "Could not open this PDF: add it again, or a photo of the plan.": "Dieses PDF ließ sich nicht öffnen. Füge es erneut hinzu oder ein Foto des Grundrisses.",
- "Our pick": "Unsere Wahl"
+ "Our pick": "Unsere Wahl",
+ "Pay in the new tab. The package shows here once it is paid.": "Bezahle im neuen Tab. Das Paket erscheint hier, sobald es bezahlt ist.",
+ "The package is paid. Go back to Home Assistant: it is there.": "Das Paket ist bezahlt. Geh zurück zu Home Assistant: Es ist dort.",
+ "You can close this page: the build goes on, and shows on the start screen.": "Du kannst diese Seite schließen: Der Bau läuft weiter und erscheint auf dem Startbildschirm."
 }

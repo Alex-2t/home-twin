@@ -1761,18 +1761,8 @@
  "What is wrong? Not required": "Wat klopt er niet? Niet verplicht",
  "You changed these since. Keep yours, or take the fixed one?": "Dit heb je intussen veranderd. Je eigen versie houden of de verbeterde nemen?",
  "Yours": "Jouw versie",
- "A home built by AI arrived. Replace your plan with it?": "Er is een huis binnengekomen dat door AI is gebouwd. Je plattegrond ermee vervangen?",
- "Allow pop-ups for this site, then try again.": "Sta pop-ups toe voor deze site en probeer het opnieuw.",
  "Before the home built by AI": "Voor het door AI gebouwde huis",
- "Home Assistant did not answer.": "Home Assistant reageerde niet.",
- "Open Home Assistant": "Home Assistant openen",
- "Replace": "Vervangen",
- "Send to Home Assistant": "Naar Home Assistant sturen",
- "Sending to Home Assistant…": "Versturen naar Home Assistant…",
- "Waiting for Home Assistant. Sign in there if it asks.": "Wachten op Home Assistant. Log daar in als het erom vraagt.",
  "Your home is here. Link its rooms to Home Assistant.": "Je huis is er. Koppel de kamers aan Home Assistant.",
- "Your home is in Home Assistant.": "Je huis staat in Home Assistant.",
- "Your home is ready. Send it to Home Assistant.": "Je huis is klaar. Stuur het naar Home Assistant.",
  "Looking for the plan in the PDF…": "Plattegrond zoeken in de pdf…",
  "Which page is the floor plan?": "Op welke pagina staat de plattegrond?",
  "We picked page {0}. Tap another if it is wrong.": "We kozen pagina {0}. Klopt dat niet, tik dan een andere aan.",
@@ -1784,5 +1774,8 @@
  "Page {0} of {1}": "Pagina {0} van {1}",
  "Change page": "Wijzigen",
  "Could not open this PDF: add it again, or a photo of the plan.": "Deze pdf kon niet worden geopend. Voeg hem opnieuw toe, of een foto van de plattegrond.",
- "Our pick": "Onze keuze"
+ "Our pick": "Onze keuze",
+ "Pay in the new tab. The package shows here once it is paid.": "Betaal in het nieuwe tabblad. Het pakket verschijnt hier zodra het betaald is.",
+ "The package is paid. Go back to Home Assistant: it is there.": "Het pakket is betaald. Ga terug naar Home Assistant: het staat daar.",
+ "You can close this page: the build goes on, and shows on the start screen.": "Je kunt deze pagina sluiten: de bouw gaat door en verschijnt op het startscherm."
 }

@@ -1761,18 +1761,8 @@
  "What is wrong? Not required": "O que está errado? Opcional",
  "You changed these since. Keep yours, or take the fixed one?": "Você mudou isto desde então. Manter a sua ou usar a corrigida?",
  "Yours": "A sua",
- "A home built by AI arrived. Replace your plan with it?": "Chegou uma casa construída pela IA. Substituir sua planta por ela?",
- "Allow pop-ups for this site, then try again.": "Permita pop-ups para este site e tente de novo.",
  "Before the home built by AI": "Antes da casa construída pela IA",
- "Home Assistant did not answer.": "O Home Assistant não respondeu.",
- "Open Home Assistant": "Abrir o Home Assistant",
- "Replace": "Substituir",
- "Send to Home Assistant": "Enviar para o Home Assistant",
- "Sending to Home Assistant…": "Enviando para o Home Assistant…",
- "Waiting for Home Assistant. Sign in there if it asks.": "Aguardando o Home Assistant. Entre nele se ele pedir.",
  "Your home is here. Link its rooms to Home Assistant.": "Sua casa chegou. Vincule os cômodos ao Home Assistant.",
- "Your home is in Home Assistant.": "Sua casa está no Home Assistant.",
- "Your home is ready. Send it to Home Assistant.": "Sua casa está pronta. Envie-a para o Home Assistant.",
  "Looking for the plan in the PDF…": "A procurar a planta no PDF…",
  "Which page is the floor plan?": "Em que página está a planta?",
  "We picked page {0}. Tap another if it is wrong.": "Escolhemos a página {0}. Se não for essa, toque noutra.",
@@ -1784,5 +1774,8 @@
  "Page {0} of {1}": "Página {0} de {1}",
  "Change page": "Mudar",
  "Could not open this PDF: add it again, or a photo of the plan.": "Não foi possível abrir este PDF. Adicione-o de novo, ou uma foto da planta.",
- "Our pick": "A nossa escolha"
+ "Our pick": "A nossa escolha",
+ "Pay in the new tab. The package shows here once it is paid.": "Pague na nova aba. O pacote aparece aqui assim que for pago.",
+ "The package is paid. Go back to Home Assistant: it is there.": "O pacote está pago. Volte ao Home Assistant: ele já está lá.",
+ "You can close this page: the build goes on, and shows on the start screen.": "Você pode fechar esta página: a construção continua e aparece na tela inicial."
 }
