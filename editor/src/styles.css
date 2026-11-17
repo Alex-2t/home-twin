@@ -727,7 +727,8 @@ button.aib-avatar:hover{background:linear-gradient(135deg,#6366f1,#a855f7);filte
 .aib-balance-more{color:var(--mut);font-size:12px}
 /* beside a buy button (D-135): how long a package lasts, and the terms, privacy and refunds pages */
 .aib-terms{display:flex;flex-wrap:wrap;align-items:baseline;gap:2px 10px;color:var(--mut);font-size:12px;line-height:1.4}.aib-terms a.aib-link{font-size:12px;white-space:nowrap}
-.aib-card>.aib-terms{grid-column:2/-1;margin-top:-8px}.aib-account-terms{padding:2px 10px 6px}.aib-review-account>.aib-terms{flex-basis:100%}
+.aib-card>.aib-terms{grid-column:2/-1;margin-top:-8px}.aib-was{color:inherit;opacity:.6;font-weight:400;margin-right:2px}
+.aib-offer-points{grid-column:2/-1;list-style:none;margin:-6px 0 0;padding:0;display:flex;flex-direction:column;gap:6px;font-size:13px;line-height:1.4;color:var(--tx)}.aib-offer-points li{display:flex;align-items:flex-start;gap:8px}.aib-offer-points .ic{flex:none;margin-top:2px;color:var(--acc)}.aib-account-terms{padding:2px 10px 6px}.aib-review-account>.aib-terms{flex-basis:100%}
 /* the sign-in: a sheet over the page (a phone: from the bottom) */
 .aib-veil{position:fixed;inset:0;z-index:60;display:grid;place-items:center;padding:16px;background:color-mix(in srgb,var(--cv) 55%,transparent);-webkit-backdrop-filter:blur(6px);backdrop-filter:blur(6px);animation:aib-in .2s ease-out}
 .aib-sign{width:min(380px,100%);display:flex;flex-direction:column;gap:10px;padding:16px 18px 18px;border-radius:18px;background:var(--panel-solid);border:1px solid var(--line);box-shadow:var(--sh-lg);animation:aib-pop .25s ease-out}
@@ -872,7 +873,7 @@ button.aib-big{height:46px;padding:0 22px;border-radius:12px;font-size:15px;box-
   .aib-tips{flex-direction:column;gap:0;padding:2px 12px;border-radius:14px;background:var(--panel);border:1px solid var(--line)}
   .aib-tips li{min-height:36px;padding:7px 0;border:0;border-radius:0;background:none}.aib-tips li+li{border-top:1px solid var(--line)}
   .aib-card{grid-template-columns:auto minmax(0,1fr)}.aib-card button.primary{grid-column:1/-1;width:100%}.aib-card-thumb{width:88px;height:64px}
-  .aib-card>.aib-terms{grid-column:1/-1;justify-content:center;text-align:center}}
+  .aib-card>.aib-terms{grid-column:1/-1;justify-content:center;text-align:center}.aib-offer-points{grid-column:1/-1;margin:0}}
 /* the review */
 .aib-review{-webkit-user-select:none;user-select:none}
 /* the bar, the tools and the hint: each placed on its own on a wide screen; on a phone one row at the top that wraps */

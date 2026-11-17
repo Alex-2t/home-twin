@@ -188,6 +188,20 @@ test('an empty balance says whether a first package is needed or nothing is left
   assert.equal(emptyStartText(null), 'Nothing left on your account');
 });
 
+test('during the launch the regular price stands struck through before the price, and the small print says it', () => {
+  const launch: Offer = {...PAID, mode: 'live', price: {amount: 20, currency: 'USD', regular: 30}};
+  assert.equal(buyButtonInner(launch), 'Buy a package · <s class="aib-was">$30</s> $20');
+  assert.equal(buyButtonInner(launch, {topUp: true}), 'Top up · <s class="aib-was">$30</s> $20');
+  assert.match(packageTermsHtml(launch), /Launch price, later \$30\./);
+  assert.doesNotMatch(packageTermsHtml(PAID), /Launch price/);
+  // the service's answer: a regular price above the price is kept, one at or under it is not a launch
+  const answer = (regular: unknown): Offer =>
+    offerFrom({payments: 'dodo', mode: 'live', price: {amount: 20, currency: 'USD', regular}, signIn: []});
+  assert.equal(answer(30).price?.regular, 30);
+  assert.equal(answer(20).price?.regular, undefined);
+  assert.equal(answer('30').price?.regular, undefined);
+});
+
 test('while the checkout is in test mode its buttons carry a "test" mark', () => {
   assert.match(
     buyButtonInner(PAID),

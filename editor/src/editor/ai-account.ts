@@ -43,6 +43,8 @@ export type SignInWay = 'email' | Provider;
 export interface Price {
   amount: number;
   currency: string;
+  /** During the launch: the price after it, shown struck through beside the amount (the payments service's REGULAR_PRICE). */
+  regular?: number;
 }
 
 /** How a package comes (GET /pay/offer): bought at a checkout ('dodo') or given free for testing ('free'), its price, and the sign-in ways. */
@@ -127,7 +129,9 @@ function shareOf(value: unknown): number {
 function priceFrom(value: unknown): Price | null {
   if (!isFields(value)) return null;
   if (typeof value.amount !== 'number' || typeof value.currency !== 'string') return null;
-  return {amount: value.amount, currency: value.currency};
+  const price: Price = {amount: value.amount, currency: value.currency};
+  if (typeof value.regular === 'number' && value.regular > value.amount) price.regular = value.regular;
+  return price;
 }
 
 /** The offer in the service's answer; throws when the answer is not one. */
@@ -457,7 +461,9 @@ const LEGAL_PAGES: {path: string; label: string}[] = [
  */
 export function packageTermsHtml(offer: Offer | null): string {
   if (!offer) return '';
-  const validity = `<span>${esc(t('Valid for 30 days after purchase; buying again extends it.'))}</span>`;
+  const regular = launchRegular(offer);
+  const launch = regular ? `<span>${esc(t('Launch price, later {0}.', regular))}</span>` : '';
+  const validity = `${launch}<span>${esc(t('Valid for 30 days after purchase; buying again extends it.'))}</span>`;
   const site = offer.site;
   let links = '';
   if (site) {
@@ -490,9 +496,28 @@ export function untilText(share: BalanceShare, now: Date = new Date()): string {
 export const isTestCheckout = (offer: Offer | null): boolean =>
   offer?.payments === 'dodo' && offer.mode === 'test';
 
-/** A buy or top-up button's inside, as markup: its label, and a small "test" mark while the checkout is in test mode. */
+/** During the launch, the regular price in words ("$30"); '' otherwise, and where packages are not bought. */
+function launchRegular(offer: Offer | null): string {
+  const price = offer?.payments === 'dodo' ? offer.price : null;
+  if (!price?.regular) return '';
+  return priceText({amount: price.regular, currency: price.currency});
+}
+
+// Where the price goes in a button's label, so that the regular one can stand struck through before it.
+const PRICE_SLOT = '\uE000';
+
+/**
+ * A buy or top-up button's inside, as markup: its label (during the launch with the regular price struck through before the
+ * price: "Buy a package · $30 $20"), and a small "test" mark while the checkout is in test mode.
+ */
 export function buyButtonInner(offer: Offer | null, options: {topUp?: boolean} = {}): string {
-  const label = esc(buyLabel(offer, options));
+  const regular = launchRegular(offer);
+  let label = esc(buyLabel(offer, options));
+  if (regular && offer?.price) {
+    const slotted = esc(options.topUp ? t('Top up · {0}', PRICE_SLOT) : t('Buy a package · {0}', PRICE_SLOT));
+    const prices = `<s class="aib-was">${esc(regular)}</s> ${esc(priceText(offer.price))}`;
+    label = slotted.replace(PRICE_SLOT, prices);
+  }
   if (!isTestCheckout(offer)) return label;
   const title = esc(t('Test payments: no real money'));
   return `${label}<span class="aib-test-mark" title="${title}">${esc(t('test|payments'))}</span>`;

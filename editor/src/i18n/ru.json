@@ -1824,6 +1824,12 @@
  "Privacy": "Конфиденциальность",
  "Refunds": "Возвраты",
  "Valid for 30 days after purchase; buying again extends it.": "Действует 30 дней после покупки; новая покупка продлевает срок.",
+ "One payment, no subscription": "Один платёж, без подписки",
+ "We build your home for you: rooms, windows, doors and furniture, from a plan and a quick video.": "Мы построим ваш дом за вас: комнаты, окна, двери и мебель — по плану и короткому видео.",
+ "In Home Assistant it comes linked: lights, curtains, air conditioners and readings in their rooms.": "В Home Assistant он приходит привязанным: свет, шторы, кондиционеры и показания — в своих комнатах.",
+ "Your home in 3D, to keep or share.": "Ваш дом в 3D — сохранить или показать.",
+ "It stays yours for good: nothing more to pay to keep and use it.": "Он остаётся вашим навсегда: за хранение и пользование платить больше не нужно.",
+ "Launch price, later {0}.": "Цена на старте, потом {0}.",
  "until {0}": "до {0}",
  "Photo unavailable": "Фото недоступно",
  "Your photos and videos are deleted 2 days after a build. Upload them again to build your home.": "Фото и видео удаляются через 2 дня после сборки. Загрузите их снова, чтобы построить дом."

@@ -264,6 +264,28 @@ const haLights = (ed: Editor): UploadLight[] => {
       return {id: light.id, name: light.name, area: light.area, ...(device ? {device} : {})};
     });
 };
+// What the first package is paid for, three lines under its card's title (the owner, 2026-11-17): we build the home, in Home
+// Assistant it comes linked, and it stays the owner's with nothing more to pay to keep and use it. On our site the second line is the 3D home
+// itself, as there is nothing to link there.
+function offerPointsHtml(inHa: boolean): string {
+  const points: [string, string][] = [
+    [
+      'house',
+      t('We build your home for you: rooms, windows, doors and furniture, from a plan and a quick video.'),
+    ],
+    inHa
+      ? [
+          'bulb',
+          t(
+            'In Home Assistant it comes linked: lights, curtains, air conditioners and readings in their rooms.',
+          ),
+        ]
+      : ['box', t('Your home in 3D, to keep or share.')],
+    ['check', t('It stays yours for good: nothing more to pay to keep and use it.')],
+  ];
+  const items = points.map(([name, text]) => `<li>${icon(name, 15)}<span>${esc(text)}</span></li>`);
+  return `<ul class="aib-offer-points">${items.join('')}</ul>`;
+}
 // The owner's devices the model shows (air conditioners, covers, door and window sensors), as the Devices step lists them.
 const haDevices = (ed: Editor): HaDevice[] =>
   (ed.ha.devices?.() || []).filter(device => PLACEABLE.has(deviceKind(device, ed.ha.entity(device.entity))));
@@ -1646,10 +1668,16 @@ export function openAiBuild(ed: Editor, options: AiBuildOptions = {}): AiBuildSc
       const balance = account.balance;
       const line = accountLine || (balance.bought ? t('Top up to build your home') : emptyStartText(balance));
       const lineClass = accountLine && !accountLineIsHint ? ' class="aib-wallet-err"' : '';
-      gate.innerHTML = `<div class="aib-card asking">
+      // The first package: what it is paid for (the owner, 2026-11-17: say it is no subscription, and what the build does);
+      // a top-up keeps the short card.
+      const first = !balance.bought && offer?.payments === 'dodo';
+      const title = first ? t('One payment, no subscription') : emptyBalanceText(balance);
+      const small = first && !accountLine ? '' : `<small${lineClass}>${esc(line)}</small>`;
+      gate.innerHTML = `<div class="aib-card asking${first ? ' aib-offer' : ''}">
         <span class="aib-card-ic">${icon('wallet', 20)}</span>
-        <span class="aib-card-text"><b>${esc(emptyBalanceText(balance))}</b><small${lineClass}>${esc(line)}</small></span>
+        <span class="aib-card-text"><b>${esc(title)}</b>${small}</span>
         <button class="primary" data-act="buy">${buyButtonInner(offer, {topUp: balance.bought})}</button>
+        ${first ? offerPointsHtml(inHa) : ''}
         ${packageTermsHtml(offer)}</div>`;
     }
     if (want === gateShown) return;

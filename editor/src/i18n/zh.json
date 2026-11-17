@@ -1824,6 +1824,12 @@
  "Privacy": "隐私",
  "Refunds": "退款",
  "Valid for 30 days after purchase; buying again extends it.": "购买后 30 天内有效；再次购买会延长有效期。",
+ "One payment, no subscription": "一次付款，无需订阅",
+ "We build your home for you: rooms, windows, doors and furniture, from a plan and a quick video.": "我们为你建好住宅：房间、窗户、门和家具，只需一张户型图和一段短视频。",
+ "In Home Assistant it comes linked: lights, curtains, air conditioners and readings in their rooms.": "在 Home Assistant 中已关联好：灯、窗帘、空调和读数都在各自的房间里。",
+ "Your home in 3D, to keep or share.": "你的 3D 住宅，可保存或分享。",
+ "It stays yours for good: nothing more to pay to keep and use it.": "它永远属于你：保留和使用都无需再付费。",
+ "Launch price, later {0}.": "首发价，之后为 {0}。",
  "until {0}": "有效期至 {0}",
  "Photo unavailable": "照片不可用",
  "Your photos and videos are deleted 2 days after a build. Upload them again to build your home.": "照片和视频会在生成 2 天后删除。请重新上传以生成你的家。"

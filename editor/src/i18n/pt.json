@@ -1824,6 +1824,12 @@
  "Privacy": "Privacidade",
  "Refunds": "Reembolsos",
  "Valid for 30 days after purchase; buying again extends it.": "Válido por 30 dias após a compra; comprar de novo prolonga o prazo.",
+ "One payment, no subscription": "Um pagamento, sem assinatura",
+ "We build your home for you: rooms, windows, doors and furniture, from a plan and a quick video.": "Construímos sua casa para você: cômodos, janelas, portas e móveis, a partir de uma planta e um vídeo curto.",
+ "In Home Assistant it comes linked: lights, curtains, air conditioners and readings in their rooms.": "No Home Assistant ela chega vinculada: luzes, cortinas, ar-condicionados e leituras nos seus cômodos.",
+ "Your home in 3D, to keep or share.": "Sua casa em 3D, para guardar ou compartilhar.",
+ "It stays yours for good: nothing more to pay to keep and use it.": "Ela é sua para sempre: nada mais a pagar para mantê-la e usá-la.",
+ "Launch price, later {0}.": "Preço de lançamento, depois {0}.",
  "until {0}": "até {0}",
  "Photo unavailable": "Foto indisponível",
  "Your photos and videos are deleted 2 days after a build. Upload them again to build your home.": "Suas fotos e vídeos são excluídos 2 dias após uma criação. Envie-os novamente para criar sua casa."
