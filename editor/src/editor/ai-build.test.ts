@@ -1,7 +1,14 @@
 // The AI build's start screen (ai-build.ts): the account's builds offered on a browser that follows none.
 import {test} from 'node:test';
 import assert from 'node:assert/strict';
-import {activeBuild, buildIdentity, buildStartedAt, lineKey, offeredBuilds} from './ai-build.ts';
+import {
+  activeBuild,
+  buildIdentity,
+  buildStartedAt,
+  buildTouchedAt,
+  lineKey,
+  offeredBuilds,
+} from './ai-build.ts';
 
 test('a build is dated by its id; one named otherwise has no date', () => {
   const at = Date.UTC(2026, 10, 14, 9, 30);
@@ -74,4 +81,12 @@ test('a hidden build line comes back once the build moves on: its key is the bui
   assert.equal(lineKey(building), 'home-x:running');
   assert.equal(lineKey(ready), 'home-x:ready');
   assert.equal(lineKey(waiting), 'home-x:waiting');
+});
+
+test('a build counts as touched when it was started, or opened since: the start screen shows it only if that is after your plan', () => {
+  const started = Date.UTC(2026, 10, 16, 15, 0);
+  const id = `home-${started.toString(36)}`;
+  assert.equal(buildTouchedAt(id, {}), started);
+  assert.equal(buildTouchedAt(id, {[id]: started + 5000}), started + 5000);
+  assert.equal(buildTouchedAt('not-a-time', {}), 0);
 });

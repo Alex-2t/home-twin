@@ -613,6 +613,38 @@ function follow(id: string | null): void {
     if (id) localStorage.setItem(FOLLOWED, id);
     else localStorage.removeItem(FOLLOWED);
   } catch {}
+  if (id) markTouched(id);
+}
+
+// When this browser last opened each build: the start screen shows the plan or the build, whichever was touched last.
+const BUILDS_TOUCHED = 'home-twin-editor:ai-builds-touched';
+const BUILDS_TOUCHED_KEPT = 30;
+
+function buildsTouched(): Record<string, number> {
+  try {
+    const saved: unknown = JSON.parse(localStorage.getItem(BUILDS_TOUCHED) || '{}');
+    if (!saved || typeof saved !== 'object' || Array.isArray(saved)) return {};
+    return Object.fromEntries(
+      Object.entries(saved).filter((entry): entry is [string, number] => typeof entry[1] === 'number'),
+    );
+  } catch {
+    return {};
+  }
+}
+
+function markTouched(id: string): void {
+  const touched = {...buildsTouched(), [id]: Date.now()};
+  const kept = Object.entries(touched)
+    .sort((a, b) => b[1] - a[1])
+    .slice(0, BUILDS_TOUCHED_KEPT);
+  try {
+    localStorage.setItem(BUILDS_TOUCHED, JSON.stringify(Object.fromEntries(kept)));
+  } catch {}
+}
+
+/** When a build was touched last: started, or opened in this browser since. */
+export function buildTouchedAt(id: string | undefined, opened: Record<string, number>): number {
+  return Math.max(buildStartedAt(id) || 0, (id && opened[id]) || 0);
 }
 
 // ---------- reading a status ----------
@@ -778,15 +810,18 @@ export function aiStartCard(
   const idle = card.innerHTML;
   const startBox = card.parentElement as HTMLElement;
   const startScreen = card.closest<HTMLElement>('#start');
-  // A build at work on your home, under the "Continue" card: one line, as part of that card. It is a version of the same home,
-  // not a second one; × hides it (it stays in "Version history") until the build moves on to another state.
-  const line = el(`<div class="aib-start-line" hidden>
-    <button type="button" class="aib-start-line-go"></button>
-    <button type="button" class="ib aib-start-line-x" title="${esc(t('Hide. It stays in Version history.'))}">${icon('x', 15)}</button>
-  </div>`);
-  const lineGo = find<HTMLButtonElement>(line, '.aib-start-line-go');
+  // One version of your home on a return, the one touched last (the owner, 2026-11-17): your plan in "Continue", or a build
+  // by AI in this card in its place. × on the build's card hides it (it stays in "Version history") and your plan is back;
+  // the build shows again only when it moves on to another state (built, waiting for a top-up).
   const continueCard = startBox.querySelector<HTMLElement>('[data-a=continue]');
-  (continueCard || card).after(line);
+  const planLabel = startBox.querySelector<HTMLElement>('.start-label[data-for=plan]');
+  const cardBox = el(`<div class="aib-start-card"></div>`);
+  const hideButton = el(
+    `<button type="button" class="ib aib-start-hide" hidden title="${esc(t('Hide. It stays in Version history.'))}">${icon('x', 15)}</button>`,
+  );
+  card.before(cardBox);
+  cardBox.append(card, hideButton);
+  if (continueCard) continueCard.after(cardBox);
   // "Build with AI" among the ways to start a new home, beside "Upload a plan" and "Draw from scratch".
   const another = el(`<button class="choice glass aib-new-choice" hidden>
     <span class="ci">${icon('sparkles', 20)}</span><b>${esc(t('Build with AI'))}</b>
@@ -805,10 +840,9 @@ export function aiStartCard(
   // A return to your plan: the start screen shows it in "Continue" (flows.ts sets data-back).
   const isReturn = (): boolean => !!startScreen?.hasAttribute('data-back');
   card.onclick = () => open(shown?.id || null);
-  lineGo.onclick = () => open(shown?.id || null);
-  find(line, '.aib-start-line-x').onclick = () => {
+  hideButton.onclick = () => {
     if (shown) hideLine(lineKey(shown));
-    line.hidden = true;
+    show(null);
   };
   another.onclick = () => {
     follow(null);
@@ -848,27 +882,19 @@ export function aiStartCard(
     barOf(meter).style.width = percent(status.share || 0);
   }
 
-  // The line under "Continue" on a return: what the build at work on your home is doing; none once hidden in this state.
-  function showLine(status: BuildStatus | null): void {
-    line.hidden = !status || linesHidden().includes(lineKey(status));
-    if (!status) return;
-    const text = buildCardText(status);
-    const state = status.paused === 'balance' ? 'waiting' : text.state;
-    const identity = buildIdentity(status);
-    const detail = text.state === 'running' ? text.note : identity;
-    line.dataset.state = state;
-    lineGo.innerHTML = `<span class="aib-start-line-ic">${text.state === 'running' ? '<i class="aib-start-spin"></i>' : icon('sparkles', 15)}</span>
-      <b>${esc(t('New version by AI'))}</b><span class="aib-start-line-state">${esc(buildStateWord(status, text))}</span>
-      <span class="aib-start-line-detail">${esc(detail)}</span>${icon('right', 15)}`;
-  }
-
   function show(status: BuildStatus | null): void {
-    shown = status;
     const back = isReturn();
-    card.hidden = back;
+    // a build hidden in this state is not shown; on a return, a build shows only when it was touched after your plan
+    const visible = status && !linesHidden().includes(lineKey(status)) ? status : null;
+    const planAt = ed.history.lastAt() || 0;
+    const buildWins = !!visible && buildTouchedAt(visible.id, buildsTouched()) > planAt;
+    shown = back && !buildWins ? null : visible;
+    if (continueCard && back) continueCard.hidden = buildWins;
+    if (planLabel) planLabel.hidden = back && buildWins;
+    card.hidden = back && !buildWins;
+    hideButton.hidden = !(back && buildWins);
     another.hidden = !back;
-    showCard(back ? null : status);
-    showLine(back ? status : null);
+    showCard(shown);
   }
 
   // The account's builds this browser may be offered; none without accounts (local work lists every build there).
