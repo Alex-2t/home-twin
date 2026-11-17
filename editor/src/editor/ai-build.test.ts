@@ -1,7 +1,7 @@
 // The AI build's start screen (ai-build.ts): the account's builds offered on a browser that follows none.
 import {test} from 'node:test';
 import assert from 'node:assert/strict';
-import {activeBuild, buildIdentity, buildStartedAt, offeredBuilds} from './ai-build.ts';
+import {activeBuild, buildIdentity, buildStartedAt, lineKey, offeredBuilds} from './ai-build.ts';
 
 test('a build is dated by its id; one named otherwise has no date', () => {
   const at = Date.UTC(2026, 10, 14, 9, 30);
@@ -65,4 +65,13 @@ test('the start screen shows one build at work on your home: the newest not fini
   assert.equal(activeBuild(builds)?.id, 'home-b');
   assert.equal(activeBuild([{id: 'home-c', finished: true}]), null);
   assert.equal(activeBuild([]), null);
+});
+
+test('a hidden build line comes back once the build moves on: its key is the build and its state', () => {
+  const building = {id: 'home-x', steps: [], rooms: [], has: {}, alive: true};
+  const ready = {...building, waiting: 'final'};
+  const waiting = {...building, paused: 'balance' as const};
+  assert.equal(lineKey(building), 'home-x:running');
+  assert.equal(lineKey(ready), 'home-x:ready');
+  assert.equal(lineKey(waiting), 'home-x:waiting');
 });

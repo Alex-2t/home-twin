@@ -728,6 +728,32 @@ function buildStateWord(status: BuildStatus, text: BuildCardText): string {
   return t('Building · {0}', percent(status.share || 0));
 }
 
+// The start screen's lines the owner hid, as "<build>:<state>": the same build shows again once it moves on (built, waiting).
+const LINES_HIDDEN = 'home-twin-editor:ai-lines-hidden';
+const LINES_HIDDEN_KEPT = 30;
+
+function linesHidden(): string[] {
+  try {
+    const saved: unknown = JSON.parse(localStorage.getItem(LINES_HIDDEN) || '[]');
+    return Array.isArray(saved) ? saved.filter(key => typeof key === 'string') : [];
+  } catch {
+    return [];
+  }
+}
+
+function hideLine(key: string): void {
+  const keys = [...linesHidden().filter(kept => kept !== key), key];
+  try {
+    localStorage.setItem(LINES_HIDDEN, JSON.stringify(keys.slice(-LINES_HIDDEN_KEPT)));
+  } catch {}
+}
+
+/** A build in the state it is in, for hiding its line: a build that moves on to another state shows again. */
+export function lineKey(status: BuildStatus): string {
+  const state = status.paused === 'balance' ? 'waiting' : buildCardText(status).state;
+  return `${status.id}:${state}`;
+}
+
 /**
  * The build the start screen shows as at work on your home: the one this browser follows, else the account's newest that is
  * not finished. The others are in "Version history" (D-133: one home and its history, not a list of homes).
@@ -752,8 +778,13 @@ export function aiStartCard(
   const idle = card.innerHTML;
   const startBox = card.parentElement as HTMLElement;
   const startScreen = card.closest<HTMLElement>('#start');
-  // A build at work on your home, under the "Continue" card: one line, as part of that card.
-  const line = el(`<button type="button" class="aib-start-line" hidden></button>`);
+  // A build at work on your home, under the "Continue" card: one line, as part of that card. It is a version of the same home,
+  // not a second one; × hides it (it stays in "Version history") until the build moves on to another state.
+  const line = el(`<div class="aib-start-line" hidden>
+    <button type="button" class="aib-start-line-go"></button>
+    <button type="button" class="ib aib-start-line-x" title="${esc(t('Hide. It stays in Version history.'))}">${icon('x', 15)}</button>
+  </div>`);
+  const lineGo = find<HTMLButtonElement>(line, '.aib-start-line-go');
   const continueCard = startBox.querySelector<HTMLElement>('[data-a=continue]');
   (continueCard || card).after(line);
   // "Build with AI" among the ways to start a new home, beside "Upload a plan" and "Draw from scratch".
@@ -774,7 +805,11 @@ export function aiStartCard(
   // A return to your plan: the start screen shows it in "Continue" (flows.ts sets data-back).
   const isReturn = (): boolean => !!startScreen?.hasAttribute('data-back');
   card.onclick = () => open(shown?.id || null);
-  line.onclick = () => open(shown?.id || null);
+  lineGo.onclick = () => open(shown?.id || null);
+  find(line, '.aib-start-line-x').onclick = () => {
+    if (shown) hideLine(lineKey(shown));
+    line.hidden = true;
+  };
   another.onclick = () => {
     follow(null);
     open(null);
@@ -813,17 +848,17 @@ export function aiStartCard(
     barOf(meter).style.width = percent(status.share || 0);
   }
 
-  // The line under "Continue" on a return: what the build at work on your home is doing.
+  // The line under "Continue" on a return: what the build at work on your home is doing; none once hidden in this state.
   function showLine(status: BuildStatus | null): void {
-    line.hidden = !status;
+    line.hidden = !status || linesHidden().includes(lineKey(status));
     if (!status) return;
     const text = buildCardText(status);
     const state = status.paused === 'balance' ? 'waiting' : text.state;
     const identity = buildIdentity(status);
     const detail = text.state === 'running' ? text.note : identity;
     line.dataset.state = state;
-    line.innerHTML = `<span class="aib-start-line-ic">${text.state === 'running' ? '<i class="aib-start-spin"></i>' : icon('sparkles', 15)}</span>
-      <b>${esc(t('AI build'))}</b><span class="aib-start-line-state">${esc(buildStateWord(status, text))}</span>
+    lineGo.innerHTML = `<span class="aib-start-line-ic">${text.state === 'running' ? '<i class="aib-start-spin"></i>' : icon('sparkles', 15)}</span>
+      <b>${esc(t('New version by AI'))}</b><span class="aib-start-line-state">${esc(buildStateWord(status, text))}</span>
       <span class="aib-start-line-detail">${esc(detail)}</span>${icon('right', 15)}`;
   }
 
