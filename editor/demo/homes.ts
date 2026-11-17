@@ -1,4 +1,4 @@
-// The ten typical homes (D-030, docs/research/typical-homes.md): the reference set the editor is checked on; and three designer
+// The ten typical homes (D-030): the reference set the editor is checked on; and three designer
 // interiors (D-062: loft, minimalist, Japandi) that open the start screen's examples.
 // src/core/homes.test.js runs the plan checks on every home; the standalone editor shows them on the start screen as examples (D-062).
 // Each module is like typical.ts: export default async () => ({HA, DEMO, DEMO_UNDERLAY}). Made up: nobody's home.

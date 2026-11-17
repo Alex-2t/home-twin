@@ -1,4 +1,4 @@
-// Typical home 3 (docs/research/typical-homes.md, D-030): a “euro two-room” apartment in a new building, about 57 m² — a kitchen-living room
+// Typical home 3 (D-030): a “euro two-room” apartment in a new building, about 57 m² — a kitchen-living room
 // with an island and bar stools and a balcony, a bedroom with a built-in wardrobe, a bathroom, a laundry niche off the hallway.
 // Design concept (made up, nobody's home): urban modern. Graphite kitchen fronts under a marble backsplash, a fluted light-oak wall,
 // microcement walls, light oak floors; navy is the accent (the sofa, the bedroom's headboard wall, the zellige behind the bathtub), camel

@@ -1,4 +1,4 @@
-// Typical home 2 (docs/research/typical-homes.md, D-030): a one-bedroom apartment with a separate kitchen, about 39 m² —
+// Typical home 2 (D-030): a one-bedroom apartment with a separate kitchen, about 39 m² —
 // one room for sleeping and living, a kitchen with a dining table, a combined bathroom with a bathtub, a hallway with a wardrobe.
 // Design concept: mid-century modern in an older block. Walnut everywhere (bed, credenzas, the round dining table), warm cream
 // plaster with one terracotta plaster wall behind the bed and the sofa, an olive sofa and a deep olive media wall, camel and

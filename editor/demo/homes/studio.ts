@@ -1,4 +1,4 @@
-// Typical home 1 (docs/research/typical-homes.md, D-030): a studio, about 30 m² — a small hallway with a wardrobe, a shower room
+// Typical home 1 (D-030): a studio, about 30 m² — a small hallway with a wardrobe, a shower room
 // with the washing machine, one room with the kitchen along a wall, a dining table for two and a sofa bed. Made up: nobody's home.
 // Design concept: a Nordic studio. Whitewashed oak floors, warm white limewash, one long whitewashed brick wall that carries both the
 // kitchen and the sofa, a sage limewash window wall. Sage kitchen fronts, an oatmeal linen sofa bed, light oak furniture, black metal

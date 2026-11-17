@@ -1,6 +1,6 @@
 # Home Twin integration for Home Assistant
 
-The editor from [`editor/`](../editor/README.md) inside Home Assistant, with the plan stored in HA itself, and the dashboard card. The integration code is [`custom_components/home_twin`](../custom_components/home_twin) at the repository root (that is where the HACS / Marketplace catalog expects it); this page covers how it works, the test HA and releasing a version. Decisions: [D-053](../docs/decisions.md) (the editor in HA, plan in HA), D-054 and D-056 (where the editor is, packaging), D-058 (the plan photo, no connection), D-059 (the dashboard card).
+The editor from [`editor/`](../editor/README.md) inside Home Assistant, with the plan stored in HA itself, and the dashboard card. The integration code is [`custom_components/home_twin`](../custom_components/home_twin) at the repository root (that is where the HACS / Marketplace catalog expects it); this page covers how it works, the test HA and releasing a version. Decisions: D-053 (the editor in HA, plan in HA), D-054 and D-056 (where the editor is, packaging), D-058 (the plan photo, no connection), D-059 (the dashboard card).
 
 ## How it works
 ```

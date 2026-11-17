@@ -1,4 +1,4 @@
-// Typical home 6 (docs/research/typical-homes.md, D-030): a large apartment in a new building, about 111 m² — kitchen-living room
+// Typical home 6 (D-030): a large apartment in a new building, about 111 m² — kitchen-living room
 // (one room, two HA areas: a kitchen zone with an island and the living room), bedroom with a walk-in closet and its own bathroom
 // (double sink), two kids' rooms, guest bathroom, laundry room with a washer and dryer stack, hallway, balcony.
 // Design concept: dark contemporary for a family. Smoked oak floors (herringbone in the great room and the hall), warm grey plaster,

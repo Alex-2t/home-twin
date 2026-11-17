@@ -1,4 +1,4 @@
-// Typical home 10 (docs/research/typical-homes.md, D-030): a German two-story detached house with a basement, ground floor only —
+// Typical home 10 (D-030): a German two-story detached house with a basement, ground floor only —
 // the editor is single-floor. Street to the north: hallway with the staircase, guest WC, study, kitchen and the utility room next to the
 // attached garage; the living and dining rooms face the garden to the south. About 97 m² indoors.
 // Design concept (made up, nobody's house): green and walnut. The art deco wallpaper of the “green” style on the living room's media wall,

@@ -1,4 +1,4 @@
-// The repository's demo apartment: a typical three-room apartment, about 78 m² (type 5 from docs/research/typical-homes.md, D-030) —
+// The repository's demo apartment: a typical three-room apartment, about 78 m² (type 5 from D-030) —
 // hallway with a corridor, living room with a balcony, bedroom, kids' room, kitchen, combined bathroom. Made up: nobody's apartment.
 // Design concept: a warm family home. Honey oak, linen and sand for the big pieces, terracotta and sage as the accents that repeat
 // from room to room (armchairs, rugs, pots, the kitchen, the bistro set), black metal, Venetian plaster walls (the `warm` style) with

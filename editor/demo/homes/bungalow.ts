@@ -1,4 +1,4 @@
-// Typical home 9 (docs/research/typical-homes.md, D-030): a single-story house, here a US ranch of about 150 m² with an attached
+// Typical home 9 (D-030): a single-story house, here a US ranch of about 150 m² with an attached
 // two-car garage. Street to the south: garage, entry, living room, two bedrooms; at the back the kitchen with an island and a dining area
 // opening onto a covered patio, the primary bedroom with its bathroom; laundry/mudroom between the garage and the kitchen. Made up.
 // Design concept: California casual. White oak furniture and whitewashed oak floors, porcelain stone in the entry, the kitchen,

@@ -1,4 +1,4 @@
-// Typical home 4 (docs/research/typical-homes.md, D-030): an old-type two-room apartment in a panel building, about 51 m² —
+// Typical home 4 (D-030): an old-type two-room apartment in a panel building, about 51 m² —
 // living room with a balcony, bedroom, small kitchen with a gas stove and a gas water heater, separate bathroom (bathtub) and toilet,
 // hallway with a corridor. Made up: nobody's apartment. Metres, x east, y north, 10 cm interior walls; the editor adds the exterior walls.
 // Design concept, “Nordic blue”: the flat is renovated in a light Scandinavian way. Soft white limewash on the walls and light oak floors

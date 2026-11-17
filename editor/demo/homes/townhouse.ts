@@ -1,4 +1,4 @@
-// Typical home 8 (docs/research/typical-homes.md, D-030): a terraced house, ground floor only — the editor is single-floor.
+// Typical home 8 (D-030): a terraced house, ground floor only — the editor is single-floor.
 // Street side to the south: hallway with an enclosed staircase, the meter cupboard and a guest toilet; one long kitchen-dining-living
 // room from the street to the garden; a fenced back garden with a shed. About 50 m² indoors. Made up: nobody's house.
 // Design concept: an English townhouse. Oak floors and oak furniture, a sage shaker kitchen with white metro tiles, a white brick
