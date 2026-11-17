@@ -1808,5 +1808,7 @@
  "Privacy": "隐私",
  "Refunds": "退款",
  "Valid for 30 days after purchase; buying again extends it.": "购买后 30 天内有效；再次购买会延长有效期。",
- "until {0}": "有效期至 {0}"
+ "until {0}": "有效期至 {0}",
+ "Photo deleted 2 days after the build": "照片已在生成 2 天后删除",
+ "Your photos and videos are deleted 2 days after a build. Upload them again to build your home.": "照片和视频会在生成 2 天后删除。请重新上传以生成你的家。"
 }

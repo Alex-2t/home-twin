@@ -69,6 +69,27 @@ type Listener = [target: EventTarget, type: string, handler: (e: never) => void]
 const PANEL_WIDTH = 340;
 const NARROW = 720;
 const CLICK_PX = 5;
+/**
+ * A pin's photo in its thumbnail. The service deletes the photos two days after a build, as the terms say: one that is no
+ * longer there shows as a quiet placeholder that says so, not as a broken image.
+ */
+function showPinPhoto(thumb: HTMLElement, link: HTMLAnchorElement, url: string): void {
+  const image = find<HTMLImageElement>(thumb, 'img');
+  link.href = url || '#';
+  image.addEventListener(
+    'error',
+    () => {
+      const deletedText = t('Photo deleted 2 days after the build');
+      link.removeAttribute('href');
+      link.title = deletedText;
+      link.setAttribute('aria-label', deletedText);
+      image.replaceWith(el(`<span class="aib-thumb-gone">${icon('image', 16)}</span>`));
+    },
+    {once: true},
+  );
+  image.src = url;
+}
+
 // The view a pin keeps, and a photo before it goes: at most this many pixels on the long side.
 const VIEW_PIXELS = 1280;
 const PHOTO_PIXELS = 1600;
@@ -399,8 +420,7 @@ export function openReview(
       ...pin.photos.map((name, k) => {
         const thumb = el(`<span class="aib-thumb"><a target="_blank" rel="noopener"><img alt=""></a>
           <button class="ib" data-act="photo-remove" data-k="${k}" title="${esc(t('Remove the photo'))}">${icon('x', 11)}</button></span>`);
-        find<HTMLAnchorElement>(thumb, 'a').href = pictureUrl?.(name) || '#';
-        find<HTMLImageElement>(thumb, 'img').src = pictureUrl?.(name) || '';
+        showPinPhoto(thumb, find<HTMLAnchorElement>(thumb, 'a'), pictureUrl?.(name) || '');
         return thumb;
       }),
       ...Array.from({length: busy}, () => el(`<span class="aib-thumb busy"><i class="spin"></i></span>`)),
@@ -655,8 +675,7 @@ export function openReview(
           const thumb = el<HTMLAnchorElement>(
             `<a class="aib-thumb" target="_blank" rel="noopener"><img alt=""></a>`,
           );
-          thumb.href = pictureUrl?.(name) || '#';
-          find<HTMLImageElement>(thumb, 'img').src = pictureUrl?.(name) || '';
+          showPinPhoto(thumb, thumb, pictureUrl?.(name) || '');
           return thumb;
         }),
       );

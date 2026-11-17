@@ -1808,5 +1808,7 @@
  "Privacy": "Privacy",
  "Refunds": "Rimborsi",
  "Valid for 30 days after purchase; buying again extends it.": "Valido 30 giorni dall’acquisto; un nuovo acquisto lo estende.",
- "until {0}": "fino al {0}"
+ "until {0}": "fino al {0}",
+ "Photo deleted 2 days after the build": "Foto eliminata 2 giorni dopo la creazione",
+ "Your photos and videos are deleted 2 days after a build. Upload them again to build your home.": "Le tue foto e i tuoi video vengono eliminati 2 giorni dopo una creazione. Caricali di nuovo per creare la tua casa."
 }

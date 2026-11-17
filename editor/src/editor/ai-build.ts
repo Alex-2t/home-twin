@@ -182,6 +182,11 @@ interface BuildStatus {
   fileProblem?: 'plan' | 'photos' | 'video' | 'rooms' | null;
   /** What the home is built from (D-117); a service from before photos says nothing: a video. */
   input?: 'video' | 'photos' | 'both';
+  /**
+   * When the user's photos and videos were deleted (ISO), two days after the build stopped, as the terms say; null while
+   * they are kept. A build that stops on its files after that stopped because they are gone, not because they are broken.
+   */
+  mediaDeleted?: string | null;
 }
 
 /** How many floors the plan draws, and their labels as written on it (empty when none is). */
@@ -446,6 +451,10 @@ const FILE_PROBLEMS: Record<NonNullable<BuildStatus['fileProblem']>, string> = {
   video: N('The video cannot be opened. It may be damaged: upload it again, or add photos instead.'),
   rooms: N('No room of a home was found in your video or photos. Upload a video or photos of the rooms.'),
 };
+// A build whose photos and videos were deleted, as the terms say, and that needs them for its next steps.
+const MEDIA_DELETED_LINE = N(
+  'Your photos and videos are deleted 2 days after a build. Upload them again to build your home.',
+);
 // A build from photos only (D-117) says so where a build from video speaks of the video: each line here stands for the one
 // it is keyed by.
 const PHOTO_WORDS: Record<string, string> = {
@@ -2371,12 +2380,14 @@ export function openAiBuild(ed: Editor, options: AiBuildOptions = {}): AiBuildSc
       };
     }
     if (s.error && s.fileProblem) {
-      // The files themselves: trying again would stop the same way, so the way out is other files.
+      // The files themselves: trying again would stop the same way, so the way out is other files. After the photos and
+      // videos were deleted, the files are not broken but gone.
+      const filesLine = s.mediaDeleted ? t(MEDIA_DELETED_LINE) : t(FILE_PROBLEMS[s.fileProblem]);
       return {
         key: `files:${s.fileProblem}`,
         html: `<div class="aib-card bad">
           <span class="aib-card-ic">${icon('alert', 20)}</span>
-          <span class="aib-card-text"><b>${esc(t('The build stopped'))}</b><small title="${esc(s.error)}">${esc(t(FILE_PROBLEMS[s.fileProblem]))}</small></span>
+          <span class="aib-card-text"><b>${esc(t('The build stopped'))}</b><small title="${esc(s.error)}">${esc(filesLine)}</small></span>
           <button class="primary" data-act="new-build">${esc(t('Upload again'))}</button></div>`,
       };
     }
