@@ -316,7 +316,7 @@ body:not([data-mode=rooms]) #rotate-plan{display:none}
 .start{position:fixed;inset:0;z-index:50;display:grid;place-items:safe center;overflow:auto;padding:24px 0;background:var(--cv)} /* a page of its own: the editor does not show through (D-111) */
 .start-box{width:min(780px,92vw);text-align:center}.start h1{font-size:30px;letter-spacing:-.02em;margin:0 0 8px}.start p{color:var(--mut);margin:0 0 16px;font-size:15px}
 .choices{display:grid;grid-template-columns:repeat(2,1fr);gap:12px}
-.choices .choice{display:grid;grid-template-columns:auto minmax(0,1fr) auto;column-gap:14px;row-gap:2px;align-items:center;padding:14px 16px}.choices .choice .ci{grid-row:span 2;margin:0}
+.choices .choice{display:grid;grid-template-columns:auto minmax(0,1fr) auto;column-gap:14px;row-gap:2px;align-items:center;align-content:center;padding:14px 16px}.choices .choice .ci{grid-row:span 2;margin:0}
 /* the start screen's examples (D-062): one even row under the main choices (D-111), each a 3D render of the home (D-113) with
    its name on one line; “All examples” opens the gallery */
 .examples{margin-top:18px;text-align:left}.examples[hidden]{display:none}
@@ -672,6 +672,14 @@ body[data-look=on] :is(#side,#dock,#banner:not(.in-look),#pill,#topr,#pip-show,#
 .start-account button.aib-sign-in{height:30px;padding:0 10px;font-size:13px;color:var(--mut);background:none;box-shadow:none}.start-account button.aib-sign-in:hover{color:var(--tx);background:var(--hov)}
 .choices .choice.aib-new-choice{border:1.5px solid transparent;background:linear-gradient(var(--panel-solid),var(--panel-solid)) padding-box,linear-gradient(135deg,#6366f1,#a855f7 55%,#f59e0b) border-box}
 @media (max-width:640px){.choices:has(>.aib-new-choice:not([hidden])){grid-template-columns:1fr}}
+/* three ways to start (with "Build with AI"): the icon above the words, so a title has the card's full width and the three cards line up */
+@media (min-width:641px){
+.choices:has(>.aib-new-choice:not([hidden]))>.choice{grid-template-columns:minmax(0,1fr) auto;grid-template-rows:auto auto 1fr;row-gap:4px;align-items:start;align-content:start;padding:16px}
+.choices:has(>.aib-new-choice:not([hidden]))>.choice .ci{grid-row:1;grid-column:1;margin:0 0 8px}
+.choices:has(>.aib-new-choice:not([hidden]))>.choice>b{grid-row:2;grid-column:1/span 2}
+.choices:has(>.aib-new-choice:not([hidden]))>.choice>span:not(.ci){grid-row:3;grid-column:1/span 2}
+.choices:has(>.aib-new-choice:not([hidden]))>.choice>.ic:last-child{grid-row:1;grid-column:2;align-self:center}
+}
 body[data-bare] :is(#side,#dock,#banner,#pill,#topr,#pip-show,#divider,#brand,#modes,#ctx,.spot,.dev,.pane .view-tools,.pane-tag,.pane-empty,.pip-grip,.pip-cover){display:none!important}
 body[data-bare] .pane.main{left:0!important;right:0!important}
 body.aib-pinning :is(#pane-plan,#pane-3d) canvas{cursor:crosshair!important}
