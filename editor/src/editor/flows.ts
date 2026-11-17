@@ -213,6 +213,7 @@ export function createFlows(
     } else picture.innerHTML = icon('house', 24);
     const facts: string[] = [];
     if (hasRooms) facts.push(factsLine(homeFacts(plan.rooms)));
+    else facts.push(t('No rooms yet'));
     const changedAt = ed.history.lastAt();
     const factsBox = find(card, '.cont-facts');
     factsBox.textContent = facts.join(' · ');
@@ -472,6 +473,9 @@ export function createFlows(
     box.hidden = !examples.length;
     // no examples here (Home Assistant): the gallery online, in a new tab
     find($('start'), '.ex-online').hidden = examples.length > 0;
+    // in Home Assistant (no examples in the panel) the plan is what its dashboard shows: the heading says so
+    if (!examples.length)
+      find($('start'), '.start-label[data-for=plan]').textContent = t('On your dashboard');
     const tile = (x: RoomedExample): HTMLElement => {
       const home = exampleHome(x);
       const b = el(

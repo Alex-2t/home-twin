@@ -26,6 +26,7 @@
 import {t, N, getLang} from '../i18n/i18n.ts';
 import {el, esc, find} from './ui.ts';
 import {holdFocus} from './keyboard.ts';
+import {changedWhen} from './versions-panel.ts';
 import type {HeldFocus} from './keyboard.ts';
 import {icon} from './icons.ts';
 import {idb} from './idb.ts';
@@ -704,8 +705,30 @@ function buildCardText(status: BuildStatus): BuildCardText {
   return {state: 'running', title, note};
 }
 
-// The account's other builds under the card: a few rows at most, newest first.
-const MORE_BUILDS_SHOWN = 2;
+// The account's other builds under the card, newest first: folded under one line until it is opened.
+const MORE_BUILDS_SHOWN = 6;
+
+/**
+ * What tells one build from another on the start screen: when it was started and how many rooms it has ("Yesterday,
+ * 15:42 · 8 rooms"). Three builds all saying "Your home is ready" could not be told apart (the owner, 2026-11-17).
+ */
+export function buildIdentity(status: {id?: string; rooms?: unknown[]}): string {
+  const startedAt = buildStartedAt(status.id);
+  const rooms = status.rooms?.length || 0;
+  const parts: string[] = [];
+  if (startedAt !== null) parts.push(changedWhen(startedAt));
+  if (rooms) parts.push(t('{0, plural, one {# room} other {# rooms}}', rooms));
+  return parts.join(' · ');
+}
+
+/** Where a build stands, in a word or two, for its mark in a row. */
+function buildStateWord(status: BuildStatus, text: BuildCardText): string {
+  if (status.paused === 'balance') return t('Waiting for a top-up');
+  if (text.state === 'ready') return t('Ready to check');
+  if (text.state === 'done') return t('Opened before');
+  if (text.state === 'stopped') return t('Stopped');
+  return t('Building · {0}', percent(status.share || 0));
+}
 
 /**
  * The start screen's AI card (flows.js offerAi): "Build with AI", or — while a build this browser follows is on its way — that
@@ -719,11 +742,32 @@ export function aiStartCard(
   {api = '', inHa = false}: {api?: string; inHa?: boolean} = {},
 ): void {
   const idle = card.innerHTML;
-  const more = el(`<div class="aib-start-more" hidden></div>`);
-  const another = el(
-    `<button class="aib-start-new" hidden>${icon('plus', 18)}${esc(t('Start another build'))}</button>`,
-  );
-  card.after(more, another);
+  // Over the builds, a heading of their own: they are not the plan in "Continue" above them.
+  const heading = el(`<p class="start-label" hidden>${esc(t('Built by AI'))}</p>`);
+  const more = el(`<div class="aib-start-more" hidden>
+    <button type="button" class="aib-start-fold" aria-expanded="false"><span></span>${icon('down', 14)}</button>
+    <div class="aib-start-rows" hidden></div>
+  </div>`);
+  const fold = find<HTMLButtonElement>(more, '.aib-start-fold');
+  const rows = find(more, '.aib-start-rows');
+  // A new build while builds are shown: one of the ways to start a new home, beside "Upload a plan" and "Draw from scratch".
+  const another = el(`<button class="choice glass aib-new-choice" hidden>
+    <span class="ci">${icon('sparkles', 20)}</span><b>${esc(t('Build with AI'))}</b>
+    <span>${esc(t('A plan photo and a video of your home.'))}</span>${icon('right')}</button>`);
+  card.before(heading);
+  card.after(more);
+  const choices = card.parentElement?.querySelector('.choices');
+  const newHomeLabel =
+    card.parentElement?.querySelector<HTMLElement>('.start-label.start-back:not([data-for])') || null;
+  if (choices) choices.prepend(another);
+  else more.after(another);
+  // until a build shows, this card is the first way to start a new home
+  if (newHomeLabel) heading.before(newHomeLabel);
+  fold.onclick = () => {
+    const open = rows.hidden;
+    rows.hidden = !open;
+    fold.setAttribute('aria-expanded', String(open));
+  };
   let shown: BuildStatus | null = null;
   let timer: ReturnType<typeof setTimeout> | number = 0;
   // Whether the AI build has accounts here, asked once; the account's builds are offered only then.
@@ -740,7 +784,7 @@ export function aiStartCard(
     showMore([]);
     open(null);
   };
-  more.addEventListener('click', e => {
+  rows.addEventListener('click', e => {
     const row = targetOf(e).closest<HTMLElement>('[data-id]');
     if (row?.dataset.id) open(row.dataset.id);
   });
@@ -758,6 +802,10 @@ export function aiStartCard(
   function show(status: BuildStatus | null): void {
     shown = status;
     another.hidden = !status;
+    heading.hidden = !status;
+    // "Start a new home" heads the ways to start one: this card itself while it offers a build with AI, else the choices
+    // under the builds (where "Build with AI" is one of them)
+    if (newHomeLabel) (status ? choices || another : heading).before(newHomeLabel);
     card.classList.toggle('aib-following', !!status);
     if (!status) {
       if (card.dataset.state) card.innerHTML = idle;
@@ -772,7 +820,9 @@ export function aiStartCard(
       find(card, '.aib-start-badge').innerHTML = badgeOf(status, text);
     }
     find(card, 'b').textContent = text.title;
-    find(card, '.aib-start-note').textContent = text.note;
+    // a build on its way says how far it is; one that waits or ended says which it is: when, and how many rooms
+    const identity = buildIdentity(status);
+    find(card, '.aib-start-note').textContent = text.state === 'running' || !identity ? text.note : identity;
     const meter = find(card, '.aib-start-meter');
     meter.hidden = text.state !== 'running';
     barOf(meter).style.width = percent(status.share || 0);
@@ -781,11 +831,17 @@ export function aiStartCard(
   // The account's other builds, one compact row each.
   function showMore(builds: BuildStatus[]): void {
     more.hidden = !builds.length;
-    more.innerHTML = builds
+    find(fold, 'span').textContent = t(
+      '{0, plural, one {# earlier build} other {# earlier builds}}',
+      builds.length,
+    );
+    rows.innerHTML = builds
       .map(build => {
         const text = buildCardText(build);
         const badge = `<span class="aib-start-row-badge" data-state="${text.state}">${badgeOf(build, text)}</span>`;
-        return `<button class="aib-start-row" data-id="${esc(build.id)}">${badge}<b>${esc(text.title)}</b><span>${esc(text.note)}</span>${icon('right', 15)}</button>`;
+        const name = buildIdentity(build) || text.title;
+        const word = `<span class="aib-start-row-state" data-state="${text.state}">${esc(buildStateWord(build, text))}</span>`;
+        return `<button class="aib-start-row" data-id="${esc(build.id)}">${badge}<b>${esc(name)}</b>${word}${icon('right', 15)}</button>`;
       })
       .join('');
   }

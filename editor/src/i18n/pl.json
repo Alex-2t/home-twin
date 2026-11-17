@@ -1785,5 +1785,14 @@
  "Sign-in cancelled. Go back to Home Assistant.": "Logowanie anulowane. Wróć do Home Assistant.",
  "The sign-in took too long. Try again.": "Logowanie trwało zbyt długo. Spróbuj ponownie.",
  "Top up to build your home": "Doładuj, aby zbudować dom",
- "You are signed in. Go back to Home Assistant.": "Zalogowano. Wróć do Home Assistant."
+ "You are signed in. Go back to Home Assistant.": "Zalogowano. Wróć do Home Assistant.",
+ "{0, plural, one {# earlier build} other {# earlier builds}}": "{0, plural, one {# wcześniejsza budowa} few {# wcześniejsze budowy} many {# wcześniejszych budów} other {# wcześniejszej budowy}}",
+ "A plan photo and a video of your home.": "Zdjęcie planu i film z twojego domu.",
+ "Building · {0}": "Budowanie · {0}",
+ "No rooms yet": "Jeszcze bez pokoi",
+ "On your dashboard": "Na twoim pulpicie",
+ "Opened before": "Już otwierana",
+ "Start a new home": "Zacznij nowy dom",
+ "Stopped": "Zatrzymana",
+ "Your plan": "Twój plan"
 }
