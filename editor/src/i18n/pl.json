@@ -1796,5 +1796,11 @@
  "Open to check": "Otwórz i sprawdź",
  "Hide. It stays in Version history.": "Ukryj. Zostanie w historii wersji.",
  "Start over": "Zacznij od nowa",
- "Your plan stays in Version history.": "Twój plan zostanie w historii wersji."
+ "Your plan stays in Version history.": "Twój plan zostanie w historii wersji.",
+ "Before the plan from your account": "Przed planem z twojego konta",
+ "Drawn on twin.sync.md": "Narysowany na twin.sync.md",
+ "In your account": "Na twoim koncie",
+ "Take this plan": "Weź ten plan",
+ "The plan from your account is open.": "Otwarto plan z twojego konta.",
+ "The plan saves automatically in this browser and in your account": "Plan zapisuje się automatycznie w tej przeglądarce i na twoim koncie"
 }

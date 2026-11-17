@@ -776,6 +776,7 @@ export function createFlows(
   }
   f.swapPrev = swapPrev;
   f.hasPrev = () => !!readPrev()?.plan;
+  f.isYours = p => p.rooms.length > 0 && !isPlaything(p);
   find($('start'), '[data-a=prev]').onclick = () => swapPrev();
   // the mode and wizard step — as this plan had last time (at startup and after “Restore previous plan”)
   f.resume = () => {

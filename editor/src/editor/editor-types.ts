@@ -411,6 +411,8 @@ export interface EditorFlows {
   /** "Restore previous plan": swaps the open plan and the one kept aside. */
   swapPrev(): Promise<void>;
   hasPrev(): boolean;
+  /** Whether the plan is your own work: it has rooms and is not an example or a published home being played with. */
+  isYours(plan: Plan): boolean;
   /** The mode and guided step this plan had last time. */
   resume(): void;
   /** The area dialog (D-038); fromBack: opened by the outline step's Back, so Esc only closes it. */
@@ -524,6 +526,8 @@ export interface Editor {
   remote?(): RemoteSaveState;
   /** The open plan is of a newer format than this editor writes (boot.ts, D-121): it is shown and never saved. */
   newerPlan?: boolean;
+  /** Our site, signed in: the plan is kept on the account as well (account-plan.ts, D-134). */
+  keptOnAccount?: boolean;
 
   // ---------- views and layout ----------
   /** The plan canvas. */

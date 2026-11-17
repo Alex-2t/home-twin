@@ -2558,7 +2558,9 @@ export function createApp({haLights, ha, photos}: AppOptions): Editor {
                     : t('The plan is saved in Home Assistant')
                   : draft
                     ? t('Light placement still needs confirmation. The draft is saved in this browser.')
-                    : t('The plan saves automatically in this browser');
+                    : ed.keptOnAccount
+                      ? t('The plan saves automatically in this browser and in your account')
+                      : t('The plan saves automatically in this browser');
     }
   };
   ed.view.onMoved?.(m => {

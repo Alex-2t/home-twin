@@ -28,6 +28,7 @@ import {el, esc, find} from './ui.ts';
 import {holdFocus} from './keyboard.ts';
 import {changedWhen, setHistoryBuilds} from './versions-panel.ts';
 import type {HistoryBuild} from './versions-panel.ts';
+import {fetchAccountPlan} from './account-plan.ts';
 import type {HeldFocus} from './keyboard.ts';
 import {icon} from './icons.ts';
 import {idb} from './idb.ts';
@@ -948,30 +949,121 @@ export function aiStartCard(
     if (entries.some(entry => entry.isIntersecting)) refresh();
   }).observe(startBox);
 
-  // "Version history" lists the account's builds beside the plan's versions: open one to check it, or to take it.
+  startAccount(startScreen, {api, inHa, openUpload: () => open(null)});
+
+  // "Version history" lists what the account holds beside the plan's versions: in Home Assistant the plan drawn on our site
+  // (D-134), to take; and the account's builds, to open and check or take.
   setHistoryBuilds({
     async list(): Promise<HistoryBuild[]> {
       try {
         await accountBuilds();
       } catch {} // no connection: the builds as last asked
-      return lastBuilds.map(build => {
-        const text = buildCardText(build);
-        const shot = build.has?.shot
-          ? `${api}/api/builds/${encodeURIComponent(build.id as string)}/shot`
-          : null;
-        return {
-          id: build.id as string,
-          state: buildStateWord(build, text),
-          when: buildIdentity(build),
-          shot,
-          ready: text.state === 'ready',
-        };
-      });
+      const kept = inHa ? await fetchAccountPlan(api).catch(() => null) : null;
+      const sitePlan: HistoryBuild[] = kept
+        ? [
+            {
+              id: 'account-plan',
+              state: t('Drawn on twin.sync.md'),
+              when: [
+                changedWhen(kept.at),
+                t(
+                  '{0, plural, one {# room} other {# rooms}}',
+                  kept.plan.rooms.filter(room => !room.solid).length,
+                ),
+              ].join(' · '),
+              shot: null,
+              ready: false,
+              plan: kept.plan,
+            },
+          ]
+        : [];
+      return [
+        ...sitePlan,
+        ...lastBuilds.map(build => {
+          const text = buildCardText(build);
+          const shot = build.has?.shot
+            ? `${api}/api/builds/${encodeURIComponent(build.id as string)}/shot`
+            : null;
+          return {
+            id: build.id as string,
+            state: buildStateWord(build, text),
+            when: buildIdentity(build),
+            shot,
+            ready: text.state === 'ready',
+          };
+        }),
+      ];
     },
     open: id => {
       ed.flows?.hideStart();
       open(id);
     },
+  });
+}
+
+/** Said on the page when the account here changed (signed in or out): the plan kept on the account looks again (account-plan.ts). */
+export const ACCOUNT_CHANGED = 'home-twin:account-changed';
+
+/**
+ * The account in the start screen's top right corner (D-134), quiet: "Sign in" while signed out, the account's badge with its
+ * menu once signed in. On our site, signing in keeps your plan on the account, to take into Home Assistant later.
+ */
+function startAccount(
+  startScreen: HTMLElement | null,
+  {api, inHa, openUpload}: {api: string; inHa: boolean; openUpload: () => void},
+): void {
+  if (!startScreen) return;
+  const place = el(`<div class="start-account"></div>`);
+  let offer: Offer | null = null;
+  let account: Account | null = null;
+  let sheet: SignInSheet | null = null;
+  const bar = accountBar({
+    meter: false,
+    onSignIn: () => {
+      if (!offer || sheet) return;
+      sheet = openSignIn(document.body, {
+        api,
+        offer: inHa && !offer.site ? {...offer, signIn: offer.signIn.filter(way => way === 'email')} : offer,
+        reason: 'account',
+        linkSite: inHa ? offer.site : null,
+        returnPath: () => pathOf(location.href),
+        onSignedIn: signedIn => {
+          sheet = null;
+          account = signedIn;
+          bar.update({offer, account});
+          dispatchEvent(new Event(ACCOUNT_CHANGED));
+        },
+        onClose: () => {
+          sheet = null;
+        },
+      });
+    },
+    onBuy: openUpload,
+    onSignOut: async () => {
+      try {
+        await signOut(api);
+      } catch {} // signed out on this page either way
+      account = null;
+      bar.update({offer, account});
+      dispatchEvent(new Event(ACCOUNT_CHANGED));
+    },
+  });
+  place.append(bar.element);
+  startScreen.append(place);
+  async function refresh(): Promise<void> {
+    try {
+      offer ||= await accountOffer(api);
+      account = offer ? await currentAccount(api) : null;
+    } catch {} // the service does not answer: the corner stays as it was
+    bar.update({offer, account});
+  }
+  refresh();
+  // back to the page (the account may have changed in another tab), or signed in or out on the AI build's pages
+  document.addEventListener('visibilitychange', () => {
+    if (!document.hidden) refresh();
+  });
+  addEventListener(ACCOUNT_CHANGED, () => {
+    if (!sheet) refresh();
   });
 }
 
@@ -1315,6 +1407,7 @@ export function openAiBuild(ed: Editor, options: AiBuildOptions = {}): AiBuildSc
   }
 
   function afterSignIn(signedIn: Account): void {
+    dispatchEvent(new Event(ACCOUNT_CHANGED));
     account = signedIn;
     accountLine = null;
     accountLineIsHint = false;
@@ -1353,6 +1446,7 @@ export function openAiBuild(ed: Editor, options: AiBuildOptions = {}): AiBuildSc
     } catch {} // signed out on this page either way: the next call asks again
     account = null;
     signedOutHere = true;
+    dispatchEvent(new Event(ACCOUNT_CHANGED));
     if (screen === 'progress' || screen === 'review') lockOut('signed-out');
     renderAccount();
   }

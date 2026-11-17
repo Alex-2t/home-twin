@@ -1796,5 +1796,11 @@
  "Open to check": "Openen en controleren",
  "Hide. It stays in Version history.": "Verbergen. Hij blijft in de versiegeschiedenis.",
  "Start over": "Opnieuw beginnen",
- "Your plan stays in Version history.": "Je plattegrond blijft in de versiegeschiedenis."
+ "Your plan stays in Version history.": "Je plattegrond blijft in de versiegeschiedenis.",
+ "Before the plan from your account": "Vóór de plattegrond uit je account",
+ "Drawn on twin.sync.md": "Getekend op twin.sync.md",
+ "In your account": "In je account",
+ "Take this plan": "Deze plattegrond nemen",
+ "The plan from your account is open.": "De plattegrond uit je account is geopend.",
+ "The plan saves automatically in this browser and in your account": "De plattegrond wordt automatisch opgeslagen in deze browser en in je account"
 }

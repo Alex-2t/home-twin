@@ -1796,5 +1796,11 @@
  "Open to check": "打开并检查",
  "Hide. It stays in Version history.": "隐藏。它会保留在版本历史中。",
  "Start over": "重新开始",
- "Your plan stays in Version history.": "你的平面图会保留在版本历史中。"
+ "Your plan stays in Version history.": "你的平面图会保留在版本历史中。",
+ "Before the plan from your account": "在使用账户中的平面图之前",
+ "Drawn on twin.sync.md": "在 twin.sync.md 上绘制",
+ "In your account": "在你的账户中",
+ "Take this plan": "使用此平面图",
+ "The plan from your account is open.": "已打开你账户中的平面图。",
+ "The plan saves automatically in this browser and in your account": "平面图会自动保存在此浏览器和你的账户中"
 }

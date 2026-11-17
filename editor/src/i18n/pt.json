@@ -1796,5 +1796,11 @@
  "Open to check": "Abrir e conferir",
  "Hide. It stays in Version history.": "Ocultar. Ela fica no histórico de versões.",
  "Start over": "Começar de novo",
- "Your plan stays in Version history.": "Sua planta fica no histórico de versões."
+ "Your plan stays in Version history.": "Sua planta fica no histórico de versões.",
+ "Before the plan from your account": "Antes da planta da sua conta",
+ "Drawn on twin.sync.md": "Desenhada em twin.sync.md",
+ "In your account": "Na sua conta",
+ "Take this plan": "Usar esta planta",
+ "The plan from your account is open.": "A planta da sua conta está aberta.",
+ "The plan saves automatically in this browser and in your account": "A planta é salva automaticamente neste navegador e na sua conta"
 }

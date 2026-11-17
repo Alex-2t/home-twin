@@ -8,6 +8,7 @@ import {hashRouter} from './editor/route.ts';
 import {linkWindows} from './editor/link.ts';
 import {openAiFromAddress, aiService, aiStartCard} from './editor/ai-build.ts';
 import {watchFixes} from './editor/ai-fix.ts';
+import {keepPlanOnAccount} from './editor/account-plan.ts';
 import {localizeDemo} from './i18n/demo-names.ts';
 import {getLang} from './i18n/i18n.ts';
 import type {ExampleHome} from './core/types.ts';
@@ -56,6 +57,8 @@ linkWindows(ha, ed);
 aiService().then(ok => {
   if (!ok) return;
   ed.flows.offerAi(card => aiStartCard(ed, card));
+  // signed in on our site, your plan is kept on your account, to take into Home Assistant later (D-134)
+  keepPlanOnAccount(ed);
   // a home taken from the AI build is offered the developer's fixes of its pins (D-129)
   watchFixes(ed);
 });

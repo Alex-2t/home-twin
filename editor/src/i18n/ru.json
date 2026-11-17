@@ -1796,5 +1796,11 @@
  "Open to check": "Открыть и проверить",
  "Hide. It stays in Version history.": "Скрыть. Она останется в истории версий.",
  "Start over": "Начать заново",
- "Your plan stays in Version history.": "Ваш план останется в истории версий."
+ "Your plan stays in Version history.": "Ваш план останется в истории версий.",
+ "Before the plan from your account": "До плана из вашего аккаунта",
+ "Drawn on twin.sync.md": "Нарисован на twin.sync.md",
+ "In your account": "В вашем аккаунте",
+ "Take this plan": "Взять этот план",
+ "The plan from your account is open.": "Открыт план из вашего аккаунта.",
+ "The plan saves automatically in this browser and in your account": "План сохраняется автоматически в этом браузере и в вашем аккаунте"
 }

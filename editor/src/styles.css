@@ -667,6 +667,9 @@ body[data-look=on] :is(#side,#dock,#banner:not(.in-look),#pill,#topr,#pip-show,#
 .start-history{display:inline-flex;align-items:center;gap:6px;height:32px;padding:0 10px;border-radius:9px;color:var(--mut);font-size:13.5px;font-weight:500}.start-history:hover{color:var(--tx);background:var(--hov)}
 .start-label-note{margin-left:10px;color:var(--sub);font-size:12.5px;font-weight:400;letter-spacing:0;text-transform:none}
 .start[data-back] .start-prev{display:none}
+/* the account in the start screen's corner (D-134): quiet, out of the way of the choices */
+.start-account{position:absolute;top:max(14px,env(safe-area-inset-top,0px));right:max(16px,env(safe-area-inset-right,0px));display:flex}
+.start-account button.aib-sign-in{height:30px;padding:0 10px;font-size:13px;color:var(--mut);background:none;box-shadow:none}.start-account button.aib-sign-in:hover{color:var(--tx);background:var(--hov)}
 .choices .choice.aib-new-choice{border:1.5px solid transparent;background:linear-gradient(var(--panel-solid),var(--panel-solid)) padding-box,linear-gradient(135deg,#6366f1,#a855f7 55%,#f59e0b) border-box}
 @media (max-width:640px){.choices:has(>.aib-new-choice:not([hidden])){grid-template-columns:1fr}}
 body[data-bare] :is(#side,#dock,#banner,#pill,#topr,#pip-show,#divider,#brand,#modes,#ctx,.spot,.dev,.pane .view-tools,.pane-tag,.pane-empty,.pip-grip,.pip-cover){display:none!important}

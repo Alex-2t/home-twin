@@ -1796,5 +1796,11 @@
  "Open to check": "Öffnen und prüfen",
  "Hide. It stays in Version history.": "Ausblenden. Sie bleibt im Versionsverlauf.",
  "Start over": "Neu beginnen",
- "Your plan stays in Version history.": "Dein Grundriss bleibt im Versionsverlauf."
+ "Your plan stays in Version history.": "Dein Grundriss bleibt im Versionsverlauf.",
+ "Before the plan from your account": "Vor dem Grundriss aus deinem Konto",
+ "Drawn on twin.sync.md": "Gezeichnet auf twin.sync.md",
+ "In your account": "In deinem Konto",
+ "Take this plan": "Diesen Grundriss übernehmen",
+ "The plan from your account is open.": "Der Grundriss aus deinem Konto ist geöffnet.",
+ "The plan saves automatically in this browser and in your account": "Der Grundriss wird automatisch in diesem Browser und in deinem Konto gespeichert"
 }
