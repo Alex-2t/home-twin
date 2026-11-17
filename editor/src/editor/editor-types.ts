@@ -10,6 +10,7 @@ import type {PlacedSensor} from '../core/sensors.ts';
 import type {PlanView2d} from './view2d.ts';
 import type {Underlay, UnderlaySnapshot} from './underlay.ts';
 import type {PlanHistory} from './history.ts';
+import type {AiPage} from './route.ts';
 import type {PlanVersion, VersionKind} from './versions.ts';
 import type {WizardPath} from './wizard-path.ts';
 import type {
@@ -400,6 +401,8 @@ export interface EditorFlows {
   offerAi(setup: (button: HTMLElement) => void): void;
   /** Writes the page into the address (once for several changes). */
   syncRoute(): void;
+  /** The AI build's page in Home Assistant's panel path (null: closed); our site keeps it in the query itself. */
+  aiAddress(page: AiPage | null): void;
   /** Opens the file picker for a plan photo. */
   pickUnderlay(): void;
   /** The "back to examples" button follows whether the plan is an example. */
@@ -424,6 +427,8 @@ export interface EditorFlows {
   moveUnderlay(): void;
   /** Puts the home on the Home Twin dashboard in HA, or opens it. */
   addBoard(): Promise<void>;
+  /** The menu item and Preview's “Add to dashboard” follow whether the dashboard exists. */
+  syncBoard(): void;
 }
 
 // ---------- the step hint (coach.ts) ----------
@@ -697,6 +702,8 @@ export interface LookPanel {
   /** What the panel covers of the 3D, px. */
   insets(): {right: number; bottom: number};
   width(): number;
+  /** Where the buttons at the top right of the 3D begin, from the screen's left edge, px; hidden — null. */
+  topRight(): number | null;
   refresh(): void;
   /** A room's screen, as a click on its chip. */
   room(id: string): void;

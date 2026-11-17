@@ -154,7 +154,7 @@ export function lightsMode(ed: Editor): LightsMode {
   let placing: Placing | null = null;
   let cur: string | null = null;
   let near: string | null = null;
-  // 'room': "Confirm room" was pressed, on to the next room; true: on to the next lamp
+  // 'room': "Next" was pressed, on to the next room; true: on to the next lamp
   let go: boolean | 'room' = false;
   let hoverStrip: StripHover | null = null;
   let merging = false;
@@ -1772,7 +1772,7 @@ export function lightsMode(ed: Editor): LightsMode {
     swatches.append(ownBody(L));
     return swatches;
   }
-  // “Missing a light?” — in the step, above “Confirm room”: a fixture comes only from HA (the owner)
+  // “Missing a light?” — in the step, above “Next”: a fixture comes only from HA (the owner)
   // the cell's area: the second part of a room — its area, otherwise — the room's; without an area — just “add it in HA”
   const cellArea = (cell: LampCell | null): string | null | undefined => {
     if (!cell) return null;
@@ -1801,8 +1801,11 @@ export function lightsMode(ed: Editor): LightsMode {
     const mb = cell && mergeBtn(L, cell);
     if (mb) ln.append(mb);
     if (queue().length || dirty(sess)) {
+      // “Next”, not “Confirm room” (read as a check of the room) and not “Next light” (it goes to the next room first,
+      // past this room's lights without a place): nothing left anywhere — “Confirm room” (the owner)
+      const label = nextRoom() ? t('Next') : t('Confirm room');
       const nx = el(
-        `<button class="soft pri" title="${t("Save this room's lights and go to the next")}">${t('Confirm room')}</button>`,
+        `<button class="soft pri" title="${t("Save this room's lights and go to the next")}">${label}</button>`,
       );
       nx.onclick = () => {
         save(sess);

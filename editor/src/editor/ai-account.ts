@@ -539,7 +539,19 @@ export function balanceMeter(share: BalanceShare | null | undefined): string {
   const emptyClass = share.empty ? ' empty' : '';
   const moreHtml = more ? `<span class="aib-wallet-more">· ${esc(more)}</span>` : '';
   const untilHtml = until ? `<span class="aib-wallet-until">· ${esc(until)}</span>` : '';
-  return `<span class="aib-wallet${emptyClass}" title="${esc(title)}">${icon('wallet', 14)}${packageBar(used)}<span>${esc(t('{0}% left', left))}</span>${moreHtml}${untilHtml}</span>`;
+  // more than one package: a bar of the current one beside "+1 package" read as a new package already part used (the owner), so
+  // a "?" says how they are spent; its text replaces the title, which would show beside it (ui.ts tipsOnHelp)
+  const help = more ? packagesHelpHtml() : '';
+  const titleAttr = help ? '' : ` title="${esc(title)}"`;
+  return `<span class="aib-wallet${emptyClass}"${titleAttr}>${icon('wallet', 14)}${packageBar(used)}<span>${esc(t('{0}% left', left))}</span>${moreHtml}${untilHtml}${help}</span>`;
+}
+
+/** The "?" beside the balance with several packages: how they are spent and how long they last. */
+function packagesHelpHtml(): string {
+  const text = t(
+    "Packages are used one after another: the bar is the one in use, and “+1 package” is a full one waiting its turn. What's left lasts 30 days after your last purchase.",
+  );
+  return `<span class="aib-wallet-help" tabindex="0" role="img" aria-label="${esc(text)}" data-help="${esc(text)}">${icon('help', 13)}</span>`;
 }
 
 /**

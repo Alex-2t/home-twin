@@ -37,9 +37,17 @@ export interface PanelRoute {
   path?: string;
 }
 
+/** The AI build's page in the address: the upload, or a build (its progress, its review). */
+export type AiPage = 'upload' | {build: string};
+
 /** The HA panel's router: route() passes on each route HA sets on the panel. */
 export interface PanelRouter extends Router {
   route(value: PanelRoute | null | undefined): void;
+  /**
+   * The AI build's page over the editor (null: closed). The panel has one path, so while it is open the path names it, and
+   * the editor's own page comes back when it closes. On our site the AI build keeps its page in ?ai= / ?build= instead.
+   */
+  showAi(page: AiPage | null): void;
 }
 
 const PAGE_NAMES: readonly string[] = PAGES;
@@ -67,6 +75,16 @@ export const parsePanelPath = (path: string | null | undefined): Route | null =>
   return isPage(p) ? {ex: null, page: p} : null;
 };
 
+// The AI build in the panel's path: /home-twin/ai — the upload, /home-twin/ai/<build> — that build. A build's id as the service
+// gives it: letters, digits and hyphens.
+const AI_PATH = /^ai(?:\/([A-Za-z0-9-]+))?$/;
+export function parsePanelAi(path: string | null | undefined): AiPage | null {
+  const m = AI_PATH.exec(String(path || '').replace(/^\/+|\/+$/g, ''));
+  if (!m) return null;
+  return m[1] ? {build: m[1]} : 'upload';
+}
+const aiPath = (page: AiPage): string => (page === 'upload' ? '/ai' : '/ai/' + page.build);
+
 export function hashRouter(): Router {
   return {
     read: () => parseRoute(location.hash),
@@ -84,18 +102,34 @@ export function hashRouter(): Router {
 // navigate() does: the history of HA's window (the panel is in an iframe of the same origin) and 'location-changed' on it.
 export function haRouter(panel: {route?: PanelRoute | null}): PanelRouter {
   let cb: ((route: Route | null) => void) | null = null;
+  // the editor's page as last written, and the AI build's page over it, if open
+  let editorRoute: Route | null = parsePanelPath(panel.route?.path);
+  let ai: AiPage | null = null;
+  const put = (push: boolean): void => {
+    const w = window.parent || window;
+    const page = ai ? aiPath(ai) : editorRoute ? '/' + editorRoute.page : '';
+    const url = (panel.route?.prefix || '/home-twin') + page;
+    if (push) w.history.pushState(null, '', url);
+    else w.history.replaceState(w.history.state, '', url);
+    w.dispatchEvent(new CustomEvent('location-changed', {detail: {replace: !push}}));
+  };
   return {
     read: () => parsePanelPath(panel.route?.path),
     write: (r, push) => {
-      const w = window.parent || window;
-      const url = (panel.route?.prefix || '/home-twin') + (r ? '/' + r.page : '');
-      if (push) w.history.pushState(null, '', url);
-      else w.history.replaceState(w.history.state, '', url);
-      w.dispatchEvent(new CustomEvent('location-changed', {detail: {replace: !push}}));
+      editorRoute = r;
+      put(push && !ai);
     },
     listen: f => {
       cb = f;
     },
-    route: v => cb?.(parsePanelPath(v?.path)),
+    // HA sets the route again after each write: the AI build's own path is not an editor page to go to
+    route: v => {
+      if (parsePanelAi(v?.path)) return;
+      cb?.(parsePanelPath(v?.path));
+    },
+    showAi: page => {
+      ai = page;
+      put(false);
+    },
   };
 }

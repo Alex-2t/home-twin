@@ -5,7 +5,7 @@ import {boot} from './boot.ts';
 import {liveHA, hassPlans, hassPhotos} from './editor/ha-live.ts';
 import {browserPhotos} from './editor/underlay.ts';
 import {t, setFormats} from './i18n/i18n.ts';
-import {haRouter} from './editor/route.ts';
+import {haRouter, parsePanelAi} from './editor/route.ts';
 import {buildOf, reloadPanel, showEditorUpdateNotice, watchBuild} from './frontend-build.ts';
 import {aiBuildInPanel} from './editor/ai-from-ha.ts';
 import type {Hass} from './core/types.ts';
@@ -89,7 +89,8 @@ export async function start(panel: PanelHost): Promise<PanelApp> {
   // the subscription is made on HA's page's connection, which outlives this iframe: it is ended when the panel closes (below)
   const stopWatchingBuild = watchBuild(hass(), buildOf(import.meta.url), showUpdated, {panel: true});
   // The AI build (D-132): its screens here, its requests through the integration, which holds the account
-  void aiBuildInPanel(ed, hass());
+  // a reload on the AI build's page (/home-twin/ai…) opens it again
+  void aiBuildInPanel(ed, hass(), parsePanelAi(panel.route?.path));
   addEventListener('pagehide', () => {
     plans.flush();
     photos.flush();

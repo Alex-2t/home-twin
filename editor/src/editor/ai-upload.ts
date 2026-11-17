@@ -57,6 +57,31 @@ export interface UploadRequest {
   photos: File[];
   /** The language the owner reads: the build names the rooms and the furniture in it. */
   lang: string;
+  /**
+   * The owner's Home Assistant areas, from HA's panel (D-136): the build links its rooms to them, so the home comes with its
+   * rooms linked and only the rest are asked about. None on our site.
+   */
+  areas?: UploadArea[];
+  /**
+   * The owner's Home Assistant lights, from HA's panel (D-137): the build links them to the lamps it put on the plan, so the
+   * home comes with its lights placed and the Lights step asks only about the rest. None on our site.
+   */
+  lights?: UploadLight[];
+}
+
+/** A Home Assistant area as the build is told it: its id and the owner's name for it. */
+export interface UploadArea {
+  id: string;
+  name: string;
+}
+
+/** A Home Assistant light as the build is told it: its id (the entity id without "light."), name, area and device. */
+export interface UploadLight {
+  id: string;
+  name: string;
+  area: string | null;
+  /** The device's maker and model: a light's model often says what fitting it is. */
+  device?: string;
 }
 
 /** An upload under way, kept by the page: pressed again with the same files, the build button goes on from there. */
@@ -169,7 +194,12 @@ export async function uploadBuild(
   /** A new upload of these files; the service checks the sign-in and the money here, before any byte. */
   const create = async (): Promise<UploadState> => {
     const answer = await transport
-      .json('POST', uploads, {files: announced, lang: request.lang})
+      .json('POST', uploads, {
+        files: announced,
+        lang: request.lang,
+        ...(request.areas?.length ? {areas: request.areas} : {}),
+        ...(request.lights?.length ? {lights: request.lights} : {}),
+      })
       .catch(() => null);
     const state = answer?.status === STATUS_CREATED ? stateOf(answer.body, files.length) : null;
     if (!state) throw failureOf(answer);

@@ -1062,6 +1062,8 @@ export interface HassEntityEntry {
 export interface HassDeviceEntry {
   id?: string;
   area_id?: string | null;
+  manufacturer?: string | null;
+  model?: string | null;
 }
 
 /** An area registry entry (hass.areas[area_id]). */
@@ -1299,6 +1301,8 @@ export interface HaLayer {
   setArea?(entity: string, area: string | null): Promise<void>;
   /** Live only: open the entity's card in HA. */
   moreInfo?(entity: string): void;
+  /** Live only: the maker and model of the entity's device ("Signify Netherlands B.V. Hue go"), or null. */
+  deviceOf?(entity: string): string | null;
   /** Live only: the full URL for an HA path. */
   url?(path: string): string;
   /** Live only: the Home Twin dashboard. */

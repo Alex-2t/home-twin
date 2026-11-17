@@ -2738,6 +2738,13 @@ export function createLook(ed: LookEditor, host0: HTMLElement): LookPanel {
     width() {
       return this.insets().right;
     },
+    // where the buttons at the top right of the 3D begin (the notifications' dots and gear), from the screen's left edge; hidden — null
+    topRight() {
+      if (!on) return null;
+      const gear = root.querySelector<HTMLElement>('.note-gear');
+      if (!gear || !gear.offsetWidth) return null;
+      return gear.getBoundingClientRect().left;
+    },
     refresh: render,
     // a room's screen, as a click on its chip (the dashboard card opened with ?room=)
     room: id => {

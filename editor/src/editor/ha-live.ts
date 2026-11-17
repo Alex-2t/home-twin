@@ -100,6 +100,11 @@ export function liveHA(initial: Hass): LiveHaLayer {
     const entry = reg(entity);
     return entry?.area_id || devOf(entry)?.area_id || null;
   };
+  const deviceText = (entity: string): string | null => {
+    const device = devOf(reg(entity));
+    const words = [device?.manufacturer, device?.model].filter(Boolean).join(' ').trim();
+    return words || null;
+  };
   const nameOf = (entity: string): string =>
     hass.states[entity]?.attributes?.friendly_name || reg(entity)?.name || entity;
   // hidden and service ones (config, diagnostic) are not shown; an entity without a registry entry (from YAML) is shown
@@ -456,6 +461,7 @@ export function liveHA(initial: Hass): LiveHaLayer {
         new CustomEvent('hass-more-info', {detail: {entityId: e}, bubbles: true, composed: true}),
       );
     },
+    deviceOf: deviceText,
     url: path => (hass.hassUrl ? hass.hassUrl(path) : path),
     // The Home Twin dashboard (D-059): the whole home on the screen, in everyone's sidebar. add(title) — create it (an administrator)
     // with one panel view holding the card; one that exists is not touched. open() — go there.

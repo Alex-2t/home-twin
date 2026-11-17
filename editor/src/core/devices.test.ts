@@ -143,6 +143,63 @@ test('auto: an air conditioner placed in “Furniture” and curtains at the win
   assert.equal(p.furniture.length, 2);
 });
 
+test('auto: of two windows, the curtains already at the right one take the device; no new ones at the left', () => {
+  const p = plan();
+  // looking north from the kitchen the window on the right is the east one (edge 2 runs east to west)
+  p.openings[0] = {
+    id: 'op_1',
+    kind: 'window',
+    at: {room: 'k', edge: 2, s0: 0.3, s1: 1.5, d: 0},
+    bottom: 0.85,
+    top: 2.4,
+  };
+  p.openings.push({
+    id: 'op_3',
+    kind: 'window',
+    at: {room: 'k', edge: 2, s0: 2.5, s1: 3.7, d: 0},
+    bottom: 0.85,
+    top: 2.4,
+  });
+  p.furniture.push({id: 'f8', model: 'curtains', x: 3.1, y: 2.88, w: 1.6, d: 0.14, h: 2.55, rot: 0});
+  autoPlace(p, [{entity: 'cover.c', name: 'Curtains', area: 'kitchen', domain: 'cover', cls: 'curtain'}]);
+  assert.equal(recOf(p, 'cover.c')!.furn, 'f8');
+  assert.equal(p.furniture.length, 1);
+});
+
+test('auto, only what is in the model (an AI home taken in HA): its unit and covers are bound, nothing new is hung', () => {
+  const p = plan();
+  assert.equal(
+    autoPlace(p, devs, () => null, {seenOnly: true}),
+    1,
+  ); // the door sensor, on its door
+  assert.equal(recOf(p, 'binary_sensor.door')!.opening, 'op_2');
+  assert.equal(p.furniture.length, 0);
+  assert.equal(recOf(p, 'climate.k'), null);
+  p.furniture.push(
+    {id: 'f9', model: 'aircon', x: 0.2, y: 1.5, w: 0.8, d: 0.22, h: 0.29, rot: 90},
+    {id: 'f7', model: 'blind', x: 2, y: 2.95, w: 2, d: 0.05, h: 1.6, rot: 0},
+  );
+  assert.equal(
+    autoPlace(p, devs, () => null, {seenOnly: true}),
+    2,
+  );
+  assert.equal(recOf(p, 'climate.k')!.furn, 'f9');
+  // the blind at the window takes the first of the three by name; the other two are left for the Devices step
+  assert.equal(recOf(p, 'cover.k1')!.furn, 'f7');
+  assert.equal(recOf(p, 'cover.k2'), null);
+  assert.equal(p.furniture.length, 2);
+  // HA says roller blind where the video showed curtains: the curtains are what hangs there
+  const q = plan();
+  q.furniture.push({id: 'f8', model: 'curtains', x: 2, y: 2.88, w: 2.4, d: 0.14, h: 2.55, rot: 0});
+  autoPlace(q, [devs[1]], () => null, {seenOnly: true});
+  assert.equal(recOf(q, 'cover.k3')!.furn, 'f8');
+  // without seenOnly a blind is hung for it, the curtains stay in front
+  const r = plan();
+  r.furniture.push({id: 'f8', model: 'curtains', x: 2, y: 2.88, w: 2.4, d: 0.14, h: 2.55, rot: 0});
+  autoPlace(r, [devs[1]]);
+  assert.notEqual(recOf(r, 'cover.k3')!.furn, 'f8');
+});
+
 test('by hand: an air conditioner onto a wall, a cover only onto a window, a door sensor only onto a door; removing it also removes its own item', () => {
   const p = plan();
   assert.equal(placeOn(p, devs[1], {opening: 'op_2'}), null);

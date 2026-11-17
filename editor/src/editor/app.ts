@@ -31,7 +31,7 @@ import {icon, fillIcons} from './icons.ts';
 import {roomsMode, DRAW_RECT} from './modes/rooms.ts';
 import {furnitureMode} from './modes/furniture.ts';
 import {lightsMode} from './modes/lights.ts';
-import {$, el, esc, ask, banner, find, tipsOnFocus} from './ui.ts';
+import {$, el, esc, ask, banner, find, tipsOnFocus, tipsOnHelp} from './ui.ts';
 import {
   watchInputKind,
   keyboardInUse,
@@ -1575,12 +1575,17 @@ export function createApp({haLights, ha, photos}: AppOptions): Editor {
       c = Math.max(lo + w / 2, Math.min(hi - w / 2, c));
       e.style.left = (mid ? c : c - w / 2) + 'px';
     };
-    // the modes do not fit (a tablet next to the “Preview” panel, a phone) — icons, a label only for the selected one; the name — in the tooltip
+    // in Preview the notifications' dots and gear sit at the top right of the 3D: the modes end before them
+    const gearL = look ? lookUI.topRight() : null;
+    const modesR = gearL == null ? toprL : Math.min(toprL, gearL - work.getBoundingClientRect().left - 8);
+    // the modes do not fit (a tablet next to the “Preview” panel, a phone) — icons, a label only for the selected one; the name — in the tooltip;
+    // still too wide (“Add to dashboard” is there too) — “Preview” and “Add to dashboard” are icons as well
     const M = $('modes');
-    M.classList.remove('compact');
-    if (M.scrollWidth > (innerWidth <= 760 ? W - 24 : Math.min(W - R, toprL) - brandR) - 8)
-      M.classList.add('compact');
-    put(M, pinL, W - R, brandR, toprL);
+    M.classList.remove('compact', 'tight');
+    const modesRoom = (innerWidth <= 760 ? W - 24 : Math.min(W - R, modesR) - brandR) - 8;
+    if (M.scrollWidth > modesRoom) M.classList.add('compact');
+    if (M.scrollWidth > modesRoom) M.classList.add('tight');
+    put(M, pinL, W - R, brandR, modesR);
     put($('dock'), pinL, W - R, pinL + 12, Math.min(W - R - 12, pipL));
     put($('pill'), pinL, W - R, floatL, Math.min(W - R - 12, pipL), true);
     // the step hint — at its area (coach.js), no area — at the bottom above the toolbar (at the top it covered the wall
@@ -2195,6 +2200,7 @@ export function createApp({haLights, ha, photos}: AppOptions): Editor {
   // Enter or Space (the lists are re-rendered by every mode, so they are set up whenever the panel changes).
   watchInputKind();
   tipsOnFocus();
+  tipsOnHelp();
   const sideBody = $('side-body');
   const rowsByKeyboard = (): void => {
     const lists = new Set<HTMLElement>();
@@ -2428,6 +2434,8 @@ export function createApp({haLights, ha, photos}: AppOptions): Editor {
     $('look-btn').classList.toggle('on', v);
     if (v) lookUI.open();
     else lookUI.close();
+    // the dashboard may have been made or deleted in HA since: “Add to dashboard” is shown only while there is none
+    ed.flows?.syncBoard?.();
     // the button that led here (“See the result”) is gone: a keyboard user's focus goes to “Preview” itself, between the
     // modes (Shift+Tab, the way back) and the preview (Tab)
     const focusLost = !document.activeElement || document.activeElement === document.body;

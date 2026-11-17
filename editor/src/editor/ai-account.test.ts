@@ -388,12 +388,16 @@ test('packages one after another: the current one in percent, "+1 package" after
   const html = balanceMeter(TWO_AT_70);
   assert.match(html, /width:70%/);
   assert.match(html, /30% left<\/span><span class="aib-wallet-more">· \+1 package</);
-  assert.match(html, /title="Package: 70% used, 30% left · 1 more package"/);
+  // several packages: a "?" says how they are spent, in place of the title (two tooltips would show at once)
+  assert.match(html, /class="aib-wallet-help"[^>]*data-help="Packages are used one after another/);
+  assert.doesNotMatch(html, /title=/);
   assert.equal(morePackagesShort({...TWO_AT_70, packagesLeft: 3}), '+3 packages');
   assert.equal(morePackagesText({...TWO_AT_70, packagesLeft: 3}), '3 more packages');
-  // One package: nothing after it is said.
+  // One package: nothing after it is said, no "?", the title as before.
   const one = balanceFrom({used: 0.2, left: 0.8, empty: false, bought: true, packages: 1, packagesLeft: 0});
   assert.doesNotMatch(balanceMeter(one), /aib-wallet-more/);
+  assert.doesNotMatch(balanceMeter(one), /aib-wallet-help/);
+  assert.match(balanceMeter(one), /title="Package: 20% used, 80% left"/);
   assert.equal(morePackagesText(one), '');
 });
 

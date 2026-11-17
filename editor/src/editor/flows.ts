@@ -24,7 +24,7 @@ import type {GalleryHome, GalleryView} from './gallery.ts';
 import type {HeldFocus} from './keyboard.ts';
 import type {Outline, Plan, PlanInput, Point, Room, UnderlayPlace} from '../core/types.ts';
 import type {Underlay} from './underlay.ts';
-import type {Route, RoutePage, Router} from './route.ts';
+import type {PanelRouter, Route, RoutePage, Router} from './route.ts';
 import type {BannerItem, CanvasPoint, Editor, EditorFlows, ModeId, PathStep} from './editor-types.ts';
 
 /** An example's plan photo (the designer interiors): its image and the two "pixel → metres" pairs that place it. */
@@ -273,6 +273,10 @@ export function createFlows(
     router.write(now, push ?? pageOf(h) !== pageOf(shown as string));
     shown = h;
   }
+  // the AI build's page, in the panel's path (route.ts showAi); our site's AI build writes ?ai= / ?build= itself
+  f.aiAddress = page => {
+    if (router && 'showAi' in router) (router as PanelRouter).showAi(page);
+  };
   // several changes in one go (a mode button: leave Preview, switch the mode) — one step
   f.syncRoute = () => {
     if (router && !queued) {
@@ -1583,6 +1587,8 @@ export function createFlows(
     open: () => $('file-json').click(),
     wizard: () => {
       hideStart();
+      // from Preview: its steps are on the plan, and Preview hides the wizard's card — “Run setup” seemed to do nothing (the owner)
+      ed.setLook(false);
       ed.path.resume();
     },
     prev: () => swapPrev(),
@@ -1601,15 +1607,20 @@ export function createFlows(
   );
   syncPrev();
   // The whole home on a dashboard (D-059, in HA only): the Home Twin dashboard with the card, in the sidebar; there already — go there.
-  // The menu item says which of the two it will do.
+  // The menu item says which of the two it will do. Until the dashboard exists, Preview also has the button in plain sight
+  // (styles.css shows it in Preview only); once it is made, only the menu has it (the owner).
   const boardBtn = find(document, '[data-a=board]');
+  const boardTop = $('board-btn');
   const syncBoard = (): void => {
     const b = ed.ha.board;
     boardBtn.hidden = !b;
+    boardTop.hidden = !b || b.exists();
     // the item's label is its last child
     if (b) boardBtn.lastChild!.textContent = b.exists() ? t('Open dashboard') : t('Add to dashboard');
   };
+  f.syncBoard = syncBoard;
   $('brand-btn').addEventListener('click', syncBoard);
+  boardTop.onclick = () => f.addBoard();
   syncBoard();
   f.addBoard = async () => {
     const b = ed.ha.board;
@@ -1627,22 +1638,31 @@ export function createFlows(
     try {
       await b.add(name);
       syncBoard();
-      ed.banner(t('Your home is on the dashboard “{0}” in the sidebar.', name), [
-        [t('Got it'), done],
+      // the message is seen in Preview too: its button is there
+      ed.banner(
+        t('Your home is on the dashboard “{0}” in the sidebar.', name),
         [
-          t('Open|verb'),
-          () => {
-            done();
-            b.open();
-          },
-          true,
+          [t('Got it'), done],
+          [
+            t('Open|verb'),
+            () => {
+              done();
+              b.open();
+            },
+            true,
+          ],
         ],
-      ]);
+        null,
+        {look: true},
+      );
     } catch (e) {
       const message = typeof e === 'object' && e !== null && 'message' in e ? e.message : undefined;
-      ed.banner(t('Could not create the dashboard: {0}', message || String(e)), [
-        [t('Got it'), () => ed.banner(), true],
-      ]);
+      ed.banner(
+        t('Could not create the dashboard: {0}', message || String(e)),
+        [[t('Got it'), () => ed.banner(), true]],
+        null,
+        {look: true},
+      );
     }
   };
   $('grid').onchange = e => {

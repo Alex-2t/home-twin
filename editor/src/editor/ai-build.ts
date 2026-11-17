@@ -41,6 +41,9 @@ import {openReview} from './ai-review.ts';
 import type {UnplacedThing} from './ai-review.ts';
 import {changeCount, pinsToSend, pinsToRetry, refreshRetries} from './ai-pins.ts';
 import {markSource} from './ai-fix.ts';
+import {recordStep} from './wizard-state.ts';
+import {PLACEABLE, autoPlace, deviceKind, isCentral, recOf} from '../core/devices.ts';
+import {orphans, recommend} from '../core/sensors.ts';
 import type {Pin, PinNotes, PinRetry, PinRound, ReportView} from './ai-pins.ts';
 import {
   accountOffer,
@@ -72,9 +75,9 @@ import type {VideoConcern} from './video-note.ts';
 import {UploadFailed, browserTransport, uploadBuild} from './ai-upload.ts';
 import {isPdfFile, openPagePicker, pagePlanFile, splitPlanPdf} from './plan-pages.ts';
 import type {PlanPages} from './plan-pages.ts';
-import type {UploadJob} from './ai-upload.ts';
+import type {UploadArea, UploadJob, UploadLight} from './ai-upload.ts';
 import type {Estimate, RoundSize} from './ai-estimate.ts';
-import type {Outline, Plan} from '../core/types.ts';
+import type {HaDevice, Outline, Plan, PlanLight} from '../core/types.ts';
 import type {Editor, EditorFlows} from './editor-types.ts';
 
 // ---------- what the service answers ----------
@@ -246,6 +249,32 @@ function sameFiles(a: ChosenFiles, b: ChosenFiles): boolean {
 }
 
 /** Whether the rooms are chosen: a video, photos, or both. */
+/** The owner's Home Assistant areas, as the build is told them (D-136): each its id and name. */
+const haAreas = (ed: Editor): UploadArea[] =>
+  ed.ha.areas().map(area => ({id: area.area_id, name: area.name}));
+// The owner's lights as the Lights step lists them (a group whose lamps are listed is left out, as ha.ts haPlanLights does),
+// with their devices (D-137).
+const haLights = (ed: Editor): UploadLight[] => {
+  const all = ed.ha.lights();
+  const listed = new Set(all.map(light => light.entity));
+  return all
+    .filter(light => !light.members?.some(member => listed.has(member)))
+    .map(light => {
+      const device = ed.ha.deviceOf?.(light.entity);
+      return {id: light.id, name: light.name, area: light.area, ...(device ? {device} : {})};
+    });
+};
+// The owner's devices the model shows (air conditioners, covers, door and window sensors), as the Devices step lists them.
+const haDevices = (ed: Editor): HaDevice[] =>
+  (ed.ha.devices?.() || []).filter(device => PLACEABLE.has(deviceKind(device, ed.ha.entity(device.entity))));
+// The ones placing by itself can put in the model: not a central system's thermostat, which has no unit on a wall.
+const devicesToPlace = (ed: Editor): HaDevice[] =>
+  haDevices(ed).filter(
+    device => !(deviceKind(device, ed.ha.entity(device.entity)) === 'ac' && isCentral(device)),
+  );
+// The HA lights of the plan the Lights step is about: the owner's, not skipped.
+const lightsToPlace = (ed: Editor): PlanLight[] =>
+  ed.plan.lights.filter(light => light.entity && !light.skip);
 const haveRooms = (files: ChosenFiles): boolean => files.videos.length > 0 || files.photos.length > 0;
 
 /** The AI build over the editor (openAiBuild). */
@@ -1253,8 +1282,12 @@ export function openAiBuild(ed: Editor, options: AiBuildOptions = {}): AiBuildSc
 
   // The address names the page shown: the upload, a build, or neither (the editor).
   function setAddress(page: 'upload' | {build: string} | null): void {
-    // Home Assistant's panel has an address of its own (HA's): the build followed is remembered in the browser instead
-    if (inHa) return;
+    // Home Assistant's panel has an address of its own (HA's): its path names the page, so a reload keeps it (the owner:
+    // a reload on the upload went to the plan)
+    if (inHa) {
+      flows?.aiAddress?.(page);
+      return;
+    }
     const url = new URL(location.href);
     url.searchParams.delete('build');
     url.searchParams.delete(UPLOAD_PARAM);
@@ -1355,9 +1388,11 @@ export function openAiBuild(ed: Editor, options: AiBuildOptions = {}): AiBuildSc
     renderUploadEstimate();
   }
 
+  // Only when the package may not be enough: then the line warns, and says why. Otherwise “About 30–45% of your package”
+  // under the time read as belonging to nothing in particular (the owner, 2026-11-17).
   function renderUploadEstimate(): void {
     const slot = root.querySelector<HTMLElement>('.aib-go-cost');
-    if (slot) slot.innerHTML = estimateLine(uploadEstimate);
+    if (slot) slot.innerHTML = uploadEstimate?.short ? estimateLine(uploadEstimate) : '';
   }
 
   // The review's pins changed: the round's estimate is asked again once they rest, if what it counts changed.
@@ -2154,6 +2189,8 @@ export function openAiBuild(ed: Editor, options: AiBuildOptions = {}): AiBuildSc
         videos: files.videos,
         photos: files.photos,
         lang: getLang(),
+        // in Home Assistant the build is told the owner's areas, and links its rooms to them (D-136)
+        ...(inHa ? {areas: haAreas(ed), lights: haLights(ed)} : {}),
       };
       buildStarted = await uploadBuild(request, uploading.job, browserTransport(), showShare);
     } catch (error) {
@@ -2850,6 +2887,41 @@ export function openAiBuild(ed: Editor, options: AiBuildOptions = {}): AiBuildSc
     ed.setBare(null);
   }
 
+  // The setup's steps the build did are done (the owner: after "Link rooms", Next went to "Furniture", which the AI had
+  // placed everywhere): the outline, the rooms, windows and doors, the furniture; linking the rooms too when the build linked
+  // every one (D-136), and the lights when it placed every one of the owner's (D-137). "Run setup" and the step after "Link
+  // rooms" go to the first one left; the Lights step asks only about the lights not placed.
+  // In Home Assistant the rest of the owner's home goes in by itself too (D-138), now that the rooms are linked: each device
+  // onto the air conditioner or the curtains the video showed in its area's room (none is hung where the video showed none:
+  // the Devices step offers those), and the readings an HA area card shows — temperature, humidity, CO₂ — on the walls of
+  // each linked room, as the Sensors step would put them.
+  function placeOwnersThings(): void {
+    autoPlace(ed.plan, haDevices(ed), entity => ed.ha.entity(entity), {seenOnly: true});
+    if (!ed.plan.sensors.length)
+      for (const reading of recommend(ed.plan, ed.sensorCtx()))
+        ed.plan.sensors.push({
+          id: 's' + Date.now().toString(36) + Math.random().toString(36).slice(2, 5),
+          ...reading,
+        });
+  }
+
+  function markBuiltSteps(): void {
+    for (const step of ['rect', 'split', 'open', 'furniture'] as const)
+      recordStep(ed.plan, step, 'confirmed');
+    const rooms = ed.plan.rooms.filter(room => !room.solid);
+    if (inHa && rooms.length && rooms.every(room => room.area)) recordStep(ed.plan, 'names', 'confirmed');
+    const lights = lightsToPlace(ed);
+    if (inHa && lights.length && lights.every(light => light.placed))
+      recordStep(ed.plan, 'lights', 'confirmed');
+    const devices = devicesToPlace(ed);
+    if (inHa && devices.length && devices.every(device => recOf(ed.plan, device.entity)))
+      recordStep(ed.plan, 'devices', 'confirmed');
+    // the readings are on the walls and no climate sensor waits for its room to be said
+    if (inHa && ed.plan.sensors.length && !orphans(ed.plan, ed.sensorCtx()).length)
+      recordStep(ed.plan, 'sensors', 'confirmed');
+    ed.amend();
+  }
+
   // The home is the owner's now: the editor as usual, the 3D large.
   function finish(): void {
     close();
@@ -2859,9 +2931,68 @@ export function openAiBuild(ed: Editor, options: AiBuildOptions = {}): AiBuildSc
     ed.setMain('3d');
     ed.view.home();
     quietSetup();
-    // In Home Assistant the home is linked next: its rooms to HA's areas, then its lights and devices
+    if (inHa) placeOwnersThings();
+    markBuiltSteps();
+    // In Home Assistant the home is linked next: its rooms to HA's areas, then its lights and devices. The build linked what it
+    // could (D-136, D-137, D-138): all of them — nothing to ask; some — how many, and the rest are asked about (an area that is
+    // missing is made in HA from the same step); none — as before.
     if (inHa) {
-      ed.banner(t('Your home is here. Link its rooms to Home Assistant.'), [
+      const rooms = ed.plan.rooms.filter(room => !room.solid);
+      const linked = rooms.filter(room => room.area).length;
+      if (linked && linked === rooms.length) {
+        // what is left after the rooms: the lights first, then the devices; each opens its own step
+        const lights = lightsToPlace(ed);
+        const lightsPlaced = lights.filter(light => light.placed).length;
+        const devices = devicesToPlace(ed);
+        const devicesPlaced = devices.filter(device => recOf(ed.plan, device.entity)).length;
+        const toStep = (step: 'lights' | 'devices') => () => {
+          ed.banner();
+          ed.setMain('plan');
+          ed.path.go(step);
+        };
+        if (lightsPlaced < lights.length) {
+          const text = lightsPlaced
+            ? t(
+                'Your home is here. Its rooms are linked to Home Assistant, lights placed: {0} of {1}. Place the rest.',
+                lightsPlaced,
+                lights.length,
+              )
+            : t('Your home is here. Its rooms are linked to your Home Assistant areas.');
+          ed.banner(text, [
+            [t('Place lights'), toStep('lights'), true],
+            [t('Later'), () => ed.banner()],
+          ]);
+          return;
+        }
+        if (devicesPlaced < devices.length) {
+          ed.banner(
+            t(
+              'Your home is here, linked to Home Assistant. Devices placed: {0} of {1}. Place the rest.',
+              devicesPlaced,
+              devices.length,
+            ),
+            [
+              [t('Place devices'), toStep('devices'), true],
+              [t('Later'), () => ed.banner()],
+            ],
+          );
+          return;
+        }
+        const text =
+          lights.length || devices.length
+            ? t('Your home is here. Everything in it is linked to Home Assistant.')
+            : t('Your home is here. Its rooms are linked to your Home Assistant areas.');
+        ed.banner(text, [[t('Got it'), () => ed.banner(), true]]);
+        return;
+      }
+      const text = linked
+        ? t(
+            'Your home is here. Rooms linked to Home Assistant: {0} of {1}. Link the rest.',
+            linked,
+            rooms.length,
+          )
+        : t('Your home is here. Link its rooms to Home Assistant.');
+      ed.banner(text, [
         [
           t('Link rooms'),
           () => {

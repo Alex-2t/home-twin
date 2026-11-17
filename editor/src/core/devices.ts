@@ -485,11 +485,13 @@ function contactOpening(
 // covers go onto the room's windows (more covers than windows and a single window: as sections from left to right, in name order),
 // a room with no window onto its glazed doors; a cover already at a glazed door takes the device named for a door or a balcony;
 // a contact sensor goes onto an opening. The room comes from the HA area. ent(e) is the HA state (a thermostat is told apart from an air conditioner
-// by its modes). → how many were placed.
+// by its modes). seenOnly (a home from the AI build taken in HA, D-138): only onto the units and covers already in the model — the
+// ones the video showed — and the openings; nothing new is hung, the Devices step places the rest. → how many were placed.
 export function autoPlace(
   plan: DevicePlan,
   devs: HaDevice[],
   ent: (entity: string) => EntityState | null | undefined = () => null,
+  {seenOnly = false}: {seenOnly?: boolean} = {},
 ): number {
   plan.devices ??= [];
   let n = 0;
@@ -511,6 +513,7 @@ export function autoPlace(
       add(d, {furn: f.id});
       continue;
     }
+    if (seenOnly) continue;
     const sp = acSpot(plan, r);
     if (!sp) continue;
     const it = itemAt(plan, 'aircon', sp.e, sp.t);
@@ -549,6 +552,21 @@ export function autoPlace(
         add(d, {furn: f.id});
       }
     }
+    // A room of several windows: a cover already at one of them (the AI build saw it, or it was placed in “Furniture”) takes the
+    // room's first device of its kind, window by window from the left — not a new one at the first window while the one seen
+    // stays unbound. (One window keeps the rule below: one device takes its cover, several share the window as sections.)
+    const windows = windowsOf(plan, r).sort((a, b) => rightOf(a) - rightOf(b));
+    if (windows.length > 1)
+      for (const W of windows)
+        for (const model of ['blind', 'curtains']) {
+          const f = coverNear(plan, W, model, usedF);
+          const d = f && !busy.has(f.id) ? cs.find(d => coverModel(d) === model) : undefined;
+          if (!f || !d) continue;
+          cs.splice(cs.indexOf(d), 1);
+          usedF.add(f.id);
+          busy.add(f.id);
+          add(d, {furn: f.id});
+        }
     // the covers go onto the windows; a room with no window, onto its glazed doors
     const spots = windowsOf(plan, r).length ? windowsOf(plan, r) : glassDoorsOf(plan, r);
     const W = spots
@@ -562,17 +580,33 @@ export function autoPlace(
         : cs.slice(0, W.length).map((d, k): [HaDevice, OpeningSide, number, number] => [d, W[k], 0, 1]);
     for (const [d, w, k, cnt] of plan1) {
       const model = coverModel(d);
-      const near = cnt === 1 && coverNear(plan, w, model, usedF);
+      // only what is in the model: the cover seen at a window shared by several takes the first of them; the rest wait
+      const near = (cnt === 1 || seenOnly) && coverNear(plan, w, model, usedF);
       if (near) {
         usedF.add(near.id);
         add(d, {furn: near.id});
         continue;
       }
+      if (seenOnly) continue;
       const it = coverItem(plan, model, w, k, cnt);
       plan.furniture.push(it);
       usedF.add(it.id);
       add(d, {furn: it.id, made: true});
     }
+    // Only what is in the model: a device no cover of its kind in the room was left for takes a cover of the other kind the
+    // video showed there — HA says "blind" where curtains hang, and the video shows what is on the window.
+    if (seenOnly)
+      for (const d of cs.filter(d => !recOf(plan, d.entity)))
+        for (const S of spots) {
+          const f = ['curtains', 'blind']
+            .map(model => coverNear(plan, S, model, usedF))
+            .find(f => f && !busy.has(f.id));
+          if (!f) continue;
+          usedF.add(f.id);
+          busy.add(f.id);
+          add(d, {furn: f.id});
+          break;
+        }
   }
   for (const d of todo.filter(d => kind(d) === 'contact')) {
     const r = roomOfArea(plan, d.area);

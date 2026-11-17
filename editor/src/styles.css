@@ -575,9 +575,11 @@ button.gcard:focus-visible{outline:2px solid var(--acc);outline-offset:2px}
 .wizard-actions>button.ready-to-finish:is(:hover,:focus-visible)::after{animation-play-state:paused;opacity:0}
 @keyframes finish-ready{0%{box-shadow:0 0 0 0 color-mix(in srgb,var(--acc) 55%,transparent)}75%,100%{box-shadow:0 0 0 9px transparent}}
 @media (prefers-reduced-motion:reduce){.wizard-actions>button.ready-to-finish::after{animation:none}}
-.banner.wizard-card .todo{margin:0}.wizard-result{flex-basis:100%;display:grid;grid-template-columns:1fr 1fr;gap:4px}
-.banner .wizard-result button{justify-content:flex-start;min-width:0;gap:7px;background:var(--chip);font-size:12px}
-.wizard-result span{flex:1;text-align:left}.wizard-result small{margin:0;font-size:11px;white-space:nowrap;font-variant-numeric:tabular-nums}
+/* deferred steps: two in a row only when both fit, one alone takes the whole row; a status that does not fit beside the name goes under it
+   instead of sticking out of the button (the owner: “For later · 6/10” ran past the edge) */
+.banner.wizard-card .todo{margin:0}.wizard-result{flex-basis:100%;display:grid;grid-template-columns:repeat(auto-fit,minmax(min(260px,100%),1fr));gap:4px}
+.banner .wizard-result button{justify-content:flex-start;flex-wrap:wrap;min-width:0;gap:2px 7px;background:var(--chip);font-size:12px}
+.wizard-result span{flex:1 1 auto;text-align:left}.wizard-result small{margin:0;font-size:11px;white-space:nowrap;font-variant-numeric:tabular-nums}
 .wizard-result [data-status=confirmed]>.ic{color:var(--acc)}
 .ctx-extra{border-top:1px solid var(--line);padding:5px 5px 3px;max-width:100%;font-size:12px;color:var(--mut)}
 .ctx-extra summary{cursor:pointer;padding:3px}.ctx-extra[open]>summary{margin-bottom:8px}.ctx-extra .line{margin-bottom:5px}
@@ -586,7 +588,10 @@ button.gcard:focus-visible{outline:2px solid var(--acc);outline-offset:2px}
 .catalog button.item{display:flex;height:auto;min-width:0;white-space:normal;line-height:1.4;touch-action:pan-y;text-align:center}
 .catalog button.item.on{background:var(--acc2);color:var(--tx);box-shadow:inset 0 0 0 2px var(--acc)}
 @media (max-width:1000px){.topr .saved{max-width:140px;font-size:11px}.modes button{padding:0 8px;gap:5px}}
-.modes.compact button{font-size:0;gap:0;padding:0 10px}.modes.compact button.on{font-size:inherit;gap:6px;padding:0 12px}.modes.compact em{margin-left:5px}
+.modes.compact button{font-size:0;gap:0;padding:0 10px}.modes.compact button.on{font-size:inherit;gap:6px;padding:0 12px}
+/* “Add to dashboard” in Preview (HA, no dashboard yet): the way out of the editor, so it keeps its label when the modes are icons only */
+body:not([data-look=on]) #board-btn{display:none}.modes #board-btn{margin-left:4px}.modes.compact #board-btn{font-size:inherit;gap:6px;padding:0 12px}
+.modes.tight :is(#board-btn,#look-btn){font-size:0;gap:0;padding:0 10px}.modes.compact em{margin-left:5px}
 @media (max-width:760px){
   .modes{top:70px;left:12px!important;right:12px;justify-content:space-around}.modes button{font-size:12px;padding:0 5px;gap:4px}.modes em{padding:1px 4px}
   .side{top:128px;max-height:calc(100% - 320px)}.work.pinned .side:not(.closed){top:128px;padding-top:0;bottom:auto;left:12px;border-radius:16px}.work.pinned.side-open .pane.main{left:0}
@@ -698,6 +703,7 @@ body.aib-pinning :is(#pane-plan,#pane-3d) canvas{cursor:crosshair!important}
 .aib-wallet .ic{color:var(--acc)}.aib-wallet .aib-meter{width:56px;height:5px;border-radius:3px}
 .aib-wallet.empty{color:var(--bad)}.aib-wallet.empty .ic{color:var(--bad)}.aib-wallet.empty .aib-meter>i{background:var(--bad)}
 /* packages are spent one after another (D-108): the full ones after the current one, beside its percent */
+.aib-wallet-help{display:inline-flex;margin:-4px -4px -4px -2px;padding:4px;color:var(--mut);opacity:.7;cursor:help;border-radius:6px}.aib-wallet-help:hover,.aib-wallet-help:focus-visible{opacity:1;color:var(--acc)}
 .aib-wallet-more{margin-left:-3px;color:var(--tx);font-weight:500}.aib-wallet-until{margin-left:-3px} /* until when it lasts (D-135) */
 .aib-go-account{display:flex;flex-wrap:wrap;align-items:center;gap:6px 10px}.aib-go-account:empty{display:none}.aib-go-account button.primary{height:36px;padding:0 14px;border-radius:10px}
 .aib-wallet-err{color:var(--bad);font-size:12px;flex-basis:100%}

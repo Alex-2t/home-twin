@@ -194,7 +194,7 @@ const tipTexts = new WeakMap<HTMLElement, string>();
 export function tipsOnFocus(): void {
   addEventListener('focusin', e => {
     const target = e.target as HTMLElement;
-    const text = tipTexts.get(target) || target.getAttribute?.('title');
+    const text = tipTexts.get(target) || target.dataset?.help || target.getAttribute?.('title');
     if (text && keyboardInUse() && target.matches(':focus-visible')) tipShow(target, text);
     else tipHide();
   });
@@ -224,6 +224,44 @@ export function tip(target: HTMLElement, text: string, info?: HTMLElement | null
         ),
       );
     });
+}
+/**
+ * A small "?" in markup made as a string (data-help="text"), where tip() cannot be attached: its text on hover with a mouse,
+ * on a tap with a finger (until the next touch), and on keyboard focus (tipsOnFocus). One set of listeners for the page,
+ * so markup rendered later works too; a tap on it does not reach what it sits in (a menu's button).
+ */
+export function tipsOnHelp(): void {
+  const helpOf = (node: EventTarget | null): HTMLElement | null =>
+    node instanceof Element ? node.closest<HTMLElement>('[data-help]') : null;
+  addEventListener('pointerover', e => {
+    const target = helpOf(e.target);
+    if (e.pointerType !== 'mouse' || !target || target.contains(e.relatedTarget as Node | null)) return;
+    clearTimeout(tipT);
+    tipT = setTimeout(() => tipShow(target, target.dataset.help || ''), 200);
+  });
+  addEventListener('pointerout', e => {
+    const target = helpOf(e.target);
+    if (target && !target.contains(e.relatedTarget as Node | null)) tipHide();
+  });
+  addEventListener(
+    'click',
+    e => {
+      const target = helpOf(e.target);
+      if (!target) return;
+      e.stopPropagation();
+      e.preventDefault();
+      tipShow(target, target.dataset.help || '');
+    },
+    true,
+  );
+  // a touch anywhere else hides what a tap showed
+  addEventListener(
+    'pointerdown',
+    e => {
+      if (e.pointerType !== 'mouse' && !helpOf(e.target)) tipHide();
+    },
+    true,
+  );
 }
 // Popup menu at a button: items — [icon, label, action, class]. Closes on an outside click and Escape.
 // A keyboard user lands on its first item, moves with the arrows, and Escape gives the focus back to the button (keyboard.ts).
