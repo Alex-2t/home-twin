@@ -351,6 +351,11 @@ export function createFlows(
     });
   });
   find($('start'), '[data-a=continue]').onclick = hideStart;
+  // your home's history, the builds by AI with it (versions-panel.ts): over your plan, as from the ⌂ menu
+  find($('start'), '[data-a=history]').onclick = () => {
+    hideStart();
+    ed.showVersions?.();
+  };
   // Plan image: from the start screen — a new plan and the wizard; from the panel — only replace the plan photo.
   let fresh = false;
   find($('start'), '[data-a=upload]').onclick = () => {

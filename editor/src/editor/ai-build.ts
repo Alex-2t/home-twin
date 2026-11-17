@@ -26,7 +26,8 @@
 import {t, N, getLang} from '../i18n/i18n.ts';
 import {el, esc, find} from './ui.ts';
 import {holdFocus} from './keyboard.ts';
-import {changedWhen} from './versions-panel.ts';
+import {changedWhen, setHistoryBuilds} from './versions-panel.ts';
+import type {HistoryBuild} from './versions-panel.ts';
 import type {HeldFocus} from './keyboard.ts';
 import {icon} from './icons.ts';
 import {idb} from './idb.ts';
@@ -705,12 +706,9 @@ function buildCardText(status: BuildStatus): BuildCardText {
   return {state: 'running', title, note};
 }
 
-// The account's other builds under the card, newest first: folded under one line until it is opened.
-const MORE_BUILDS_SHOWN = 6;
-
 /**
- * What tells one build from another on the start screen: when it was started and how many rooms it has ("Yesterday,
- * 15:42 · 8 rooms"). Three builds all saying "Your home is ready" could not be told apart (the owner, 2026-11-17).
+ * What tells one build from another: when it was started and how many rooms it has ("Yesterday, 15:42 · 8 rooms"). Three
+ * builds all saying "Your home is ready" could not be told apart (the owner, 2026-11-17).
  */
 export function buildIdentity(status: {id?: string; rooms?: unknown[]}): string {
   const startedAt = buildStartedAt(status.id);
@@ -721,7 +719,7 @@ export function buildIdentity(status: {id?: string; rooms?: unknown[]}): string 
   return parts.join(' · ');
 }
 
-/** Where a build stands, in a word or two, for its mark in a row. */
+/** Where a build stands, in a word or two. */
 function buildStateWord(status: BuildStatus, text: BuildCardText): string {
   if (status.paused === 'balance') return t('Waiting for a top-up');
   if (text.state === 'ready') return t('Ready to check');
@@ -731,10 +729,20 @@ function buildStateWord(status: BuildStatus, text: BuildCardText): string {
 }
 
 /**
- * The start screen's AI card (flows.js offerAi): "Build with AI", or — while a build this browser follows is on its way — that
- * build: the stage it is at, the time left and a bar, kept up to date while the start screen is shown. A browser that follows
- * none, signed in, is offered the account's builds instead (offeredBuilds): the newest in the card, a few more in rows under
- * it. Opens the build, or the upload for a new one.
+ * The build the start screen shows as at work on your home: the one this browser follows, else the account's newest that is
+ * not finished. The others are in "Version history" (D-133: one home and its history, not a list of homes).
+ */
+export function activeBuild<Status extends {id?: string; finished?: boolean}>(
+  offered: Status[],
+): Status | null {
+  return offered.find(build => !build.finished) || null;
+}
+
+/**
+ * The start screen's AI parts (flows.js offerAi). One home and its history (D-133): on a return, the plan in "Continue" is
+ * your home, and a build at work on it shows as a line under that card (building, waiting for a top-up, ready to check);
+ * "Build with AI" is one of the ways to start a new home, and the account's builds are in "Version history". On a first
+ * visit (no plan yet) the big card is "Build with AI", or the build on its way. Opens the build, or the upload for a new one.
  */
 export function aiStartCard(
   ed: Editor,
@@ -742,52 +750,35 @@ export function aiStartCard(
   {api = '', inHa = false}: {api?: string; inHa?: boolean} = {},
 ): void {
   const idle = card.innerHTML;
-  // Over the builds, a heading of their own: they are not the plan in "Continue" above them.
-  const heading = el(`<p class="start-label" hidden>${esc(t('Built by AI'))}</p>`);
-  const more = el(`<div class="aib-start-more" hidden>
-    <button type="button" class="aib-start-fold" aria-expanded="false"><span></span>${icon('down', 14)}</button>
-    <div class="aib-start-rows" hidden></div>
-  </div>`);
-  const fold = find<HTMLButtonElement>(more, '.aib-start-fold');
-  const rows = find(more, '.aib-start-rows');
-  // A new build while builds are shown: one of the ways to start a new home, beside "Upload a plan" and "Draw from scratch".
+  const startBox = card.parentElement as HTMLElement;
+  const startScreen = card.closest<HTMLElement>('#start');
+  // A build at work on your home, under the "Continue" card: one line, as part of that card.
+  const line = el(`<button type="button" class="aib-start-line" hidden></button>`);
+  const continueCard = startBox.querySelector<HTMLElement>('[data-a=continue]');
+  (continueCard || card).after(line);
+  // "Build with AI" among the ways to start a new home, beside "Upload a plan" and "Draw from scratch".
   const another = el(`<button class="choice glass aib-new-choice" hidden>
     <span class="ci">${icon('sparkles', 20)}</span><b>${esc(t('Build with AI'))}</b>
     <span>${esc(t('A plan photo and a video of your home.'))}</span>${icon('right')}</button>`);
-  card.before(heading);
-  card.after(more);
-  const choices = card.parentElement?.querySelector('.choices');
-  const newHomeLabel =
-    card.parentElement?.querySelector<HTMLElement>('.start-label.start-back:not([data-for])') || null;
+  const choices = startBox.querySelector('.choices');
   if (choices) choices.prepend(another);
-  else more.after(another);
-  // until a build shows, this card is the first way to start a new home
-  if (newHomeLabel) heading.before(newHomeLabel);
-  fold.onclick = () => {
-    const open = rows.hidden;
-    rows.hidden = !open;
-    fold.setAttribute('aria-expanded', String(open));
-  };
+  else card.after(another);
   let shown: BuildStatus | null = null;
   let timer: ReturnType<typeof setTimeout> | number = 0;
   // Whether the AI build has accounts here, asked once; the account's builds are offered only then.
   let accountsHere: Promise<boolean> | null = null;
-  // "Start another build" on an offered build: the offer stays away while this page is open.
-  let offerDismissed = false;
+  // The account's builds as last asked: "Version history" lists them.
+  let lastBuilds: BuildStatus[] = [];
 
   const open = (id: string | null): AiBuildScreen => openAiBuild(ed, {api, id, inHa});
+  // A return to your plan: the start screen shows it in "Continue" (flows.ts sets data-back).
+  const isReturn = (): boolean => !!startScreen?.hasAttribute('data-back');
   card.onclick = () => open(shown?.id || null);
+  line.onclick = () => open(shown?.id || null);
   another.onclick = () => {
     follow(null);
-    offerDismissed = true;
-    show(null);
-    showMore([]);
     open(null);
   };
-  rows.addEventListener('click', e => {
-    const row = targetOf(e).closest<HTMLElement>('[data-id]');
-    if (row?.dataset.id) open(row.dataset.id);
-  });
 
   const badgeOf = (status: BuildStatus, text: BuildCardText): string => {
     // The service's status names its build (status.id).
@@ -799,13 +790,8 @@ export function aiStartCard(
     return '<i class="aib-start-spin"></i>';
   };
 
-  function show(status: BuildStatus | null): void {
-    shown = status;
-    another.hidden = !status;
-    heading.hidden = !status;
-    // "Start a new home" heads the ways to start one: this card itself while it offers a build with AI, else the choices
-    // under the builds (where "Build with AI" is one of them)
-    if (newHomeLabel) (status ? choices || another : heading).before(newHomeLabel);
+  // The big card on a first visit: "Build with AI", or the build on its way.
+  function showCard(status: BuildStatus | null): void {
     card.classList.toggle('aib-following', !!status);
     if (!status) {
       if (card.dataset.state) card.innerHTML = idle;
@@ -820,7 +806,6 @@ export function aiStartCard(
       find(card, '.aib-start-badge').innerHTML = badgeOf(status, text);
     }
     find(card, 'b').textContent = text.title;
-    // a build on its way says how far it is; one that waits or ended says which it is: when, and how many rooms
     const identity = buildIdentity(status);
     find(card, '.aib-start-note').textContent = text.state === 'running' || !identity ? text.note : identity;
     const meter = find(card, '.aib-start-meter');
@@ -828,22 +813,27 @@ export function aiStartCard(
     barOf(meter).style.width = percent(status.share || 0);
   }
 
-  // The account's other builds, one compact row each.
-  function showMore(builds: BuildStatus[]): void {
-    more.hidden = !builds.length;
-    find(fold, 'span').textContent = t(
-      '{0, plural, one {# earlier build} other {# earlier builds}}',
-      builds.length,
-    );
-    rows.innerHTML = builds
-      .map(build => {
-        const text = buildCardText(build);
-        const badge = `<span class="aib-start-row-badge" data-state="${text.state}">${badgeOf(build, text)}</span>`;
-        const name = buildIdentity(build) || text.title;
-        const word = `<span class="aib-start-row-state" data-state="${text.state}">${esc(buildStateWord(build, text))}</span>`;
-        return `<button class="aib-start-row" data-id="${esc(build.id)}">${badge}<b>${esc(name)}</b>${word}${icon('right', 15)}</button>`;
-      })
-      .join('');
+  // The line under "Continue" on a return: what the build at work on your home is doing.
+  function showLine(status: BuildStatus | null): void {
+    line.hidden = !status;
+    if (!status) return;
+    const text = buildCardText(status);
+    const state = status.paused === 'balance' ? 'waiting' : text.state;
+    const identity = buildIdentity(status);
+    const detail = text.state === 'running' ? text.note : identity;
+    line.dataset.state = state;
+    line.innerHTML = `<span class="aib-start-line-ic">${text.state === 'running' ? '<i class="aib-start-spin"></i>' : icon('sparkles', 15)}</span>
+      <b>${esc(t('AI build'))}</b><span class="aib-start-line-state">${esc(buildStateWord(status, text))}</span>
+      <span class="aib-start-line-detail">${esc(detail)}</span>${icon('right', 15)}`;
+  }
+
+  function show(status: BuildStatus | null): void {
+    shown = status;
+    const back = isReturn();
+    card.hidden = back;
+    another.hidden = !back;
+    showCard(back ? null : status);
+    showLine(back ? status : null);
   }
 
   // The account's builds this browser may be offered; none without accounts (local work lists every build there).
@@ -851,27 +841,24 @@ export function aiStartCard(
     accountsHere ||= accountOffer(api)
       .then(offer => !!offer)
       .catch(() => false);
-    if (offerDismissed || !(await accountsHere)) return [];
+    if (!(await accountsHere)) return [];
     const res = await fetch(`${api}/api/builds`, {cache: 'no-store'});
     if (!res.ok) return [];
-    const builds = (await res.json()) as BuildStatus[];
-    return offeredBuilds(builds, seenBuilds());
+    lastBuilds = offeredBuilds((await res.json()) as BuildStatus[], new Set());
+    return offeredBuilds(lastBuilds, seenBuilds());
   }
 
   async function refresh(): Promise<void> {
     clearTimeout(timer);
     timer = setTimeout(refresh, START_POLL_MS);
     const id = followedBuild();
-    const onScreen = !card.closest<HTMLElement>('#start')?.hidden && !document.hidden;
+    const onScreen = !startScreen?.hidden && !document.hidden;
     if (!onScreen) return;
     try {
       if (!id) {
-        const offered = await accountBuilds();
-        show(offered[0] || null);
-        showMore(offered.slice(1, 1 + MORE_BUILDS_SHOWN));
+        show(activeBuild(await accountBuilds()));
         return;
       }
-      showMore([]);
       const res = await fetch(`${api}/api/builds/${encodeURIComponent(id)}`, {cache: 'no-store'});
       // An account's build is not shown while this browser is signed out: it stays followed, and shows again once the
       // owner signs in. Not there (or another account's): nothing to follow.
@@ -889,13 +876,42 @@ export function aiStartCard(
         return show(null);
       }
       show(status);
-    } catch {} // no connection now: the card stays as it was
+    } catch {
+      show(shown); // no connection now: the build stays as it was, in the place the screen has for it now
+    }
   }
+  show(null);
   refresh();
   // Back on the start screen (from a build's page): up to date at once.
   new IntersectionObserver(entries => {
     if (entries.some(entry => entry.isIntersecting)) refresh();
-  }).observe(card);
+  }).observe(startBox);
+
+  // "Version history" lists the account's builds beside the plan's versions: open one to check it, or to take it.
+  setHistoryBuilds({
+    async list(): Promise<HistoryBuild[]> {
+      try {
+        await accountBuilds();
+      } catch {} // no connection: the builds as last asked
+      return lastBuilds.map(build => {
+        const text = buildCardText(build);
+        const shot = build.has?.shot
+          ? `${api}/api/builds/${encodeURIComponent(build.id as string)}/shot`
+          : null;
+        return {
+          id: build.id as string,
+          state: buildStateWord(build, text),
+          when: buildIdentity(build),
+          shot,
+          ready: text.state === 'ready',
+        };
+      });
+    },
+    open: id => {
+      ed.flows?.hideStart();
+      open(id);
+    },
+  });
 }
 
 /**

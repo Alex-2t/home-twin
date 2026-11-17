@@ -1786,7 +1786,6 @@
  "The sign-in took too long. Try again.": "L'accesso ha richiesto troppo tempo. Riprova.",
  "Top up to build your home": "Ricarica per creare la tua casa",
  "You are signed in. Go back to Home Assistant.": "Hai effettuato l'accesso. Torna in Home Assistant.",
- "{0, plural, one {# earlier build} other {# earlier builds}}": "{0, plural, one {# creazione precedente} other {# creazioni precedenti}}",
  "A plan photo and a video of your home.": "Una foto della pianta e un video della tua casa.",
  "Building · {0}": "In creazione · {0}",
  "No rooms yet": "Ancora nessuna stanza",
@@ -1794,5 +1793,6 @@
  "Opened before": "Già aperta",
  "Start a new home": "Inizia una nuova casa",
  "Stopped": "Interrotta",
- "Your plan": "La tua pianta"
+ "Your plan": "La tua pianta",
+ "Open to check": "Apri e controlla"
 }

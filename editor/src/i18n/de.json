@@ -1786,7 +1786,6 @@
  "The sign-in took too long. Try again.": "Die Anmeldung hat zu lange gedauert. Versuch es erneut.",
  "Top up to build your home": "Lade auf, um dein Zuhause aufzubauen",
  "You are signed in. Go back to Home Assistant.": "Du bist angemeldet. Geh zurück zu Home Assistant.",
- "{0, plural, one {# earlier build} other {# earlier builds}}": "{0, plural, one {# frühere Erstellung} other {# frühere Erstellungen}}",
  "A plan photo and a video of your home.": "Ein Foto des Grundrisses und ein Video deines Zuhauses.",
  "Building · {0}": "Wird erstellt · {0}",
  "No rooms yet": "Noch keine Räume",
@@ -1794,5 +1793,6 @@
  "Opened before": "Schon geöffnet",
  "Start a new home": "Neues Zuhause beginnen",
  "Stopped": "Angehalten",
- "Your plan": "Dein Grundriss"
+ "Your plan": "Dein Grundriss",
+ "Open to check": "Öffnen und prüfen"
 }

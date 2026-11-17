@@ -1,7 +1,7 @@
 // The AI build's start screen (ai-build.ts): the account's builds offered on a browser that follows none.
 import {test} from 'node:test';
 import assert from 'node:assert/strict';
-import {buildIdentity, buildStartedAt, offeredBuilds} from './ai-build.ts';
+import {activeBuild, buildIdentity, buildStartedAt, offeredBuilds} from './ai-build.ts';
 
 test('a build is dated by its id; one named otherwise has no date', () => {
   const at = Date.UTC(2026, 10, 14, 9, 30);
@@ -54,4 +54,15 @@ test('a build on the start screen is told apart by when it was started and how m
   assert.ok(!identity.startsWith('Yesterday'), identity);
   assert.equal(buildIdentity({id: 'not-a-time', rooms: [{}]}), '1 room');
   assert.equal(buildIdentity({id: 'not-a-time', rooms: []}), '');
+});
+
+test('the start screen shows one build at work on your home: the newest not finished; the rest are in the history', () => {
+  const builds = [
+    {id: 'home-c', finished: true},
+    {id: 'home-b', finished: false},
+    {id: 'home-a', finished: false},
+  ];
+  assert.equal(activeBuild(builds)?.id, 'home-b');
+  assert.equal(activeBuild([{id: 'home-c', finished: true}]), null);
+  assert.equal(activeBuild([]), null);
 });

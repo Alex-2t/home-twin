@@ -1,6 +1,8 @@
 // The “Version history” window (⌂ menu): versions with thumbnails on the left, the selected one large on the right, plus “Restore this version”.
 // The first row is “Now”. Restoring is an edit: ⌘Z brings it back, and the current plan itself becomes a “Before restoring a version” version.
 // At the bottom — the “Previous plan” from the backup slot (flows.js), if there is one.
+// Under the versions, where the AI build has accounts: the account's builds (D-133: one home and its history), each with
+// its picture in 3D; "Open" takes you to it, to check it or take it.
 import {t, N, locale, clock} from '../i18n/i18n.ts';
 import {el, esc, find} from './ui.ts';
 import {holdFocus} from './keyboard.ts';
@@ -12,6 +14,32 @@ import {corners} from '../core/layout.ts';
 import type {Plan, Point} from '../core/types.ts';
 import type {CanvasPoint, Editor} from './editor-types.ts';
 import type {PlanVersion} from './versions.ts';
+
+/** A build by AI as "Version history" lists it (ai-build.ts gives them). */
+export interface HistoryBuild {
+  id: string;
+  /** Where it stands, in a word or two ("Ready to check"). */
+  state: string;
+  /** When it was started and its rooms ("Yesterday, 17:23 · 7 rooms"). */
+  when: string;
+  /** Its picture in 3D, when it has one. */
+  shot: string | null;
+  /** It waits for you to check it. */
+  ready: boolean;
+}
+
+/** Where the builds come from, and how one opens. */
+interface HistoryBuildsSource {
+  list(): Promise<HistoryBuild[]>;
+  open(id: string): void;
+}
+
+let historyBuilds: HistoryBuildsSource | null = null;
+
+/** The account's builds for "Version history" (ai-build.ts, where the AI build is offered); null: none. */
+export function setHistoryBuilds(source: HistoryBuildsSource | null): void {
+  historyBuilds = source;
+}
 
 /** A kept version in the list, with its plan read back. */
 type KeptRow = Omit<PlanVersion, 'plan'> & {now?: false; plan: Plan};
@@ -163,6 +191,9 @@ export function drawPlan(cv: HTMLCanvasElement, p: Plan, {names = false}: {names
 export function openVersions(ed: Editor): {close(): void} {
   const V = ed.versions;
   let sel = 0;
+  // the builds by AI under the versions, and the one picked (null: a version is picked)
+  let builds: HistoryBuild[] = [];
+  let pickedBuild: number | null = null;
   let box: HTMLElement | null = null;
   const rows = (): VersionRow[] => [
     {now: true, plan: ed.plan},
@@ -188,13 +219,64 @@ export function openVersions(ed: Editor): {close(): void} {
       pick(Math.max(0, Math.min(rows().length - 1, sel + (e.key === 'ArrowDown' ? 1 : -1))), true);
     }
   };
+  // The view on the right shows a plan's drawing, or a build's picture in 3D; its button restores, or opens the build.
+  function viewOf(dialog: HTMLElement, build: boolean): void {
+    find(dialog, '.ver-big').hidden = build;
+    find(dialog, '.ver-shot-big').hidden = !build;
+    find(dialog, '[data-act=restore]').hidden = build;
+    find(dialog, '[data-act=open-build]').hidden = !build;
+  }
+  function pickBuild(j: number): void {
+    const dialog = box!;
+    pickedBuild = j;
+    const build = builds[j];
+    dialog.querySelectorAll<HTMLElement>('.ver-row').forEach(b => {
+      const on = b.dataset.b === String(j);
+      b.classList.toggle('on', on);
+      b.setAttribute('aria-selected', String(on));
+    });
+    viewOf(dialog, true);
+    const big = find(dialog, '.ver-shot-big');
+    big.innerHTML = build.shot ? `<img src="${esc(build.shot)}" alt="">` : icon('sparkles', 28);
+    find(dialog, '.ver-view b').textContent = `${t('Built by AI')} · ${build.state}`;
+    find(dialog, '.ver-view small').textContent = build.when;
+    find(dialog, '[data-act=open-build] span').textContent = build.ready
+      ? t('Open to check')
+      : t('Open|verb');
+  }
+  function renderBuilds(): void {
+    if (!box) return;
+    const place = find(box, '.ver-builds');
+    place.innerHTML = builds.length
+      ? `<p class="ver-section">${esc(t('Built by AI'))}</p>` +
+        builds
+          .map(
+            (build, j) =>
+              `<button class="ver-row ver-ai" role="option" data-b="${j}"><span class="ver-thumb ver-shot">${build.shot ? `<img src="${esc(build.shot)}" alt="">` : icon('sparkles', 18)}</span><span><b>${esc(build.state)}</b><small>${esc(build.when)}</small></span></button>`,
+          )
+          .join('')
+      : '';
+    place.querySelectorAll<HTMLElement>('.ver-row').forEach(b => {
+      const j = Number(b.dataset.b);
+      b.onclick = () => pickBuild(j);
+      b.ondblclick = () => openBuild(j);
+    });
+  }
+  function openBuild(j: number): void {
+    const build = builds[j];
+    if (!build || !historyBuilds) return;
+    close();
+    historyBuilds.open(build.id);
+  }
   function pick(i: number, focus = false): void {
     sel = i;
+    pickedBuild = null;
     const R = rows();
     const r = R[i];
     // pick runs only while the window is open
     const dialog = box!;
-    dialog.querySelectorAll<HTMLElement>('.ver-row').forEach((b, j) => {
+    viewOf(dialog, false);
+    dialog.querySelectorAll<HTMLElement>('.ver-row:not(.ver-ai)').forEach((b, j) => {
       b.classList.toggle('on', j === i);
       b.setAttribute('aria-selected', String(j === i));
       // the list is one Tab stop, the selected version; the arrows move in it (key)
@@ -226,7 +308,16 @@ export function openVersions(ed: Editor): {close(): void} {
       (R.length < 2
         ? `<p class="ver-empty">${esc(t('No versions yet. They appear on their own: after wizard steps, before big changes and every few edits.'))}</p>`
         : '');
-    list.querySelectorAll<HTMLElement>('.ver-row').forEach((b, i) => {
+    list.insertAdjacentHTML('beforeend', '<div class="ver-builds"></div>');
+    renderBuilds();
+    historyBuilds
+      ?.list()
+      .then(list => {
+        builds = list;
+        renderBuilds();
+      })
+      .catch(() => {});
+    list.querySelectorAll<HTMLElement>('.ver-row:not(.ver-ai)').forEach((b, i) => {
       drawPlan(find<HTMLCanvasElement>(b, 'canvas'), R[i].plan);
       b.onclick = () => pick(i);
       b.ondblclick = () => {
@@ -257,13 +348,17 @@ export function openVersions(ed: Editor): {close(): void} {
     el(`<div class="keys ver" role="dialog" aria-modal="true" aria-label="${esc(t('Version history'))}"><div class="keys-box glass ver-box">
     <div class="keys-head"><b>${esc(t('Version history'))}</b><button class="ib" data-close title="${esc(t('Close'))}">${icon('x')}</button></div>
     <div class="ver-body"><div class="ver-list" role="listbox" aria-label="${esc(t('Versions'))}"></div>
-      <div class="ver-view"><canvas class="ver-big"></canvas><div class="ver-meta"><b></b><small></small></div>
-        <button class="primary" data-act="restore">${icon('undo', 15)}${esc(t('Restore this version'))}</button></div></div>
+      <div class="ver-view"><canvas class="ver-big"></canvas><div class="ver-shot-big" hidden></div><div class="ver-meta"><b></b><small></small></div>
+        <button class="primary" data-act="restore">${icon('undo', 15)}${esc(t('Restore this version'))}</button>
+        <button class="primary" data-act="open-build" hidden>${icon('right', 15)}<span></span></button></div></div>
     <div class="ver-prev" hidden><span>${esc(t('Previous plan — from before a new plan on the start screen or from a file.'))}</span><button class="soft" data-act="prev">${esc(t('Restore previous plan'))}</button></div>
   </div></div>`);
   box.onclick = e => {
     // a click inside the window: its target is an element
     if (e.target === box || (e.target as Element).closest('[data-close]')) close();
+  };
+  find(box, '[data-act=open-build]').onclick = () => {
+    if (pickedBuild !== null) openBuild(pickedBuild);
   };
   find(box, '[data-act=restore]').onclick = () => {
     const r = rows()[sel];

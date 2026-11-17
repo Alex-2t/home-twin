@@ -629,6 +629,10 @@ body[data-look=on] :is(#side,#dock,#banner:not(.in-look),#pill,#topr,#pip-show,#
 .ver-meta{display:flex;flex-direction:column;gap:2px}.ver-meta b{font-size:14px}.ver-meta small{color:var(--mut);font-size:12px}
 .ver-view [data-act=restore]{align-self:flex-start;height:34px;padding:0 14px;gap:6px}
 .ver-empty{color:var(--mut);font-size:12px;line-height:1.45;margin:8px}
+.ver-section{margin:12px 8px 4px;color:var(--sub);font-size:11px;font-weight:600;letter-spacing:.07em;text-transform:uppercase}
+.ver-shot{display:grid;place-items:center;overflow:hidden;color:var(--acc)}.ver-shot img{width:100%;height:100%;object-fit:cover}
+.ver-shot-big{flex:1;min-height:240px;border-radius:12px;background:var(--cv);display:grid;place-items:center;overflow:hidden;color:var(--acc)}.ver-shot-big img{width:100%;height:100%;object-fit:contain}
+.ver-view [data-act=open-build]{align-self:flex-start;height:34px;padding:0 14px;gap:6px}
 .ver-prev{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-top:12px;padding-top:12px;border-top:1px solid var(--line);color:var(--mut);font-size:12px}
 .ver-prev[hidden]{display:none}.ver-prev button{height:30px;padding:0 12px;flex:none}
 @media (max-width:640px){.ver-body{grid-template-columns:1fr}.ver-view{order:-1}.ver-big{min-height:180px}.ver-list{max-height:34vh}.ver-prev{flex-direction:column;align-items:stretch}}
@@ -649,25 +653,20 @@ body[data-look=on] :is(#side,#dock,#banner:not(.in-look),#pill,#topr,#pip-show,#
 .aib-start-spin{width:18px;height:18px;border-radius:50%;border:2.5px solid rgba(255,255,255,.95);border-right-color:transparent;animation:aib-spin .8s linear infinite}
 .aib-start-meter{grid-column:2;display:block;height:4px;margin-top:8px;border-radius:2px;background:var(--chip);overflow:hidden}
 .aib-start-meter>i{display:block;height:100%;width:0;border-radius:2px;background:linear-gradient(90deg,#6366f1,#a855f7);transition:width .6s ease-out}
-/* a new build while one is followed: a button of its own under the card, as wide as it, never read as the heading of the cards below */
-/* the account's other builds, offered under the card on a browser that follows none (D-088): one compact row each */
-.aib-start-more{display:flex;flex-direction:column;gap:4px;margin:0 0 8px}.aib-start-more[hidden]{display:none}
-.aib-start-row{display:grid;grid-template-columns:auto minmax(0,1fr) auto auto;align-items:center;gap:10px;width:100%;height:44px;padding:0 12px 0 8px;border-radius:12px;background:var(--panel);border:1px solid var(--line);text-align:left}
-.aib-start-row:hover{border-color:var(--acc);background:var(--panel-solid)}.aib-start-row b{font-size:13.5px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.aib-start-row span:not(.aib-start-row-badge){color:var(--mut);font-size:12.5px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.aib-start-row>.ic{color:var(--acc)}
-.aib-start-row-badge{width:28px;height:28px;border-radius:8px;display:grid;place-items:center;overflow:hidden;color:#fff;background:linear-gradient(135deg,#6366f1,#a855f7 55%,#f59e0b)}
-.aib-start-row-badge img{width:100%;height:100%;object-fit:cover}.aib-start-row-badge .aib-start-spin{width:13px;height:13px;border-width:2px}
-/* the start screen in parts on a return (D-133 follow-up): your plan, the builds by AI, then the ways to start a new home */
+/* the start screen on a return (D-133): your plan, a build at work on it as a line under its card, the ways to start a new home */
 .start-label{width:100%;margin:12px 2px 8px;color:var(--sub);font-size:11.5px;font-weight:600;letter-spacing:.07em;text-transform:uppercase;text-align:left}
-.start .start-label.start-back{display:none}.start[data-back] .start-label.start-back{display:block}.start-label[hidden]{display:none!important}
-.aib-start-fold{display:inline-flex;align-items:center;gap:6px;height:30px;padding:0 10px;border-radius:9px;color:var(--mut);font-size:13px;font-weight:500;align-self:flex-start}
-.aib-start-fold:hover{color:var(--tx);background:var(--hov)}.aib-start-fold>.ic{transition:transform .15s}.aib-start-fold[aria-expanded=true]>.ic{transform:rotate(180deg)}
-.aib-start-rows{display:flex;flex-direction:column;gap:4px}
-.aib-start-row span.aib-start-row-state{justify-self:end;padding:2px 8px;border-radius:999px;background:var(--chip);color:var(--mut);font-size:11.5px;font-weight:500;white-space:nowrap}
-.aib-start-row span.aib-start-row-state[data-state=ready]{background:var(--acc2);color:var(--acc)}
+.start .start-label.start-back{display:none}.start[data-back] .start-label.start-back{display:block}
+.aib-start-line{display:grid;grid-template-columns:auto auto auto minmax(0,1fr) auto;align-items:center;gap:10px;width:100%;height:44px;margin:-6px 0 12px;padding:0 14px 0 12px;border-radius:12px;background:var(--panel);border:1px solid var(--line);text-align:left;font-weight:400}
+.aib-start-line:hover{border-color:var(--acc);background:var(--panel-solid)}.aib-start-line b{font-size:13px;font-weight:600}
+.aib-start-line-ic{width:24px;height:24px;border-radius:7px;display:grid;place-items:center;color:#fff;background:linear-gradient(135deg,#6366f1,#a855f7 55%,#f59e0b)}.aib-start-line-ic .aib-start-spin{width:12px;height:12px;border-width:2px}
+.aib-start-line-state{padding:2px 8px;border-radius:999px;background:var(--chip);color:var(--mut);font-size:11.5px;font-weight:500;white-space:nowrap}
+.aib-start-line[data-state=ready] .aib-start-line-state{background:var(--acc2);color:var(--acc)}.aib-start-line[data-state=waiting] .aib-start-line-state,.aib-start-line[data-state=stopped] .aib-start-line-state{background:var(--warn-bg);color:var(--warn)}
+.aib-start-line-detail{color:var(--mut);font-size:12.5px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.aib-start-line>.ic{color:var(--acc)}
 .choices:has(>.aib-new-choice:not([hidden])){grid-template-columns:repeat(3,minmax(0,1fr))}
 .choices .aib-new-choice .ci{color:#fff;background:linear-gradient(135deg,#6366f1,#a855f7 55%,#f59e0b)}
-@media (max-width:640px){.choices:has(>.aib-new-choice:not([hidden])){grid-template-columns:1fr}}
+.start-history{display:inline-flex;align-items:center;gap:6px;height:32px;margin-top:10px;padding:0 10px;border-radius:9px;color:var(--mut);font-size:13px;font-weight:500}.start-history:hover{color:var(--tx);background:var(--hov)}
+.start .start-history.start-back{display:none}.start[data-back] .start-history.start-back{display:inline-flex}
+@media (max-width:640px){.choices:has(>.aib-new-choice:not([hidden])){grid-template-columns:1fr}.aib-start-line{grid-template-columns:auto auto minmax(0,1fr) auto}.aib-start-line-detail{display:none}}
 body[data-bare] :is(#side,#dock,#banner,#pill,#topr,#pip-show,#divider,#brand,#modes,#ctx,.spot,.dev,.pane .view-tools,.pane-tag,.pane-empty,.pip-grip,.pip-cover){display:none!important}
 body[data-bare] .pane.main{left:0!important;right:0!important}
 body.aib-pinning :is(#pane-plan,#pane-3d) canvas{cursor:crosshair!important}

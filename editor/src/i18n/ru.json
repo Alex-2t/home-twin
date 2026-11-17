@@ -1786,7 +1786,6 @@
  "The sign-in took too long. Try again.": "Вход занял слишком много времени. Попробуйте ещё раз.",
  "Top up to build your home": "Пополните, чтобы собрать дом",
  "You are signed in. Go back to Home Assistant.": "Вы вошли. Вернитесь в Home Assistant.",
- "{0, plural, one {# earlier build} other {# earlier builds}}": "{0, plural, one {Ещё # сборка} few {Ещё # сборки} many {Ещё # сборок} other {Ещё # сборки}}",
  "A plan photo and a video of your home.": "Фото плана и видео вашего дома.",
  "Building · {0}": "Собирается · {0}",
  "No rooms yet": "Пока без комнат",
@@ -1794,5 +1793,6 @@
  "Opened before": "Уже открывали",
  "Start a new home": "Начать новый дом",
  "Stopped": "Остановилась",
- "Your plan": "Ваш план"
+ "Your plan": "Ваш план",
+ "Open to check": "Открыть и проверить"
 }
