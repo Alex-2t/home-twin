@@ -1347,6 +1347,8 @@ export function openAiBuild(ed: Editor, options: AiBuildOptions = {}): AiBuildSc
     const want = uploadGate();
     files.hidden = want !== null;
     gate.hidden = want === null || want === 'wait';
+    // asked first, the page is one card under the title: all of it centred, not a narrow card on the left of the column
+    gate.closest('.aib-upload')?.classList.toggle('aib-gated', want === 'sign-in' || want === 'package');
     // the package's card is drawn on every change (its line: a payment on its way, one that did not go through)
     if (want === 'package' && account) {
       const balance = account.balance;

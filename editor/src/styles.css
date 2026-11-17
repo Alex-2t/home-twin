@@ -717,6 +717,7 @@ a.aib-link{color:var(--acc);font-size:12.5px;font-weight:500;text-decoration:non
 .aib-sign-wait{display:flex;align-items:center;gap:10px;padding:12px 14px;border-radius:11px;background:var(--chip);font-size:13.5px;line-height:1.4}
 /* the upload page asks to sign in, then for a package, before the files (D-133): a card in the page */
 .aib-gate{margin-top:4px}.aib-gate>.aib-card{max-width:560px}
+.aib-upload.aib-gated{text-align:center}.aib-gated .aib-lead{margin-inline:auto}.aib-gated .aib-gate{display:flex;justify-content:center;text-align:left}.aib-gated .aib-gate>.aib-card{width:100%}
 .aib-sign.aib-sign-inline{width:min(400px,100%);box-shadow:var(--sh);animation:none}
 /* the pages of a plan PDF to pick the plan from (plan-pages.ts, D-131): a grid, the picked page larger beside it */
 .aib-pages{width:min(880px,100%);max-height:min(720px,calc(100vh - 32px));display:flex;flex-direction:column;gap:10px;padding:16px 18px;border-radius:18px;background:var(--panel-solid);border:1px solid var(--line);box-shadow:var(--sh-lg);animation:aib-pop .25s ease-out}
