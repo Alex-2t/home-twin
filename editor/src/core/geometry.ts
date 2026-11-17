@@ -43,6 +43,33 @@ const unionAll = (shapes: Array<ClipPolygon | MultiPolygon>): MultiPolygon =>
 
 // ---------- small math ----------
 export const dist2 = (a: Point, b: Point): number => (a[0] - b[0]) ** 2 + (a[1] - b[1]) ** 2;
+
+/**
+ * The direction most of an outline's walls run along, as a unit vector (its perpendicular is the other main direction).
+ * Sides are grouped by their angle modulo 90°, to the degree, and the group with the most wall length wins: a bay's or a cut
+ * corner's short slanted sides never outweigh the long straight walls of an ordinary room.
+ */
+export function mainWallDirection(outline: Outline): Vector {
+  const lengthByDegree = new Map<number, number>();
+  outline.forEach((a, index) => {
+    const b = outline[(index + 1) % outline.length];
+    const sideLength = Math.hypot(b[0] - a[0], b[1] - a[1]);
+    if (sideLength < 1e-6) return;
+    const degrees = (Math.atan2(b[1] - a[1], b[0] - a[0]) * 180) / Math.PI;
+    const degreeModulo90 = Math.round(((degrees % 90) + 90) % 90) % 90;
+    lengthByDegree.set(degreeModulo90, (lengthByDegree.get(degreeModulo90) ?? 0) + sideLength);
+  });
+  let bestDegree = 0;
+  let bestLength = -1;
+  for (const [degree, totalLength] of lengthByDegree) {
+    if (totalLength > bestLength) {
+      bestDegree = degree;
+      bestLength = totalLength;
+    }
+  }
+  const radians = (bestDegree * Math.PI) / 180;
+  return [Math.cos(radians), Math.sin(radians)];
+}
 // The distance from p to the segment a–b, and where along it the nearest point is (0 at a, 1 at b).
 export function segDist(p: Point, a: Point, b: Point): [number, number] {
   const dx = b[0] - a[0];

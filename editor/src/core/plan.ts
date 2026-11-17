@@ -931,7 +931,8 @@ export function splitPolygon(
     const k = P.findIndex(q => same(q, p));
     if (k >= 0) return;
     for (let i = 0; i < P.length; i++) {
-      if (segDist(p, P[i], P[(i + 1) % P.length])[0] < 1e-5) {
+      // the same 0.1 mm as same(): cutChord rounds the ends to 0.1 mm, so an end on a slanted wall lies up to 0.07 mm off it
+      if (segDist(p, P[i], P[(i + 1) % P.length])[0] < 1e-4) {
         const cut = fractionAlong(p, P[i], P[(i + 1) % P.length]);
         P.splice(i + 1, 0, p);
         W?.splice(i + 1, 0, W[i] ?? null);

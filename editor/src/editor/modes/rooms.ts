@@ -2,7 +2,16 @@
 // Wall: a click opens the menu (length, add a corner, remove the wall); a separate wall's thickness — only if enabled in the settings.
 import {t} from '../../i18n/i18n.ts';
 import {axisCursor} from '../drag-gesture.ts';
-import {area, dist2, segDist, pointIn, offsetVar, WALL, RAIL} from '../../core/geometry.ts';
+import {
+  area,
+  dist2,
+  segDist,
+  pointIn,
+  offsetVar,
+  mainWallDirection,
+  WALL,
+  RAIL,
+} from '../../core/geometry.ts';
 import {floorColor} from '../../core/scene.ts';
 import {
   hasWallPieces,
@@ -859,8 +868,6 @@ export function roomsMode(ed: Editor): RoomsMode {
       (nearest.b[1] - nearest.a[1]) / len(nearest.a, nearest.b),
     ];
     const nn: Vector = [-u[1], u[0]];
-    const along = (q: Vector): number => Math.abs(q[0] * u[0] + q[1] * u[1]);
-    const across = (q: Vector): number => Math.abs(q[0] * nn[0] + q[1] * nn[1]);
     // In a narrow room NEAR from both long walls would cover the whole room and the line could never turn across it,
     // so the band at a wall is at most a fifth of the room's depth across that wall.
     const depthOffWall = ((): number => {
@@ -868,7 +875,14 @@ export function roomsMode(ed: Editor): RoomsMode {
       return Math.max(...offsets) - Math.min(...offsets);
     })();
     const nearPx = Math.min(NEAR, (depthOffWall * v().sc) / 5);
-    if (nearest.d * v().sc < nearPx) {
+    const atWall = nearest.d * v().sc < nearPx;
+    // Right at a wall the line follows that wall, even a short slanted one. Away from it the line runs along or across the
+    // room's main walls: a bay's slanted side being the nearest one used to tilt the line across the whole living room.
+    const reference: Vector = atWall ? u : mainWallDirection(r.polygon);
+    const referenceNormal: Vector = [-reference[1], reference[0]];
+    const along = (q: Vector): number => Math.abs(q[0] * reference[0] + q[1] * reference[1]);
+    const across = (q: Vector): number => Math.abs(q[0] * referenceNormal[0] + q[1] * referenceNormal[1]);
+    if (atWall) {
       cutDir = u;
       cutLock = false;
       mv = [0, 0];
@@ -877,15 +891,14 @@ export function roomsMode(ed: Editor): RoomsMode {
       const m = Math.hypot(...mv);
       // movement along the reference wall → the line across it; across → the line along it (following the pointer)
       if (m > 6) {
-        if (along(mv) > 1.8 * across(mv)) cutDir = nn;
-        else if (across(mv) > 1.8 * along(mv)) cutDir = u;
+        if (along(mv) > 1.8 * across(mv)) cutDir = referenceNormal;
+        else if (across(mv) > 1.8 * along(mv)) cutDir = reference;
       }
-      if (!cutDir) cutDir = u;
+      if (!cutDir) cutDir = reference;
     }
-    // hold the direction out of the two possible for this room (along the nearest wall or across); set above, or locked by Tab
+    // hold the direction out of the two possible here (along the reference walls or across); set above, or locked by Tab
     const held = cutDir!;
-    const dir =
-      Math.abs(held[0] * u[0] + held[1] * u[1]) >= Math.abs(held[0] * nn[0] + held[1] * nn[1]) ? u : nn;
+    const dir = along(held) >= across(held) ? reference : referenceNormal;
     cutDir = dir;
     const n = [-dir[1], dir[0]];
     let c: Point = [...p];
