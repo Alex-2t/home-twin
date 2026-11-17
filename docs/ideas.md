@@ -1,6 +1,6 @@
 # Ideas
 
-Reviewed 2026-11-07. This file keeps proposals and already implemented ideas with links to decisions. The current development queue is in [status.md](status.md); an idea being recorded does not mean it has been included in the nearest release.
+Reviewed 2026-11-07. This file keeps proposals and already implemented ideas with links to decisions. The current development queue is in [status.md](status.md); an idea being recorded does not mean it has been included in the nearest release. Large directions for the articles' public roadmap are collected in [roadmap.md](roadmap.md).
 
 ## A plan PDF of many pages: what D-131 left for later (2026-11-16)
 
