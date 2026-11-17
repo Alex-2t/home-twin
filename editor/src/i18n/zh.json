@@ -1683,7 +1683,7 @@
  "Upload again": "重新上传",
  "Too many codes asked. Wait an hour, then send a new one.": "请求的验证码太多。请等一小时后再发送新的验证码。",
  "Welcome back": "欢迎回来",
- "Pick up where you left off, or start another home.": "从上次停下的地方继续，或开始一个新家。",
+ "Pick up where you left off, or start over.": "从上次离开的地方继续，或重新开始。",
  "About 15 min": "约 15 分钟",
  "Drag to move. Double-click: back in place": "拖动可移动。双击：放回原位",
  "No versions yet. They appear on their own: after wizard steps, before big changes and every few edits.": "还没有版本。它们会自动出现：在向导步骤之后、重大更改之前，以及每隔几次编辑。",
@@ -1791,9 +1791,10 @@
  "No rooms yet": "还没有房间",
  "On your dashboard": "在你的仪表盘上",
  "Opened before": "已打开过",
- "Start a new home": "开始一个新家",
  "Stopped": "已停止",
  "Your plan": "你的平面图",
  "Open to check": "打开并检查",
- "Hide. It stays in Version history.": "隐藏。它会保留在版本历史中。"
+ "Hide. It stays in Version history.": "隐藏。它会保留在版本历史中。",
+ "Start over": "重新开始",
+ "Your plan stays in Version history.": "你的平面图会保留在版本历史中。"
 }

@@ -105,17 +105,19 @@
     <h1 class="start-new">Let's draw your home</h1>
     <h1 class="start-back">Welcome back</h1>
     <p class="start-new">Rooms, furniture and your lights — step by step in 3D.</p>
-    <p class="start-back">Pick up where you left off, or start another home.</p>
+    <p class="start-back">Pick up where you left off, or start over.</p>
     <!-- your plan: its picture, name and facts (flows.ts fills them); the one main choice when it is there -->
     <p class="start-label start-back" data-for="plan">Your plan</p>
     <button class="choice continue glass" data-a="continue"><span class="cont-pic"><canvas></canvas></span><b class="cont-name">My home</b><span class="cont-facts"></span><span class="cont-go">Continue<i data-ic="right" data-s="16"></i></span></button>
+    <!-- your home's history, under its card: the plan's versions and the builds by AI (versions-panel.ts) -->
+    <div class="start-under start-back"><button type="button" class="start-history" data-a="history"><i data-ic="clock" data-s="14"></i>Version history<i data-ic="right" data-s="14"></i></button></div>
     <button class="choice magic glass" data-a="ai" hidden><span class="ci"><i data-ic="sparkles" data-s="20"></i></span><b>Build with AI<small class="magic-time"><i data-ic="clock" data-s="12"></i>About 15 min</small></b><span>A plan photo and a video of your home: rooms and furniture in 3D, ready to check.</span><i data-ic="right"></i></button>
-    <p class="start-label start-back">Start a new home</p>
+    <!-- on a return, each choice starts your home over: the plan open now stays in its history -->
+    <p class="start-label start-back">Start over<span class="start-label-note">Your plan stays in Version history.</span></p>
     <div class="choices">
       <button class="choice glass" data-a="upload"><span class="ci"><i data-ic="image" data-s="20"></i></span><b>Upload a plan</b><span>A photo or scan — trace rooms over it.</span><i data-ic="right"></i></button>
       <button class="choice glass" data-a="scratch"><span class="ci"><i data-ic="pen" data-s="20"></i></span><b>Draw from scratch</b><span>A rectangle you split into rooms.</span><i data-ic="right"></i></button>
     </div>
-    <button type="button" class="start-history start-back" data-a="history"><i data-ic="clock" data-s="14"></i>Version history<i data-ic="right" data-s="14"></i></button>
     <div class="examples" hidden>
       <div class="ex-head"><span class="ex-title">Or open an example</span><button type="button" class="ex-all">All examples<i data-ic="right" data-s="14"></i></button></div>
       <div class="ex-list ex-featured"></div>

@@ -1683,7 +1683,7 @@
  "Upload again": "Prześlij ponownie",
  "Too many codes asked. Wait an hour, then send a new one.": "Poproszono o zbyt wiele kodów. Odczekaj godzinę i wyślij nowy.",
  "Welcome back": "Witaj ponownie",
- "Pick up where you left off, or start another home.": "Kontynuuj tam, gdzie skończyłeś, albo zacznij nowy dom.",
+ "Pick up where you left off, or start over.": "Kontynuuj od miejsca, w którym skończyłeś, lub zacznij od nowa.",
  "About 15 min": "Ok. 15 min",
  "Drag to move. Double-click: back in place": "Przeciągnij, aby przesunąć. Dwuklik: z powrotem na miejsce",
  "No versions yet. They appear on their own: after wizard steps, before big changes and every few edits.": "Brak wersji. Pojawiają się same: po krokach kreatora, przed dużymi zmianami i co kilka edycji.",
@@ -1791,9 +1791,10 @@
  "No rooms yet": "Jeszcze bez pokoi",
  "On your dashboard": "Na twoim pulpicie",
  "Opened before": "Już otwierana",
- "Start a new home": "Zacznij nowy dom",
  "Stopped": "Zatrzymana",
  "Your plan": "Twój plan",
  "Open to check": "Otwórz i sprawdź",
- "Hide. It stays in Version history.": "Ukryj. Zostanie w historii wersji."
+ "Hide. It stays in Version history.": "Ukryj. Zostanie w historii wersji.",
+ "Start over": "Zacznij od nowa",
+ "Your plan stays in Version history.": "Twój plan zostanie w historii wersji."
 }

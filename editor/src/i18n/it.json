@@ -1683,7 +1683,7 @@
  "Upload again": "Carica di nuovo",
  "Too many codes asked. Wait an hour, then send a new one.": "Troppi codici richiesti. Aspetta un'ora, poi inviane uno nuovo.",
  "Welcome back": "Bentornato",
- "Pick up where you left off, or start another home.": "Riprendi da dove avevi lasciato o inizia un'altra casa.",
+ "Pick up where you left off, or start over.": "Riprendi da dove avevi lasciato o ricomincia.",
  "About 15 min": "Circa 15 min",
  "Drag to move. Double-click: back in place": "Trascina per spostare. Doppio clic: torna al suo posto",
  "No versions yet. They appear on their own: after wizard steps, before big changes and every few edits.": "Ancora nessuna versione. Compaiono da sole: dopo i passaggi della procedura guidata, prima delle modifiche importanti e ogni poche modifiche.",
@@ -1791,9 +1791,10 @@
  "No rooms yet": "Ancora nessuna stanza",
  "On your dashboard": "Sulla tua dashboard",
  "Opened before": "Già aperta",
- "Start a new home": "Inizia una nuova casa",
  "Stopped": "Interrotta",
  "Your plan": "La tua pianta",
  "Open to check": "Apri e controlla",
- "Hide. It stays in Version history.": "Nascondi. Resta nella cronologia delle versioni."
+ "Hide. It stays in Version history.": "Nascondi. Resta nella cronologia delle versioni.",
+ "Start over": "Ricomincia",
+ "Your plan stays in Version history.": "La tua pianta resta nella cronologia delle versioni."
 }
