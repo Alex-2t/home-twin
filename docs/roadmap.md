@@ -1,6 +1,6 @@
 # Roadmap
 
-Started 2026-11-17. A public roadmap for the articles about Home Twin: what comes after the first release, written so a reader understands it without the decision journal. It collects candidates as they come up; the order and the wording are settled when an article goes out. The working queue stays in [status.md](status.md), smaller proposals in [ideas.md](ideas.md).
+Started 2026-11-17. A public roadmap for the articles about Home Twin: what comes after the first release, written so a reader understands it without the decision journal. It collects candidates as they come up; the order and the wording are settled when an article goes out.
 
 An item here is a direction, not a promise or a date.
 
