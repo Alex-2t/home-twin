@@ -1,8 +1,10 @@
 // The AI build's account on screen (D-088): the sign-in, the account in the pages' headers (who is signed in, the balance,
 // buying more, signing out), and the card of a build that waits for money or for the payments service. The calls to the
 // service are in ai-account.ts.
-//   The sign-in is a sheet over the AI build's page: Google and GitHub where the service offers them, else (and besides) a
-//   6-digit code by email. A provider's sign-in leaves the page and comes back to the same address; the code keeps the page.
+//   The sign-in is a sheet over the AI build's page, or a card in it (the upload page asks for it first, D-133): Google and
+//   GitHub where the service offers them, else (and besides) a 6-digit code by email. A provider's sign-in leaves the page
+//   and comes back to the same address; the code keeps the page. In Home Assistant's panel the page never leaves: a provider's
+//   sign-in runs in a tab of its own and the panel waits for it (D-133, askSignInLink).
 import {t, N} from '../i18n/i18n.ts';
 import {el, esc, find} from './ui.ts';
 import {holdFocus} from './keyboard.ts';
@@ -12,6 +14,9 @@ import {
   balanceMeter,
   buyButtonInner,
   emptyBalanceText,
+  askSignInLink,
+  linkSignInUrl,
+  newLinkToken,
   providerSignInUrl,
   refusalText,
   sendSignInCode,
@@ -35,6 +40,13 @@ export interface SignInOptions {
   beforeLeave?: () => Promise<void>;
   onSignedIn: (account: Account) => void;
   onClose?: () => void;
+  /**
+   * Home Assistant's panel (D-133): a provider's sign-in opens a tab on the service's site (this address) and the panel waits
+   * for it; the account's session goes to the integration. null: the page itself goes to the provider.
+   */
+  linkSite?: string | null;
+  /** A card in the page instead of a sheet over it: no veil, nothing to close (the upload page before anything else). */
+  inline?: boolean;
 }
 
 /** An open sign-in sheet. */
@@ -66,6 +78,9 @@ export interface AccountBar {
 
 /** A code is this many digits. */
 const CODE_DIGITS = 6;
+/** How often the panel asks whether the tab's sign-in is through, and how long it waits for it (the service's link lives 15 min). */
+const LINK_ASK_MS = 2000;
+const LINK_WAIT_MS = 15 * 60 * 1000;
 
 const TITLES: Record<SignInReason, string> = {
   build: N('Sign in to build'),
@@ -97,6 +112,7 @@ const targetOf = (e: Event): Element => e.target as Element;
 /** The sign-in sheet over host (the AI build's page). */
 export function openSignIn(host: HTMLElement, options: SignInOptions): SignInSheet {
   const {api, offer, reason, notice = null, returnPath, beforeLeave, onSignedIn, onClose} = options;
+  const {linkSite = null, inline = false} = options;
   const providers = offer.signIn.filter(isProviderWay);
   const providerButtons = providers
     .map(
@@ -105,11 +121,15 @@ export function openSignIn(host: HTMLElement, options: SignInOptions): SignInShe
     )
     .join('');
   const orLine = providers.length ? `<div class="aib-sign-or"><span>${esc(t('or'))}</span></div>` : '';
-  const veil = el(`<div class="aib-veil">
-    <section class="aib-sign" role="dialog" aria-modal="true" aria-labelledby="aib-sign-title">
+  const closeButton = inline
+    ? ''
+    : `<button type="button" class="ib" data-act="close" title="${esc(t('Close'))}">${icon('x', 16)}</button>`;
+  const dialog = inline ? '' : 'role="dialog" aria-modal="true" aria-labelledby="aib-sign-title"';
+  const sheet = el(`
+    <section class="aib-sign${inline ? ' aib-sign-inline' : ''}" ${dialog}>
       <header>
         <b id="aib-sign-title">${esc(t(TITLES[reason]))}</b>
-        <button type="button" class="ib" data-act="close" title="${esc(t('Close'))}">${icon('x', 16)}</button>
+        ${closeButton}
       </header>
       <p class="aib-sign-lead">${esc(t('Your package stays with your account, on any device.'))}</p>
       ${providerButtons}
@@ -122,27 +142,41 @@ export function openSignIn(host: HTMLElement, options: SignInOptions): SignInShe
         <input type="text" name="code" autocomplete="one-time-code" inputmode="numeric" maxlength="${CODE_DIGITS}" placeholder="${'0'.repeat(CODE_DIGITS)}" aria-label="${esc(t('Code from the email'))}">
         <button class="primary" type="submit">${esc(t('Sign in'))}</button>
       </form>
+      <div class="aib-sign-wait" role="status" hidden>
+        <i class="spin"></i><span>${esc(t('Sign in in the new tab. This page waits for you.'))}</span>
+      </div>
       <small class="aib-sign-note"></small>
-      <p class="aib-sign-links" hidden>
+      <p class="aib-sign-links" data-for="code" hidden>
         <button type="button" class="aib-link" data-act="again">${esc(t('Send again'))}</button>
         <button type="button" class="aib-link" data-act="change">${esc(t('Change email'))}</button>
       </p>
+      <p class="aib-sign-links" data-for="tab" hidden>
+        <a class="aib-link" data-act="reopen" target="_blank" rel="noopener">${esc(t('Open it again'))}</a>
+        <button type="button" class="aib-link" data-act="change">${esc(t('Another way'))}</button>
+      </p>
       <small class="aib-sign-err" role="alert" hidden></small>
-    </section>
-  </div>`);
+    </section>`);
+  const veil = inline ? sheet : el(`<div class="aib-veil"></div>`);
+  if (!inline) veil.append(sheet);
   host.append(veil);
   // the page under the sheet sleeps for the keyboard while it is open (keyboard.ts); its own Escape closes it (onKey)
-  const held = holdFocus(veil);
+  const held = inline ? null : holdFocus(veil);
   const emailForm = find<HTMLFormElement>(veil, '[data-step=email]');
   const codeForm = find<HTMLFormElement>(veil, '[data-step=code]');
   const emailInput = find<HTMLInputElement>(emailForm, 'input');
   const codeInput = find<HTMLInputElement>(codeForm, 'input');
   const note = find(veil, '.aib-sign-note');
-  const links = find(veil, '.aib-sign-links');
+  const codeLinks = find(veil, '.aib-sign-links[data-for=code]');
+  const tabLinks = find(veil, '.aib-sign-links[data-for=tab]');
+  const reopen = find<HTMLAnchorElement>(tabLinks, 'a');
+  const waitLine = find(veil, '.aib-sign-wait');
   const errorLine = find(veil, '.aib-sign-err');
   let email = '';
   let busy = false;
   let closed = false;
+  // The tab's sign-in the panel waits for (linkSite): its link, asked until it is through; null while it waits for none.
+  let waiting: {link: string; secret: string; until: number} | null = null;
+  let askTimer: ReturnType<typeof setTimeout> | number = 0;
 
   function showError(text: string | null): void {
     errorLine.hidden = !text;
@@ -165,19 +199,24 @@ export function openSignIn(host: HTMLElement, options: SignInOptions): SignInShe
   }
 
   function showEmailStep(): void {
+    stopWaiting();
     showProviders(true);
     emailForm.hidden = false;
     codeForm.hidden = true;
-    links.hidden = true;
+    codeLinks.hidden = true;
+    tabLinks.hidden = true;
+    waitLine.hidden = true;
+    note.hidden = false;
     note.textContent = t('No password: we email you a code.');
-    emailInput.focus();
+    // a card in the page does not take the keyboard by itself: the owner may be reading the page
+    if (!inline) emailInput.focus();
   }
 
   function showCodeStep(): void {
     showProviders(false);
     emailForm.hidden = true;
     codeForm.hidden = false;
-    links.hidden = false;
+    codeLinks.hidden = false;
     codeInput.value = '';
     note.textContent = t('Sent to {0}. Not there? Check spam.', email);
     codeInput.focus();
@@ -220,8 +259,78 @@ export function openSignIn(host: HTMLElement, options: SignInOptions): SignInShe
     }
   }
 
+  // ---------- a provider's sign-in in a tab of its own (Home Assistant's panel, D-133) ----------
+
+  // The tab opens straight from the click (a browser opens one only then), cut off from this page; the panel then waits.
+  function signInInTab(provider: Provider, site: string): void {
+    const link = newLinkToken();
+    const secret = newLinkToken();
+    const url = linkSignInUrl(site, provider, link);
+    const tab = window.open('', '_blank');
+    if (tab) {
+      tab.opener = null;
+      tab.location.href = url;
+    }
+    waiting = {link, secret, until: Date.now() + LINK_WAIT_MS};
+    showError(null);
+    showProviders(false);
+    emailForm.hidden = true;
+    codeForm.hidden = true;
+    codeLinks.hidden = true;
+    note.hidden = true;
+    waitLine.hidden = false;
+    tabLinks.hidden = false;
+    // a blocked tab, or one closed by mistake: the same sign-in opens again from here
+    reopen.href = url;
+    askLinkSoon(0);
+  }
+
+  function askLinkSoon(delay: number): void {
+    clearTimeout(askTimer);
+    askTimer = setTimeout(askLink, delay);
+  }
+
+  async function askLink(): Promise<void> {
+    const asked = waiting;
+    if (!asked || closed) return;
+    if (Date.now() > asked.until) {
+      showEmailStep();
+      showError(t('The sign-in took too long. Try again.'));
+      return;
+    }
+    let answer;
+    try {
+      answer = await askSignInLink(api, asked.link, asked.secret);
+    } catch {
+      // the service or Home Assistant did not answer this time: asked again
+      if (waiting === asked) askLinkSoon(LINK_ASK_MS);
+      return;
+    }
+    if (waiting !== asked || closed) return;
+    if (answer.state === 'waiting') return askLinkSoon(LINK_ASK_MS);
+    if (answer.state === 'signed-in') {
+      close();
+      onSignedIn(answer.account);
+      return;
+    }
+    showEmailStep();
+    if (answer.why === 'failed') showError(t('Could not sign in. Try again or use your email.'));
+    if (answer.why === 'gone') showError(t('The sign-in took too long. Try again.'));
+  }
+
+  function stopWaiting(): void {
+    waiting = null;
+    clearTimeout(askTimer);
+  }
+
+  // Back from the tab: asked at once, not at the next turn.
+  function onVisible(): void {
+    if (waiting && document.visibilityState === 'visible') askLinkSoon(0);
+  }
+
   async function goToProvider(button: HTMLButtonElement, provider: Provider): Promise<void> {
     if (busy) return;
+    if (linkSite) return signInInTab(provider, linkSite);
     setBusy(button, t('Opening…'));
     // What would be lost when the page leaves is kept first; a failure there only loses the files, not the sign-in.
     try {
@@ -233,8 +342,10 @@ export function openSignIn(host: HTMLElement, options: SignInOptions): SignInShe
   function close(): void {
     if (closed) return;
     closed = true;
+    stopWaiting();
     removeEventListener('keydown', onKey, true);
-    held.release();
+    document.removeEventListener('visibilitychange', onVisible);
+    held?.release();
     veil.remove();
   }
 
@@ -243,9 +354,9 @@ export function openSignIn(host: HTMLElement, options: SignInOptions): SignInShe
     onClose?.();
   }
 
-  // Esc closes the sheet; the keys typed into it stay out of the pages under it.
+  // Esc closes the sheet; the keys typed into it stay out of the pages under it. A card in the page has nothing to close.
   function onKey(e: KeyboardEvent): void {
-    if (e.key === 'Escape') {
+    if (e.key === 'Escape' && !inline) {
       e.stopPropagation();
       cancel();
     }
@@ -267,7 +378,7 @@ export function openSignIn(host: HTMLElement, options: SignInOptions): SignInShe
   };
   veil.addEventListener('click', e => {
     const target = targetOf(e);
-    if (target === veil) return cancel();
+    if (target === veil && !inline) return cancel();
     const action = target.closest<HTMLElement>('[data-act]')?.dataset.act;
     const providerButton = target.closest<HTMLButtonElement>('[data-provider]');
     if (action === 'close') cancel();
@@ -276,6 +387,7 @@ export function openSignIn(host: HTMLElement, options: SignInOptions): SignInShe
     else if (providerButton) goToProvider(providerButton, providerButton.dataset.provider as Provider);
   });
   addEventListener('keydown', onKey, true);
+  document.addEventListener('visibilitychange', onVisible);
   showEmailStep();
   showError(notice);
   return {close};

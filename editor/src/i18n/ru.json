@@ -1777,5 +1777,13 @@
  "Our pick": "Наш выбор",
  "Pay in the new tab. The package shows here once it is paid.": "Оплатите в новой вкладке. Пакет появится здесь после оплаты.",
  "The package is paid. Go back to Home Assistant: it is there.": "Пакет оплачен. Вернитесь в Home Assistant: он уже там.",
- "You can close this page: the build goes on, and shows on the start screen.": "Страницу можно закрыть: сборка продолжится и будет видна на стартовом экране."
+ "You can close this page: the build goes on, and shows on the start screen.": "Страницу можно закрыть: сборка продолжится и будет видна на стартовом экране.",
+ "Another way": "Другой способ",
+ "Could not sign in. Go back to Home Assistant and try again.": "Не удалось войти. Вернитесь в Home Assistant и попробуйте ещё раз.",
+ "Open it again": "Открыть ещё раз",
+ "Sign in in the new tab. This page waits for you.": "Войдите в новой вкладке. Эта страница подождёт.",
+ "Sign-in cancelled. Go back to Home Assistant.": "Вход отменён. Вернитесь в Home Assistant.",
+ "The sign-in took too long. Try again.": "Вход занял слишком много времени. Попробуйте ещё раз.",
+ "Top up to build your home": "Пополните, чтобы собрать дом",
+ "You are signed in. Go back to Home Assistant.": "Вы вошли. Вернитесь в Home Assistant."
 }

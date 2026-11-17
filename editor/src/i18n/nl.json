@@ -1777,5 +1777,13 @@
  "Our pick": "Onze keuze",
  "Pay in the new tab. The package shows here once it is paid.": "Betaal in het nieuwe tabblad. Het pakket verschijnt hier zodra het betaald is.",
  "The package is paid. Go back to Home Assistant: it is there.": "Het pakket is betaald. Ga terug naar Home Assistant: het staat daar.",
- "You can close this page: the build goes on, and shows on the start screen.": "Je kunt deze pagina sluiten: de bouw gaat door en verschijnt op het startscherm."
+ "You can close this page: the build goes on, and shows on the start screen.": "Je kunt deze pagina sluiten: de bouw gaat door en verschijnt op het startscherm.",
+ "Another way": "Andere manier",
+ "Could not sign in. Go back to Home Assistant and try again.": "Inloggen mislukt. Ga terug naar Home Assistant en probeer het opnieuw.",
+ "Open it again": "Opnieuw openen",
+ "Sign in in the new tab. This page waits for you.": "Log in op het nieuwe tabblad. Deze pagina wacht op je.",
+ "Sign-in cancelled. Go back to Home Assistant.": "Inloggen geannuleerd. Ga terug naar Home Assistant.",
+ "The sign-in took too long. Try again.": "Het inloggen duurde te lang. Probeer het opnieuw.",
+ "Top up to build your home": "Waardeer op om je huis te bouwen",
+ "You are signed in. Go back to Home Assistant.": "Je bent ingelogd. Ga terug naar Home Assistant."
 }

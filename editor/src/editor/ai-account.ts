@@ -2,11 +2,17 @@
 // more (D-086). The money is not in this browser: the payments service keeps the account and its balance, and its session
 // cookie (HttpOnly, set by the service) says who this browser is. Clearing the browser only signs out; signing in again
 // brings the balance back. The service is reached at the AI build's own address (/pay/…), so the cookie is first-party:
-//   GET  <api>/pay/offer                     {payments, mode, price, signIn}: how a package comes, its price, the sign-in ways
+//   GET  <api>/pay/offer                     {payments, mode, price, signIn, site}: how a package comes, its price, the sign-in
+//                                            ways, and the service's public address (where a tab opens from Home Assistant)
 //   POST <api>/pay/auth/email/start          {email, lang} → {minutes}: a 6-digit code goes to the email
 //   POST <api>/pay/auth/email/verify         {email, code} → the account; the service sets the session cookie
 //   GET  <api>/pay/auth/<google|github>/start?return=<path>   the provider's sign-in, then back to <path>
 //                                            (a failed one comes back with ?signin=failed, a cancelled one ?signin=cancelled)
+//   GET  <site>/pay/auth/<google|github>/start?link=<id>   the same from Home Assistant's panel (D-133), in a tab of its
+//                                            own: the account goes to the link, the tab lands on <site>/?signin=linked
+//                                            (link-failed, link-cancelled) and is not signed in itself
+//   POST <api>/pay/auth/link                 {link, secret}: the panel asks until the tab is through → 202 meanwhile; the
+//                                            account (the integration keeps its session); 410 LINK_FAILED {outcome}, LINK_GONE
 //   GET  <api>/pay/me                        the account {email, providers, balance}; 401 SIGNED_OUT. The balance is
 //                                            {current: {used, left}, packages, packagesLeft, used, left, empty, bought}:
 //                                            packages are spent one after another (D-108), current is the one being spent,
@@ -44,6 +50,8 @@ export interface Offer {
   mode: 'test' | 'live' | null;
   price: Price | null;
   signIn: SignInWay[];
+  /** The service's public address: a provider's sign-in from Home Assistant opens a tab there. null: an older service. */
+  site: string | null;
 }
 
 /** One package's shares, from 0 to 1. */
@@ -124,7 +132,11 @@ export function offerFrom(data: unknown): Offer {
   const ways = Array.isArray(data.signIn) ? data.signIn.filter(isSignInWay) : [];
   // Email is always there: the service offers it with no setup.
   const signIn: SignInWay[] = ways.includes('email') ? ways : ['email', ...ways];
-  return {payments: data.payments, mode, price: priceFrom(data.price), signIn};
+  const site =
+    typeof data.site === 'string' && /^https?:\/\/[^/]/.test(data.site)
+      ? data.site.replace(/\/+$/, '')
+      : null;
+  return {payments: data.payments, mode, price: priceFrom(data.price), signIn, site};
 }
 
 /** A count of packages: a whole number from 0; anything else reads as `fallback`. */
@@ -226,6 +238,41 @@ export function providerSignInUrl(api: string, provider: Provider, returnPath: s
   return `${api}/pay/auth/${provider}/start?return=${encodeURIComponent(returnPath)}`;
 }
 
+// ---------- a provider's sign-in from Home Assistant's panel (D-133) ----------
+
+/** A link id or its secret: 24 random bytes, base64url (the service takes 22 characters and more). */
+export function newLinkToken(): string {
+  const bytes = crypto.getRandomValues(new Uint8Array(24));
+  return btoa(String.fromCharCode(...bytes))
+    .replace(/\+/g, '-')
+    .replace(/\//g, '_')
+    .replace(/=+$/, '');
+}
+
+/** The tab's address for a provider's sign-in that goes to the link, not to the tab: on the service's own site. */
+export function linkSignInUrl(site: string, provider: Provider, link: string): string {
+  return `${site}/pay/auth/${provider}/start?link=${encodeURIComponent(link)}`;
+}
+
+/** What the panel hears when it asks for its link. */
+export type LinkAnswer =
+  | {state: 'waiting'}
+  | {state: 'signed-in'; account: Account}
+  | {state: 'ended'; why: 'failed' | 'cancelled' | 'gone'};
+
+/** The panel's ask for its link: still waiting for the tab, signed in (the integration now keeps the session), or ended. */
+export async function askSignInLink(api: string, link: string, secret: string): Promise<LinkAnswer> {
+  const res = await postTo(`${api}/pay/auth/link`, {link, secret});
+  if (res.status === 202) return {state: 'waiting'};
+  if (res.status === 410 || res.status === 404) {
+    const data = await bodyOf(res);
+    const cancelled = isFields(data) && data.outcome === 'cancelled';
+    const failed = isFields(data) && data.error === 'LINK_FAILED';
+    return {state: 'ended', why: cancelled ? 'cancelled' : failed ? 'failed' : 'gone'};
+  }
+  return {state: 'signed-in', account: accountFrom(await answerOf(res))};
+}
+
 export async function signOut(api = ''): Promise<void> {
   await answerOf(await postTo(`${api}/pay/auth/sign-out`));
 }
@@ -275,8 +322,11 @@ export interface AddressReturn {
   payment: string | null;
   /** The checkout's word on it ('succeeded'…); null when it gave none. */
   paymentStatus: string | null;
-  /** A provider's sign-in that did not go through. */
-  signIn: 'failed' | 'cancelled' | null;
+  /**
+   * A provider's sign-in that did not go through; or one from Home Assistant's panel (D-133), which ends in a tab of its own:
+   * through (linked), or not.
+   */
+  signIn: SignInReturn | null;
   /** The address without what was read: put back in its place so a reload does not read it again. */
   clean: string;
   /** Whether anything was read (the address is to be replaced). */
@@ -286,12 +336,17 @@ export interface AddressReturn {
 // What the checkout and the sign-in add to the address on their way back.
 const RETURN_PARAMS = ['payment_id', 'status', 'paid', 'email', 'license_key', 'signin'];
 
+const SIGN_IN_RETURNS = ['failed', 'cancelled', 'linked', 'link-failed', 'link-cancelled'] as const;
+export type SignInReturn = (typeof SIGN_IN_RETURNS)[number];
+const isSignInReturn = (value: string | null): value is SignInReturn =>
+  (SIGN_IN_RETURNS as readonly (string | null)[]).includes(value);
+
 /** What the address brings back (see AddressReturn); href is the page's address. */
 export function readReturn(href: string): AddressReturn {
   const url = new URL(href);
   const params = url.searchParams;
   const signInParam = params.get('signin');
-  const signIn = signInParam === 'failed' || signInParam === 'cancelled' ? signInParam : null;
+  const signIn = isSignInReturn(signInParam) ? signInParam : null;
   const found = RETURN_PARAMS.some(name => params.has(name));
   const payment = params.get('payment_id');
   const paymentStatus = params.get('status');

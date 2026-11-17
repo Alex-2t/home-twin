@@ -6,6 +6,7 @@ import {
   AccountError,
   accountFrom,
   accountOffer,
+  askSignInLink,
   balanceDetail,
   balanceFrom,
   balanceMeter,
@@ -18,8 +19,10 @@ import {
   emptyBalanceText,
   emptyStartText,
   isSignedOut,
+  linkSignInUrl,
   morePackagesShort,
   morePackagesText,
+  newLinkToken,
   offerFrom,
   pathOf,
   paymentClaimText,
@@ -38,8 +41,9 @@ const PAID: Offer = {
   mode: 'test',
   price: {amount: 20, currency: 'USD'},
   signIn: ['email', 'google'],
+  site: null,
 };
-const FREE: Offer = {payments: 'free', mode: null, price: null, signIn: ['email']};
+const FREE: Offer = {payments: 'free', mode: null, price: null, signIn: ['email'], site: null};
 
 /** A request the fake service got: its address, method, headers and body. */
 interface SeenRequest {
@@ -127,6 +131,9 @@ test('the offer is checked: email is always a way in, unknown ways and modes are
   });
   assert.deepEqual(offer, {...PAID, signIn: ['email', 'google', 'github']});
   assert.deepEqual(offerFrom({payments: 'free', mode: 'sandbox', price: 'free'}), FREE);
+  // the service's public address, where a tab opens from Home Assistant; anything else is not one
+  assert.equal(offerFrom({payments: 'free', site: 'https://twin.example/'}).site, 'https://twin.example');
+  assert.equal(offerFrom({payments: 'free', site: 'javascript:alert(1)'}).site, null);
   assert.throws(() => offerFrom({payments: 'paypal'}), AccountError);
   assert.throws(() => offerFrom(null), AccountError);
 });
@@ -290,6 +297,41 @@ test('the address brings back a payment or a failed sign-in, and is cleaned of i
   const nothing = readReturn('http://site/?build=home-1');
   assert.equal(nothing.found, false);
   assert.equal(nothing.clean, 'http://site/?build=home-1');
+});
+
+test('a provider sign-in from Home Assistant: a tab on the service with a fresh link, the panel asks until it is through', async () => {
+  const link = newLinkToken();
+  assert.match(link, /^[A-Za-z0-9_-]{32}$/);
+  assert.notEqual(newLinkToken(), link);
+  assert.equal(
+    linkSignInUrl('https://twin.example', 'github', link),
+    `https://twin.example/pay/auth/github/start?link=${link}`,
+  );
+  await withService(202, {pending: true}, async seen => {
+    assert.deepEqual(await askSignInLink('/ha/ai/k', link, 'the-secret'), {state: 'waiting'});
+    assert.equal(seen[0].url, '/ha/ai/k/pay/auth/link');
+    assert.equal(seen[0].contentType, 'application/json');
+    assert.deepEqual(seen[0].body, {link, secret: 'the-secret'});
+  });
+  await withService(200, {email: 'hana@example.com', providers: ['google'], balance: {}}, async () => {
+    const answer = await askSignInLink('', link, 'the-secret');
+    assert.equal(answer.state, 'signed-in');
+    assert.equal(answer.state === 'signed-in' && answer.account.email, 'hana@example.com');
+  });
+  await withService(410, {error: 'LINK_FAILED', outcome: 'cancelled'}, async () => {
+    assert.deepEqual(await askSignInLink('', link, 's'), {state: 'ended', why: 'cancelled'});
+  });
+  await withService(410, {error: 'LINK_FAILED', outcome: 'failed'}, async () => {
+    assert.deepEqual(await askSignInLink('', link, 's'), {state: 'ended', why: 'failed'});
+  });
+  await withService(410, {error: 'LINK_GONE'}, async () => {
+    assert.deepEqual(await askSignInLink('', link, 's'), {state: 'ended', why: 'gone'});
+  });
+  const linked = readReturn('https://twin.example/?signin=linked');
+  assert.equal(linked.signIn, 'linked');
+  assert.equal(linked.clean, 'https://twin.example/');
+  assert.equal(readReturn('https://twin.example/?signin=link-cancelled').signIn, 'link-cancelled');
+  assert.equal(readReturn('https://twin.example/?signin=elsewhere').signIn, null);
 });
 
 test('a build waiting for money offers the top-up; one waiting for the service goes on by itself', () => {

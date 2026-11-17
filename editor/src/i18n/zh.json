@@ -1777,5 +1777,13 @@
  "Our pick": "我们的选择",
  "Pay in the new tab. The package shows here once it is paid.": "请在新标签页中付款。付款后套餐会显示在这里。",
  "The package is paid. Go back to Home Assistant: it is there.": "套餐已付款。请返回 Home Assistant，它已经在那里了。",
- "You can close this page: the build goes on, and shows on the start screen.": "可以关闭此页面：构建会继续，并显示在开始屏幕上。"
+ "You can close this page: the build goes on, and shows on the start screen.": "可以关闭此页面：构建会继续，并显示在开始屏幕上。",
+ "Another way": "其他方式",
+ "Could not sign in. Go back to Home Assistant and try again.": "登录失败。请返回 Home Assistant 重试。",
+ "Open it again": "重新打开",
+ "Sign in in the new tab. This page waits for you.": "请在新标签页中登录。此页面会等你。",
+ "Sign-in cancelled. Go back to Home Assistant.": "已取消登录。请返回 Home Assistant。",
+ "The sign-in took too long. Try again.": "登录耗时过长。请重试。",
+ "Top up to build your home": "充值即可构建你的家",
+ "You are signed in. Go back to Home Assistant.": "你已登录。请返回 Home Assistant。"
 }

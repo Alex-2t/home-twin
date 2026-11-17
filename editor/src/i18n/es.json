@@ -1777,5 +1777,13 @@
  "Our pick": "Nuestra elección",
  "Pay in the new tab. The package shows here once it is paid.": "Paga en la pestaña nueva. El paquete aparecerá aquí cuando esté pagado.",
  "The package is paid. Go back to Home Assistant: it is there.": "El paquete está pagado. Vuelve a Home Assistant: ya está allí.",
- "You can close this page: the build goes on, and shows on the start screen.": "Puedes cerrar esta página: la construcción sigue y aparece en la pantalla de inicio."
+ "You can close this page: the build goes on, and shows on the start screen.": "Puedes cerrar esta página: la construcción sigue y aparece en la pantalla de inicio.",
+ "Another way": "Otra forma",
+ "Could not sign in. Go back to Home Assistant and try again.": "No se pudo iniciar sesión. Vuelve a Home Assistant e inténtalo de nuevo.",
+ "Open it again": "Abrir de nuevo",
+ "Sign in in the new tab. This page waits for you.": "Inicia sesión en la pestaña nueva. Esta página te espera.",
+ "Sign-in cancelled. Go back to Home Assistant.": "Inicio de sesión cancelado. Vuelve a Home Assistant.",
+ "The sign-in took too long. Try again.": "El inicio de sesión tardó demasiado. Inténtalo de nuevo.",
+ "Top up to build your home": "Recarga para crear tu casa",
+ "You are signed in. Go back to Home Assistant.": "Has iniciado sesión. Vuelve a Home Assistant."
 }

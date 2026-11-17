@@ -47,6 +47,7 @@ import {
   claimPayment,
   claimPaymentSignedOut,
   currentAccount,
+  emptyBalanceText,
   emptyStartText,
   forgetOldWallet,
   isSignedOut,
@@ -857,6 +858,18 @@ export async function openAiFromAddress(
   const id = params.get('build');
   const upload = params.get(UPLOAD_PARAM) === UPLOAD_VALUE;
   if (!id && !upload && !back.found) return null;
+  // The tab of a provider's sign-in from Home Assistant's panel (D-133): the panel is signed in, not this tab; it says to go
+  // back there, and closes itself where the browser lets it.
+  if (back.signIn === 'linked' || back.signIn === 'link-failed' || back.signIn === 'link-cancelled') {
+    const words: Record<typeof back.signIn, string> = {
+      linked: t('You are signed in. Go back to Home Assistant.'),
+      'link-failed': t('Could not sign in. Go back to Home Assistant and try again.'),
+      'link-cancelled': t('Sign-in cancelled. Go back to Home Assistant.'),
+    };
+    ed.banner(words[back.signIn], [[t('Got it'), () => ed.banner(), true]]);
+    if (back.signIn === 'linked') setTimeout(() => window.close(), LINKED_TAB_CLOSE_MS);
+    return null;
+  }
   let notice: string | null = null;
   let claimed: Account | null = null;
   const paymentFailed = !!back.paymentStatus && back.paymentStatus !== 'succeeded';
@@ -910,11 +923,17 @@ export interface AiBuildOptions {
   signInNotice?: string | null;
   /**
    * In Home Assistant's panel (D-132): the service is reached through the integration, which holds the account's session.
-   * The page never leaves: no sign-in with a provider, the checkout in a tab of its own, no build in the address; the home
+   * The page never leaves: a provider's sign-in and the checkout in a tab of their own (D-133), no build in the address; the home
    * replaces the plan only once it is taken (until then HA's plan and the dashboard stay as they are).
    */
   inHa?: boolean;
 }
+
+/** What the upload page asks for before the files (D-133): nothing yet known, to sign in, a package; null: the files. */
+type UploadGate = 'wait' | 'sign-in' | 'package' | null;
+
+/** The tab of a sign-in from Home Assistant closes itself after this, once its line is read. */
+const LINKED_TAB_CLOSE_MS = 1500;
 
 /** Where the checkout comes back to when the package was bought from Home Assistant: our site says to go back there. */
 export const HA_CHECKOUT_RETURN = '/?from=ha';
@@ -990,6 +1009,9 @@ export function openAiBuild(ed: Editor, options: AiBuildOptions = {}): AiBuildSc
   // The owner pressed "Build my home" signed out: once signed in, the build starts (startAfterSignIn).
   let startWhenSignedIn = false;
   let signInSheet: SignInSheet | null = null;
+  // The sign-in the upload page asks for first, as a card in it (D-133), and what the page's gate shows now.
+  let gateSheet: SignInSheet | null = null;
+  let gateShown: UploadGate | undefined;
   let headBar: AccountBar | null = null;
   // The account's place in the review, above its send button (the review fills it with this page's renderReviewAccount).
   let reviewSlot: HTMLElement | null = null;
@@ -1085,7 +1107,13 @@ export function openAiBuild(ed: Editor, options: AiBuildOptions = {}): AiBuildSc
   function newHeadBar(meter: boolean): HTMLElement {
     headBar = accountBar({
       meter,
-      onSignIn: () => askSignIn(screen === 'upload' ? 'build' : 'account'),
+      onSignIn: () => {
+        // the upload page already asks for it in the page: its email field is where to go
+        const gateEmail =
+          gateShown === 'sign-in' ? root.querySelector<HTMLInputElement>('.aib-gate input') : null;
+        if (screen === 'upload' && gateEmail) gateEmail.focus();
+        else askSignIn(screen === 'upload' ? 'build' : 'account');
+      },
       onBuy: () => buy(null),
       onSignOut: signOutHere,
     });
@@ -1098,31 +1126,51 @@ export function openAiBuild(ed: Editor, options: AiBuildOptions = {}): AiBuildSc
     if (!offer || signInSheet) return;
     if (fromBuildButton) startWhenSignedIn = true;
     signInSheet = openSignIn(root, {
-      api,
-      // a provider's sign-in would sign in this browser, not the integration that holds the session
-      offer: inHa ? {...offer, signIn: offer.signIn.filter(way => way === 'email')} : offer,
+      ...signInWays(),
       reason,
       notice: line,
-      returnPath: () => pathOf(location.href),
-      beforeLeave: () => (screen === 'upload' ? keepChosen(chosen, startWhenSignedIn) : Promise.resolve()),
       onSignedIn: signedIn => {
         signInSheet = null;
-        account = signedIn;
-        accountLine = null;
-        accountLineIsHint = false;
-        signedOutHere = false;
-        renderAccount();
-        if (locked) {
-          locked = null;
-          poll();
-        }
-        startAfterSignIn();
+        afterSignIn(signedIn);
       },
       onClose: () => {
         signInSheet = null;
         startWhenSignedIn = false;
       },
     });
+  }
+
+  // How this page signs in: in Home Assistant's panel a provider's sign-in runs in a tab of its own and goes to the integration
+  // (D-133); a service from before that offers only the email code there (a provider would sign in the browser instead).
+  function signInWays(): {
+    api: string;
+    offer: Offer;
+    linkSite: string | null;
+    returnPath: () => string;
+    beforeLeave: () => Promise<void>;
+  } {
+    const known = offer as Offer;
+    const emailOnly = inHa && !known.site;
+    return {
+      api,
+      offer: emailOnly ? {...known, signIn: known.signIn.filter(way => way === 'email')} : known,
+      linkSite: inHa ? known.site : null,
+      returnPath: () => pathOf(location.href),
+      beforeLeave: () => (screen === 'upload' ? keepChosen(chosen, startWhenSignedIn) : Promise.resolve()),
+    };
+  }
+
+  function afterSignIn(signedIn: Account): void {
+    account = signedIn;
+    accountLine = null;
+    accountLineIsHint = false;
+    signedOutHere = false;
+    renderAccount();
+    if (locked) {
+      locked = null;
+      poll();
+    }
+    startAfterSignIn();
   }
 
   // Signed in after pressing "Build my home": the build starts, as the owner asked. With nothing on the account, the package
@@ -1140,6 +1188,9 @@ export function openAiBuild(ed: Editor, options: AiBuildOptions = {}): AiBuildSc
   function closeSignIn(): void {
     signInSheet?.close();
     signInSheet = null;
+    gateSheet?.close();
+    gateSheet = null;
+    gateShown = undefined;
   }
 
   async function signOutHere(): Promise<void> {
@@ -1239,6 +1290,7 @@ export function openAiBuild(ed: Editor, options: AiBuildOptions = {}): AiBuildSc
   // The account's place on the upload page, beside its button: the balance, or the package to buy first. Under them, on a
   // line of its own: why a build could not start, or a payment did not go through.
   function renderGo(): void {
+    renderGate();
     const slot = root.querySelector<HTMLElement>('.aib-go-account');
     const lineNode = root.querySelector<HTMLElement>('.aib-go-line');
     if (!slot || !lineNode) return;
@@ -1254,6 +1306,51 @@ export function openAiBuild(ed: Editor, options: AiBuildOptions = {}): AiBuildSc
     lineNode.textContent = line || '';
     lineNode.classList.toggle('aib-go-hint', accountLineIsHint && line === accountLine);
     syncStart();
+  }
+
+  // What the upload page asks for before the files (D-133): to sign in, then a package; the files only once a build can
+  // start with them. Nothing is asked where there are no accounts (local work); while the payments service does not answer,
+  // the files show with the line that says why the build waits.
+  function uploadGate(): UploadGate {
+    if (!accountKnown) return 'wait';
+    if (!offer || accountTrouble) return null;
+    if (!account) return 'sign-in';
+    if (account.balance.empty) return 'package';
+    return null;
+  }
+
+  function renderGate(): void {
+    const gate = root.querySelector<HTMLElement>('.aib-gate');
+    const files = root.querySelector<HTMLElement>('.aib-files');
+    if (!gate || !files) return;
+    const want = uploadGate();
+    files.hidden = want !== null;
+    gate.hidden = want === null || want === 'wait';
+    // the package's card is drawn on every change (its line: a payment on its way, one that did not go through)
+    if (want === 'package' && account) {
+      const balance = account.balance;
+      const line = accountLine || (balance.bought ? t('Top up to build your home') : emptyStartText(balance));
+      const lineClass = accountLine && !accountLineIsHint ? ' class="aib-wallet-err"' : '';
+      gate.innerHTML = `<div class="aib-card asking">
+        <span class="aib-card-ic">${icon('wallet', 20)}</span>
+        <span class="aib-card-text"><b>${esc(emptyBalanceText(balance))}</b><small${lineClass}>${esc(line)}</small></span>
+        <button class="primary" data-act="buy">${buyButtonInner(offer, {topUp: balance.bought})}</button></div>`;
+    }
+    if (want === gateShown) return;
+    gateShown = want;
+    gateSheet?.close();
+    gateSheet = null;
+    if (want !== 'sign-in') return;
+    gate.innerHTML = '';
+    gateSheet = openSignIn(gate, {
+      ...signInWays(),
+      reason: 'build',
+      inline: true,
+      onSignedIn: signedIn => {
+        gateSheet = null;
+        afterSignIn(signedIn);
+      },
+    });
   }
 
   // The account's place in the review: the balance, and a top-up once it is used up (the changes wait for one).
@@ -1483,6 +1580,8 @@ export function openAiBuild(ed: Editor, options: AiBuildOptions = {}): AiBuildSc
         <main class="aib-upload">
           <h1>${esc(t('Your home in 3D, built by AI'))}</h1>
           <p class="aib-lead">${esc(t('Add the floor plan and a video or photos of your home. We build the rooms, doors, windows and furniture, and you check the result.'))}</p>
+          <div class="aib-gate" hidden></div>
+          <div class="aib-files" hidden>
           <div class="aib-drops">
             ${drop('plan', 'image', t('Floor plan'), t('A photo, a scan or a PDF'), 'image/*,.heic,.heif,application/pdf,.pdf', false)}
             ${drop('media', 'video', t('Video or photos of your home'), t('One walk through every room, or photos of each room'), 'video/*,image/*,.heic,.heif,.mov', true)}
@@ -1508,14 +1607,17 @@ export function openAiBuild(ed: Editor, options: AiBuildOptions = {}): AiBuildSc
             <small class="aib-go-line" role="status" hidden></small>
           </div>
           <div class="aib-sending" hidden><i class="aib-meter"><i></i></i><span></span></div>
+          </div>
         </main>
       </div>`;
     find(root, '.aib-head').append(newHeadBar(false));
     const start = find<HTMLButtonElement>(root, '[data-act=start]');
-    find(root, '.aib-go-account').addEventListener('click', e => {
-      const button = targetOf(e).closest<HTMLButtonElement>('[data-act=buy]');
-      if (button) buy(button);
-    });
+    for (const place of [find(root, '.aib-go-account'), find(root, '.aib-gate')]) {
+      place.addEventListener('click', e => {
+        const button = targetOf(e).closest<HTMLButtonElement>('[data-act=buy]');
+        if (button) buy(button);
+      });
+    }
     // The line under the tips about the chosen video: hidden when there is nothing to say. It never blocks the build.
     const showVideoConcern = (concern: VideoConcern | null): void => {
       const note = find(root, '.aib-video-note');
