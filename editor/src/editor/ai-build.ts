@@ -158,8 +158,13 @@ interface BuildStatus {
   error?: string;
   /** The error is in our code, not in the files. */
   ourCode?: boolean;
-  /** The build waits: for a top-up ('balance'), or for the payments service to answer ('payments'). */
-  paused?: 'balance' | 'payments' | null;
+  /**
+   * The build waits: for a top-up ('balance'), for the payments service to answer ('payments'), or for us to top up the
+   * AI it runs on ('service': our credit is out, it goes on by itself).
+   */
+  paused?: 'balance' | 'payments' | 'service' | null;
+  /** The build waits in the service's queue: its place (1: next) and about how many seconds until it starts. */
+  queued?: {position: number; wait: number} | null;
   /**
    * The plan draws more than one floor: the build stopped after reading it, before the rest (one floor is built for now).
    * The page asks for a plan of one floor.
@@ -255,6 +260,8 @@ const messageOf = (error: unknown): string =>
 
 /** Why the service refused an upload, in the owner's language where the reason is known; else the service's own words. */
 function refusedText(failure: UploadFailed): string {
+  if (failure.code === 'SERVICE_PAUSED')
+    return t('Sorry, something went wrong on our side. Give us a little time: we are fixing it.');
   if (failure.code === 'TOO_BIG')
     return t('a file is too big: a video up to 2 GB, a photo up to 40 MB, the plan up to 50 MB');
   if (failure.code === 'TOO_MANY')
@@ -262,6 +269,17 @@ function refusedText(failure: UploadFailed): string {
   if (failure.code === 'FILES') return t('add the floor plan and a video or photos of your home');
   return failure.message;
 }
+/** The card of a build waiting in the service's queue: its place and about when it starts. */
+function queuedCard(queued: {position: number; wait: number}): {key: string; html: string} {
+  const minutes = Math.max(1, Math.ceil(queued.wait / 60));
+  return {
+    key: `queued:${queued.position}:${minutes}`,
+    html: `<div class="aib-card">
+      <span class="aib-card-ic">${icon('clock', 20)}</span>
+      <span class="aib-card-text"><b>${esc(t('Place in the queue: {0}', queued.position))}</b><small>${esc(t('It starts in about {0} min. You can close this page.', minutes))}</small></span></div>`,
+  };
+}
+
 // A meter's bar is its one child (<i class="aib-meter"><i></i></i>).
 const barOf = (meter: HTMLElement): HTMLElement => meter.firstChild as HTMLElement;
 // The element an event is on: a click lands on an element.
@@ -764,7 +782,9 @@ export function buildIdentity(status: {id?: string; rooms?: unknown[]}): string 
 
 /** Where a build stands, in a word or two. */
 function buildStateWord(status: BuildStatus, text: BuildCardText): string {
+  if (status.queued) return t('In the queue');
   if (status.paused === 'balance') return t('Waiting for a top-up');
+  if (status.paused === 'service') return t('Paused on our side');
   if (text.state === 'ready') return t('Ready to check');
   if (text.state === 'done') return t('Opened before');
   if (text.state === 'stopped') return t('Stopped');
@@ -2271,6 +2291,7 @@ export function openAiBuild(ed: Editor, options: AiBuildOptions = {}): AiBuildSc
     const status = shown();
     if (status.paused === 'balance') return t('Waiting for a top-up');
     if (status.paused === 'payments') return t('Waiting for payments');
+    if (status.paused === 'service') return t('Paused on our side');
     const live: BuildLive = status.live || {};
     if (stage.key === 'plan') return planLine();
     if (stage.key === 'rooms') {
@@ -2402,6 +2423,7 @@ export function openAiBuild(ed: Editor, options: AiBuildOptions = {}): AiBuildSc
           <button class="primary" data-act="resume">${esc(t('Try again'))}</button></div>`,
       };
     }
+    if (s.queued) return queuedCard(s.queued);
     const paused = pausedCard(s.paused, {offer, line: accountLine});
     if (paused.key) return paused;
     if (accountLine) {
@@ -2642,8 +2664,10 @@ export function openAiBuild(ed: Editor, options: AiBuildOptions = {}): AiBuildSc
     if (!s) return t('Building your home');
     if (s.severalFloors) return t('Your plan has several floors');
     if (s.error) return t('The build stopped');
+    if (s.queued) return t('In the queue');
     if (s.paused === 'balance') return t('Waiting for a top-up');
     if (s.paused === 'payments') return t('Waiting for payments');
+    if (s.paused === 'service') return t('Paused on our side');
     if (s.waiting || s.finished) return t('Your home is ready');
     if (s.revising) return t('Changing your home…');
     return t('Building your home');

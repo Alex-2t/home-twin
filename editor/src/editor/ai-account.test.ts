@@ -353,6 +353,11 @@ test('a build waiting for money offers the top-up; one waiting for the service g
   assert.match(payments.html, /Payments are not answering/);
   assert.match(payments.html, /goes on by itself/);
   assert.doesNotMatch(payments.html, /data-act/);
+  // our own AI credit is out: we say sorry, nothing for the user to do
+  const service = pausedCard('service', {offer: PAID});
+  assert.match(service.html, /Sorry, something went wrong on our side/);
+  assert.match(service.html, /goes on by itself/);
+  assert.doesNotMatch(service.html, /data-act/);
   assert.deepEqual(pausedCard(null, {offer: PAID}), {key: '', html: ''});
 });
 

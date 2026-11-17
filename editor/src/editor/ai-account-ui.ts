@@ -491,13 +491,21 @@ export interface PausedCardOptions {
 
 /**
  * The card of a build that waits (BuildStatus.paused): the balance is used up — a top-up lets it go on from where it
- * stopped; or the payments service does not answer — it goes on by itself. {key: '', html: ''} when it does not wait.
+ * stopped; the payments service does not answer, or our own AI credit is out — it goes on by itself. {key: '', html: ''} when it does not wait.
  * The key changes only when the card does (it is drawn again only then).
  */
 export function pausedCard(
-  paused: 'balance' | 'payments' | null | undefined,
+  paused: 'balance' | 'payments' | 'service' | null | undefined,
   {offer, line = null}: PausedCardOptions,
 ): {key: string; html: string} {
+  if (paused === 'service') {
+    return {
+      key: 'paused:service',
+      html: `<div class="aib-card">
+        <span class="aib-card-ic">${icon('clock', 20)}</span>
+        <span class="aib-card-text"><b>${esc(t('Sorry, something went wrong on our side'))}</b><small>${esc(t('We are fixing it. The build goes on by itself, nothing is lost.'))}</small></span></div>`,
+    };
+  }
   if (paused === 'payments') {
     return {
       key: 'paused:payments',
