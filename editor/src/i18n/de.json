@@ -1802,5 +1802,11 @@
  "In your account": "In deinem Konto",
  "Take this plan": "Diesen Grundriss übernehmen",
  "The plan from your account is open.": "Der Grundriss aus deinem Konto ist geöffnet.",
- "The plan saves automatically in this browser and in your account": "Der Grundriss wird automatisch in diesem Browser und in deinem Konto gespeichert"
+ "The plan saves automatically in this browser and in your account": "Der Grundriss wird automatisch in diesem Browser und in deinem Konto gespeichert",
+ "Your package expired": "Dein Paket ist abgelaufen",
+ "Terms": "AGB",
+ "Privacy": "Datenschutz",
+ "Refunds": "Erstattungen",
+ "Valid for 30 days after purchase; buying again extends it.": "Gilt 30 Tage nach dem Kauf; ein neuer Kauf verlängert es.",
+ "until {0}": "bis {0}"
 }

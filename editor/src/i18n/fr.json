@@ -1802,5 +1802,11 @@
  "In your account": "Dans votre compte",
  "Take this plan": "Prendre ce plan",
  "The plan from your account is open.": "Le plan de votre compte est ouvert.",
- "The plan saves automatically in this browser and in your account": "Le plan s’enregistre automatiquement dans ce navigateur et dans votre compte"
+ "The plan saves automatically in this browser and in your account": "Le plan s’enregistre automatiquement dans ce navigateur et dans votre compte",
+ "Your package expired": "Votre forfait a expiré",
+ "Terms": "Conditions",
+ "Privacy": "Confidentialité",
+ "Refunds": "Remboursements",
+ "Valid for 30 days after purchase; buying again extends it.": "Valable 30 jours après l’achat ; un nouvel achat le prolonge.",
+ "until {0}": "jusqu’au {0}"
 }

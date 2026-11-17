@@ -18,11 +18,13 @@ import {
   currentAccount,
   emptyBalanceText,
   emptyStartText,
+  expiryDateText,
   isSignedOut,
   linkSignInUrl,
   morePackagesShort,
   morePackagesText,
   newLinkToken,
+  packageTermsHtml,
   offerFrom,
   pathOf,
   paymentClaimText,
@@ -31,6 +33,7 @@ import {
   readReturn,
   refusalText,
   sendSignInCode,
+  untilText,
   verifySignInCode,
 } from './ai-account.ts';
 import type {Offer} from './ai-account.ts';
@@ -155,6 +158,8 @@ test('the account is checked: shares stay between 0 and 1, a missing balance is 
       packages: 1,
       packagesLeft: 0,
       current: {used: 1, left: 0},
+      expiresAt: null,
+      expired: false,
     },
   });
   assert.deepEqual(accountFrom({email: 'a@example.com'}).balance, {
@@ -165,6 +170,8 @@ test('the account is checked: shares stay between 0 and 1, a missing balance is 
     packages: 0,
     packagesLeft: 0,
     current: {used: 1, left: 0},
+    expiresAt: null,
+    expired: false,
   });
   // A service that does not say whether anything was bought: an empty balance reads as used up.
   assert.equal(balanceFrom({used: 1, left: 0, empty: true}).bought, true);
@@ -407,4 +414,56 @@ test('a broken count of packages reads as none after the current one', () => {
   });
   assert.equal(odd.packages, 1);
   assert.equal(odd.packagesLeft, 0);
+});
+
+// The balance expires 30 days after the last purchase (D-135).
+const ENDS_DEC_17 = balanceFrom({
+  used: 0.4,
+  left: 0.6,
+  empty: false,
+  bought: true,
+  packages: 1,
+  packagesLeft: 0,
+  current: {used: 0.4, left: 0.6},
+  expiresAt: '2026-12-17T10:00:00.000Z',
+});
+
+test('the balance says until when it lasts; an expired one says so; an older service says nothing of it', () => {
+  const now = new Date('2026-11-17T12:00:00Z');
+  assert.equal(ENDS_DEC_17.expiresAt, '2026-12-17T10:00:00.000Z');
+  assert.equal(expiryDateText('2026-12-17T10:00:00.000Z', now), 'Dec 17');
+  assert.equal(
+    expiryDateText('2027-01-05T10:00:00.000Z', now),
+    'Jan 5, 2027',
+    'the year when it is not this one',
+  );
+  assert.equal(untilText(ENDS_DEC_17, now), 'until Dec 17');
+  assert.match(balanceMeter(ENDS_DEC_17), /<span class="aib-wallet-until">· until /);
+  assert.match(balanceDetail(ENDS_DEC_17), /aib-balance-more">until /);
+  assert.match(balanceDetail({...TWO_AT_70, expiresAt: ENDS_DEC_17.expiresAt}), /1 more package · until /);
+
+  assert.equal(balanceFrom({used: 0.4, left: 0.6, empty: false, bought: true}).expiresAt, null);
+  assert.equal(balanceFrom({used: 0.4, left: 0.6, empty: false, expiresAt: 'soon'}).expiresAt, null);
+  assert.doesNotMatch(balanceMeter(TWO_AT_70), /aib-wallet-until/);
+
+  const expired = balanceFrom({used: 1, left: 0, empty: true, bought: true, expiresAt: null, expired: true});
+  assert.equal(emptyBalanceText(expired), 'Your package expired');
+  assert.equal(emptyStartText(expired), 'Your package expired');
+  assert.equal(untilText(expired), '');
+});
+
+test('beside a buy button: how long a package lasts, and the terms, privacy and refunds pages in a tab of their own', () => {
+  const html = packageTermsHtml({...PAID, site: 'https://twin.example'});
+  assert.match(html, /Valid for 30 days after purchase; buying again extends it\./);
+  for (const page of ['terms', 'privacy', 'refunds'])
+    assert.match(html, new RegExp(`href="https://twin\\.example/${page}" target="_blank" rel="noopener"`));
+  assert.match(html, />Terms<\/a> · <a[^>]*>Privacy<\/a> · <a[^>]*>Refunds</);
+  // An older service that does not say its address: the line alone.
+  assert.doesNotMatch(packageTermsHtml(PAID), /<a /);
+  assert.match(packageTermsHtml(FREE), /Valid for 30 days/);
+  assert.equal(packageTermsHtml(null), '');
+  assert.match(
+    pausedCard('balance', {offer: {...PAID, site: 'https://twin.example'}}).html,
+    /twin\.example\/refunds/,
+  );
 });

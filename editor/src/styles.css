@@ -690,7 +690,7 @@ body.aib-pinning :is(#pane-plan,#pane-3d) canvas{cursor:crosshair!important}
 .aib-wallet .ic{color:var(--acc)}.aib-wallet .aib-meter{width:56px;height:5px;border-radius:3px}
 .aib-wallet.empty{color:var(--bad)}.aib-wallet.empty .ic{color:var(--bad)}.aib-wallet.empty .aib-meter>i{background:var(--bad)}
 /* packages are spent one after another (D-108): the full ones after the current one, beside its percent */
-.aib-wallet-more{margin-left:-3px;color:var(--tx);font-weight:500}
+.aib-wallet-more{margin-left:-3px;color:var(--tx);font-weight:500}.aib-wallet-until{margin-left:-3px} /* until when it lasts (D-135) */
 .aib-go-account{display:flex;flex-wrap:wrap;align-items:center;gap:6px 10px}.aib-go-account:empty{display:none}.aib-go-account button.primary{height:36px;padding:0 14px;border-radius:10px}
 .aib-wallet-err{color:var(--bad);font-size:12px;flex-basis:100%}
 .aib-go-line{flex-basis:100%;margin-top:-6px;color:var(--bad);font-size:12.5px;text-align:right}.aib-go-line.aib-go-hint{color:var(--mut)}
@@ -711,6 +711,9 @@ button.aib-avatar:hover{background:linear-gradient(135deg,#6366f1,#a855f7);filte
 .aib-balance-row span{flex:1}.aib-balance-row b{color:var(--tx);font-weight:600;font-variant-numeric:tabular-nums}
 .aib-balance-detail .aib-meter{flex:none;width:100%;height:5px;border-radius:3px}
 .aib-balance-more{color:var(--mut);font-size:12px}
+/* beside a buy button (D-135): how long a package lasts, and the terms, privacy and refunds pages */
+.aib-terms{display:flex;flex-wrap:wrap;align-items:baseline;gap:2px 10px;color:var(--mut);font-size:12px;line-height:1.4}.aib-terms a.aib-link{font-size:12px;white-space:nowrap}
+.aib-card>.aib-terms{grid-column:2/-1;margin-top:-8px}.aib-account-terms{padding:2px 10px 6px}.aib-review-account>.aib-terms{flex-basis:100%}
 /* the sign-in: a sheet over the page (a phone: from the bottom) */
 .aib-veil{position:fixed;inset:0;z-index:60;display:grid;place-items:center;padding:16px;background:color-mix(in srgb,var(--cv) 55%,transparent);-webkit-backdrop-filter:blur(6px);backdrop-filter:blur(6px);animation:aib-in .2s ease-out}
 .aib-sign{width:min(380px,100%);display:flex;flex-direction:column;gap:10px;padding:16px 18px 18px;border-radius:18px;background:var(--panel-solid);border:1px solid var(--line);box-shadow:var(--sh-lg);animation:aib-pop .25s ease-out}
@@ -854,7 +857,8 @@ button.aib-big{height:46px;padding:0 22px;border-radius:12px;font-size:15px;box-
   /* a phone: the tips as one panel of rows, not a stack of pills */
   .aib-tips{flex-direction:column;gap:0;padding:2px 12px;border-radius:14px;background:var(--panel);border:1px solid var(--line)}
   .aib-tips li{min-height:36px;padding:7px 0;border:0;border-radius:0;background:none}.aib-tips li+li{border-top:1px solid var(--line)}
-  .aib-card{grid-template-columns:auto minmax(0,1fr)}.aib-card button.primary{grid-column:1/-1;width:100%}.aib-card-thumb{width:88px;height:64px}}
+  .aib-card{grid-template-columns:auto minmax(0,1fr)}.aib-card button.primary{grid-column:1/-1;width:100%}.aib-card-thumb{width:88px;height:64px}
+  .aib-card>.aib-terms{grid-column:1/-1;justify-content:center;text-align:center}}
 /* the review */
 .aib-review{-webkit-user-select:none;user-select:none}
 /* the bar, the tools and the hint: each placed on its own on a wide screen; on a phone one row at the top that wraps */

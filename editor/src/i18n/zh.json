@@ -1802,5 +1802,11 @@
  "In your account": "在你的账户中",
  "Take this plan": "使用此平面图",
  "The plan from your account is open.": "已打开你账户中的平面图。",
- "The plan saves automatically in this browser and in your account": "平面图会自动保存在此浏览器和你的账户中"
+ "The plan saves automatically in this browser and in your account": "平面图会自动保存在此浏览器和你的账户中",
+ "Your package expired": "你的套餐已过期",
+ "Terms": "条款",
+ "Privacy": "隐私",
+ "Refunds": "退款",
+ "Valid for 30 days after purchase; buying again extends it.": "购买后 30 天内有效；再次购买会延长有效期。",
+ "until {0}": "有效期至 {0}"
 }

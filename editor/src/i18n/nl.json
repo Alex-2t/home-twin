@@ -1802,5 +1802,11 @@
  "In your account": "In je account",
  "Take this plan": "Deze plattegrond nemen",
  "The plan from your account is open.": "De plattegrond uit je account is geopend.",
- "The plan saves automatically in this browser and in your account": "De plattegrond wordt automatisch opgeslagen in deze browser en in je account"
+ "The plan saves automatically in this browser and in your account": "De plattegrond wordt automatisch opgeslagen in deze browser en in je account",
+ "Your package expired": "Je pakket is verlopen",
+ "Terms": "Voorwaarden",
+ "Privacy": "Privacy",
+ "Refunds": "Terugbetalingen",
+ "Valid for 30 days after purchase; buying again extends it.": "30 dagen geldig na aankoop; opnieuw kopen verlengt het.",
+ "until {0}": "tot {0}"
 }

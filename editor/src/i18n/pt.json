@@ -1802,5 +1802,11 @@
  "In your account": "Na sua conta",
  "Take this plan": "Usar esta planta",
  "The plan from your account is open.": "A planta da sua conta está aberta.",
- "The plan saves automatically in this browser and in your account": "A planta é salva automaticamente neste navegador e na sua conta"
+ "The plan saves automatically in this browser and in your account": "A planta é salva automaticamente neste navegador e na sua conta",
+ "Your package expired": "Seu pacote expirou",
+ "Terms": "Termos",
+ "Privacy": "Privacidade",
+ "Refunds": "Reembolsos",
+ "Valid for 30 days after purchase; buying again extends it.": "Válido por 30 dias após a compra; comprar de novo prolonga o prazo.",
+ "until {0}": "até {0}"
 }

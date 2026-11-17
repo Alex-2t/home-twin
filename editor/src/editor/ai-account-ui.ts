@@ -14,6 +14,7 @@ import {
   balanceMeter,
   buyButtonInner,
   emptyBalanceText,
+  packageTermsHtml,
   askSignInLink,
   linkSignInUrl,
   newLinkToken,
@@ -434,6 +435,7 @@ export function accountBar(options: AccountBarOptions): AccountBar {
       <hr>
       <div class="aib-account-balance">${balance}</div>
       <button data-act="buy">${icon('wallet', 16)}<span>${buyInner}</span></button>
+      <div class="aib-account-terms">${packageTermsHtml(view.offer)}</div>
       <hr>
       <button data-act="sign-out">${icon('logOut', 16)}<span>${esc(t('Sign out'))}</span></button>
     </div>`);
@@ -512,6 +514,6 @@ export function pausedCard(
     html: `<div class="aib-card asking">
       <span class="aib-card-ic">${icon('wallet', 20)}</span>
       <span class="aib-card-text"><b>${esc(t('The package is used up'))}</b><small>${esc(why)}</small></span>
-      <button class="primary" data-act="top-up">${buttonInner}</button></div>`,
+      <button class="primary" data-act="top-up">${buttonInner}</button>${packageTermsHtml(offer)}</div>`,
   };
 }

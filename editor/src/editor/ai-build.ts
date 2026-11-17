@@ -52,6 +52,7 @@ import {
   currentAccount,
   emptyBalanceText,
   emptyStartText,
+  packageTermsHtml,
   forgetOldWallet,
   isSignedOut,
   pathOf,
@@ -1584,7 +1585,8 @@ export function openAiBuild(ed: Editor, options: AiBuildOptions = {}): AiBuildSc
       gate.innerHTML = `<div class="aib-card asking">
         <span class="aib-card-ic">${icon('wallet', 20)}</span>
         <span class="aib-card-text"><b>${esc(emptyBalanceText(balance))}</b><small${lineClass}>${esc(line)}</small></span>
-        <button class="primary" data-act="buy">${buyButtonInner(offer, {topUp: balance.bought})}</button></div>`;
+        <button class="primary" data-act="buy">${buyButtonInner(offer, {topUp: balance.bought})}</button>
+        ${packageTermsHtml(offer)}</div>`;
     }
     if (want === gateShown) return;
     gateShown = want;
@@ -1614,7 +1616,7 @@ export function openAiBuild(ed: Editor, options: AiBuildOptions = {}): AiBuildSc
       return;
     }
     const topUp = balance.empty
-      ? `<button class="soft" data-act="top-up">${buyButtonInner(offer, {topUp: true})}</button>`
+      ? `<button class="soft" data-act="top-up">${buyButtonInner(offer, {topUp: true})}</button>${packageTermsHtml(offer)}`
       : '';
     const line = accountLine ? `<small class="aib-wallet-err">${esc(accountLine)}</small>` : '';
     slot.innerHTML = balanceMeter(balance) + topUp + line + cost;

@@ -1802,5 +1802,11 @@
  "In your account": "В вашем аккаунте",
  "Take this plan": "Взять этот план",
  "The plan from your account is open.": "Открыт план из вашего аккаунта.",
- "The plan saves automatically in this browser and in your account": "План сохраняется автоматически в этом браузере и в вашем аккаунте"
+ "The plan saves automatically in this browser and in your account": "План сохраняется автоматически в этом браузере и в вашем аккаунте",
+ "Your package expired": "Срок пакета истёк",
+ "Terms": "Условия",
+ "Privacy": "Конфиденциальность",
+ "Refunds": "Возвраты",
+ "Valid for 30 days after purchase; buying again extends it.": "Действует 30 дней после покупки; новая покупка продлевает срок.",
+ "until {0}": "до {0}"
 }

@@ -17,7 +17,9 @@
 //                                            {current: {used, left}, packages, packagesLeft, used, left, empty, bought}:
 //                                            packages are spent one after another (D-108), current is the one being spent,
 //                                            packagesLeft the full ones after it; used/left are of all bought (older
-//                                            services give only those); bought is false until a first package
+//                                            services give only those); bought is false until a first package;
+//                                            expiresAt (ISO, null with nothing left) is when what is left expires, 30 days
+//                                            after the last purchase, and expired says the balance ran out that way (D-135)
 //   POST <api>/pay/auth/sign-out
 //   POST <api>/pay/checkout                  {return, lang} → {url}: the provider's checkout for one package; it comes back to
 //                                            <return>?paid=1&payment_id=…&status=…
@@ -27,7 +29,7 @@
 //   POST <api>/pay/test/top-up               a free test package, only where the service takes no payments
 // Public POSTs are JSON (the service refuses anything else). A refusal says why in {error}: a code such as SIGNED_OUT.
 // Where the AI build runs without the service (local work), /pay/offer answers 404: there are no accounts, builds are free.
-import {t, getLang} from '../i18n/i18n.ts';
+import {t, N, getLang, dateTime} from '../i18n/i18n.ts';
 import {esc} from './ui.ts';
 import {icon} from './icons.ts';
 
@@ -77,6 +79,10 @@ export interface BalanceShare {
   packagesLeft: number;
   /** The package being spent now. */
   current: PackageShare;
+  /** When what is left expires, ISO (D-135); null with nothing left, and from an older service. */
+  expiresAt: string | null;
+  /** Nothing is left because the balance expired (D-135), not because it was spent. */
+  expired: boolean;
 }
 
 /** The signed-in account (GET /pay/me): its email, the providers it has signed in with, and its balance. */
@@ -162,6 +168,8 @@ export function balanceFrom(value: unknown): BalanceShare {
       packages: 0,
       packagesLeft: 0,
       current: {used: 1, left: 0},
+      expiresAt: null,
+      expired: false,
     };
   }
   const empty = value.empty === true;
@@ -173,7 +181,12 @@ export function balanceFrom(value: unknown): BalanceShare {
   const current = packageShareFrom(value.current) ?? {used, left};
   const packages = countOf(value.packages, bought ? 1 : 0);
   const packagesLeft = countOf(value.packagesLeft, 0);
-  return {used, left, empty, bought, packages, packagesLeft, current};
+  const expiresAt =
+    typeof value.expiresAt === 'string' && Number.isFinite(Date.parse(value.expiresAt))
+      ? value.expiresAt
+      : null;
+  const expired = value.expired === true;
+  return {used, left, empty, bought, packages, packagesLeft, current, expiresAt, expired};
 }
 
 /** The account in the service's answer; throws when the answer is not one. */
@@ -418,14 +431,59 @@ export function buyLabel(offer: Offer | null, {topUp = false}: {topUp?: boolean}
   return topUp ? t('Top up · {0}', price) : t('Buy a package · {0}', price);
 }
 
-/** An empty balance in words: a new account has no package yet; one that bought has nothing left. */
+/** An empty balance in words: a new account has no package yet; one that bought has nothing left, or it expired. */
 export function emptyBalanceText(share: BalanceShare): string {
+  if (share.expired) return t('Your package expired');
   return share.bought ? t('Nothing left on your account') : t('No package yet');
 }
 
 /** Why a build cannot start with an empty balance: the first package, or nothing left of what was bought. */
 export function emptyStartText(share: BalanceShare | null | undefined): string {
+  if (share?.expired) return t('Your package expired');
   return share && !share.bought ? t('Buy your first package to build') : t('Nothing left on your account');
+}
+
+/** The pages a package is bought under, on the service's site (D-135). */
+const LEGAL_PAGES: {path: string; label: string}[] = [
+  {path: 'terms', label: N('Terms')},
+  {path: 'privacy', label: N('Privacy')},
+  {path: 'refunds', label: N('Refunds')},
+];
+
+/**
+ * The small print beside a buy button (D-135): how long a package lasts, and the terms, privacy and refunds pages, each in
+ * a tab of its own (the AI build's page, and Home Assistant's panel, stay as they are). The pages are on the service's
+ * site; an older service that does not say its address gets the line alone.
+ */
+export function packageTermsHtml(offer: Offer | null): string {
+  if (!offer) return '';
+  const validity = `<span>${esc(t('Valid for 30 days after purchase; buying again extends it.'))}</span>`;
+  const site = offer.site;
+  let links = '';
+  if (site) {
+    const anchors = LEGAL_PAGES.map(
+      page =>
+        `<a class="aib-link" href="${esc(`${site}/${page.path}`)}" target="_blank" rel="noopener">${esc(t(page.label))}</a>`,
+    );
+    links = `<span class="aib-terms-links">${anchors.join(' · ')}</span>`;
+  }
+  return `<small class="aib-terms">${validity}${links}</small>`;
+}
+
+/** The day what is left expires, short, in the owner's language: "Dec 17"; with the year when it is not this year's. */
+export function expiryDateText(expiresAt: string, now: Date = new Date()): string {
+  const end = new Date(expiresAt);
+  const thisYear = end.getFullYear() === now.getFullYear();
+  const options: Intl.DateTimeFormatOptions = thisYear
+    ? {day: 'numeric', month: 'short'}
+    : {day: 'numeric', month: 'short', year: 'numeric'};
+  return dateTime(end, options);
+}
+
+/** Until when what is left lasts: "until Dec 17"; '' with nothing left, or from a service that does not say. */
+export function untilText(share: BalanceShare, now: Date = new Date()): string {
+  if (share.empty || !share.expiresAt) return '';
+  return t('until {0}', expiryDateText(share.expiresAt, now));
 }
 
 /** Whether the checkout takes test cards only (Dodo's test mode): its buttons say so. */
@@ -475,21 +533,24 @@ export function balanceMeter(share: BalanceShare | null | undefined): string {
   const {used, left} = balancePercents(share);
   const more = morePackagesShort(share);
   const moreTitle = morePackagesText(share);
-  const title = t('Package: {0}% used, {1}% left', used, left) + (moreTitle ? ` · ${moreTitle}` : '');
+  const until = untilText(share);
+  const titleParts = [t('Package: {0}% used, {1}% left', used, left), moreTitle, until].filter(Boolean);
+  const title = titleParts.join(' · ');
   const emptyClass = share.empty ? ' empty' : '';
   const moreHtml = more ? `<span class="aib-wallet-more">· ${esc(more)}</span>` : '';
-  return `<span class="aib-wallet${emptyClass}" title="${esc(title)}">${icon('wallet', 14)}${packageBar(used)}<span>${esc(t('{0}% left', left))}</span>${moreHtml}</span>`;
+  const untilHtml = until ? `<span class="aib-wallet-until">· ${esc(until)}</span>` : '';
+  return `<span class="aib-wallet${emptyClass}" title="${esc(title)}">${icon('wallet', 14)}${packageBar(used)}<span>${esc(t('{0}% left', left))}</span>${moreHtml}${untilHtml}</span>`;
 }
 
 /**
  * The balance in the account's menu, a little fuller than the header's: which package, its bar and what is left of it,
- * and the full packages after it on a line of their own. The caller shows an empty balance in words instead.
+ * and on a line of their own the full packages after it and until when it all lasts. The caller shows an empty balance in words instead.
  */
 export function balanceDetail(share: BalanceShare): string {
   const {used, left} = balancePercents(share);
   const which = share.packages > 1 ? t('Current package') : t('Your package');
-  const more = morePackagesText(share);
-  const moreHtml = more ? `<small class="aib-balance-more">${esc(more)}</small>` : '';
+  const underBar = [morePackagesText(share), untilText(share)].filter(Boolean).join(' · ');
+  const moreHtml = underBar ? `<small class="aib-balance-more">${esc(underBar)}</small>` : '';
   return `<div class="aib-balance-detail">
     <div class="aib-balance-row">${icon('wallet', 14)}<span>${esc(which)}</span><b>${esc(t('{0}% left', left))}</b></div>
     ${packageBar(used)}${moreHtml}</div>`;
