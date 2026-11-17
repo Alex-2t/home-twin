@@ -2,6 +2,8 @@
 
 A live 3D twin of your home for Home Assistant: draw the floor plan, place lights, devices and sensors, and see the home in 3D with live states. Early alpha.
 
+[![Support Home Twin on Ko-fi](https://img.shields.io/badge/Ko--fi-Support%20Home%20Twin-FF5E5B?logo=ko-fi&logoColor=white)](https://ko-fi.com/hometwin)
+
 ## Install
 1. Add this repository and download **Home Twin**, then restart Home Assistant:
    - Home Assistant 2026.11 and newer: Marketplace → **Add from link** → `https://github.com/Alex-2t/home-twin` (the Marketplace asks to connect a GitHub account first, as for any repository outside its catalog).
@@ -29,6 +31,8 @@ After the first release, in no fixed order and without dates:
 - **The day, replayed** — drag a timeline back and watch the lights, doors, motion and temperature play out.
 - **Climate on the plan** — a heat map of temperature, humidity or CO₂ room by room; energy drawn on the devices that use it.
 - **People and motion** — rooms light up where someone is; the robot vacuum moves along its real path.
+
+Want these sooner? [Buy me a coffee on Ko-fi](https://ko-fi.com/hometwin) — Home Twin is free and open, and support keeps it moving.
 
 License: [GPL-3.0](LICENSE).
 
