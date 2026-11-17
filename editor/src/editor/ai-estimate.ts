@@ -89,7 +89,7 @@ export function estimateLine(estimate: Estimate | null): string {
   if (!estimate) return '';
   const title = t('An estimate: a bigger home or more furniture takes more');
   const warning = estimate.short
-    ? `<span class="aib-cost-short">${esc(t('More than is left: it pauses for a top-up'))}</span>`
+    ? `<span class="aib-cost-short">${esc(t('Your package may run out midway. It pauses and goes on once you top up.'))}</span>`
     : '';
   const shortClass = estimate.short ? ' short' : '';
   return `<span class="aib-cost${shortClass}" title="${esc(title)}">${icon('gauge', 14)}<span>${esc(estimateText(estimate))}</span>${warning}</span>`;

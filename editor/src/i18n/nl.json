@@ -1582,7 +1582,7 @@
  "Up to {0}% of your package": "Tot {0}% van je pakket",
  "About {0}–{1}% of your package": "Ongeveer {0}–{1}% van je pakket",
  "An estimate: a bigger home or more furniture takes more": "Een schatting: een groter huis of meer meubels kosten meer",
- "More than is left: it pauses for a top-up": "Meer dan er over is: het pauzeert tot je bijvult",
+ "Your package may run out midway. It pauses and goes on once you top up.": "Je pakket is misschien niet genoeg. Dan pauzeert het werk en gaat het verder na het opwaarderen.",
  "Body color": "Kleur van de lamp",
  "Default color": "Standaardkleur",
  "Hanging the lamps from your video": "We hangen de lampen uit uw video op",

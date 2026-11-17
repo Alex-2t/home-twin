@@ -83,6 +83,6 @@ test('the line says percent of the package, never money; a plain warning when it
   assert.doesNotMatch(enough, /\$|aib-cost-short/);
   const short = estimateLine({low: 30, high: 45, short: true});
   assert.match(short, /aib-cost short/);
-  assert.match(short, /More than is left: it pauses for a top-up/);
+  assert.match(short, /Your package may run out midway. It pauses and goes on once you top up./);
   assert.equal(estimateLine(null), '');
 });
