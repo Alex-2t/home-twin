@@ -866,7 +866,7 @@ export async function openAiFromAddress(
       'link-failed': t('Could not sign in. Go back to Home Assistant and try again.'),
       'link-cancelled': t('Sign-in cancelled. Go back to Home Assistant.'),
     };
-    ed.banner(words[back.signIn], [[t('Got it'), () => ed.banner(), true]]);
+    tabNotice(words[back.signIn], back.signIn === 'linked');
     if (back.signIn === 'linked') setTimeout(() => window.close(), LINKED_TAB_CLOSE_MS);
     return null;
   }
@@ -886,7 +886,10 @@ export async function openAiFromAddress(
         text = paymentClaimText(error);
       }
     }
-    ed.banner(text, [[t('Got it'), () => ed.banner(), true]]);
+    tabNotice(
+      text,
+      !paymentFailed && text === t('The package is paid. Go back to Home Assistant: it is there.'),
+    );
     return null;
   }
   if (back.payment && paymentFailed) notice = t('The payment did not go through');
@@ -899,6 +902,24 @@ export async function openAiFromAddress(
   }
   const signInNotice = back.signIn === 'failed' ? t('Could not sign in. Try again or use your email.') : null;
   return openAiBuild(ed, {api, id, notice, account: claimed, signInNotice});
+}
+
+/**
+ * A tab opened from Home Assistant's panel (a sign-in, the checkout) lands here: one line over the page, which says to go back
+ * there. Over everything: the editor's banner sat under the start screen, so its line was never seen.
+ */
+function tabNotice(text: string, done: boolean): void {
+  const veil = el(`<div class="aib-veil">
+    <section class="aib-sign aib-tab-note" role="status">
+      <header>
+        <span class="aib-tab-note-ic${done ? '' : ' bad'}">${icon(done ? 'check' : 'info', 18)}</span>
+        <b>${esc(text)}</b>
+        <button type="button" class="ib" data-act="close" title="${esc(t('Close'))}">${icon('x', 16)}</button>
+      </header>
+    </section>
+  </div>`);
+  find(veil, '[data-act=close]').onclick = () => veil.remove();
+  document.body.append(veil);
 }
 
 /** The address without one of its parameters. */

@@ -713,6 +713,7 @@ button.aib-sign-way{height:42px;border-radius:11px;font-weight:500;gap:10px;back
 button.aib-link{height:auto;min-width:0;padding:0;border-radius:4px;color:var(--acc);font-size:12.5px;font-weight:500}button.aib-link:hover{background:none;text-decoration:underline}
 .aib-sign-err{color:var(--bad);font-size:12.5px;line-height:1.4}
 a.aib-link{color:var(--acc);font-size:12.5px;font-weight:500;text-decoration:none;cursor:pointer}a.aib-link:hover{text-decoration:underline}
+.aib-tab-note header b{font-size:15.5px;line-height:1.35}.aib-tab-note-ic{flex:none;width:32px;height:32px;border-radius:10px;display:grid;place-items:center;background:var(--acc2);color:var(--acc)}.aib-tab-note-ic.bad{background:var(--warn-bg);color:var(--bad)}
 .aib-sign-wait{display:flex;align-items:center;gap:10px;padding:12px 14px;border-radius:11px;background:var(--chip);font-size:13.5px;line-height:1.4}
 /* the upload page asks to sign in, then for a package, before the files (D-133): a card in the page */
 .aib-gate{margin-top:4px}.aib-gate>.aib-card{max-width:560px}
