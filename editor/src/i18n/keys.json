@@ -1100,7 +1100,7 @@
  "Pet bed": "src/core/catalog.ts:2111",
  "pet bed dog cat basket cushion": "src/core/catalog.ts:2122",
  "Photo at an angle? Turn it by the circle above the photo.": "src/editor/flows.ts:1234 src/editor/modes/rooms.ts:421",
- "Photo deleted 2 days after the build": "src/editor/ai-review.ts:82",
+ "Photo unavailable": "src/editor/ai-review.ts:82",
  "Piano": "src/core/catalog.ts:1039",
  "piano upright digital keyboard music instrument": "src/core/catalog.ts:1050",
  "Pick a page": "src/editor/plan-pages.ts:128",

@@ -70,8 +70,8 @@ const PANEL_WIDTH = 340;
 const NARROW = 720;
 const CLICK_PX = 5;
 /**
- * A pin's photo in its thumbnail. The service deletes the photos two days after a build, as the terms say: one that is no
- * longer there shows as a quiet placeholder that says so, not as a broken image.
+ * A pin's photo in its thumbnail. One the service no longer has shows as a quiet placeholder that says so, not as a broken
+ * image.
  */
 function showPinPhoto(thumb: HTMLElement, link: HTMLAnchorElement, url: string): void {
   const image = find<HTMLImageElement>(thumb, 'img');
@@ -79,10 +79,10 @@ function showPinPhoto(thumb: HTMLElement, link: HTMLAnchorElement, url: string):
   image.addEventListener(
     'error',
     () => {
-      const deletedText = t('Photo deleted 2 days after the build');
+      const unavailableText = t('Photo unavailable');
       link.removeAttribute('href');
-      link.title = deletedText;
-      link.setAttribute('aria-label', deletedText);
+      link.title = unavailableText;
+      link.setAttribute('aria-label', unavailableText);
       image.replaceWith(el(`<span class="aib-thumb-gone">${icon('image', 16)}</span>`));
     },
     {once: true},
