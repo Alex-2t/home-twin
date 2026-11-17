@@ -14,13 +14,28 @@ Manual install: download `home_twin.zip` from the latest release, unzip it into 
 
 The editor is for administrators; the card is for everyone in the home (only administrators change its scenes and layout). The plan and its photo are stored in Home Assistant (`.storage/home_twin.plan`, `.storage/home_twin.photo`) and are included in backups, so every computer and browser sees the same plan. Removing the integration keeps them, so reinstalling brings them back; delete those files to remove them completely.
 
+## Roadmap
+
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/images/roadmap-dark.svg">
+  <img alt="Home Twin roadmap: the floor-plan editor, the Home Assistant panel, the dashboard card and the AI build are done; the first release is next; after it come more than one floor, the outside, real sun and weather, the day replayed, climate on the plan, people and motion" src="docs/images/roadmap-light.svg">
+</picture>
+
+After the first release, in no fixed order and without dates:
+
+- **More than one floor** — two-storey houses, flats on two levels, basements and attics.
+- **The outside** — the facade, the roof and the plot, with outdoor lights, gates and sensors where they really are.
+- **Real sun and weather** — the light follows the real time of day, the home's orientation and the sky.
+- **The day, replayed** — drag a timeline back and watch the lights, doors, motion and temperature play out.
+- **Climate on the plan** — a heat map of temperature, humidity or CO₂ room by room; energy drawn on the devices that use it.
+- **People and motion** — rooms light up where someone is; the robot vacuum moves along its real path.
+
 License: [GPL-3.0](LICENSE).
 
 ## Development
 
 The repository holds the code. It contains no personal data from the owner's apartment: its demo and plan photo are kept local only (`editor/demo/own.ts` is in `.gitignore`); without them the demo is an invented typical apartment.
 
-- [Roadmap](docs/roadmap.md) — what comes after the first release
 - [Editor](editor/README.md) — how to build, run and test it
 - [Home Assistant integration](integration/README.md) — how it works, test HA in Docker, releasing a version
 - [Plan format](docs/plan-format.md) — the plan file and its versions
