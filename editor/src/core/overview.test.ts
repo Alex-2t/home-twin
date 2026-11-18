@@ -293,3 +293,16 @@ test('a garage and a boiler room have a concrete floor in every language; a dini
   }
   setLang('en');
 });
+
+test('overview: an unlinked room is listed only with a light, a reading or a device in it', () => {
+  const p = plan();
+  p.rooms.push(
+    {id: 'cupboard', name: 'Room 7', polygon: sq(9, 0, 1, 1)},
+    {id: 'den', name: 'Den', polygon: sq(10, 0, 3, 3)},
+  );
+  p.lights.push({id: 'f', room: 'den', placed: true, on: true} as Plan['lights'][number]);
+  const ids = overview(p, ctx).map(r => r.id);
+  assert.ok(!ids.includes('cupboard'), 'nothing to switch or read in the cupboard');
+  assert.ok(ids.includes('den'), 'a lamp placed in it keeps the room on the panel');
+  assert.ok(ids.includes('r1') && ids.includes('r2'), 'linked rooms stay');
+});

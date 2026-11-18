@@ -829,6 +829,10 @@ export function roomsMode(ed: Editor): RoomsMode {
   let cutRoom: string | null = null;
   let mv: Vector = [0, 0];
   let lastP: Point | null = null;
+  // A step longer than this (pixels) is the pointer coming back from elsewhere, not a movement: the point it last had here
+  // could be from before a click on a panel or a trip outside the room, and the jump from it used to turn the line, so the
+  // same move gave a horizontal wall in one home and a vertical one in another.
+  const JUMP_PX = 150;
   function trackMove(p: Point): void {
     if (!lastP) {
       lastP = p;
@@ -837,6 +841,10 @@ export function roomsMode(ed: Editor): RoomsMode {
     const sc = v().sc;
     const d = [(p[0] - lastP[0]) * sc, (p[1] - lastP[1]) * sc];
     lastP = p;
+    if (Math.hypot(d[0], d[1]) > JUMP_PX) {
+      mv = [0, 0];
+      return;
+    }
     mv = [mv[0] * 0.75 + d[0], mv[1] * 0.75 + d[1]];
   }
   function cutAt(p: Point, free: boolean): CutLine | null {
@@ -846,6 +854,7 @@ export function roomsMode(ed: Editor): RoomsMode {
     if (!r) {
       cutRoom = null;
       cutLock = false;
+      lastP = null; // outside the rooms: the movement starts again on the way back in
       return null;
     }
     if (r.id !== cutRoom) {
@@ -1058,6 +1067,7 @@ export function roomsMode(ed: Editor): RoomsMode {
     if (tool === 'split' && e.relatedTarget !== planCv) hoverRoom(null);
   });
   planCv.addEventListener('mouseleave', e => {
+    lastP = null; // off the plan: the movement starts again when the pointer is back
     if (tool === 'split' && !ctxEl.contains(e.relatedTarget as Node | null)) hoverRoom(null);
     if (nameHover) {
       nameHover = null;

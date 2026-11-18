@@ -266,8 +266,21 @@ export function overview(
         lamps,
         lit: lamps.filter(l => l.on).length,
         dev: roomDevices(r, ha),
+        linked: !!(r.area || r.zone?.area),
       };
-    });
+    })
+    .filter(hasSomethingToShow)
+    .map(({linked, ...room}) => room);
+}
+
+/**
+ * A room the home panel lists: linked to a Home Assistant area, or with a light, a reading or a device in it. A cupboard left
+ * unlinked in “Link rooms” has none of them, and the dashboard showed it as “Room 7” with nothing to switch or read.
+ */
+function hasSomethingToShow(room: OverviewRoom & {linked: boolean}): boolean {
+  if (room.linked) return true;
+  const devices = room.dev.acs.length + room.dev.covers.length + room.dev.contacts.length;
+  return room.lamps.length > 0 || Object.keys(room.climate).length > 0 || devices > 0;
 }
 
 // Home temperature: from the coldest room to the warmest → [min, max] or null.

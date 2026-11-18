@@ -201,6 +201,12 @@ export function createFlows(
   // (drawPlan sizes the drawing by its box, so the card is on screen by now)
   function fillContinueCard(card: HTMLElement): void {
     const plan = ed.plan;
+    // in Home Assistant the plan is what its dashboard shows: the heading says so once there is a dashboard and a room on it
+    // (it said so before either existed)
+    const onBoard = !!ed.ha?.board?.exists() && plan.rooms.length > 0;
+    find($('start'), '.start-label[data-for=plan]').textContent = onBoard
+      ? t('On your dashboard')
+      : t('Your plan');
     const example = exampleOf(plan);
     const name = plan.name || (example ? exampleHome(example).name : t('My home'));
     find(card, '.cont-name').textContent = name;
@@ -482,9 +488,6 @@ export function createFlows(
     box.hidden = !examples.length;
     // no examples here (Home Assistant): the gallery online, in a new tab
     find($('start'), '.ex-online').hidden = examples.length > 0;
-    // in Home Assistant (no examples in the panel) the plan is what its dashboard shows: the heading says so
-    if (!examples.length)
-      find($('start'), '.start-label[data-for=plan]').textContent = t('On your dashboard');
     const tile = (x: RoomedExample): HTMLElement => {
       const home = exampleHome(x);
       const b = el(
