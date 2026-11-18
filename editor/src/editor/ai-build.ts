@@ -44,7 +44,7 @@ import {changeCount, pinsToSend, pinsToRetry, refreshRetries} from './ai-pins.ts
 import {markSource} from './ai-fix.ts';
 import {recordStep} from './wizard-state.ts';
 import {PLACEABLE, autoPlace, deviceKind, isCentral, recOf} from '../core/devices.ts';
-import {orphans, recommend} from '../core/sensors.ts';
+import {recommend} from '../core/sensors.ts';
 import type {Pin, PinNotes, PinRetry, PinRound, ReportView} from './ai-pins.ts';
 import {
   accountOffer,
@@ -436,7 +436,6 @@ const PHRASES: Record<PhraseStep, string[]> = {
   frames: [
     N('Picking the sharpest frames'),
     N('Dropping blurred and dark frames'),
-    N('Blurring faces in every frame'),
     N('A few good frames for each room'),
     N('Your best angles only'),
   ],
@@ -547,11 +546,7 @@ const PHOTO_PHRASES: Partial<Record<PhraseStep, string[]>> = {
     N('Leaving the street and stairs out'),
     N('Telling the hallway from the kitchen'),
   ],
-  frames: [
-    N('Getting the photos ready'),
-    N('Blurring faces in every photo'),
-    N('Turning each photo upright'),
-  ],
+  frames: [N('Getting the photos ready'), N('Turning each photo upright')],
 };
 // Under a room's card while its call works, each card in its own turn.
 const ROOM_PHRASES = [N('Looking…'), N('Walls, doors, windows…'), N('Listing the furniture…')];
@@ -2941,12 +2936,11 @@ export function openAiBuild(ed: Editor, options: AiBuildOptions = {}): AiBuildSc
     const lights = lightsToPlace(ed);
     if (inHa && lights.length && lights.every(light => light.placed))
       recordStep(ed.plan, 'lights', 'confirmed');
-    const devices = devicesToPlace(ed);
-    if (inHa && devices.length && devices.every(device => recOf(ed.plan, device.entity)))
-      recordStep(ed.plan, 'devices', 'confirmed');
-    // the readings are on the walls and no climate sensor waits for its room to be said
-    if (inHa && ed.plan.sensors.length && !orphans(ed.plan, ed.sensorCtx()).length)
-      recordStep(ed.plan, 'sensors', 'confirmed');
+    // Devices and readings: done once the build placed some. An HA device the video did not show is most likely not in these
+    // rooms (curtains of another flat, a test entity); asking “Home Assistant has 8 curtains. Show them in the model?” after
+    // the build had put the ones it saw read as if nothing had been placed. The Devices and Sensors tabs still add the rest.
+    if (inHa && ed.plan.devices.length) recordStep(ed.plan, 'devices', 'confirmed');
+    if (inHa && ed.plan.sensors.length) recordStep(ed.plan, 'sensors', 'confirmed');
     ed.amend();
   }
 

@@ -80,6 +80,7 @@ import {typedOutlineSize} from '../wizard-state.ts';
 import {focusIndexIn, refocusAt} from '../keyboard.ts';
 import type {OpeningHit, OpeningsTool} from './openings.ts';
 import type {CornerJunction} from '../../core/plan.ts';
+import {roomKind} from '../../core/overview.ts';
 import type {
   EdgeFinish,
   EdgeRef,
@@ -2456,8 +2457,12 @@ export function roomsMode(ed: Editor): RoomsMode {
       }
     return null;
   }
-  /** The room with this area that shares a wall with r, or null. */
+  /**
+   * The room with this area that shares a wall with r, or null. Only for a room that is no kind of room by its name (“Room 3”, a
+   * part drawn off another): a named bedroom beside the living room was offered “Living Room”, and a click would join them.
+   */
   function roomWithAreaBeside(r: Room, areaId: string): Room | null {
+    if (roomKind(r.name) !== 'room') return null;
     const other = plan().rooms.find(o => o !== r && o.area === areaId && !zoneParts(o));
     return other && sharedWall(r, other) ? other : null;
   }

@@ -1900,11 +1900,16 @@ export function createApp({haLights, ha, photos}: AppOptions): Editor {
     const ctxBox = $('ctx');
     if (r === 'main' && ed.mode.ctxSteady?.() && !ctxBox.hidden) {
       const reserve = ctxBox.offsetWidth + 24;
-      options = options.map(option =>
+      // beside the panel, or below it: a wide panel (a room's list of lights with the shapes) beside the docked card left the
+      // plan a strip a third of the screen wide, though the space under the panel was empty
+      const canvasTop = ed.v.cv.getBoundingClientRect().top;
+      const below = ctxBox.getBoundingClientRect().bottom - canvasTop + 12;
+      options = options.flatMap(option => [
         steadyPanelSide() === 'left'
           ? {...option, l: Math.max(option.l, reserve)}
           : {...option, r: Math.max(option.r ?? 0, reserve)},
-      );
+        {...option, t: Math.max(option.t ?? 0, below)},
+      ]);
     }
     if (r === 'main' && pipMode() === 'win')
       options = options.flatMap(option => [
