@@ -866,7 +866,7 @@
  "Tile": "Tegels",
  "Tile & stone": "Tegels en steen",
  "Tile up to 1.2 m": "Tegels tot 1,2 m",
- "Tip: all horizontal walls first, then vertical ones. Delete extras later.": "Tip: eerst alle horizontale muren, dan de verticale. Verwijder de overtollige daarna.",
+ "Tip: a wall runs across the whole room. Split into large parts first, then each part. Delete extras later.": "Tip: een muur loopt door de hele kamer. Verdeel eerst in grote delen, daarna elk deel. Verwijder overbodige delen later.",
  "Toe kick": "Plint",
  "Toilet": "Toilet",
  "Top-load": "Verticaal",
@@ -1832,5 +1832,7 @@
  "Launch price, later {0}.": "Introductieprijs, later {0}.",
  "until {0}": "tot {0}",
  "Photo unavailable": "Foto niet beschikbaar",
- "The photos and videos of this build are no longer kept. Upload them again to build your home.": "De foto's en video's van deze bouw worden niet meer bewaard. Upload ze opnieuw om je huis te bouwen."
+ "The photos and videos of this build are no longer kept. Upload them again to build your home.": "De foto's en video's van deze bouw worden niet meer bewaard. Upload ze opnieuw om je huis te bouwen.",
+ "skipped {0}": "{0} overgeslagen",
+ "Already used by “{0}”. Click to join the two into one room.": "Al gebruikt door ‘{0}’. Klik om ze samen te voegen tot één kamer."
 }

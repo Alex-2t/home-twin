@@ -866,7 +866,7 @@
  "Tile": "Azulejo",
  "Tile & stone": "Azulejo e pedra",
  "Tile up to 1.2 m": "Azulejo até 1,2 m",
- "Tip: all horizontal walls first, then vertical ones. Delete extras later.": "Dica: primeiro as paredes horizontais, depois as verticais. Remova as extras depois.",
+ "Tip: a wall runs across the whole room. Split into large parts first, then each part. Delete extras later.": "Dica: uma parede atravessa o cômodo inteiro. Divida primeiro em partes grandes, depois cada parte. Apague o que sobrar depois.",
  "Toe kick": "Rodapé",
  "Toilet": "Vaso sanitário",
  "Top-load": "Vertical",
@@ -1832,5 +1832,7 @@
  "Launch price, later {0}.": "Preço de lançamento, depois {0}.",
  "until {0}": "até {0}",
  "Photo unavailable": "Foto indisponível",
- "The photos and videos of this build are no longer kept. Upload them again to build your home.": "As fotos e vídeos desta criação não são mais guardados. Envie-os novamente para criar sua casa."
+ "The photos and videos of this build are no longer kept. Upload them again to build your home.": "As fotos e vídeos desta criação não são mais guardados. Envie-os novamente para criar sua casa.",
+ "skipped {0}": "{0} ignoradas",
+ "Already used by “{0}”. Click to join the two into one room.": "Já usada por “{0}”. Clique para juntar as duas num só cômodo."
 }

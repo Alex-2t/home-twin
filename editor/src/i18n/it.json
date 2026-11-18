@@ -866,7 +866,7 @@
  "Tile": "Piastrelle",
  "Tile & stone": "Piastrelle e pietra",
  "Tile up to 1.2 m": "Piastrelle fino a 1,2 m",
- "Tip: all horizontal walls first, then vertical ones. Delete extras later.": "Consiglio: prima tutte le pareti orizzontali, poi le verticali. Quelle di troppo eliminale dopo.",
+ "Tip: a wall runs across the whole room. Split into large parts first, then each part. Delete extras later.": "Suggerimento: un muro attraversa tutta la stanza. Dividi prima in parti grandi, poi ogni parte. Elimina il superfluo dopo.",
  "Toe kick": "Zoccolo",
  "Toilet": "WC",
  "Top-load": "Carica dall'alto",
@@ -1832,5 +1832,7 @@
  "Launch price, later {0}.": "Prezzo di lancio, poi {0}.",
  "until {0}": "fino al {0}",
  "Photo unavailable": "Foto non disponibile",
- "The photos and videos of this build are no longer kept. Upload them again to build your home.": "Le foto e i video di questa creazione non sono più conservati. Caricali di nuovo per creare la tua casa."
+ "The photos and videos of this build are no longer kept. Upload them again to build your home.": "Le foto e i video di questa creazione non sono più conservati. Caricali di nuovo per creare la tua casa.",
+ "skipped {0}": "{0} saltate",
+ "Already used by “{0}”. Click to join the two into one room.": "Già usata da «{0}». Fai clic per unire le due in un’unica stanza."
 }

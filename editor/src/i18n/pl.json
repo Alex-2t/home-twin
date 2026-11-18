@@ -866,7 +866,7 @@
  "Tile": "Płytki",
  "Tile & stone": "Płytki i kamień",
  "Tile up to 1.2 m": "Płytki do 1,2 m",
- "Tip: all horizontal walls first, then vertical ones. Delete extras later.": "Najpierw ściany poziome, potem pionowe. Zbędne usuniesz później.",
+ "Tip: a wall runs across the whole room. Split into large parts first, then each part. Delete extras later.": "Wskazówka: ściana przechodzi przez cały pokój. Najpierw podziel na duże części, potem każdą część. Zbędne usuń później.",
  "Toe kick": "Cokół",
  "Toilet": "WC",
  "Top-load": "Pionowa",
@@ -1832,5 +1832,7 @@
  "Launch price, later {0}.": "Cena na start, później {0}.",
  "until {0}": "do {0}",
  "Photo unavailable": "Zdjęcie niedostępne",
- "The photos and videos of this build are no longer kept. Upload them again to build your home.": "Zdjęcia i filmy z tej budowy nie są już przechowywane. Prześlij je ponownie, aby zbudować dom."
+ "The photos and videos of this build are no longer kept. Upload them again to build your home.": "Zdjęcia i filmy z tej budowy nie są już przechowywane. Prześlij je ponownie, aby zbudować dom.",
+ "skipped {0}": "pominięto {0}",
+ "Already used by “{0}”. Click to join the two into one room.": "Już używane przez „{0}”. Kliknij, aby połączyć je w jeden pokój."
 }

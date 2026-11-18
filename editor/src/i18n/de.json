@@ -866,7 +866,7 @@
  "Tile": "Fliesen",
  "Tile & stone": "Fliesen & Stein",
  "Tile up to 1.2 m": "Fliesen bis 1,2 m",
- "Tip: all horizontal walls first, then vertical ones. Delete extras later.": "Tipp: erst alle waagerechten Wände, dann die senkrechten. Überflüssige danach löschen.",
+ "Tip: a wall runs across the whole room. Split into large parts first, then each part. Delete extras later.": "Tipp: Eine Wand geht durch den ganzen Raum. Teile erst in große Bereiche, dann jeden Bereich. Überflüssiges später löschen.",
  "Toe kick": "Sockel",
  "Toilet": "WC",
  "Top-load": "Toplader",
@@ -1832,5 +1832,7 @@
  "Launch price, later {0}.": "Einführungspreis, später {0}.",
  "until {0}": "bis {0}",
  "Photo unavailable": "Foto nicht verfügbar",
- "The photos and videos of this build are no longer kept. Upload them again to build your home.": "Die Fotos und Videos dieses Aufbaus werden nicht mehr aufbewahrt. Lade sie erneut hoch, um dein Zuhause zu bauen."
+ "The photos and videos of this build are no longer kept. Upload them again to build your home.": "Die Fotos und Videos dieses Aufbaus werden nicht mehr aufbewahrt. Lade sie erneut hoch, um dein Zuhause zu bauen.",
+ "skipped {0}": "{0} übersprungen",
+ "Already used by “{0}”. Click to join the two into one room.": "Bereits von „{0}“ verwendet. Klicke, um beide zu einem Raum zu verbinden."
 }

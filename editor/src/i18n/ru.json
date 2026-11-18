@@ -866,7 +866,7 @@
  "Tile": "Плитка",
  "Tile & stone": "Плитка и камень",
  "Tile up to 1.2 m": "Плитка до 1,2 м",
- "Tip: all horizontal walls first, then vertical ones. Delete extras later.": "Совет: сначала все горизонтальные стены, потом вертикальные. Лишние потом удалите.",
+ "Tip: a wall runs across the whole room. Split into large parts first, then each part. Delete extras later.": "Совет: стена проходит через всю комнату. Сначала делите на большие части, потом каждую часть. Лишнее удалите потом.",
  "Toe kick": "Цоколь",
  "Toilet": "Унитаз",
  "Top-load": "Вертикальная",
@@ -1832,5 +1832,7 @@
  "Launch price, later {0}.": "Цена на старте, потом {0}.",
  "until {0}": "до {0}",
  "Photo unavailable": "Фото недоступно",
- "The photos and videos of this build are no longer kept. Upload them again to build your home.": "Фото и видео этой сборки больше не хранятся. Загрузите их снова, чтобы построить дом."
+ "The photos and videos of this build are no longer kept. Upload them again to build your home.": "Фото и видео этой сборки больше не хранятся. Загрузите их снова, чтобы построить дом.",
+ "skipped {0}": "пропущено {0}",
+ "Already used by “{0}”. Click to join the two into one room.": "Уже у «{0}». Нажмите, чтобы объединить их в одну комнату."
 }

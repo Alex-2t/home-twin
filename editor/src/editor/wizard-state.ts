@@ -109,3 +109,14 @@ export function typedOutlineSize(
   const chosenWidth = width ?? round(Math.sqrt(outlineArea * OUTLINE_ASPECT));
   return {width: chosenWidth, depth: round(outlineArea / chosenWidth)};
 }
+
+/**
+ * Lights all decided — each placed and confirmed, or skipped — with some skipped: how many were skipped (0 otherwise). The step
+ * still counts a skipped light as not done (it may be added later), but the summary should not call a finished step “For later”.
+ */
+export function lightsSkippedWhenDecided(p: Plan): number {
+  const lights = p.lights.filter(l => !lampWaits(p, l) && !l.with);
+  const skipped = lights.filter(l => l.skip && !l.placed).length;
+  const open = lights.filter(l => (!l.placed || l.draft) && !l.skip).length;
+  return skipped && !open ? skipped : 0;
+}

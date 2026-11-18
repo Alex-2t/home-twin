@@ -2,7 +2,7 @@
 // Next goes forward along the path; the summary lists what is unfinished. “Run setup” returns to the first unfinished step.
 import {t, N} from '../i18n/i18n.ts';
 import {icon} from './icons.ts';
-import {stepFacts, stepStatus, recordStep} from './wizard-state.ts';
+import {lightsSkippedWhenDecided, stepFacts, stepStatus, recordStep} from './wizard-state.ts';
 import {find} from './ui.ts';
 import type {OnboardingStepId} from '../core/types.ts';
 import type {BannerItem, Editor, PathStep, PathStepStatus} from './editor-types.ts';
@@ -290,15 +290,19 @@ export function createPath(ed: Editor): WizardPath {
     const result = document.createElement('div');
     result.className = 'wizard-result';
     for (const [k] of open) {
-      const s = P.status(k);
       const f = stepFacts(ed.plan, k);
+      // lights finished with some skipped (“Finish placing lights”): every light is decided, so the summary says done with
+      // the count of skipped ones, not “For later”, which read as if the button had not worked
+      const skipped = k === 'lights' ? lightsSkippedWhenDecided(ed.plan) : 0;
+      const s: PathStepStatus = skipped ? 'confirmed' : P.status(k);
       const b = document.createElement('button');
       b.type = 'button';
       b.dataset.status = s;
       b.innerHTML = icon(s === 'confirmed' ? 'check' : 'right', 14) + '<span></span><small></small>';
       find(b, 'span').textContent = nameOf(k);
-      find(b, 'small').textContent =
-        statusName(s) + (['names', 'lights'].includes(k) ? ` · ${f.ready}/${f.total}` : '');
+      find(b, 'small').textContent = skipped
+        ? `${statusName(s)} · ${f.ready}/${f.total} · ${t('skipped {0}', skipped)}`
+        : statusName(s) + (['names', 'lights'].includes(k) ? ` · ${f.ready}/${f.total}` : '');
       b.disabled = !can(k);
       b.onclick = () => P.go(k);
       result.append(b);

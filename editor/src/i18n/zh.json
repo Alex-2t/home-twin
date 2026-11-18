@@ -866,7 +866,7 @@
  "Tile": "瓷砖",
  "Tile & stone": "瓷砖与石材",
  "Tile up to 1.2 m": "瓷砖贴至 1.2 m",
- "Tip: all horizontal walls first, then vertical ones. Delete extras later.": "提示：先画所有横向墙，再画纵向墙，多余的稍后删除。",
+ "Tip: a wall runs across the whole room. Split into large parts first, then each part. Delete extras later.": "提示：墙会贯穿整个房间。先分成大块，再分每一块。多余部分稍后删除。",
  "Toe kick": "踢脚板",
  "Toilet": "马桶",
  "Top-load": "顶开式",
@@ -1832,5 +1832,7 @@
  "Launch price, later {0}.": "首发价，之后为 {0}。",
  "until {0}": "有效期至 {0}",
  "Photo unavailable": "照片不可用",
- "The photos and videos of this build are no longer kept. Upload them again to build your home.": "此次生成的照片和视频已不再保留。请重新上传以生成你的家。"
+ "The photos and videos of this build are no longer kept. Upload them again to build your home.": "此次生成的照片和视频已不再保留。请重新上传以生成你的家。",
+ "skipped {0}": "已跳过 {0}",
+ "Already used by “{0}”. Click to join the two into one room.": "已被“{0}”使用。点击将两者合并为一个房间。"
 }

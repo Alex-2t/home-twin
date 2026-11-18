@@ -1,6 +1,13 @@
 import {test} from 'node:test';
 import assert from 'node:assert/strict';
-import {stepFacts, stepStatus, recordStep, stepReadyToFinish, lampWaits} from './wizard-state.ts';
+import {
+  stepFacts,
+  stepStatus,
+  recordStep,
+  stepReadyToFinish,
+  lampWaits,
+  lightsSkippedWhenDecided,
+} from './wizard-state.ts';
 import {emptyPlan, migrate} from '../core/plan.ts';
 import {createPath} from './wizard-path.ts';
 import type {FurnitureItem, Plan, PlanLight, Room} from '../core/types.ts';
@@ -247,4 +254,13 @@ test('skipping a lamp of a room that is not on the plan does not add it to the c
   p.lights[1].skip = true;
   assert.equal(stepFacts(p, 'lights').total, 1, 'still one: the kids room lamp still waits for its room');
   assert.equal(lampWaits(p, p.lights[1]), true);
+});
+
+test('lights all decided with some skipped: the summary counts the skipped ones; a light still open: none', () => {
+  const p: Plan = {...emptyPlan(), lights: [lamp({placed: true}), lamp({placed: false, skip: true})]};
+  assert.equal(lightsSkippedWhenDecided(p), 1);
+  p.lights.push(lamp({placed: true, draft: true}));
+  assert.equal(lightsSkippedWhenDecided(p), 0, 'a draft is still open');
+  p.lights = [lamp({placed: true})];
+  assert.equal(lightsSkippedWhenDecided(p), 0, 'nothing skipped: the usual summary');
 });

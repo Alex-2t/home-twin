@@ -432,7 +432,7 @@ export function roomsMode(ed: Editor): RoomsMode {
     [],
     ed.aim.photo,
   ];
-  const SPLIT_STEP = `${t('Split into rooms: a click adds a wall.')}<small>${t('Tip: all horizontal walls first, then vertical ones. Delete extras later.')}</small><small>${t('Select and delete any extra area outside your apartment.')}</small><small>${t('You can also paint the floor and walls: select a room with the arrow.')}</small>`;
+  const SPLIT_STEP = `${t('Split into rooms: a click adds a wall.')}<small>${t('Tip: a wall runs across the whole room. Split into large parts first, then each part. Delete extras later.')}</small><small>${t('Select and delete any extra area outside your apartment.')}</small><small>${t('You can also paint the floor and walls: select a room with the arrow.')}</small>`;
   // a strip above the bottom bar, does not move; after the first split — on one line (the owner)
   const SPLIT_O = (): StepOptions => ({id: 'split', fixed: true});
   const OPEN_STEP = `${t('Now windows and doors: click a wall where they are in the photo and choose “Window” or “Door”. When all are added, click “Done”.')}<small>${t('Drag an opening along the wall or by its edges. Delete extras.')}</small>`;
@@ -2446,6 +2446,35 @@ export function roomsMode(ed: Editor): RoomsMode {
   // one room). No manual input: the name comes from HA. At the bottom — “not listed” with a link to HA.
   // ask — the wizard question: the “Which room is this?” title and “Skip”; otherwise — at the selected room, with “Unlink”.
   let roomLink: string | null = null;
+  /** The wall of room r that it shares with only room other, as wallAt gives it; none: null. */
+  function sharedWall(r: Room, other: Room): WallInfo | null {
+    for (let i = 0; i < r.polygon.length; i++)
+      for (const at of [0.5, 0.25, 0.75]) {
+        const W = wallAt(plan(), r, i, at);
+        const neighbours = new Set(W.B.map(([room]) => room));
+        if (W.interior && neighbours.size === 1 && neighbours.has(other)) return W;
+      }
+    return null;
+  }
+  /** The room with this area that shares a wall with r, or null. */
+  function roomWithAreaBeside(r: Room, areaId: string): Room | null {
+    const other = plan().rooms.find(o => o !== r && o.area === areaId && !zoneParts(o));
+    return other && sharedWall(r, other) ? other : null;
+  }
+  /** Joins r into the room beside it (the wall between goes), the joined room keeping that room's area. */
+  function joinRooms(r: Room, other: Room): boolean {
+    const W = sharedWall(r, other);
+    if (!W) return false;
+    ed.versions.mark('before', 'merge');
+    const joined = mergeRooms(plan(), W);
+    if (!joined) return false;
+    if (other.area) setRoomArea(plan(), joined, other.area, ed.areaName(other.area) || other.name || '');
+    delete joined.noArea;
+    // in “Link rooms” the step goes on to the next room; elsewhere the joined room is the one selected
+    if (!wiz) sel().room = joined.id;
+    else sel().room = null;
+    return true;
+  }
   // a row of chips for a cell (a room or its part z): the ones taken by other cells — disabled
   function chipsRow(r: Room, z: boolean): HTMLElement {
     const owner = new Map<string, string | undefined>();
@@ -2459,9 +2488,26 @@ export function roomsMode(ed: Editor): RoomsMode {
     const row = el(`<div class="line names"></div>`);
     for (const a of list) {
       const used = owner.has(a.area_id) && a.area_id !== mine;
+      // the area is taken by a room right beside this one (a hall drawn as two parts): the chip joins them instead
+      const joinWith = used && !z && !zoneParts(r) ? roomWithAreaBeside(r, a.area_id) : null;
+      const title = joinWith
+        ? t('Already used by “{0}”. Click to join the two into one room.', esc(owner.get(a.area_id)))
+        : used
+          ? t('Already used by “{0}”', esc(owner.get(a.area_id)))
+          : t('Home Assistant area');
       const b = el(
-        `<button class="chip ${mine === a.area_id ? 'on' : ''}" ${used ? 'disabled' : ''} title="${used ? t('Already used by “{0}”', esc(owner.get(a.area_id))) : t('Home Assistant area')}">${esc(a.name)}</button>`,
+        `<button class="chip ${mine === a.area_id ? 'on' : ''} ${joinWith ? 'join' : ''}" ${used && !joinWith ? 'disabled' : ''} title="${title}">${esc(a.name)}</button>`,
       );
+      if (joinWith) {
+        b.onclick = () => {
+          if (!joinRooms(r, joinWith)) return;
+          if (wiz) wiz.cur = null;
+          if (!wiz) roomLink = null;
+          ed.commit();
+        };
+        row.append(b);
+        continue;
+      }
       b.onclick = () => {
         // z: the cell is the zone's part, so the room has a zone
         if (z) {
@@ -2819,6 +2865,9 @@ export function roomsMode(ed: Editor): RoomsMode {
     return [Math.min(...xs), Math.min(...ys), Math.max(...xs), Math.max(...ys)];
   };
   m.ctxKey = () => ctxRoom() || '';
+  // The panel that follows the pointer while splitting (not a selected room's): it must not lie over another room. Beside an
+  // inner room it used to lie over the next room to split, and the click meant for the split landed on the panel.
+  m.ctxHideOverRooms = () => tool === 'split' && !hintRoom && !sel().room && !sel().wall && !sel().opening;
   m.status = () => '';
   return m;
 }

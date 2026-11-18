@@ -866,7 +866,7 @@
  "Tile": "Baldosa",
  "Tile & stone": "Baldosas y piedra",
  "Tile up to 1.2 m": "Azulejos hasta 1,2 m",
- "Tip: all horizontal walls first, then vertical ones. Delete extras later.": "Consejo: primero las paredes horizontales, luego las verticales. Elimina las que sobren.",
+ "Tip: a wall runs across the whole room. Split into large parts first, then each part. Delete extras later.": "Consejo: una pared cruza toda la habitación. Divide primero en partes grandes y luego cada parte. Borra lo que sobre después.",
  "Toe kick": "Zócalo",
  "Toilet": "Inodoro",
  "Top-load": "Vertical",
@@ -1832,5 +1832,7 @@
  "Launch price, later {0}.": "Precio de lanzamiento, después {0}.",
  "until {0}": "hasta el {0}",
  "Photo unavailable": "Foto no disponible",
- "The photos and videos of this build are no longer kept. Upload them again to build your home.": "Las fotos y vídeos de esta creación ya no se conservan. Súbelos de nuevo para crear tu casa."
+ "The photos and videos of this build are no longer kept. Upload them again to build your home.": "Las fotos y vídeos de esta creación ya no se conservan. Súbelos de nuevo para crear tu casa.",
+ "skipped {0}": "{0} omitidas",
+ "Already used by “{0}”. Click to join the two into one room.": "Ya la usa «{0}». Haz clic para unir las dos en una sola habitación."
 }

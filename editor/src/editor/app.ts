@@ -1089,6 +1089,11 @@ export function createApp({haLights, ha, photos}: AppOptions): Editor {
           (c.beside ? 0 : 15)
         );
       };
+      // whether the panel at c lies over a room other than its own (its own: the box of the object it is about)
+      const coversOtherRooms = (c: (typeof cand)[number]): boolean => {
+        const r: PixelBox = [c.cx - w / 2, c.ty, c.cx + w / 2, c.ty + h];
+        return cover(r)[0] > 0;
+      };
       if (ok.length) {
         let best: (typeof cand)[number] | null = null;
         let bc = Infinity;
@@ -1098,6 +1103,12 @@ export function createApp({haLights, ha, photos}: AppOptions): Editor {
             bc = v;
             best = c;
           }
+        }
+        // the panel following the pointer while splitting: no place off the other rooms — none at all, not one over the next
+        // room to split (it can still be had by selecting the room with the arrow)
+        if (ed.mode.ctxHideOverRooms?.() && coversOtherRooms(best!)) {
+          c.hidden = true;
+          return;
         }
         place(best!.cx, best!.ty, true); // ok has places, and any cost is below Infinity
         return;

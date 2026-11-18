@@ -2,7 +2,7 @@
 // floor lamp — the user says with one click (the one guessed by name is highlighted); the default place comes from fixtures.js,
 // then — drag on the plan. The “Lights” wizard step: room by room is highlighted and asked about its lamp without a place.
 import {t, num} from '../../i18n/i18n.ts';
-import {dist2, segDist, pointIn, WALL, ceilingOf} from '../../core/geometry.ts';
+import {area, dist2, segDist, pointIn, WALL, ceilingOf} from '../../core/geometry.ts';
 import {GRID, snapLightPoint, stripOnWall} from '../../core/layout.ts';
 import {roomAt, roomById, zoneParts} from '../../core/plan.ts';
 import {
@@ -46,7 +46,7 @@ import type {Contour, LampCell, StripRuns} from '../../core/fixtures.ts';
 import {autoPlace, bindSeenLamp, placeLight} from '../../core/light-place.ts';
 import {giveSeenBack, isSeenLamp, settleSeen} from '../../core/seen-lamps.ts';
 import {moved, slideAlongWall} from '../nudge.ts';
-import {$, el, esc, parseLen, scrollRow, section, tip, tipHide} from '../ui.ts';
+import {$, el, esc, fmtArea, parseLen, scrollRow, section, tip, tipHide} from '../ui.ts';
 import {icon} from '../icons.ts';
 import {cssHex, hexNum, isHex, snapColor} from '../../core/color.ts';
 import {FONT, alpha, dimLabel, pal, shiftSegs, shiftPoint} from '../draw.ts';
@@ -403,6 +403,21 @@ export function lightsMode(ed: Editor): LightsMode {
     const has = (x: PlanLight): boolean => open(x) && cellKey(x) != null;
     return ring.find(x => has(x) && cellKey(x) !== sess) || ring.find(has) || ring.find(open) || null;
   }
+  // The step goes by rooms (the owner, 2026-11-04: “Next” saves the whole room): on entering a room, the rest of its lamps without a place
+  // stand there too, as drafts, so the room is seen whole and “Next” saves all of it. One lamp a visit used to bring the step
+  // back to the same room once per lamp (a bedroom with four lights was visited four times).
+  function draftRestOfRoom(first: PlanLight): void {
+    const room = cellKey(first);
+    if (room == null) return;
+    for (const lamp of order()) {
+      if (lamp === first || !open(lamp) || cellKey(lamp) !== room) continue;
+      const cell = lampCell(plan(), lamp);
+      const guess = guessForm(lamp);
+      if (!cell || !placeLight(plan(), lamp, guess.form, guess.opt, cell)) continue;
+      lamp.auto = true;
+      lamp.draft = true;
+    }
+  }
   function wizPlace(): void {
     // Import and undo can also bring back a draft when the wizard is closed. Keep it until the user explicitly decides.
     if (!wizOn()) {
@@ -491,6 +506,7 @@ export function lightsMode(ed: Editor): LightsMode {
         delete a!.skip;
         a!.auto = true;
         a!.draft = true;
+        draftRestOfRoom(a!);
         cur = null;
         merging = false;
         sel().light = a!.id;
@@ -1393,10 +1409,14 @@ export function lightsMode(ed: Editor): LightsMode {
         ),
       );
       const row = el(`<div class="line names"></div>`);
-      for (const r of plan().rooms) {
-        if (r.solid) continue;
+      // linked rooms first, by their HA names; a room left unlinked (“Room 3”) after them, with its size so it can be told
+      const rooms = plan()
+        .rooms.filter(r => !r.solid)
+        .sort((a, b) => +!a.area - +!b.area);
+      for (const r of rooms) {
+        const label = r.area ? (r.name ?? '') : `${r.name ?? ''} · ${fmtArea(area(r.polygon))}`;
         const b = el(
-          `<button class="chip" title="${r.area ? t('Home Assistant area: “{0}”', esc(ed.areaName(r.area))) : t('Room has no HA area — saved here only')}">${esc(r.name ?? '')}</button>`,
+          `<button class="chip" title="${r.area ? t('Home Assistant area: “{0}”', esc(ed.areaName(r.area))) : t('Room has no HA area — saved here only')}">${esc(label)}</button>`,
         );
         b.onclick = () => {
           const s0 = snap(L);

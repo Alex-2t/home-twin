@@ -866,7 +866,7 @@
  "Tile": "Carrelage",
  "Tile & stone": "Carrelage et pierre",
  "Tile up to 1.2 m": "Carrelage jusqu'à 1,2 m",
- "Tip: all horizontal walls first, then vertical ones. Delete extras later.": "Astuce : d'abord tous les murs horizontaux, puis les verticaux. Supprimez ensuite ceux en trop.",
+ "Tip: a wall runs across the whole room. Split into large parts first, then each part. Delete extras later.": "Astuce : un mur traverse toute la pièce. Divisez d'abord en grandes parties, puis chaque partie. Supprimez le superflu ensuite.",
  "Toe kick": "Plinthe",
  "Toilet": "WC",
  "Top-load": "Top",
@@ -1832,5 +1832,7 @@
  "Launch price, later {0}.": "Prix de lancement, ensuite {0}.",
  "until {0}": "jusqu’au {0}",
  "Photo unavailable": "Photo indisponible",
- "The photos and videos of this build are no longer kept. Upload them again to build your home.": "Les photos et vidéos de cette création ne sont plus conservées. Importez-les à nouveau pour créer votre logement."
+ "The photos and videos of this build are no longer kept. Upload them again to build your home.": "Les photos et vidéos de cette création ne sont plus conservées. Importez-les à nouveau pour créer votre logement.",
+ "skipped {0}": "{0} ignorées",
+ "Already used by “{0}”. Click to join the two into one room.": "Déjà utilisée par « {0} ». Cliquez pour réunir les deux en une seule pièce."
 }
