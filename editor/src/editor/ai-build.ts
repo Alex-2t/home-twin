@@ -1187,10 +1187,10 @@ export async function openAiFromAddress(
         text = paymentClaimText(error);
       }
     }
-    tabNotice(
-      text,
-      !paymentFailed && text === t('The package is paid. Go back to Home Assistant: it is there.'),
-    );
+    const paid = !paymentFailed && text === t('The package is paid. Go back to Home Assistant: it is there.');
+    tabNotice(text, paid);
+    // the panel opened this tab, so it may close it: the browser goes back to Home Assistant, where the package already shows
+    if (paid) setTimeout(() => window.close(), PAID_TAB_CLOSE_MS);
     return null;
   }
   if (back.payment && paymentFailed) notice = t('The payment did not go through');
@@ -1256,6 +1256,8 @@ type UploadGate = 'wait' | 'sign-in' | 'package' | null;
 
 /** The tab of a sign-in from Home Assistant closes itself after this, once its line is read. */
 const LINKED_TAB_CLOSE_MS = 1500;
+/** The checkout's tab from Home Assistant closes itself after this, once the payment is counted and its line is read. */
+const PAID_TAB_CLOSE_MS = 2500;
 
 /** Where the checkout comes back to when the package was bought from Home Assistant: our site says to go back there. */
 export const HA_CHECKOUT_RETURN = '/?from=ha';
@@ -1596,6 +1598,14 @@ export function openAiBuild(ed: Editor, options: AiBuildOptions = {}): AiBuildSc
       packageTimer = setTimeout(look, PACKAGE_POLL_MS);
     };
     packageTimer = setTimeout(look, PACKAGE_POLL_MS);
+    // back from the checkout's tab: look at once, not at the next round
+    const lookOnReturn = (): void => {
+      if (document.visibilityState !== 'visible') return;
+      document.removeEventListener('visibilitychange', lookOnReturn);
+      clearTimeout(packageTimer);
+      look();
+    };
+    document.addEventListener('visibilitychange', lookOnReturn);
   }
 
   // The build is not shown here: the page says why and stops asking until the owner signs in.
