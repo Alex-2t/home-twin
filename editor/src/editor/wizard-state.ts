@@ -16,9 +16,10 @@ export interface StepFacts {
 export const areaOnPlan = (p: Pick<Plan, 'rooms'>, a: string): boolean =>
   p.rooms.some(r => r.area === a || r.zone?.area === a);
 // a lamp waits for its room: its area is not on the plan — it is left out of the counters and of “done” until the room is linked
-// (otherwise a three-room apartment would never get “Lights 3/15” to the end)
+// (otherwise a three-room apartment would never get “Lights 3/15” to the end). Skipped or not: skipping a lamp of a room that is
+// not on the plan used to bring it into the count, so each skip made “of 20” grow by one
 export const lampWaits = (p: Pick<Plan, 'rooms'>, l: PlanLight): boolean =>
-  !l.placed && !l.skip && !l.with && !!l.area && !areaOnPlan(p, l.area);
+  !l.placed && !l.with && !!l.area && !areaOnPlan(p, l.area);
 
 export function stepFacts(p: Plan, k: OnboardingStepId): StepFacts {
   let total = 0;

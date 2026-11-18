@@ -245,15 +245,16 @@ export function lightsMode(ed: Editor): LightsMode {
     const tail = k
       ? t('Placed {0} of {1} · skipped {2}.', n, all.length, k)
       : t('Placed {0} of {1}.', n, all.length);
+    // while lights are left: what to do, and the count below; once none is, the count alone (it was said three times)
+    const text = left
+      ? `${t('Check the light type and position. Then confirm the room.')}<small>${t('The position was chosen automatically. Drag the light if needed.')}</small><small>${tail}</small>`
+      : all.length
+        ? tail
+        : t('No lights in Home Assistant yet. Click “Done”.');
+    // nothing left to place (skipped ones included) — the step's own way out, not only “Finish later”, which read as a dead end
     ed.step(
-      `${left ? t('Check the light type and position. Then confirm the room.') : all.length ? tail : t('No lights in Home Assistant yet. Click “Done”.')}<small>${t('The position was chosen automatically. Drag the light if needed.')}</small><small>${tail}</small>`,
-      [
-        [
-          left || k ? t('Finish later') : t('Finish placing lights'),
-          () => finish(!!(left || k)),
-          !left && !k,
-        ],
-      ],
+      text,
+      [[left ? t('Finish later') : t('Finish placing lights'), () => finish(!!left), !left]],
       null,
       {id: 'lights', short: left ? t('Check the lights and confirm the room.') + ' ' + tail : tail},
     );

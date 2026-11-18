@@ -521,3 +521,60 @@ test('auto-place by the furniture: sconces by name, a table lamp on a nightstand
   const [sx, sy] = [r.furniture[0].x, r.furniture[0].y];
   assert.ok(!(Math.abs(now[0] - sx) < 0.8 + 0.12 && Math.abs(now[1] - sy) < 0.45 + 0.12), 'outside the sofa');
 });
+
+test('lights of one room placed by their guesses stand apart, not on one spot', () => {
+  const p = flat();
+  const lights: PlanLight[] = [
+    {id: 'main', name: 'Bedroom ceiling', area: 'bedroom', points: [], segments: []},
+    {id: 'bed', name: 'Bed light', area: 'bedroom', points: [], segments: []},
+    {id: 'wall1', name: 'Wall light', area: 'bedroom', points: [], segments: []},
+    {id: 'wall2', name: 'Wall light 2', area: 'bedroom', points: [], segments: []},
+    {id: 'lamp1', name: 'Floor lamp', area: 'bedroom', points: [], segments: []},
+    {id: 'lamp2', name: 'Reading floor lamp', area: 'bedroom', points: [], segments: []},
+  ];
+  p.lights = lights;
+  const forms = ['ceiling', 'ceiling', 'wall', 'wall', 'lamp', 'lamp'] as const;
+  lights.forEach((light, index) => {
+    const cell = lampCell(p, light)!;
+    assert.ok(placeForm(p, light, forms[index], forms[index] === 'lamp' ? 'floor' : null, cell));
+  });
+  const distance = (a: Point, b: Point): number => Math.hypot(a[0] - b[0], a[1] - b[1]);
+  for (let i = 0; i < lights.length; i++)
+    for (let j = i + 1; j < lights.length; j++) {
+      const near = distance(lights[i].points[0], lights[j].points[0]);
+      assert.ok(near >= 0.5 - 1e-9, `${lights[i].id} and ${lights[j].id} are ${near.toFixed(2)} m apart`);
+    }
+  // each stays in its room
+  for (const light of lights) assert.ok(pointIn(light.points[0], R), light.id);
+});
+
+test('two table lamps by one bed go to its two nightstands, or side by side on one', () => {
+  const p = flat();
+  const stand = (id: string, x: number): FurnitureItem => ({
+    id,
+    model: 'nightstand',
+    x,
+    y: 0.3,
+    w: 0.5,
+    d: 0.4,
+    h: 0.55,
+    rot: 0,
+  });
+  p.furniture = [stand('n1', 0.6), stand('n2', 3.4)];
+  const left: PlanLight = {id: 'l', name: 'Bedside lamp left', area: 'bedroom', points: [], segments: []};
+  const right: PlanLight = {id: 'r', name: 'Bedside lamp right', area: 'bedroom', points: [], segments: []};
+  p.lights = [left, right];
+  for (const light of [left, right]) placeForm(p, light, 'lamp', 'table', lampCell(p, light)!);
+  const xs = [left.points[0][0], right.points[0][0]].sort((a, b) => a - b);
+  assert.deepEqual(xs, [0.6, 3.4], 'one lamp on each nightstand');
+  // one nightstand: side by side on it
+  p.furniture = [stand('n1', 1.5)];
+  for (const light of [left, right]) {
+    light.placed = false;
+    light.points = [];
+  }
+  for (const light of [left, right]) placeForm(p, light, 'lamp', 'table', lampCell(p, light)!);
+  assert.ok(
+    Math.hypot(left.points[0][0] - right.points[0][0], left.points[0][1] - right.points[0][1]) >= 0.5 - 1e-9,
+  );
+});

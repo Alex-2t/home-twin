@@ -1185,6 +1185,74 @@ function seatSpot(plan: LightPlan, cell: LampCell): Point | null {
   return null;
 }
 
+// ---------- keeping lights apart ----------
+// Each light is placed by its own guess, so two ceiling lights of one room both went to its middle, and two bedside lamps onto
+// the same nightstand: on the plan and in 3D they read as one lamp. A light whose one point comes closer than APART to a light
+// already in the cell is moved to the first free spot its form allows.
+const APART = 0.5;
+
+/** The points of the other lights already placed in this cell (parts of a fitting stand with it, not apart). */
+function takenPoints(
+  plan: LightPlan & Partial<Pick<Plan, 'lights'>>,
+  light: PlanLight,
+  cell: LampCell,
+): Point[] {
+  return (plan.lights || [])
+    .filter(other => other !== light && other.placed && !other.with && other.room === cell.room.id)
+    .flatMap(other => other.points || [])
+    .filter(point => pointIn(point, cell.poly));
+}
+
+const isClear = (point: Point, taken: Point[]): boolean => taken.every(q => len(point, q) >= APART);
+
+/** Where else a light of this form may stand in the cell, the likeliest first. */
+function otherSpots(
+  plan: LightPlan,
+  light: PlanLight,
+  form: LightForm,
+  cell: LampCell,
+  from: Point,
+): Point[] {
+  const shifted = (d: number): Point[] => [
+    [from[0] + d, from[1]],
+    [from[0] - d, from[1]],
+    [from[0], from[1] + d],
+    [from[0], from[1] - d],
+  ];
+  if (form === 'ceiling' || form === 'pendant') {
+    const free = freeCeiling(plan, cell);
+    return [2, 3, 4, 5, 6].flatMap(n => ceilingLayout(free, n));
+  }
+  if (form === 'wall') return [2, 3, 4, 5, 6].flatMap(n => wallLayout(plan, cell, n));
+  if (form === 'lamp' && light.opt === 'table') {
+    // another stand first (the other nightstand), then side by side on the same one
+    const stands = furnIn(plan, cell, f => STANDS.includes(f.model));
+    const tops = stands.map((f): Point => [f.x, f.y]);
+    return [...tops, ...shifted(APART)];
+  }
+  // a floor lamp: along the room's walls, away from furniture (as lampSpot picks its first spot)
+  const ring = offset(cell.poly, -0.45).filter(point => pointIn(point, cell.poly));
+  const busy = (plan.furniture || [])
+    .filter(f => !byId(f.model)?.soft && zOf(f) < 1.2)
+    .flatMap(f => rectsOf(plan, f).map(q => offset(q, 0.12)));
+  const freeRing = ring.filter(point => !busy.some(q => pointIn(point, q)));
+  return [...shifted(APART + 0.1), ...freeRing].sort((a, b) => len(a, from) - len(b, from));
+}
+
+/** The light's one point, moved off the lights already in the cell when it stands on one of them. */
+function keepApart(plan: LightPlan, light: PlanLight, form: LightForm, cell: LampCell): void {
+  if (light.points.length !== 1 || light.segments.length) return; // spots, lines and strips have layouts of their own
+  const taken = takenPoints(plan, light, cell);
+  const [point] = light.points;
+  if (isClear(point, taken)) return;
+  // a wall light stands at the wall; any other light keeps a little off it
+  const inside = form === 'wall' ? cell.poly : offset(cell.poly, -0.15);
+  const free = otherSpots(plan, light, form, cell, point).find(
+    spot => pointIn(spot, inside) && isClear(spot, taken),
+  );
+  if (free) light.points = [P3(free)];
+}
+
 // Place a light of form form (variant opt) in cell cell, right away, the usual way; the user adjusts it afterwards.
 export function placeForm(
   plan: LightPlan,
@@ -1242,6 +1310,7 @@ export function placeForm(
   delete L.skip;
   delete L.with;
   L.room = cell.room.id;
+  keepApart(plan, L, form, cell);
   L.placed = L.points.length + L.segments.length > 0;
   return L.placed;
 }

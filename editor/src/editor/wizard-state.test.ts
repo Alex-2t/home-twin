@@ -225,3 +225,26 @@ test('lights: lamps from areas that are not on the plan do not block finishing t
   });
   assert.equal(stepFacts(p, 'lights').complete, false, 'the kids room is linked — its lamp counts again');
 });
+
+test('skipping a lamp of a room that is not on the plan does not add it to the count', () => {
+  const p: Plan = {
+    ...emptyPlan(),
+    rooms: [
+      {
+        id: 'bed',
+        area: 'bed',
+        polygon: [
+          [0, 0],
+          [3, 0],
+          [3, 3],
+          [0, 3],
+        ],
+      } as Room,
+    ],
+    lights: [lamp({area: 'bed', placed: true}), lamp({area: 'kids', placed: false})],
+  };
+  assert.equal(stepFacts(p, 'lights').total, 1);
+  p.lights[1].skip = true;
+  assert.equal(stepFacts(p, 'lights').total, 1, 'still one: the kids room lamp still waits for its room');
+  assert.equal(lampWaits(p, p.lights[1]), true);
+});

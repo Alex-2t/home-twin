@@ -88,6 +88,7 @@ export async function start(panel: PanelHost): Promise<PanelApp> {
   if (asked) ask();
   // the subscription is made on HA's page's connection, which outlives this iframe: it is ended when the panel closes (below)
   const stopWatchingBuild = watchBuild(hass(), buildOf(import.meta.url), showUpdated, {panel: true});
+  loadCardInHaPage();
   // The AI build (D-132): its screens here, its requests through the integration, which holds the account
   // a reload on the AI build's page (/home-twin/ai…) opens it again
   void aiBuildInPanel(ed, hass(), parsePanelAi(panel.route?.path));
@@ -114,4 +115,22 @@ export async function start(panel: PanelHost): Promise<PanelApp> {
       }
     },
   };
+}
+
+/**
+ * The dashboard card's script in the Home Assistant page that holds this panel (the panel lives in an iframe in it), when that
+ * page does not have it yet. HA puts card.js only into the pages it sends after the integration is added: in the page the user
+ * added it from, “Add to dashboard” made a dashboard that showed “Configuration error” until a reload. The panel is opened
+ * before any dashboard, so the card is defined by the time one is shown.
+ */
+function loadCardInHaPage(): void {
+  const page = window.parent;
+  if (page === window) return;
+  try {
+    if (page.customElements.get('home-twin-card')) return;
+    const script = page.document.createElement('script');
+    script.type = 'module';
+    script.src = new URL('./card.js', import.meta.url).href; // beside panel.js: the same build (serve.py)
+    page.document.head.append(script);
+  } catch {} // a page of another origin: HA's own card.js is all it can have
 }
