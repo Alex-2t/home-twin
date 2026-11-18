@@ -165,6 +165,9 @@ export const MISSED_REASON = {
   still: N('From where you looked it still looks wrong: we try again'),
   cannot: N('We can’t do this yet'),
   unclear: N('Not understood: say it another way or add a photo'),
+  blocked: N('Done, but it runs into the thing next to it: drag one of them in the editor'),
+  // {0}: the things that went, by their names
+  gone: N('{0} went missing with it: put it back in the editor or pin it'),
 };
 
 /** The room a spot is in, else the nearest one within `near` metres; null outside the home. */

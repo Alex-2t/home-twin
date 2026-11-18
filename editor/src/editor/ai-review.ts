@@ -105,9 +105,17 @@ const saidFor = (retry: PinRetry | undefined, code: string): string =>
 // The reasons by any code the service sends: one this list does not have reads as none.
 const missedReasons: Partial<Record<string, string>> = MISSED_REASON;
 const missedText = (retry: PinRetry): string =>
-  (retry?.codes || [])
-    .map(code => saidFor(retry, code) || t(missedReasons[code] || MISSED_REASON.unchanged))
-    .join(' · ');
+  (retry?.codes || []).map(code => reasonText(retry, code)).join(' · ');
+// A thing gone with the round: its name is what the service says, in the reason's words.
+const goneNames = (retry: PinRetry): string =>
+  (retry?.told || [])
+    .filter(told => told.code === 'gone')
+    .map(told => told.say)
+    .join(', ');
+const reasonText = (retry: PinRetry, code: string): string => {
+  if (code === 'gone') return t(MISSED_REASON.gone, goneNames(retry) || '?');
+  return saidFor(retry, code) || t(missedReasons[code] || MISSED_REASON.unchanged);
+};
 // Under a pin that comes back: not done, or done in part, and why (the owner: "Last time: …" told them nothing). What the app
 // can't do yet, and what was not understood, say so plainly (the owner: "why was it unclear?" — it was understood, and the
 // app could not do it).
@@ -611,7 +619,8 @@ export function openReview(
   // What the owner was looking at when they put the pin, the spot ringed. A pin put in 3D keeps the camera too: the service
   // looks at the changed home from there, to tell whether what the owner pinned is put right as they see it (D-081).
   async function keepView(pin: Pin): Promise<void> {
-    if (view === '3d') pin.camera = ed.view.getView();
+    // the whole canvas, as the picture below is: the review's panel moves the view's own target off its middle
+    if (view === '3d') pin.camera = ed.view.getFrameView();
     if (!upload) return;
     try {
       const canvas = viewCanvas(pin);

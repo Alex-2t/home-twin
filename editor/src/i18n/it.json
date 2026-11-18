@@ -1832,5 +1832,7 @@
  "Photo unavailable": "Foto non disponibile",
  "The photos and videos of this build are no longer kept. Upload them again to build your home.": "Le foto e i video di questa creazione non sono più conservati. Caricali di nuovo per creare la tua casa.",
  "skipped {0}": "{0} saltate",
- "Already used by “{0}”. Click to join the two into one room.": "Già usata da «{0}». Fai clic per unire le due in un’unica stanza."
+ "Already used by “{0}”. Click to join the two into one room.": "Già usata da «{0}». Fai clic per unire le due in un’unica stanza.",
+ "Done, but it runs into the thing next to it: drag one of them in the editor": "Fatto, ma urta la cosa accanto: trascinane una nell’editor",
+ "{0} went missing with it: put it back in the editor or pin it": "Nel farlo è sparito: {0}. Rimettilo nell’editor o metti un pin"
 }

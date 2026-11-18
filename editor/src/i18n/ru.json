@@ -1832,5 +1832,7 @@
  "Photo unavailable": "Фото недоступно",
  "The photos and videos of this build are no longer kept. Upload them again to build your home.": "Фото и видео этой сборки больше не хранятся. Загрузите их снова, чтобы построить дом.",
  "skipped {0}": "пропущено {0}",
- "Already used by “{0}”. Click to join the two into one room.": "Уже у «{0}». Нажмите, чтобы объединить их в одну комнату."
+ "Already used by “{0}”. Click to join the two into one room.": "Уже у «{0}». Нажмите, чтобы объединить их в одну комнату.",
+ "Done, but it runs into the thing next to it: drag one of them in the editor": "Сделано, но упирается в соседнюю вещь: передвиньте одну из них в редакторе",
+ "{0} went missing with it: put it back in the editor or pin it": "При этом пропало: {0}. Верните в редакторе или поставьте пин"
 }

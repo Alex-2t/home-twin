@@ -1832,5 +1832,7 @@
  "Photo unavailable": "Foto niet beschikbaar",
  "The photos and videos of this build are no longer kept. Upload them again to build your home.": "De foto's en video's van deze bouw worden niet meer bewaard. Upload ze opnieuw om je huis te bouwen.",
  "skipped {0}": "{0} overgeslagen",
- "Already used by “{0}”. Click to join the two into one room.": "Al gebruikt door ‘{0}’. Klik om ze samen te voegen tot één kamer."
+ "Already used by “{0}”. Click to join the two into one room.": "Al gebruikt door ‘{0}’. Klik om ze samen te voegen tot één kamer.",
+ "Done, but it runs into the thing next to it: drag one of them in the editor": "Gedaan, maar het botst met het ding ernaast: sleep een van beide in de editor",
+ "{0} went missing with it: put it back in the editor or pin it": "Daarbij is verdwenen: {0}. Zet het terug in de editor of plaats een pin"
 }

@@ -153,6 +153,8 @@ export interface SceneView {
   /** To the home view, smoothly. */
   home(): void;
   getView(): HomeView;
+  /** The view as the whole canvas shows it, whatever panel floats over it (a pin's camera: getFrameView). */
+  getFrameView(): HomeView;
   setHome(view: HomeView | null | undefined): void;
   /** Called when the view is moved by hand (true) or goes back to the home view (false). */
   onMoved(listener: (moved: boolean) => void): void;
@@ -297,6 +299,8 @@ const isSpotLight = (light: PoolLight): light is THREE.SpotLight =>
 
 // Shading near walls and in corners: one map per scene (surfaces.js); walls and floor read it in the shader.
 const AOU = aoUniforms();
+// The 3D frame is this much larger than what it fits: a margin round the model.
+const FRAME_MARGIN = 1.08;
 // walls are warm white; the inner side of exterior walls has the same color as partitions
 const wallMat = withAO(new THREE.MeshStandardMaterial({color: 0xf0ece5, roughness: 0.92}), AOU, true);
 // skirting boards and door and window trim: white satin paint (D-080)
@@ -2036,6 +2040,28 @@ export function createView(host: HTMLElement): SceneView {
       fit: (camera.userData.fit || [8, 5]).map((v: number) => r3(v / camera.zoom)),
     };
   }
+  /**
+   * The view as the whole canvas shows it: its middle as the target and its full size as the frame. A panel floating over the
+   * view moves the target into the free part (resize), so getView's target is off the canvas's middle; a pin's camera is this
+   * one, and a picture taken from it without the panel is what the owner saw (home-mwm9z57w: the review's panel on the right,
+   * and the service's picture of the pin was half empty floor).
+   */
+  function getFrameView(): HomeView {
+    const view = getView();
+    const middleX = (camera.left + camera.right) / 2 / camera.zoom;
+    const middleY = (camera.top + camera.bottom) / 2 / camera.zoom;
+    camera.updateMatrixWorld();
+    const right = new THREE.Vector3().setFromMatrixColumn(camera.matrixWorld, 0);
+    const up = new THREE.Vector3().setFromMatrixColumn(camera.matrixWorld, 1);
+    const middle = controls.target.clone().addScaledVector(right, middleX).addScaledVector(up, middleY);
+    const halfWidth = (camera.right - camera.left) / 2 / camera.zoom;
+    const halfHeight = (camera.top - camera.bottom) / 2 / camera.zoom;
+    return {
+      ...view,
+      t: middle.toArray().map(r3) as Vec3,
+      fit: [r3(halfWidth / FRAME_MARGIN), r3(halfHeight / FRAME_MARGIN)],
+    };
+  }
   function applyView(v: HomeView): void {
     controls.target.fromArray(v.t);
     camera.position.setFromSphericalCoords(24, v.phi, v.theta).add(controls.target);
@@ -2738,7 +2764,7 @@ export function createView(host: HTMLElement): SceneView {
     const h = host.clientHeight || 1;
     const aspect = w / h;
     const [fw, fh] = camera.userData.fit || [8, 5];
-    const m = 1.08;
+    const m = FRAME_MARGIN;
     const L = Math.min(insetL, w * 0.5);
     const R = Math.min(insetR, w * 0.5);
     const free = (w - L - R) / w;
@@ -2966,6 +2992,7 @@ export function createView(host: HTMLElement): SceneView {
     homeCam: (): [number, number] => [+Math.sin(home.theta).toFixed(4), +(-Math.cos(home.theta)).toFixed(4)],
     home: goHome,
     getView,
+    getFrameView,
     setHome,
     onMoved: (f: (moved: boolean) => void) => {
       onMoved = f;
@@ -3014,6 +3041,7 @@ export function createView(host: HTMLElement): SceneView {
     'redraw',
     'homeCam',
     'getView',
+    'getFrameView',
     'onMoved',
     'moved',
     'lightCount',
