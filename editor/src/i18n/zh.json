@@ -1832,5 +1832,5 @@
  "Launch price, later {0}.": "首发价，之后为 {0}。",
  "until {0}": "有效期至 {0}",
  "Photo unavailable": "照片不可用",
- "Your photos and videos are deleted 2 days after a build. Upload them again to build your home.": "照片和视频会在生成 2 天后删除。请重新上传以生成你的家。"
+ "The photos and videos of this build are no longer kept. Upload them again to build your home.": "此次生成的照片和视频已不再保留。请重新上传以生成你的家。"
 }

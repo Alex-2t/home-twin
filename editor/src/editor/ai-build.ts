@@ -29,6 +29,7 @@ import {holdFocus} from './keyboard.ts';
 import {changedWhen, setHistoryBuilds} from './versions-panel.ts';
 import type {HistoryBuild} from './versions-panel.ts';
 import {fetchAccountPlans} from './account-plan.ts';
+import {factsLine, homeFacts} from './gallery.ts';
 import type {HeldFocus} from './keyboard.ts';
 import {icon} from './icons.ts';
 import {idb} from './idb.ts';
@@ -520,9 +521,10 @@ const FILE_PROBLEMS: Record<NonNullable<BuildStatus['fileProblem']>, string> = {
   video: N('The video cannot be opened. It may be damaged: upload it again, or add photos instead.'),
   rooms: N('No room of a home was found in your video or photos. Upload a video or photos of the rooms.'),
 };
-// A build whose photos and videos were deleted, as the terms say, and that needs them for its next steps.
+// A build whose photos and videos are no longer kept (removed on request, or by the media retention, which is off), and that
+// needs them for its next steps. It names no time: the terms promise none.
 const MEDIA_DELETED_LINE = N(
-  'Your photos and videos are deleted 2 days after a build. Upload them again to build your home.',
+  'The photos and videos of this build are no longer kept. Upload them again to build your home.',
 );
 // A build from photos only (D-117) says so where a build from video speaks of the video: each line here stands for the one
 // it is keyed by.
@@ -1044,10 +1046,8 @@ export function aiStartCard(
       const sitePlans: HistoryBuild[] = keptPlans.map((kept, index) => ({
         id: `account-plan-${index}`,
         state: t('Drawn on twin.sync.md'),
-        when: [
-          changedWhen(kept.at),
-          t('{0, plural, one {# room} other {# rooms}}', kept.plan.rooms.filter(room => !room.solid).length),
-        ].join(' · '),
+        // its area too: two plans drawn in the same minute are told apart by it
+        when: [changedWhen(kept.at), keptPlanFacts(kept.plan)].join(' · '),
         shot: null,
         ready: false,
         plan: kept.plan,
@@ -1074,6 +1074,12 @@ export function aiStartCard(
       open(id);
     },
   });
+}
+
+/** A plan kept on the account as its line says it: "16 m² · 1 room" (its rooms as drawn, columns and shafts not counted). */
+function keptPlanFacts(plan: Plan): string {
+  const rooms = plan.rooms.filter(room => !room.solid && Array.isArray(room.polygon));
+  return factsLine({area: homeFacts(rooms).area, rooms: rooms.length});
 }
 
 /** Said on the page when the account here changed (signed in or out): the plan kept on the account looks again (account-plan.ts). */
