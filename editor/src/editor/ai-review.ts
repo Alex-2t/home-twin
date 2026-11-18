@@ -1269,7 +1269,8 @@ export function openReview(
 
   account?.(find(box, '.aib-review-account'));
   setTool(tool);
-  if (notes.pins.length) hideHint();
+  // after a round the owner already knows how to pin: the first-time hint came back over the home each round
+  if (notes.pins.length || pastRounds.length) hideHint();
   else find(box, '[data-tool=pin]').classList.add('aib-pulse');
   setView(view);
   renderPins();

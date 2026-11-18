@@ -431,6 +431,9 @@ button.gcard:focus-visible{outline:2px solid var(--acc);outline-offset:2px}
 /* the shape tiles: equal columns, the icon on one line for all and the name under it, up to two lines inside the tile (a long
    name wraps at a space, or is hyphenated in the page's language, never runs into the next tile) */
 .ctx .line.forms{display:grid;grid-template-columns:repeat(7,minmax(70px,1fr));align-items:stretch;gap:4px;padding:6px 0 2px}
+/* the editor not much wider than a laptop's (in Home Assistant, beside its sidebar): the shapes in two rows, so the panel of a room's
+   lights is half as wide and the plan beside it is not a strip */
+@media (max-width:1400px) and (min-width:641px){.ctx .line.forms{grid-template-columns:repeat(4,minmax(64px,1fr))}}
 .ctx button.form{width:auto;min-width:0;height:auto;min-height:60px;padding:8px 4px 7px;display:flex;flex-direction:column;align-items:center;justify-content:flex-start;gap:5px;border-radius:10px;background:var(--chip);color:var(--tx);font-size:11px;font-weight:500;white-space:normal;text-align:center;line-height:1.2}
 .ctx button.form .ic{flex:none}
 .ctx button.form span{max-width:100%;display:-webkit-box;-webkit-box-orient:vertical;-webkit-line-clamp:2;overflow:hidden;overflow-wrap:break-word;hyphens:auto;text-wrap:balance}
