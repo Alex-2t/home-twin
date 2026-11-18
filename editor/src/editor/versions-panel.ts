@@ -12,6 +12,8 @@ import {icon} from './icons.ts';
 import {pal, FONT} from './draw.ts';
 import {MAND, OPT} from './wizard-path.ts';
 import {corners} from '../core/layout.ts';
+import {migrate} from '../core/plan.ts';
+import {dropForeignEntities} from '../core/foreign-entities.ts';
 import type {Plan, Point} from '../core/types.ts';
 import type {CanvasPoint, Editor} from './editor-types.ts';
 import type {PlanVersion} from './versions.ts';
@@ -282,11 +284,12 @@ export function openVersions(ed: Editor): {close(): void} {
     if (build.plan) takePlan(build.plan);
     else historyBuilds.open(build.id);
   }
-  // The plan from the account becomes your plan here; the one before goes to the history, and ⌘Z brings it back.
+  // The plan from the account becomes your plan here; the one before goes to the history, and ⌘Z brings it back. It was
+  // drawn against our site's demo Home Assistant: its lights, readings and devices that this HA does not have stay behind.
   async function takePlan(plan: Plan): Promise<void> {
     await ed.versions.mark('before', 'accountPlan');
     ed.flows.hideStart();
-    ed.applyPlan(plan, null);
+    ed.applyPlan(ownEntitiesOnly(plan), null);
     ed.banner(t('The plan from your account is open.'), [
       [
         t('Undo|revert'),
@@ -297,6 +300,12 @@ export function openVersions(ed: Editor): {close(): void} {
       ],
       [t('Got it'), () => ed.banner(), true],
     ]);
+  }
+  /** The plan without what ties it to entities this Home Assistant lacks; as it is while HA's lists are still loading. */
+  function ownEntitiesOnly(plan: Plan): Plan {
+    const ha = ed.ha;
+    if (ha.demo || (ha.ready && !ha.ready())) return plan;
+    return dropForeignEntities(migrate(structuredClone(plan)), entity => ha.entity(entity) !== null);
   }
   function pick(i: number, focus = false): void {
     sel = i;

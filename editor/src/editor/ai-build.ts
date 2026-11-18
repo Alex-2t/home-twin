@@ -28,7 +28,7 @@ import {el, esc, find} from './ui.ts';
 import {holdFocus} from './keyboard.ts';
 import {changedWhen, setHistoryBuilds} from './versions-panel.ts';
 import type {HistoryBuild} from './versions-panel.ts';
-import {fetchAccountPlan} from './account-plan.ts';
+import {fetchAccountPlans} from './account-plan.ts';
 import type {HeldFocus} from './keyboard.ts';
 import {icon} from './icons.ts';
 import {idb} from './idb.ts';
@@ -1039,27 +1039,21 @@ export function aiStartCard(
       try {
         await accountBuilds();
       } catch {} // no connection: the builds as last asked
-      const kept = inHa ? await fetchAccountPlan(api).catch(() => null) : null;
-      const sitePlan: HistoryBuild[] = kept
-        ? [
-            {
-              id: 'account-plan',
-              state: t('Drawn on twin.sync.md'),
-              when: [
-                changedWhen(kept.at),
-                t(
-                  '{0, plural, one {# room} other {# rooms}}',
-                  kept.plan.rooms.filter(room => !room.solid).length,
-                ),
-              ].join(' · '),
-              shot: null,
-              ready: false,
-              plan: kept.plan,
-            },
-          ]
-        : [];
+      // each browser that drew on our site has its own plan there, the newest first
+      const keptPlans = inHa ? await fetchAccountPlans(api).catch(() => []) : [];
+      const sitePlans: HistoryBuild[] = keptPlans.map((kept, index) => ({
+        id: `account-plan-${index}`,
+        state: t('Drawn on twin.sync.md'),
+        when: [
+          changedWhen(kept.at),
+          t('{0, plural, one {# room} other {# rooms}}', kept.plan.rooms.filter(room => !room.solid).length),
+        ].join(' · '),
+        shot: null,
+        ready: false,
+        plan: kept.plan,
+      }));
       return [
-        ...sitePlan,
+        ...sitePlans,
         ...lastBuilds.map(build => {
           const text = buildCardText(build);
           const shot = build.has?.shot

@@ -1,9 +1,12 @@
 // The plan drawn on our site, kept on its account while signed in (D-134): so a home made here can be taken into Home
 // Assistant later. In HA, signed in with the same account, it shows in "Version history" ("From twin.sync.md") with
-// "Take". One plan per account: the latest your own work here; examples and published homes you play with stay out of it.
-// Only the plan itself goes (rooms, furniture, lights, sensors); the plan photo under it stays in this browser.
-//   GET <api>/api/account-plan → {plan, at}; 404 NO_PLAN; 401 SIGNED_OUT
-//   PUT <api>/api/account-plan {plan} → {at}
+// "Take". Each browser keeps its own plan there (a device id made once per browser), so signing in on another browser
+// with another plan does not replace this one's; the service keeps the latest few. Only your own work here goes: examples
+// and published homes you play with stay out of it. Only the plan itself goes (rooms, furniture, lights, sensors); the plan
+// photo under it stays in this browser.
+//   GET <api>/api/account-plan → {plan, at, plans: [{plan, at}]} (a service from before: {plan, at}); 404 NO_PLAN;
+//   401 SIGNED_OUT
+//   PUT <api>/api/account-plan {plan, device} → {at}
 import type {Plan} from '../core/types.ts';
 import type {Editor} from './editor-types.ts';
 import {currentAccount} from './ai-account.ts';
@@ -21,21 +24,47 @@ export interface KeptPlan {
 const KEEP_EVERY_MS = 4000;
 const ACCOUNT_EVERY = 8;
 
-/** The plan kept on the signed-in account; null when there is none, nobody is signed in, or the service has no such route. */
-export async function fetchAccountPlan(api: string): Promise<KeptPlan | null> {
-  const res = await fetch(`${api}/api/account-plan`, {cache: 'no-store'});
-  if (!res.ok) return null;
-  const data = (await res.json()) as Partial<KeptPlan>;
-  if (!data.plan || !Array.isArray(data.plan.rooms) || typeof data.at !== 'number') return null;
-  return {plan: data.plan, at: data.at};
+/** Whether a value is a plan kept on the account: a plan with rooms, and when. */
+function isKeptPlan(value: unknown): value is KeptPlan {
+  const kept = value as Partial<KeptPlan> | null;
+  if (!kept || typeof kept !== 'object') return false;
+  return !!kept.plan && Array.isArray(kept.plan.rooms) && typeof kept.at === 'number';
 }
 
-/** Keeps the plan on the signed-in account → when; throws when it could not. */
-export async function saveAccountPlan(api: string, plan: Plan): Promise<number> {
+/** The plans kept on the signed-in account, the newest first; [] when there are none, nobody is signed in, or the service
+ * has no such route. */
+export async function fetchAccountPlans(api: string): Promise<KeptPlan[]> {
+  const res = await fetch(`${api}/api/account-plan`, {cache: 'no-store'});
+  if (!res.ok) return [];
+  const data = (await res.json()) as Partial<KeptPlan> & {plans?: unknown};
+  // a service from before the list keeps one plan
+  const plans = Array.isArray(data.plans) ? data.plans : [data];
+  return plans.filter(isKeptPlan).map(kept => ({plan: kept.plan, at: kept.at}));
+}
+
+/** Where this browser keeps its id for the account's plans. */
+const DEVICE_KEY = 'home-twin:plan-device';
+
+/** This browser's id among the account's plans: made once and kept; a page that cannot keep it gets one for its own life. */
+let pageDevice: string | null = null;
+export function browserDevice(): string {
+  try {
+    const kept = localStorage.getItem(DEVICE_KEY);
+    if (kept) return kept;
+  } catch {} // storage blocked: the page's own id below
+  pageDevice ??= Math.random().toString(36).slice(2) + Date.now().toString(36);
+  try {
+    localStorage.setItem(DEVICE_KEY, pageDevice);
+  } catch {}
+  return pageDevice;
+}
+
+/** Keeps the plan on the signed-in account as this browser's → when; throws when it could not. */
+export async function saveAccountPlan(api: string, plan: Plan, device = browserDevice()): Promise<number> {
   const res = await fetch(`${api}/api/account-plan`, {
     method: 'PUT',
     headers: {'content-type': 'application/json'},
-    body: JSON.stringify({plan}),
+    body: JSON.stringify({plan, device}),
   });
   if (!res.ok) throw new Error(`account plan: ${res.status}`);
   return ((await res.json()) as {at: number}).at;
