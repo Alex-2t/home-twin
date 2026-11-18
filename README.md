@@ -2,6 +2,8 @@
 
 A live 3D twin of your home for Home Assistant: draw the floor plan, place lights, devices and sensors, and see the home in 3D with live states. Early alpha.
 
+<img alt="Home Twin in Home Assistant: a furnished loft in 3D; a tap on the living room flies into it, its lights go off and on one by one and all together, then the home switches from night to day and back" src="docs/images/hero.webp">
+
 [![Support Home Twin on Ko-fi](https://img.shields.io/badge/Ko--fi-Support%20Home%20Twin-FF5E5B?logo=ko-fi&logoColor=white)](https://ko-fi.com/hometwin)
 
 ## Install
