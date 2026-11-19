@@ -276,7 +276,68 @@ const above = (f: FurnitureItem, g: FurnitureItem): boolean => {
 // from parts says so itself (parts.under, parts.table — the same true or height in meters). true: all of it, up to its top (a
 // radiator hung under the window goes under the top of a table standing at it, a tall one does not). The AI build's audit counts
 // things standing in each other by this same rule.
+// A thing whose lower part goes under a table (a chair: its seat) is tucked only as far as a real one goes: its back part
+// (BACK_SHARE of its depth, a chair's backrest) stays out from under the top, and under a round table (its pedestal in the
+// middle) it stops short of the middle (PEDESTAL_SHARE of the radius). The rule used to let any depth: the owner's AI build
+// had a chair pushed 41 cm under a round table, its seat in the pedestal, "the model goes through the texture". Chairs seated
+// round a table (12 cm under) and a desk chair pushed in under a desk stay tucked.
+const BACK_SHARE = 0.15;
+const PEDESTAL_SHARE = 0.45;
+// A table from parts is round when its top, its highest part, is a cylinder (the catalog's own say so: isRound).
+const roundTop = (f: FurnitureItem): boolean => {
+  if (isRound(f)) return true;
+  const parts = f.parts?.parts || [];
+  // a repeated part (a row of slats) has no place of its own
+  const heightOf = (part: (typeof parts)[number]): number => ('at' in part ? (part.at?.[1] ?? 0) : 0);
+  const top = parts.reduce<(typeof parts)[number] | null>(
+    (high, part) => (!high || heightOf(part) > heightOf(high) ? part : high),
+    null,
+  );
+  return top?.kind === 'cyl';
+};
+// Whether outline A shares any floor with the ellipse the table's width and depth make (1 cm in), scaled by `share`.
+function inEllipse(A: Outline, table: FurnitureItem, share = 1): boolean {
+  const [ax, fz] = axes(table);
+  const rx = (table.w / 2 - 0.01) * share;
+  const rz = (table.d / 2 - 0.01) * share;
+  // the outline in the ellipse's own units: the ellipse is the unit circle there
+  const P = A.map(([x, y]): Point => {
+    const dx = x - table.x;
+    const dy = y - table.y;
+    return [(dx * ax[0] + dy * ax[1]) / rx, (dx * fz[0] + dy * fz[1]) / rz];
+  });
+  if (pointIn([0, 0], P)) return true;
+  return P.some((a, i) => {
+    const b = P[(i + 1) % P.length];
+    const ex = b[0] - a[0];
+    const ey = b[1] - a[1];
+    const k = Math.max(0, Math.min(1, -(a[0] * ex + a[1] * ey) / (ex * ex + ey * ey || 1)));
+    return Math.hypot(a[0] + ex * k, a[1] + ey * k) < 1;
+  });
+}
+// The thing going under a table goes no deeper than a real one (BACK_SHARE, PEDESTAL_SHARE above).
+function notTooDeep(under: FurnitureItem, table: FurnitureItem): boolean {
+  const feet = footLocal(under);
+  if (feet.length !== 1) return true;
+  const [x0, x1, z0, z1] = feet[0];
+  const backTo = z0 + (z1 - z0) * BACK_SHARE; // its back is at z0
+  const A = axes(under);
+  const back: Outline = (
+    [
+      [x0 + 0.01, z0 + 0.01],
+      [x1 - 0.01, z0 + 0.01],
+      [x1 - 0.01, backTo],
+      [x0 + 0.01, backTo],
+    ] as Point[]
+  ).map(([x, z]) => W2(under, A, x, z));
+  if (!roundTop(table)) return !footRects(table, 0.01).some(rect => overlap(back, rect));
+  return (
+    !inEllipse(back, table) && !footRects(under, 0.01).some(foot => inEllipse(foot, table, PEDESTAL_SHARE))
+  );
+}
 // Truthy when one of the two tucks under the other (the value is the last test made, as before: false, undefined or true).
+// A thing that goes under up to a height (a chair's seat) goes under no deeper than a real one (notTooDeep); one that goes
+// under entirely (true: a radiator, a mobile pedestal) at any depth.
 export const tuck = (f: FurnitureItem, g: FurnitureItem): boolean | number | undefined => {
   // what it says of itself: under (true or a height), table (true or the top's height)
   const U = (x: FurnitureItem): boolean | number | undefined => entryOf(x)?.under ?? x.parts?.under;
@@ -290,7 +351,10 @@ export const tuck = (f: FurnitureItem, g: FurnitureItem): boolean | number | und
     const table = T(x);
     return table === true ? x.h : table || 0;
   };
-  return (U(f) && T(g) && u(f) <= t(g) - 0.03) || (U(g) && T(f) && u(g) <= t(f) - 0.03);
+  const deep = (x: FurnitureItem, table: FurnitureItem): boolean => U(x) === true || notTooDeep(x, table);
+  return (
+    (U(f) && T(g) && u(f) <= t(g) - 0.03 && deep(f, g)) || (U(g) && T(f) && u(g) <= t(f) - 0.03 && deep(g, f))
+  );
 }; // table as a number: the tabletop height (a dressing table has a mirror above it)
 // Items stacked above each other (wall cabinets above base cabinets, a TV above a TV stand, a range hood above a cooktop, a microwave on
 // the countertop): they overlap f on the plan but not in height. Bottom to top, including f; the item panel lets you switch to any of them.

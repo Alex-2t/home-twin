@@ -158,15 +158,16 @@ test('a chair from parts at a table from parts is tucked under it when both say 
     y: 1.5,
     parts: box(1, 1, 0.75),
   };
+  // facing the table, pushed 12 cm under its edge (it used to stand backwards, its back half under the top)
   const chair = {
     id: 'c',
     model: 'parts',
     w: 0.5,
     d: 0.5,
     h: 0.85,
-    rot: 0,
+    rot: 180,
     x: 1.5,
-    y: 1.05,
+    y: 0.87,
     parts: box(0.5, 0.5, 0.85),
   };
   p.furniture.push(table, chair);
@@ -179,6 +180,73 @@ test('a chair from parts at a table from parts is tucked under it when both say 
   assert.deepEqual(checkItem({...box(1, 1, 0.75), table: 'high'}), [
     'table must be true or a height in meters',
   ]);
+});
+test('a chair goes under a table only as far as a real one: its backrest stays out, and it stops short of a round table’s pedestal', () => {
+  const p = two();
+  const parts = (w: number, d: number, h: number, kind: 'box' | 'cyl'): PartsItem => ({
+    w,
+    d,
+    h,
+    materials: {m: {color: '#777777'}},
+    parts: [
+      kind === 'cyl'
+        ? {kind, mat: 'm', r: w / 2, h: 0.04, at: [0, h - 0.04, 0]}
+        : {kind, mat: 'm', size: [w, h, d], at: [0, 0, 0]},
+    ],
+  });
+  const table = {
+    id: 't',
+    model: 'parts',
+    w: 1,
+    d: 1,
+    h: 0.75,
+    rot: 0,
+    x: 1.2,
+    y: 2.8,
+    parts: {...parts(1, 1, 0.75, 'cyl'), table: true as const},
+  };
+  const chairAt = (id: string, x: number, y: number, rot: number): FurnitureItem => ({
+    id,
+    model: 'parts',
+    w: 0.55,
+    d: 0.55,
+    h: 0.85,
+    rot,
+    x,
+    y,
+    parts: {...parts(0.55, 0.55, 0.85, 'box'), under: 0.65},
+  });
+  // seated round it as the AI build seats chairs: facing it, 12 cm under its edge, at 30°, 150° and 270°
+  const out = 0.5 + 0.275 - 0.12;
+  p.furniture = [
+    table,
+    ...[30, 150, 270].map((angle, k) => {
+      const a = (angle * Math.PI) / 180;
+      // a chair faces (sin rot, -cos rot): towards the table's middle
+      const rot = ((Math.atan2(-Math.cos(a), Math.sin(a)) * 180) / Math.PI + 360) % 360;
+      return chairAt('s' + k, table.x + Math.cos(a) * out, table.y + Math.sin(a) * out, rot);
+    }),
+  ];
+  assert.deepEqual([...furnitureConflicts(p)], [], 'three chairs seated round a round table');
+  // the owner's AI build (home-mwnnah3k), moved into this room as a whole: a 1 m round table and a chair facing it 0.37 m from
+  // its middle, its seat in the pedestal
+  p.furniture = [
+    {...table, x: 4.955 - 3.5, y: 4.942 - 2.5, rot: 346},
+    chairAt('deep', 5.114 - 3.5, 5.273 - 2.5, 0),
+    chairAt('ok', 5.426 - 3.5, 4.594 - 2.5, 270),
+  ];
+  const conflicts = furnitureConflicts(p);
+  assert.match(conflicts.get('deep')!, /overlaps/, 'pushed into the pedestal');
+  assert.ok(!conflicts.has('ok'), 'the next one, 19 cm under its edge, stays tucked');
+  // a square table: a chair standing backwards with its backrest under the top
+  p.furniture = [
+    {...table, parts: {...parts(1, 1, 0.75, 'box'), table: true as const}},
+    chairAt('back', table.x, table.y - 0.63, 0),
+    chairAt('front', table.x, table.y + 0.63, 0),
+  ];
+  const square = furnitureConflicts(p);
+  assert.match(square.get('back')!, /overlaps/, 'its backrest goes into the top');
+  assert.ok(!square.has('front'), 'facing it, 12 cm under: tucked');
 });
 test('a radiator under the window goes under the top of a table standing at it; one reaching above the top does not', () => {
   const p = two();
