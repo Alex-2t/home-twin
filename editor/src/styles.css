@@ -587,11 +587,13 @@ button.gcard:focus-visible,a.gcard:focus-visible{outline:2px solid var(--acc);ou
 .wizard-actions{flex:1 0 auto;max-width:100%;display:flex;justify-content:flex-end;align-items:center;gap:6px;flex-wrap:wrap} /* never wider than the card: its buttons wrap instead */
 .banner.wizard-card button{white-space:normal;text-align:center;height:auto;min-height:30px;padding:5px 10px}
 .banner.wizard-card button.primary{background:var(--acc);color:var(--acc-tx)}
-/* The step is really done: three calm pulses, then a thin rim stays. The button does not move. */
-.wizard-actions>button.ready-to-finish{position:relative;outline:2px solid color-mix(in srgb,var(--acc) 35%,transparent);outline-offset:3px}
+/* The step is really done: the button turns green, the green of a confirmed light's check (the owner: in the step's purple it
+   did not stand out from the selected things around it), with dark text; calm pulses, a thin rim stays. The button does not move. */
+.wizard-actions>button.ready-to-finish{position:relative;outline:2px solid color-mix(in srgb,var(--ok,#3fb37f) 40%,transparent);outline-offset:3px}
+.banner .wizard-actions>button.primary.ready-to-finish{background:var(--ok,#3fb37f);color:#0b2417}
 .wizard-actions>button.ready-to-finish::after{content:'';position:absolute;inset:-1px;border-radius:inherit;pointer-events:none;animation:finish-ready 1.8s ease-out .6s infinite}
 .wizard-actions>button.ready-to-finish:is(:hover,:focus-visible)::after{animation-play-state:paused;opacity:0}
-@keyframes finish-ready{0%{box-shadow:0 0 0 0 color-mix(in srgb,var(--acc) 55%,transparent)}75%,100%{box-shadow:0 0 0 9px transparent}}
+@keyframes finish-ready{0%{box-shadow:0 0 0 0 color-mix(in srgb,var(--ok,#3fb37f) 55%,transparent)}75%,100%{box-shadow:0 0 0 9px transparent}}
 @media (prefers-reduced-motion:reduce){.wizard-actions>button.ready-to-finish::after{animation:none}}
 /* deferred steps: two in a row only when both fit, one alone takes the whole row; a status that does not fit beside the name goes under it
    instead of sticking out of the button (the owner: “For later · 6/10” ran past the edge) */
