@@ -120,12 +120,20 @@ export function createPath(ed: Editor): WizardPath {
   // Before it — the same about devices (D-048): “Home Assistant has 2 air conditioners, 3 curtains. Show them in the model?”
   const undecided = (k: OnboardingStepId, mode: OptionalStepMode | null | undefined): boolean =>
     !!mode?.available?.() && !['confirmed', 'deferred'].includes(P.status(k));
-  const toEnd = (): void =>
-    undecided('devices', ed.modes.devices)
-      ? P.askDevices()
-      : undecided('sensors', ed.modes.sensors)
-        ? P.ask()
-        : P.finale();
+  // A step already done (the AI build placed the devices and the readings, or the owner did before) is opened in its turn, after
+  // the lights, to be checked (the owner: the lights' “Finish” went straight to “Add to dashboard”, past devices and sensors).
+  // A skipped one is not asked again.
+  const done = (k: OnboardingStepId, mode: OptionalStepMode | null | undefined): boolean =>
+    !!mode?.available?.() && P.status(k) === 'confirmed';
+  const toEnd = (from?: OnboardingStepId): void => {
+    if (from !== 'devices') {
+      if (undecided('devices', ed.modes.devices)) return P.askDevices();
+      if (done('devices', ed.modes.devices)) return P.go('devices');
+    }
+    if (undecided('sensors', ed.modes.sensors)) return P.ask();
+    if (done('sensors', ed.modes.sensors)) return P.go('sensors');
+    P.finale();
+  };
   const later = (k: OnboardingStepId): void => {
     ed.wizard.set(id(), null);
     migrate();
@@ -152,7 +160,7 @@ export function createPath(ed: Editor): WizardPath {
           t('Skip'),
           () => {
             later('devices');
-            toEnd();
+            toEnd('devices');
           },
         ],
         [t('Show'), () => P.go('devices'), true],
@@ -189,7 +197,7 @@ export function createPath(ed: Editor): WizardPath {
       ed.versions?.mark('step', from);
     }
     const k = nextMand(from);
-    k ? P.go(k) : from === 'sensors' ? P.finale() : toEnd();
+    k ? P.go(k) : from === 'sensors' ? P.finale() : toEnd(from);
     // rooms are named — sizing by the area from the documents is exact (D-038): the balcony is already recognized by its name
     if (ed.plan.scaleBy === 'rect' && !['rect', 'split', 'open'].includes(from)) ed.fitArea?.('rooms');
   };
@@ -285,7 +293,6 @@ export function createPath(ed: Editor): WizardPath {
   // (P.ask); to go back — the icon in the path strip.
   P.finale = () => {
     ed.wizard.set(id(), {fin: true});
-    const toBoard = !!ed.ha?.board && !ed.ha.board.exists();
     const open = MAND.filter(([k]) => P.status(k) !== 'confirmed');
     const result = document.createElement('div');
     result.className = 'wizard-result';
@@ -327,7 +334,8 @@ export function createPath(ed: Editor): WizardPath {
               ],
             ] satisfies BannerItem[])
           : []),
-        // in HA, while the Home Twin dashboard does not exist, the main step is putting the home there (D-059)
+        // “Add to dashboard” is the last step, in Preview (its button there while the dashboard does not exist, D-059), not here
+        // (the owner: it came before devices and sensors were seen)
         [
           t('See the result'),
           () => {
@@ -335,12 +343,8 @@ export function createPath(ed: Editor): WizardPath {
             ed.step(null);
             ed.setLook?.(true);
           },
-          !toBoard,
+          true,
         ],
-        // flows.ts sets ed.flows when the editor starts.
-        ...(toBoard
-          ? ([[t('Add to dashboard'), () => ed.flows.addBoard(), true]] satisfies BannerItem[])
-          : []),
       ],
       null,
       {exit: false, id: 'fin', fixed: true},

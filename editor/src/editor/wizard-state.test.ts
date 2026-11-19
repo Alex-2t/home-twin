@@ -190,6 +190,46 @@ test('after the main steps — a question about readings on the walls; once skip
   assert.equal(next, 'fin'); // nothing to show — does not ask
 });
 
+test('after the lights, devices and readings already done (the AI build placed them) are opened in turn, then the summary', () => {
+  // one device and one reading on the plan: the steps are done, not only marked
+  const p: Plan = {
+    ...emptyPlan(),
+    id: 'p',
+    rooms: [room()],
+    devices: [{id: 'ac'}] as Plan['devices'],
+    sensors: [{id: 't'}] as Plan['sensors'],
+  };
+  recordStep(p, 'devices', 'confirmed');
+  recordStep(p, 'sensors', 'confirmed');
+  const ed = fakeEditor({
+    plan: p,
+    hints: {count: () => 0},
+    wizard: {get: () => null},
+    history: {amend: () => {}},
+    modes: {
+      rooms: {},
+      lights: {},
+      furniture: {},
+      devices: {available: () => true},
+      sensors: {available: () => true},
+    },
+  });
+  const path = createPath(ed);
+  let next: string | undefined;
+  path.go = k => (next = k);
+  path.finale = () => (next = 'fin');
+  path.after('lights');
+  assert.equal(next, 'devices');
+  path.after('devices');
+  assert.equal(next, 'sensors');
+  path.after('sensors');
+  assert.equal(next, 'fin');
+  // a skipped one is not opened again
+  recordStep(p, 'devices', 'deferred');
+  path.after('lights');
+  assert.equal(next, 'sensors');
+});
+
 test('lights: lamps from areas that are not on the plan do not block finishing the step', () => {
   const p: Plan = {
     ...emptyPlan(),
