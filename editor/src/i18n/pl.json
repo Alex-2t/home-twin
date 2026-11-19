@@ -1834,5 +1834,6 @@
  "skipped {0}": "pominięto {0}",
  "Already used by “{0}”. Click to join the two into one room.": "Już używane przez „{0}”. Kliknij, aby połączyć je w jeden pokój.",
  "Done, but it runs into the thing next to it: drag one of them in the editor": "Zrobione, ale wchodzi na rzecz obok: przesuń jedną z nich w edytorze",
- "{0} went missing with it: put it back in the editor or pin it": "Przy tym zniknęło: {0}. Przywróć w edytorze lub postaw pinezkę"
+ "{0} went missing with it: put it back in the editor or pin it": "Przy tym zniknęło: {0}. Przywróć w edytorze lub postaw pinezkę",
+ "Not clear which door: put the pin right on it": "Nie wiadomo, które drzwi: postaw pinezkę dokładnie na nich"
 }

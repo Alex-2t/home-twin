@@ -1834,5 +1834,6 @@
  "skipped {0}": "{0} ignoradas",
  "Already used by “{0}”. Click to join the two into one room.": "Já usada por “{0}”. Clique para juntar as duas num só cômodo.",
  "Done, but it runs into the thing next to it: drag one of them in the editor": "Feito, mas bate na coisa ao lado: arraste uma delas no editor",
- "{0} went missing with it: put it back in the editor or pin it": "Com isso desapareceu: {0}. Recoloque no editor ou marque um pin"
+ "{0} went missing with it: put it back in the editor or pin it": "Com isso desapareceu: {0}. Recoloque no editor ou marque um pin",
+ "Not clear which door: put the pin right on it": "Não está claro qual porta: coloque o pin bem em cima dela"
 }

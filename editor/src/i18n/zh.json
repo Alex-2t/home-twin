@@ -1834,5 +1834,6 @@
  "skipped {0}": "已跳过 {0}",
  "Already used by “{0}”. Click to join the two into one room.": "已被“{0}”使用。点击将两者合并为一个房间。",
  "Done, but it runs into the thing next to it: drag one of them in the editor": "已完成，但与旁边的物品相撞：请在编辑器中拖动其中一个",
- "{0} went missing with it: put it back in the editor or pin it": "同时消失了：{0}。请在编辑器中放回或添加图钉"
+ "{0} went missing with it: put it back in the editor or pin it": "同时消失了：{0}。请在编辑器中放回或添加图钉",
+ "Not clear which door: put the pin right on it": "不清楚是哪扇门：请把图钉直接放在门上"
 }

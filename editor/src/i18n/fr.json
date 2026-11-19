@@ -1834,5 +1834,6 @@
  "skipped {0}": "{0} ignorées",
  "Already used by “{0}”. Click to join the two into one room.": "Déjà utilisée par « {0} ». Cliquez pour réunir les deux en une seule pièce.",
  "Done, but it runs into the thing next to it: drag one of them in the editor": "Fait, mais cela touche l’objet voisin : déplacez l’un des deux dans l’éditeur",
- "{0} went missing with it: put it back in the editor or pin it": "Au passage, a disparu : {0}. Remettez-le dans l’éditeur ou placez une épingle"
+ "{0} went missing with it: put it back in the editor or pin it": "Au passage, a disparu : {0}. Remettez-le dans l’éditeur ou placez une épingle",
+ "Not clear which door: put the pin right on it": "On ne sait pas quelle porte : placez l’épingle juste dessus"
 }

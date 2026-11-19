@@ -168,6 +168,7 @@ export const MISSED_REASON = {
   blocked: N('Done, but it runs into the thing next to it: drag one of them in the editor'),
   // {0}: the things that went, by their names
   gone: N('{0} went missing with it: put it back in the editor or pin it'),
+  'wrong-door': N('Not clear which door: put the pin right on it'),
 };
 
 /** The room a spot is in, else the nearest one within `near` metres; null outside the home. */
