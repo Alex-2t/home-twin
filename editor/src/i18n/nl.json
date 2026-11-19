@@ -1871,9 +1871,7 @@
  "Open any home and look around before you try.": "Open een woning en kijk rond voordat je het probeert.",
  "The glow of the wall switch’s own panel, not the room’s light: that one is its switch.": "De gloed van het schakelpaneel zelf, niet het licht van de kamer: dat is zijn schakelaar.",
  "backlight": "paneellicht",
- "Confirm": "Bevestigen",
- "Confirm this light and go to the next": "Deze lamp bevestigen en naar de volgende",
- "Check the light type and position, then press “Confirm”.": "Controleer het type en de positie van de lamp en druk op ‘Bevestigen’.",
- "Check each light, then press “Confirm”.": "Controleer elke lamp en druk op ‘Bevestigen’.",
- "Confirmed": "Bevestigd"
+ "Confirmed": "Bevestigd",
+ "Click each light in the list and check its type and position.": "Klik op elke lamp in de lijst en controleer het type en de positie.",
+ "Check each light in the list.": "Controleer elke lamp in de lijst."
 }

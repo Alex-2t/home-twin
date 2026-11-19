@@ -46,7 +46,7 @@ import type {Contour, LampCell, StripRuns} from '../../core/fixtures.ts';
 import {autoPlace, bindSeenLamp, placeLight} from '../../core/light-place.ts';
 import {switchLightScore} from '../../core/switch-light.ts';
 import {haBacklights} from '../ha.ts';
-import {giveSeenBack, isSeenLamp, settleSeen} from '../../core/seen-lamps.ts';
+import {giveSeenBack, isSeenLamp} from '../../core/seen-lamps.ts';
 import {moved, slideAlongWall} from '../nudge.ts';
 import {$, el, esc, fmtArea, parseLen, scrollRow, section, tip, tipHide} from '../ui.ts';
 import {icon} from '../icons.ts';
@@ -141,20 +141,8 @@ interface Placing {
   preview?: LightPreview | null;
 }
 
-/**
- * The question "Save this room's lights?" is on; after the answer: an action (another mode, another step), finishing the step,
- * or going to a lamp (the one selected and the one asked about).
- */
-type Leaving =
-  | {action: () => void; finish?: undefined}
-  | {finish: true; action?: undefined}
-  | {light: string | null | undefined; cur: string | null; action?: undefined; finish?: undefined};
-
 /** The chips' choices (fixtures.ts option tables): by key, a name, or an object with its name and tip. */
 type Choices = Record<string, string | {name: string; tip?: string}>;
-
-/** A lamp read by field name: its snapshot in the step (L.was.s) is all of its fields but OWN. */
-type LightFields = PlanLight & Record<string, unknown>;
 
 const BODY: Record<string, number> = {ceiling: 0.2, pendant: 0.17, spots: 0.05, lamp: 0.17}; // body radius in the plan, m
 // A wall light keeps this far from the end of its wall (fixtures.ts snapWall), metres.
@@ -173,8 +161,8 @@ export function lightsMode(ed: Editor): LightsMode {
   let placing: Placing | null = null;
   let cur: string | null = null;
   let near: string | null = null;
-  // 'room': "Next" was pressed, on to the next room; true: on to the next lamp
-  let go: boolean | 'room' = false;
+  // true: a light was skipped or made part of another one, on to the next lamp to check
+  let go = false;
   let hoverStrip: StripHover | null = null;
   let merging = false;
   // The lamp whose area is not on the plan that is to go into a room by itself (“Only this light is elsewhere”), not by
@@ -188,8 +176,6 @@ export function lightsMode(ed: Editor): LightsMode {
   let flash: string | null = null;
   // the room (cellKey) the step is on; null: none; undefined: not known yet (after a reset or a reload)
   let sess: string | null | undefined;
-  let leaving: Leaving | null = null;
-  let held: {light: string | null | undefined; cur: string | null} = {light: null, cur: null};
   const plan = (): Plan => ed.plan;
   const sel = (): Selection => ed.sel;
   const v = (): PlanView2d => ed.v;
@@ -206,8 +192,6 @@ export function lightsMode(ed: Editor): LightsMode {
     near = null;
     go = false;
     sess = undefined;
-    leaving = null;
-    held = {light: null, cur: null};
     merging = false;
     stepKey = null;
     drag = null;
@@ -216,7 +200,7 @@ export function lightsMode(ed: Editor): LightsMode {
     focused = null;
     ed.view?.setSolo?.(null);
   };
-  // a draft (L.draft) — the lamp landed in the room until its lights were saved with “Next”: it is not yet in the “placed” count
+  // a draft (L.draft) — the lamp landed in the room by guess and its card was not opened yet: it is not yet in the “placed” count
   const todo = (L: PlanLight): boolean | undefined => (!L.placed || L.draft) && !L.skip;
   const open = (L: PlanLight): boolean => !L.placed && !L.skip; // the wizard goes to lamps without a place; a draft already stands — it is not placed again
   // all lamps in order: rooms top to bottom, left to right; in a room — the main light first; lamps without a room — at the end
@@ -273,31 +257,23 @@ export function lightsMode(ed: Editor): LightsMode {
       : t('Placed {0} of {1}.', n, all.length);
     // while lights are left: what to do, and the count below; once none is, the count alone (it was said three times)
     const text = left
-      ? `${t('Check the light type and position, then press “Confirm”.')}<small>${t('The position was chosen automatically. Drag the light if needed.')}</small><small>${tail}</small>`
+      ? `${t('Click each light in the list and check its type and position.')}<small>${t('The position was chosen automatically. Drag the light if needed.')}</small><small>${tail}</small>`
       : all.length
         ? tail
         : t('No lights in Home Assistant yet. Click “Done”.');
     // nothing left to place (skipped ones included) — the step's own way out, not only “Finish later”, which read as a dead end
-    ed.step(
-      text,
-      [[left ? t('Finish later') : t('Finish placing lights'), () => finish(!!left), !left]],
-      null,
-      {id: 'lights', short: left ? t('Check each light, then press “Confirm”.') + ' ' + tail : tail},
-    );
+    ed.step(text, [[left ? t('Finish later') : t('Finish placing lights'), () => finish(), !left]], null, {
+      id: 'lights',
+      short: left ? t('Check each light in the list.') + ' ' + tail : tail,
+    });
   }
-  // “Finish later” — without a question: the room's unsaved lights stay a draft (it is in the plan), to be returned to;
-  // “Finish placing lights” — ask whether to save the room's edits
-  function finish(later = false): void {
-    if (!later && dirty(sess)) {
-      leaving = {finish: true};
-      ctxPanel();
-      return;
-    }
+  // “Finish later” and “Finish placing lights” close the step: a light standing by guess and never opened stays a draft (it is in
+  // the plan, an orange row), to be returned to
+  function finish(): void {
     close();
   }
   function close(): void {
     ed.wizard.set(plan().id, null);
-    leaving = null;
     stepKey = null;
     cur = null;
     near = null;
@@ -332,44 +308,20 @@ export function lightsMode(ed: Editor): LightsMode {
       blink(L.id);
     }
   };
-  // The wizard goes room by room (the owner). When it reaches a lamp, the lamp immediately stands by guess and is selected: visible in the room and in
-  // 3D. The room's other lamps are in the panel list: a click places that one too. Everything placed and adjusted in the room is one
-  // edit: “Next” saves the room's lights and goes to the next one. Moved to another room without pressing it — the question “Save this room's
-  // lights?”: “Yes” — like “Next”, “No” — the room as it was before entering. As it was — the L.was snapshot on each lamp of the room
-  // ({k — room, s — lamp}), it is in the plan itself: survives a reload and “Undo”. Placing and removing happen without their own step in
-  // the history. Left the step (“Done”) — whatever is not saved is without a place again. Reached the end — to the lamps left behind.
+  // The step goes room by room (the owner). When it reaches a lamp, the lamp immediately stands by guess and is selected: visible in
+  // the room and in 3D; the room's other lamps without a place stand there too, by guess (drafts, orange in the list). A light whose
+  // card is opened is confirmed (the owner, 2026-11-19: no “Confirm” button, no “Save this room's lights?” question): looking at it is
+  // the check; it can be changed after as any light. One never opened stays a draft, to be returned to.
   const cellKey = (L: PlanLight | null | undefined): string | null => {
     const H = L && (host(L) || L);
     const c = H && lampCell(plan(), H);
     return c ? c.room.id + '|' + c.poly[0] : null;
   };
-  const OWN = new Set(['was', 'auto', 'on']); // not a room edit: snapshot, “by guess”, whether it is on
-  const snap = (L: PlanLight): string =>
-    JSON.stringify(
-      Object.keys(L)
-        .filter(k => !OWN.has(k))
-        .sort()
-        .map(k => [k, (L as LightFields)[k]]),
-    );
-  const mine = (k: string | null | undefined): PlanLight[] =>
-    plan().lights.filter(L => L.was && L.was.k === k);
-  const dirty = (k: string | null | undefined): boolean =>
-    k != null && mine(k).some(L => snap(L) !== L.was!.s); // mine() keeps the lamps with a snapshot
-  m.hasUnconfirmedEdits = () => dirty(sess);
-  m.guardLeave = action => {
-    if (!wizOn() || !dirty(sess)) return false;
-    leaving = {action};
-    ctxPanel();
-    return true;
-  };
-  // a lamp confirmed: its area to HA, no longer a draft, and no snapshot to go back to (the room keeps its other ones)
+  // a lamp confirmed: its area to HA, no longer a draft
   const confirmLamp = (L: PlanLight): void => {
     toHA(L);
     delete L.was;
     delete L.draft;
-  };
-  const save = (k: string | null | undefined): void => {
-    for (const L of mine(k)) confirmLamp(L);
   };
   // A lamp has no area in HA but was placed in a room with an area — write it to HA (the owner: the link is stored
   // there — voice assistants, “kitchen lights” automations, other dashboards). A lamp with an area is not touched: in HA it has its own.
@@ -381,46 +333,19 @@ export function lightsMode(ed: Editor): LightsMode {
     ed.ha.setArea(L.entity, a);
     L.area = a;
   }
-  // every caller hands a lamp with its snapshot
-  const revert = (L: PlanLight): void => {
-    const o = Object.fromEntries(JSON.parse(L.was!.s));
-    const on = L.on;
-    const heldBefore = L.seen;
-    for (const x of Object.keys(L)) delete (L as LightFields)[x];
-    Object.assign(L, o);
-    L.on = on;
-    // a lamp the AI build saw whose place it had taken in the meantime is back, and one it held before is held again
-    settleSeen(plan().lights, L, heldBefore);
-  };
-  const discard = (k: string | null | undefined): void => {
-    for (const L of mine(k)) revert(L);
-  };
-  function hold(k: string | null | undefined): boolean {
-    if (k == null) return false;
+  m.hasUnconfirmedEdits = () => false;
+  m.guardLeave = () => false;
+  // the room's step snapshots of older plans (the question this step asked) are not used any more
+  function dropSnapshots(): boolean {
     let ch = false;
     for (const L of plan().lights)
-      if (!L.was && cellKey(L) === k) {
-        L.was = {k, s: snap(L)};
-        ch = true;
-      }
-    return ch;
-  }
-  // snapshots not of this room (after “Undo”): a draft — without a place again, the rest — as is
-  function clean(k: string | null | undefined): boolean {
-    let ch = false;
-    // a copy: putting a lamp back can return a seen lamp to the list (settleSeen)
-    for (const L of [...plan().lights])
-      if (L.was && L.was.k !== k) {
-        if (L.draft) revert(L);
+      if (L.was) {
         delete L.was;
         ch = true;
       }
     return ch;
   }
-  // a lamp of another room, while this one is not saved — ask first
-  const away = (L: PlanLight): boolean => wizOn() && cellKey(L) !== sess && dirty(sess);
-  // The card is about one light (the owner): "Next" confirms it and goes to the next one to check in this room, one standing
-  // there by guess (a draft) or one without a place, then on to the next room.
+  // the next light to check in this room: one standing there by guess (a draft) or one without a place
   function nextInRoom(): PlanLight | null {
     if (sess == null) return null;
     const toCheck = (x: PlanLight): boolean => !x.with && (open(x) || (!!x.placed && !!x.draft));
@@ -433,9 +358,9 @@ export function lightsMode(ed: Editor): LightsMode {
     const has = (x: PlanLight): boolean => open(x) && cellKey(x) != null;
     return ring.find(x => has(x) && cellKey(x) !== sess) || ring.find(has) || ring.find(open) || null;
   }
-  // The step goes by rooms (the owner, 2026-11-04: “Next” saves the whole room): on entering a room, the rest of its lamps without a place
-  // stand there too, as drafts, so the room is seen whole and “Next” saves all of it. One lamp a visit used to bring the step
-  // back to the same room once per lamp (a bedroom with four lights was visited four times).
+  // On entering a room, the rest of its lamps without a place stand there too, as drafts (orange in the list until opened), so the
+  // room is seen whole. One lamp a visit used to bring the step back to the same room once per lamp (a bedroom with four lights
+  // was visited four times).
   function draftRestOfRoom(first: PlanLight): void {
     const room = cellKey(first);
     if (room == null) return;
@@ -452,7 +377,6 @@ export function lightsMode(ed: Editor): LightsMode {
     // Import and undo can also bring back a draft when the wizard is closed. Keep it until the user explicitly decides.
     if (!wizOn()) {
       sess = undefined;
-      leaving = null;
       return;
     }
     {
@@ -471,61 +395,32 @@ export function lightsMode(ed: Editor): LightsMode {
     } // already stands (a draft) — just select it
     near ??= ed.wizard.get(plan().id)?.at ?? null;
     const n = find(near);
-    if (sess === undefined) sess = plan().lights.find(L => L.was)?.was!.k ?? cellKey(n) ?? null; // after a reload — the same room
+    if (sess === undefined) sess = cellKey(n) ?? null; // after a reload — the same room
     // nothing selected, but we did not move on either (a miss click, “Undo”, a reload) — stay: on our lamp or in the room
-    // that has drafts (“Next” was undone — back in the previous room)
+    // that has drafts
     if (!sel().light && !go && !find(cur)) {
       const d = n?.draft
         ? n
-        : order().find(x => x.draft && x.placed && x.was?.k === sess) ||
+        : order().find(x => x.draft && x.placed && cellKey(x) === sess) ||
           order().find(x => x.draft && x.placed);
       if (d) sel().light = d.id;
       else if (n?.placed) sel().light = n.id;
     }
     let ch = false;
-    // “Next” — to the next room; a lamp was skipped or it is part of another one — the next one in this room; none — one standing in it,
-    // and if there is none either (all skipped) — the room is saved, on to the next one
+    // a lamp was skipped or made part of another one — the next one to check in this room, then the next room's
     if (!sel().light && go && !find(cur)) {
-      if (go === 'room') {
-        const nx = nextRoom();
-        if (nx) cur = nx.id;
-      } else {
-        const nx = nextInRoom();
-        if (nx?.placed) sel().light = nx.id;
-        else if (nx) cur = nx.id;
-        else {
-          save(sess);
-          ch = true;
-          const r = nextRoom();
-          if (r) cur = r.id;
-        }
+      const nx = nextInRoom();
+      if (nx?.placed) sel().light = nx.id;
+      else if (nx) cur = nx.id;
+      else {
+        const r = nextRoom();
+        if (r) cur = r.id;
       }
     }
     go = false;
     const T = find(sel().light) || asking();
-    const tk = T ? cellKey(T) : sess;
-    if (T && tk !== sess) {
-      if (dirty(sess)) {
-        leaving = {light: sel().light, cur};
-        sel().light = held.light;
-        cur = held.cur;
-        merging = false;
-        if (ch) ed.amend();
-        return;
-      }
-      sess = tk;
-      leaving = null;
-    } else if (leaving && T) leaving = null; // back in our own room — no question needed
-    // the lamp just left for another one of this room (in its list or on the plan) is set: it is confirmed at once and gets its
-    // check mark, not only when the whole room is (the owner)
-    const left = find(held.light);
-    const movedOn = left && left.id !== sel().light && left.id !== cur;
-    if (movedOn && left.placed && left.draft && cellKey(left) === sess) {
-      confirmLamp(left);
-      ch = true;
-    }
-    if (clean(sess)) ch = true;
-    if (hold(sess)) ch = true;
+    if (T) sess = cellKey(T);
+    if (dropSnapshots()) ch = true;
     if (!sel().light) {
       const a = asking();
       const c = a && lampCell(plan(), a);
@@ -544,51 +439,13 @@ export function lightsMode(ed: Editor): LightsMode {
         blink(a!.id);
       }
     }
-    held = {light: sel().light, cur};
+    // the light whose card is open is confirmed: looking at it is the check (the owner)
+    const shown = find(sel().light);
+    if (shown?.placed && shown.draft) {
+      confirmLamp(shown);
+      ch = true;
+    }
     if (ch) ed.amend();
-  }
-  // the question “Save this room's lights?” — “Yes” and “No”, then where we were going; Escape or a click on our own room — stay
-  function leaveLines(): HTMLElement[] {
-    const L = find(held.light) || find(held.cur) || find(near);
-    const c = L && lampCell(plan(), host(L) || L);
-    const head = el(
-      `<div class="line"><b>${c ? t('Save lights in “{0}”?', esc(roomName(c, L))) : t("Save this room's lights?")}</b></div>`,
-    );
-    const ln = el(`<div class="line next"><span class="sp"></span></div>`);
-    const no = el(`<button class="soft">${t('Discard room changes')}</button>`);
-    const yes = el(`<button class="soft pri">${t('Save placement')}</button>`);
-    const done = (keepIt: boolean): void => {
-      const p = leaving!; // its buttons are shown only while the question is on
-      leaving = null;
-      if (keepIt) save(sess);
-      else discard(sess);
-      merging = false;
-      if (p.action) {
-        ed.history.commit(plan());
-        ed.update();
-        p.action();
-        return;
-      }
-      if (p.finish) {
-        ed.history.commit(plan());
-        ed.update();
-        close();
-        return;
-      }
-      sel().light = p.light;
-      cur = p.cur;
-      ed.commit();
-      ed.draw();
-    };
-    const stay = el(`<button class="soft">${t('Keep editing')}</button>`);
-    stay.onclick = () => {
-      leaving = null;
-      ctxPanel();
-    };
-    no.onclick = () => done(false);
-    yes.onclick = () => done(true);
-    ln.append(stay, no, yes);
-    return [head, ln];
   }
   const advance = (): void => {
     sel().light = null;
@@ -732,7 +589,6 @@ export function lightsMode(ed: Editor): LightsMode {
     };
     if (stripFirst(h, sh)) {
       // stripFirst holds only with a strip spot
-      if (away(sh!.L)) return there(sh!.L);
       drag = {strip: sh!, L: sh!.L, start: p};
       ed.drag = drag;
       // Delete then removes the section that was clicked
@@ -749,7 +605,6 @@ export function lightsMode(ed: Editor): LightsMode {
       return true;
     }
     if (h) {
-      if (away(h.L)) return there(h.L);
       const changed = sel().light !== h.L.id;
       sel().light = h.L.id;
       sel().part = h.i;
@@ -766,11 +621,7 @@ export function lightsMode(ed: Editor): LightsMode {
       const now = find(sel().light) || find(cur);
       const nc = now && lampCell(plan(), host(now) || now);
       if (nc && pointIn(p, nc.poly)) {
-        if (!leaving) return false;
-        leaving = null;
-        m.refresh();
-        ed.draw();
-        return true;
+        return false;
       }
       const q = lampIn(p);
       if (q) {
@@ -1062,7 +913,7 @@ export function lightsMode(ed: Editor): LightsMode {
   // a drag: a wall light along its wall, another light's body inside its room, a line inside one room. A strip runs along
   // its walls and is changed by its ends.
   m.nudge = step => {
-    if (leaving || drag || placing) return false;
+    if (drag || placing) return false;
     const L = find(sel().light);
     if (!L?.placed || L.with) return false;
     const form = formFor(L);
@@ -1113,13 +964,6 @@ export function lightsMode(ed: Editor): LightsMode {
     return changed;
   }
   m.key = e => {
-    if (leaving) {
-      if (e.key === 'Escape') {
-        leaving = null;
-        ctxPanel();
-      }
-      return;
-    }
     if (e.key === 'Delete' || e.key === 'Backspace') remove();
     if (e.key === 'Escape') m.deselect();
   };
@@ -1362,17 +1206,13 @@ export function lightsMode(ed: Editor): LightsMode {
     const cell = own && own.room === r && pointIn(p, own.poly) ? own : {room: r, poly: r.polygon, ch: null};
     const g = guessForm(L);
     const f = formOfL(L);
-    const s0 = snap(L);
     // dropped in a room where the AI build saw a lamp of its kind: it takes that lamp's place, the nearest one to the drop
     placeLight(plan(), L, f, L.opt && L.form === f ? L.opt : f === g.form ? g.opt : undefined, cell, p);
     if (pv.seg && f === 'strip')
       L.segments = stripOnEdge(plan(), cell, L.opt, p) as Segment[]; // fixtures.ts: [a, b] pieces
     else if (L.points.length === 1 && !droppedOnSeen(L, p)) L.points = [pv.p!]; // a wall piece is a strip's preview: the line above
     delete L.auto;
-    if (wizOn()) {
-      L.draft = true;
-      if (!L.was) L.was = {k: cellKey(L), s: s0};
-    }
+    if (wizOn()) L.draft = true;
     cur = null;
     sel().light = L.id;
     ed.commit();
@@ -1444,7 +1284,7 @@ export function lightsMode(ed: Editor): LightsMode {
     cur = null;
     merging = false;
     if (!wizOn()) toHA(L);
-    // the panel stays at the lamp with any shape — tiles can be tried in turn; to the next room — “Next”
+    // the panel stays at the lamp with any shape — tiles can be tried in turn; the next light is picked in the list
     sel().light = L.id;
     ed.commit();
     blink(L.id);
@@ -1503,11 +1343,9 @@ export function lightsMode(ed: Editor): LightsMode {
           `<button class="chip" title="${r.area ? t('Home Assistant area: “{0}”', esc(ed.areaName(r.area))) : t('Room has no HA area — saved here only')}">${esc(label)}</button>`,
         );
         b.onclick = () => {
-          const s0 = snap(L);
           L.room = r.id;
           aloneLamp = null;
           pointRoom(null);
-          if (wizOn() && !L.was) L.was = {k: cellKey(L), s: s0};
           ed.commit();
         };
         pointedRoom(b, r.id);
@@ -1861,13 +1699,8 @@ export function lightsMode(ed: Editor): LightsMode {
       );
       b.onclick = () => {
         const H = choice.light();
-        const before = snap(H);
         bindSeenLamp(plan(), H, seen);
         delete H.auto;
-        if (wizOn()) {
-          H.draft = true;
-          if (!H.was) H.was = {k: cellKey(H), s: before};
-        }
         cur = null;
         sel().light = H.id;
         ed.commit();
@@ -1920,7 +1753,7 @@ export function lightsMode(ed: Editor): LightsMode {
     swatches.append(ownBody(L));
     return swatches;
   }
-  // “Missing a light?” — in the step, above “Next”: a fixture comes only from HA (the owner)
+  // “Missing a light?” — in the step, at the bottom of the card: a fixture comes only from HA (the owner)
   // the cell's area: the second part of a room — its area, otherwise — the room's; without an area — just “add it in HA”
   const cellArea = (cell: LampCell | null): string | null | undefined => {
     if (!cell) return null;
@@ -1941,35 +1774,18 @@ export function lightsMode(ed: Editor): LightsMode {
     el(
       `<a class="soft btn" href="${esc(ed.ha.devicesUrl)}" target="_blank" rel="noopener" title="${t('Open devices in Home Assistant')}">${t('Open HA')} ↗</a>`,
     );
-  // the bottom of the panel in the wizard: “part of another” — on the left, “Next” — on the right: this light is confirmed, on
-  // to the next one to check (this room's first, then the next room's); it says “Confirm”. There is no “Skip” here
-  // (the owner: not needed; the trash at the top takes a light off); to finish — “Done”
+  // the bottom of the panel in the wizard: “part of another fixture”. No “Confirm” (the owner): a light opened is confirmed, the
+  // next one is picked in the list on the left; to finish — “Finish placing lights”
   function nextLine(L: PlanLight, cell?: LampCell | null): HTMLElement[] {
     if (!wizOn()) return [];
-    const ln = el(`<div class="line next"></div>`);
     const mb = cell && mergeBtn(L, cell);
-    if (mb) ln.append(mb);
-    if (todo(L) || queue().length || dirty(sess)) {
-      const label = t('Confirm'); // the owner: it confirms this light (and opens the next), so it says so
-      const nx = el(
-        `<button class="soft pri" title="${t('Confirm this light and go to the next')}">${label}</button>`,
-      );
-      nx.onclick = () => {
-        confirmLamp(L);
-        advance();
-        ed.commit();
-      };
-      ln.append(el(`<span class="sp"></span>`), nx);
-    }
-    return ln.childNodes.length ? [ln] : [];
+    if (!mb) return [];
+    const ln = el(`<div class="line next"></div>`);
+    ln.append(mb);
+    return [ln];
   }
   function ctxPanel(): void {
     if (ed.mode !== m) return;
-    if (leaving && wizOn()) {
-      ed.showCtx(leaveLines());
-      pulse();
-      return;
-    }
     const L = find(sel().light);
     if (L && !L.placed) {
       sel().light = null;

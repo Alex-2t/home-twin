@@ -1871,9 +1871,7 @@
  "Open any home and look around before you try.": "Откройте любой дом и осмотритесь, прежде чем пробовать.",
  "The glow of the wall switch’s own panel, not the room’s light: that one is its switch.": "Подсветка самой панели выключателя, а не свет комнаты. Свет комнаты — это её выключатель.",
  "backlight": "подсветка",
- "Confirm": "Подтвердить",
- "Confirm this light and go to the next": "Подтвердить этот свет и перейти к следующему",
- "Check the light type and position, then press “Confirm”.": "Проверьте вид и положение света и нажмите «Подтвердить».",
- "Check each light, then press “Confirm”.": "Проверьте каждый свет и нажмите «Подтвердить».",
- "Confirmed": "Подтверждено"
+ "Confirmed": "Подтверждено",
+ "Click each light in the list and check its type and position.": "Нажмите на каждый свет в списке и проверьте его вид и положение.",
+ "Check each light in the list.": "Проверьте каждый свет в списке."
 }

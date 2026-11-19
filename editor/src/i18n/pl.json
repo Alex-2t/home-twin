@@ -1871,9 +1871,7 @@
  "Open any home and look around before you try.": "Otwórz dowolny dom i rozejrzyj się, zanim spróbujesz.",
  "The glow of the wall switch’s own panel, not the room’s light: that one is its switch.": "Podświetlenie samego panelu włącznika, nie światło pokoju: to jest jego włącznik.",
  "backlight": "podświetlenie",
- "Confirm": "Potwierdź",
- "Confirm this light and go to the next": "Potwierdź to światło i przejdź do następnego",
- "Check the light type and position, then press “Confirm”.": "Sprawdź rodzaj i położenie światła, a następnie naciśnij „Potwierdź”.",
- "Check each light, then press “Confirm”.": "Sprawdź każde światło, a następnie naciśnij „Potwierdź”.",
- "Confirmed": "Potwierdzone"
+ "Confirmed": "Potwierdzone",
+ "Click each light in the list and check its type and position.": "Kliknij każde światło na liście i sprawdź jego rodzaj i położenie.",
+ "Check each light in the list.": "Sprawdź każde światło na liście."
 }
