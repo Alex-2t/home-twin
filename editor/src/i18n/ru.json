@@ -1835,5 +1835,12 @@
  "Already used by “{0}”. Click to join the two into one room.": "Уже у «{0}». Нажмите, чтобы объединить их в одну комнату.",
  "Done, but it runs into the thing next to it: drag one of them in the editor": "Сделано, но упирается в соседнюю вещь: передвиньте одну из них в редакторе",
  "{0} went missing with it: put it back in the editor or pin it": "При этом пропало: {0}. Верните в редакторе или поставьте пин",
- "Not clear which door: put the pin right on it": "Непонятно, какая дверь: поставьте пин прямо на неё"
+ "Not clear which door: put the pin right on it": "Непонятно, какая дверь: поставьте пин прямо на неё",
+ "Fixed by the developer: {0}": "Исправлено разработчиком: {0}",
+ "Nothing sent yet": "Пока ничего не отправлено",
+ "Pins sent to the developer": "Метки, отправленные разработчику",
+ "See the fix": "Посмотреть исправление",
+ "The developer is looking at it: {0}": "Разработчик разбирается: {0}",
+ "The developer sees each pin and answers here. A fix comes to your home in the editor.": "Разработчик видит каждую метку и отвечает здесь. Исправление придёт в ваш дом в редакторе.",
+ "You added: {0}": "Вы добавили: {0}"
 }

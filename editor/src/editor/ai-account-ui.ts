@@ -60,6 +60,14 @@ export interface AccountView {
   /** null: no accounts here (local work) or not known yet. */
   offer: Offer | null;
   account: Account | null;
+  /** The pins this account sent the developer (D-129): how many, and whether one moved on since the list was last opened. */
+  reports?: ReportsSeen | null;
+}
+
+/** The account's pins sent to the developer, as its menu tells them. */
+export interface ReportsSeen {
+  count: number;
+  news: boolean;
 }
 
 /** What the account part of a header does. */
@@ -69,6 +77,8 @@ export interface AccountBarOptions {
   onSignIn: () => void;
   onBuy: () => void;
   onSignOut: () => void;
+  /** Opens the account's pins sent to the developer; the menu offers them once there is one. */
+  onReports?: () => void;
 }
 
 /** The account part of a header: an element to place, drawn again on each change. */
@@ -405,7 +415,7 @@ export function walletHtml(balance: Account['balance']): string {
 
 /** The account in a header: "Sign in" while signed out; signed in, its badge (and the balance's bar) with a menu. */
 export function accountBar(options: AccountBarOptions): AccountBar {
-  const {meter, onSignIn, onBuy, onSignOut} = options;
+  const {meter, onSignIn, onBuy, onSignOut, onReports} = options;
   const element = el(`<span class="aib-account"></span>`);
   let view: AccountView = {offer: null, account: null};
   let menu: HTMLElement | null = null;
@@ -436,12 +446,21 @@ export function accountBar(options: AccountBarOptions): AccountBar {
       <div class="aib-account-balance">${balance}</div>
       <button data-act="buy">${icon('wallet', 16)}<span>${buyInner}</span></button>
       <div class="aib-account-terms">${packageTermsHtml(view.offer)}</div>
+      ${reportsItem()}
       <hr>
       <button data-act="sign-out">${icon('logOut', 16)}<span>${esc(t('Sign out'))}</span></button>
     </div>`);
     element.append(menu);
     addEventListener('pointerdown', onOutside, true);
     addEventListener('keydown', onEscape, true);
+  }
+
+  /** The menu's line to the pins sent to the developer, with their count and a dot when one moved on; '' with none. */
+  function reportsItem(): string {
+    const reports = view.reports;
+    if (!onReports || !reports?.count) return '';
+    const dot = reports.news ? '<i class="aib-news-dot"></i>' : '';
+    return `<hr><button data-act="reports">${icon('pin', 16)}<span>${esc(t('Pins sent to the developer'))}</span><em class="aib-menu-count">${reports.count}</em>${dot}</button>`;
   }
 
   function draw(): void {
@@ -456,7 +475,8 @@ export function accountBar(options: AccountBarOptions): AccountBar {
       return;
     }
     const bar = meter ? walletHtml(account.balance) : '';
-    element.innerHTML = `${bar}<button class="aib-avatar" data-act="account" title="${esc(account.email)}" aria-haspopup="menu">${esc(initialOf(account.email))}</button>`;
+    const news = view.reports?.news && onReports ? ' news' : '';
+    element.innerHTML = `${bar}<button class="aib-avatar${news}" data-act="account" title="${esc(account.email)}" aria-haspopup="menu">${esc(initialOf(account.email))}</button>`;
   }
 
   element.addEventListener('click', e => {
@@ -470,6 +490,9 @@ export function accountBar(options: AccountBarOptions): AccountBar {
     } else if (action === 'sign-out') {
       closeMenu();
       onSignOut();
+    } else if (action === 'reports') {
+      closeMenu();
+      onReports?.();
     }
   });
 

@@ -40,8 +40,9 @@ import {kindName, localRoomName, numberAlike} from '../core/overview.ts';
 import {byId} from '../core/catalog.ts';
 import {openReview} from './ai-review.ts';
 import type {UnplacedThing} from './ai-review.ts';
-import {changeCount, pinsToSend, pinsToRetry, refreshRetries} from './ai-pins.ts';
-import {markSource} from './ai-fix.ts';
+import {changeCount, pinsToSend, pinsToRetry, refreshRetries, withoutFixed} from './ai-pins.ts';
+import {markSource, seeFix} from './ai-fix.ts';
+import {accountReports} from './ai-reports.ts';
 import {recordStep} from './wizard-state.ts';
 import {PLACEABLE, autoPlace, deviceKind, isCentral, recOf} from '../core/devices.ts';
 import {recommend} from '../core/sensors.ts';
@@ -1027,7 +1028,7 @@ export function aiStartCard(
     if (entries.some(entry => entry.isIntersecting)) refresh();
   }).observe(startBox);
 
-  startAccount(startScreen, {api, inHa, openUpload: () => open(null)});
+  startAccount(ed, startScreen, {api, inHa, openUpload: () => open(null)});
 
   // "Version history" lists what the account holds beside the plan's versions: in Home Assistant the plan drawn on our site
   // (D-134), to take; and the account's builds, to open and check or take.
@@ -1085,6 +1086,7 @@ export const ACCOUNT_CHANGED = 'home-twin:account-changed';
  * menu once signed in. On our site, signing in keeps your plan on the account, to take into Home Assistant later.
  */
 function startAccount(
+  ed: Editor,
   startScreen: HTMLElement | null,
   {api, inHa, openUpload}: {api: string; inHa: boolean; openUpload: () => void},
 ): void {
@@ -1093,6 +1095,17 @@ function startAccount(
   let offer: Offer | null = null;
   let account: Account | null = null;
   let sheet: SignInSheet | null = null;
+  // the pins this account sent the developer (D-129): in the menu, with a dot when one moved on
+  const reports = accountReports({
+    api,
+    source: () => ed.plan.source,
+    onSeeFix: (build, round) => {
+      ed.flows.hideStart();
+      seeFix(build, round);
+    },
+    onChange: () => draw(),
+  });
+  const draw = (): void => bar.update({offer, account, reports: account ? reports.seen() : null});
   const bar = accountBar({
     meter: false,
     onSignIn: () => {
@@ -1106,7 +1119,8 @@ function startAccount(
         onSignedIn: signedIn => {
           sheet = null;
           account = signedIn;
-          bar.update({offer, account});
+          draw();
+          void reports.refresh();
           dispatchEvent(new Event(ACCOUNT_CHANGED));
         },
         onClose: () => {
@@ -1115,12 +1129,13 @@ function startAccount(
       });
     },
     onBuy: openUpload,
+    onReports: () => void reports.open(),
     onSignOut: async () => {
       try {
         await signOut(api);
       } catch {} // signed out on this page either way
       account = null;
-      bar.update({offer, account});
+      reports.forget();
       dispatchEvent(new Event(ACCOUNT_CHANGED));
     },
   });
@@ -1131,7 +1146,8 @@ function startAccount(
       offer ||= await accountOffer(api);
       account = offer ? await currentAccount(api) : null;
     } catch {} // the service does not answer: the corner stays as it was
-    bar.update({offer, account});
+    draw();
+    if (account) await reports.refresh();
   }
   refresh();
   // back to the page (the account may have changed in another tab), or signed in or out on the AI build's pages
@@ -1779,7 +1795,7 @@ export function openAiBuild(ed: Editor, options: AiBuildOptions = {}): AiBuildSc
     const notes = loadNotes();
     const round = status?.lastRound?.round;
     if (!round) return notes;
-    notes.pins = refreshRetries(notes.pins, status?.lastRound);
+    notes.pins = withoutFixed(refreshRetries(notes.pins, status?.lastRound), status?.reports || []);
     saveNotes(notes);
     let retried = 0;
     try {

@@ -1835,5 +1835,12 @@
  "Already used by “{0}”. Click to join the two into one room.": "已被“{0}”使用。点击将两者合并为一个房间。",
  "Done, but it runs into the thing next to it: drag one of them in the editor": "已完成，但与旁边的物品相撞：请在编辑器中拖动其中一个",
  "{0} went missing with it: put it back in the editor or pin it": "同时消失了：{0}。请在编辑器中放回或添加图钉",
- "Not clear which door: put the pin right on it": "不清楚是哪扇门：请把图钉直接放在门上"
+ "Not clear which door: put the pin right on it": "不清楚是哪扇门：请把图钉直接放在门上",
+ "Fixed by the developer: {0}": "已由开发者修复：{0}",
+ "Nothing sent yet": "还没有发送任何内容",
+ "Pins sent to the developer": "发送给开发者的标记",
+ "See the fix": "查看修复",
+ "The developer is looking at it: {0}": "开发者正在处理：{0}",
+ "The developer sees each pin and answers here. A fix comes to your home in the editor.": "开发者会查看每个标记并在这里回复。修复会出现在编辑器中你的家里。",
+ "You added: {0}": "你补充了：{0}"
 }

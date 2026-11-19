@@ -1835,5 +1835,12 @@
  "Already used by “{0}”. Click to join the two into one room.": "Al gebruikt door ‘{0}’. Klik om ze samen te voegen tot één kamer.",
  "Done, but it runs into the thing next to it: drag one of them in the editor": "Gedaan, maar het botst met het ding ernaast: sleep een van beide in de editor",
  "{0} went missing with it: put it back in the editor or pin it": "Daarbij is verdwenen: {0}. Zet het terug in de editor of plaats een pin",
- "Not clear which door: put the pin right on it": "Niet duidelijk welke deur: zet de pin er precies op"
+ "Not clear which door: put the pin right on it": "Niet duidelijk welke deur: zet de pin er precies op",
+ "Fixed by the developer: {0}": "Opgelost door de ontwikkelaar: {0}",
+ "Nothing sent yet": "Nog niets gestuurd",
+ "Pins sent to the developer": "Spelden naar de ontwikkelaar",
+ "See the fix": "Oplossing bekijken",
+ "The developer is looking at it: {0}": "De ontwikkelaar kijkt ernaar: {0}",
+ "The developer sees each pin and answers here. A fix comes to your home in the editor.": "De ontwikkelaar ziet elke speld en antwoordt hier. Een oplossing komt in je huis in de editor.",
+ "You added: {0}": "Je voegde toe: {0}"
 }

@@ -55,6 +55,8 @@ export interface RoundPin {
 export interface PinRound {
   round: number;
   pins?: RoundPin[];
+  /** The developer's round (D-129): the pin sent to them that it fixes, by its round and number; its one pin is that pin. */
+  fixes?: {round: number; n: number};
 }
 
 /**
@@ -245,6 +247,8 @@ export function pinsToSend(pins: Pin[]): SentPin[] {
  * photo or say it again, or delete them.
  */
 export function pinsToRetry(lastRound: PinRound | null | undefined): Pin[] {
+  // the developer's round answers a pin the owner has already (refreshRetries): nothing comes back twice
+  if (lastRound?.fixes) return [];
   return (lastRound?.pins || [])
     .filter(pin => pin.made !== 'yes')
     .map(pin => ({
@@ -295,7 +299,12 @@ export function refreshRetries(pins: Pin[], lastRound: PinRound | null | undefin
   const roundPins = lastRound?.pins || [];
   return pins.flatMap((pin): Pin[] => {
     const pinRetry = pin.retry;
-    if (!pinRetry || (pinRetry.round != null && pinRetry.round !== lastRound?.round)) return [pin];
+    if (!pinRetry) return [pin];
+    // The developer's round that fixed this pin (D-129): made, the pin leaves; not made, it stays as it was, with its report.
+    const fixes = lastRound?.fixes;
+    if (fixes && pinRetry.round === fixes.round && pinRetry.n === fixes.n)
+      return lastRound?.pins?.[0]?.made === 'yes' ? [] : [pin];
+    if (pinRetry.round != null && pinRetry.round !== lastRound?.round) return [pin];
     const now =
       pinRetry.n != null
         ? roundPins.find(roundPin => roundPin.n === pinRetry.n)
@@ -313,6 +322,11 @@ export function refreshRetries(pins: Pin[], lastRound: PinRound | null | undefin
     // now is one of lastRound's pins: it is there.
     return [{...pin, retry: {...kept, ...retryOf(lastRound!.round, now)}}];
   });
+}
+
+/** The pins without those the developer fixed (D-129): a pin sent to them and fixed by their round no longer comes back. */
+export function withoutFixed(pins: Pin[], reports: ReportView[]): Pin[] {
+  return pins.filter(pin => reportOf(pin, reports)?.status !== 'fixed');
 }
 
 /** How many changes the owner asks for: each pin with words, and the note for the whole home. */

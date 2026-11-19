@@ -8,6 +8,7 @@ import {
   pinsToSend,
   pinsToRetry,
   refreshRetries,
+  withoutFixed,
   changeCount,
   MAX_PIN_PHOTOS,
   reportOf,
@@ -241,4 +242,43 @@ test("a pin that comes back keeps what the service understood and said in the ow
   const [now] = refreshRetries([sent], again);
   assert.equal(now.retry?.reported, true);
   assert.deepEqual(now.retry?.told, [{code: 'unclear', say: 'Which wall do you mean?'}]);
+});
+
+test("the developer's round that fixed a pin takes it off the pins that came back; not made, the pin stays with its report", () => {
+  const sent: Pin = {
+    ...newPin(plan, {p: [1, 1]}),
+    text: 'a door here',
+    retry: {round: 1, n: 1, made: 'no', codes: [], reported: true},
+  };
+  const other: Pin = {
+    ...newPin(plan, {p: [2, 2]}),
+    text: 'the sofa',
+    retry: {round: 1, n: 2, made: 'no', codes: []},
+  };
+  const madeRound = {
+    round: 2,
+    fixes: {round: 1, n: 1},
+    pins: [{n: 1, x: 1, y: 1, text: 'a door here', made: 'yes' as const}],
+  };
+  assert.deepEqual(refreshRetries([sent, other], madeRound), [other]);
+  assert.deepEqual(pinsToRetry(madeRound), []);
+  const notMade = {...madeRound, pins: [{...madeRound.pins[0], made: 'no' as const}]};
+  assert.deepEqual(refreshRetries([sent], notMade), [sent]);
+  assert.deepEqual(pinsToRetry(notMade), []);
+});
+
+test('a pin the developer fixed leaves the pins that came back, whichever round fixed it', () => {
+  const pin = (n: number): Pin => ({
+    ...newPin(plan, {p: [n, 1]}),
+    text: `pin ${n}`,
+    retry: {round: 1, n, made: 'no', codes: [], reported: true},
+  });
+  const reports: ReportView[] = [
+    {round: 1, n: 1, status: 'fixed', at: 'x', fixRound: 2},
+    {round: 1, n: 2, status: 'looking', at: 'y'},
+  ];
+  assert.deepEqual(
+    withoutFixed([pin(1), pin(2), pin(3)], reports).map(kept => kept.text),
+    ['pin 2', 'pin 3'],
+  );
 });

@@ -1835,5 +1835,12 @@
  "Already used by “{0}”. Click to join the two into one room.": "Já usada por “{0}”. Clique para juntar as duas num só cômodo.",
  "Done, but it runs into the thing next to it: drag one of them in the editor": "Feito, mas bate na coisa ao lado: arraste uma delas no editor",
  "{0} went missing with it: put it back in the editor or pin it": "Com isso desapareceu: {0}. Recoloque no editor ou marque um pin",
- "Not clear which door: put the pin right on it": "Não está claro qual porta: coloque o pin bem em cima dela"
+ "Not clear which door: put the pin right on it": "Não está claro qual porta: coloque o pin bem em cima dela",
+ "Fixed by the developer: {0}": "Corrigido pelo desenvolvedor: {0}",
+ "Nothing sent yet": "Nada enviado ainda",
+ "Pins sent to the developer": "Marcadores enviados ao desenvolvedor",
+ "See the fix": "Ver a correção",
+ "The developer is looking at it: {0}": "O desenvolvedor está analisando: {0}",
+ "The developer sees each pin and answers here. A fix comes to your home in the editor.": "O desenvolvedor vê cada marcador e responde aqui. A correção chega à sua casa no editor.",
+ "You added: {0}": "Você acrescentou: {0}"
 }

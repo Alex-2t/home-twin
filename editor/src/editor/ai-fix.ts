@@ -21,6 +21,14 @@ import type {BannerButton, Editor} from './editor-types.ts';
 // How often an open home asks for its pins' statuses.
 const CHECK_EVERY_MS = 10 * 60_000;
 
+// Opens a fix of the home in the editor, from the list of pins sent to the developer (ai-reports.ts); set by watchFixes.
+let openFixOf: ((build: string, round: number) => void) | null = null;
+
+/** Opens the fix of this build at this round for the home in the editor, as "See" on the line does. */
+export function seeFix(build: string, round: number): void {
+  openFixOf?.(build, round);
+}
+
 /** What the build's status says that a fix needs: its reports. */
 interface FixStatus {
   reports?: ReportView[];
@@ -226,6 +234,12 @@ export function watchFixes(ed: Editor, {api = ''}: {api?: string} = {}): void {
     held = holdFocus(box, {first: find<HTMLButtonElement>(box, '[data-act=apply]'), onEscape: cancel});
   }
 
+  openFixOf = (build, round) => {
+    const source = ed.plan.source;
+    if (source?.build !== build || round <= source.round) return;
+    offered = `${build}:${round}`;
+    void openFix(source, round);
+  };
   void check();
   setInterval(() => void check(), CHECK_EVERY_MS);
   document.addEventListener('visibilitychange', () => {

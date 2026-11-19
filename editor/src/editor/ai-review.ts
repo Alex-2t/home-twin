@@ -10,6 +10,7 @@ import {t} from '../i18n/i18n.ts';
 import {zOf} from '../core/catalog.ts';
 import {$, el, esc, find} from './ui.ts';
 import {icon} from './icons.ts';
+import {reportStatusWords} from './ai-reports.ts';
 import {newPin, pinLabel, changeCount, MAX_PIN_PHOTOS, MISSED_REASON, reportOf} from './ai-pins.ts';
 import type {Pin, PinHit, PinNotes, PinRetry, PinRound, ReportView, RoundPin} from './ai-pins.ts';
 import type {CanvasPoint, Editor, Pane} from './editor-types.ts';
@@ -961,11 +962,7 @@ export function openReview(
   function reportStatusText(pin: Pin): string {
     const report = reportOf(pin, reports);
     if (!report && !pin.retry?.reported) return '';
-    const status = report?.status ?? 'sent';
-    if (status === 'looking') return t('The developer is looking at it');
-    if (status === 'fixed') return t('Fixed by the developer');
-    if (status === 'cannot') return report?.note ? t('Can’t be done: {0}', report.note) : t('Can’t be done');
-    return t('Sent to the developer');
+    return reportStatusWords(report?.status ?? 'sent', report?.note);
   }
 
   function showReportStatus(line: HTMLElement, pin: Pin): void {
