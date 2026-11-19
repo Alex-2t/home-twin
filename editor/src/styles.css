@@ -154,6 +154,8 @@ body:not([data-mode=rooms]) #rotate-plan{display:none}
 .sec>summary .count{font-size:11px;font-weight:600;color:var(--mut);background:var(--chip);padding:1px 7px;border-radius:99px}
 .sec>summary .act{margin-left:auto;height:26px;font-size:12px;padding:0 8px}
 .sec-body{padding:0 0 10px}.sec-body.list{padding:2px 0 10px}
+/* a little air between rows: two highlighted ones (lights not placed yet, the selected one) do not run into one another */
+.sec-body>.row+.row{margin-top:2px}
 .row{display:flex;align-items:center;gap:8px;padding:0 8px;border-radius:9px;cursor:pointer;min-height:32px}.row:hover{background:var(--hov)}.row.sel{background:var(--acc2)}
 .row .name{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-weight:500}.row small{color:var(--mut);font-variant-numeric:tabular-nums}
 .row .x{visibility:hidden;height:24px;min-width:24px;color:var(--mut)}.row:hover .x,.row:is(:focus-visible,:has(:focus-visible)) .x{visibility:visible}
