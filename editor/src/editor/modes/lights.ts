@@ -51,17 +51,7 @@ import {$, el, esc, fmtArea, parseLen, scrollRow, section, tip, tipHide} from '.
 import {icon} from '../icons.ts';
 import {cssHex, hexNum, isHex, snapColor} from '../../core/color.ts';
 import {FONT, alpha, dimLabel, pal, shiftSegs, shiftPoint} from '../draw.ts';
-import type {
-  HaSwitch,
-  LightForm,
-  Plan,
-  PlanLight,
-  Point,
-  Room,
-  Segment,
-  Vector,
-  WallStrip,
-} from '../../core/types.ts';
+import type {LightForm, Plan, PlanLight, Point, Room, Segment, Vector, WallStrip} from '../../core/types.ts';
 import type {PlanView2d} from '../view2d.ts';
 import type {Editor, LightsMode, Selection} from '../editor-types.ts';
 
@@ -2076,14 +2066,7 @@ export function lightsMode(ed: Editor): LightsMode {
     ed.sideHead(t('Lights|lamps'), `${Lc.length - left}/${Lc.length}`);
     const a = asking();
     // area switches that are not lamps yet: lights on a relay (Sonoff, Aqara) — in HA this is a switch, not a light
-    // A switch named as a light of its area is that light's own relay: one device HA shows twice, as a light and as a switch
-    // (the owner's Sonoff T5-1C: light.sonoff_… and switch.sonoff_…_1, both "main light" in the kids' room, listed twice).
-    const sameAsLight = (w: HaSwitch): boolean =>
-      L0.some(
-        l =>
-          l.entity === w.entity || (!!l.entity && l.name === w.name && (l.area || null) === (w.area || null)),
-      );
-    const relays = (ed.ha.switches?.() || []).filter(w => !sameAsLight(w));
+    const relays = (ed.ha.switches?.() || []).filter(w => !L0.some(l => l.entity === w.entity));
     // a lamp the AI build saw has no HA area: it is listed with its room's lights, next to the one it may be
     const listArea = (l: PlanLight): string =>
       l.area || (isSeenLamp(l) ? roomById(plan(), l.room)?.area : '') || '';
