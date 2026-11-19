@@ -196,7 +196,7 @@ const OPT: Partial<Record<LightForm, string>> = {
 // Italian, Polish, Portuguese). Chinese has no spaces between words, so each character itself serves as a word start.
 // allow-cyrillic below: the word-start class for RegExp holds Cyrillic letters
 const W = '(?:^|[^a-zа-яё0-9à-öø-ÿąćęłńóśźż])'; // allow-cyrillic
-const re = (s: string): RegExp => new RegExp(W + '(?:' + s + ')', 'i');
+export const re = (s: string): RegExp => new RegExp(W + '(?:' + s + ')', 'i');
 const K = {
   line: re(
     'трек|track|линия|линии|линейн|light ?line|профил|schiene|lichtlinie|rail|ligne lumineuse|lichtlijn|carril|línea de luz|binario|linea luminosa|szyn|linia świetl|trilho|linha de luz|轨道|线条灯|线形灯',

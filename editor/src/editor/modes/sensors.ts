@@ -14,6 +14,7 @@ import {
   isClimate,
   metricOf,
   recommend,
+  missingRecommended,
   roomOfArea,
   whyNot,
   orphans,
@@ -811,19 +812,23 @@ export function sensorsMode(ed: Editor): SensorsMode {
     tools.appendChild(ed.selectButton());
     const C = ctx();
     const list = C.sensors.filter(s => !s.cat && !s.hidden && (all || isClimate(s)));
-    if (!plan().sensors.length) {
-      const rec = recommend(plan(), C);
-      if (rec.length) {
-        const b = el(
-          `<button class="primary" title="${t('Temperature, humidity and CO₂ in every room with sensors')}">${icon('sparkles', 15)}${t('Show recommended')}</button>`,
+    // As in Devices: while there is something to place (the owner: with two readings on the walls the button was gone, though
+    // the other rooms had none). It adds only what a room does not show yet, and says how many.
+    const rec = missingRecommended(plan(), C);
+    if (rec.length) {
+      const b = el(
+        `<button class="primary" title="${t('Temperature, humidity and CO₂ in every room with sensors')}">${icon('sparkles', 15)}${t('Place automatically')}</button>`,
+      );
+      b.onclick = () => {
+        ed.versions.mark('before', 'sensors');
+        for (const x of rec) plan().sensors.push({id: newId(), ...x});
+        ed.commit();
+        ed.banner(
+          t('Placed {0, plural, one {# reading} other {# readings}}. Move any that are off.', rec.length),
+          [[t('Got it'), () => ed.banner()]],
         );
-        b.onclick = () => {
-          ed.versions.mark('before', 'sensors');
-          for (const x of rec) plan().sensors.push({id: newId(), ...x});
-          ed.commit();
-        };
-        tools.appendChild(b);
-      }
+      };
+      tools.appendChild(b);
     }
     const side = $('side-body');
     side.innerHTML = '';

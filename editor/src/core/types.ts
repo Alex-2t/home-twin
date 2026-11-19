@@ -1434,6 +1434,8 @@ export interface UiState {
   sideBy: Partial<Record<SidePanel, boolean>>;
   /** The side panel is pinned open. */
   pinned?: boolean;
+  /** The side panel's width the user dragged it to, px; none: the stylesheet's. */
+  sideW?: number;
   /** none: 'auto' (the system's or HA's theme). */
   theme?: 'auto' | 'light' | 'dark';
   /** none: the HA user's or the system's language. */

@@ -3,7 +3,7 @@
 // then — drag on the plan. The “Lights” wizard step: room by room is highlighted and asked about its lamp without a place.
 import {t, num} from '../../i18n/i18n.ts';
 import {area, dist2, segDist, pointIn, WALL, ceilingOf} from '../../core/geometry.ts';
-import {GRID, snapLightPoint, stripOnWall} from '../../core/layout.ts';
+import {GRID, setRoomArea, snapLightPoint, stripOnWall} from '../../core/layout.ts';
 import {roomAt, roomById, zoneParts} from '../../core/plan.ts';
 import {
   FORMS,
@@ -44,13 +44,14 @@ import {
 } from '../../core/fixtures.ts';
 import type {Contour, LampCell, StripRuns} from '../../core/fixtures.ts';
 import {autoPlace, bindSeenLamp, placeLight} from '../../core/light-place.ts';
+import {switchLightScore} from '../../core/switch-light.ts';
 import {giveSeenBack, isSeenLamp, settleSeen} from '../../core/seen-lamps.ts';
 import {moved, slideAlongWall} from '../nudge.ts';
 import {$, el, esc, fmtArea, parseLen, scrollRow, section, tip, tipHide} from '../ui.ts';
 import {icon} from '../icons.ts';
 import {cssHex, hexNum, isHex, snapColor} from '../../core/color.ts';
 import {FONT, alpha, dimLabel, pal, shiftSegs, shiftPoint} from '../draw.ts';
-import type {LightForm, Plan, PlanLight, Point, Segment, Vector, WallStrip} from '../../core/types.ts';
+import type {LightForm, Plan, PlanLight, Point, Room, Segment, Vector, WallStrip} from '../../core/types.ts';
 import type {PlanView2d} from '../view2d.ts';
 import type {Editor, LightsMode, Selection} from '../editor-types.ts';
 
@@ -158,6 +159,13 @@ export function lightsMode(ed: Editor): LightsMode {
   let go: boolean | 'room' = false;
   let hoverStrip: StripHover | null = null;
   let merging = false;
+  // The lamp whose area is not on the plan that is to go into a room by itself (“Only this light is elsewhere”), not by
+  // linking a room to its area.
+  let aloneLamp: string | null = null;
+  // The areas whose switches that do not look like lights are unfolded in the list.
+  const otherSwitchesOpen = new Set<string>();
+  // What is typed in the search at the top of the list; kept while the list is made again.
+  let lightQuery = '';
   let stepKey: string | null = null;
   let flash: string | null = null;
   // the room (cellKey) the step is on; null: none; undefined: not known yet (after a reset or a reload)
@@ -1395,6 +1403,7 @@ export function lightsMode(ed: Editor): LightsMode {
   }
   // A lamp without a place: what it is — or where it is (the area is not on the plan), skip, part of another fixture.
   function askLines(L: PlanLight): HTMLElement[] {
+    pointed = null; // the panel is made again: the room chip that was pointed at is gone
     const cell = lampCell(plan(), L);
     const lines: HTMLElement[] = [];
     const head = el(
@@ -1402,7 +1411,34 @@ export function lightsMode(ed: Editor): LightsMode {
     );
     head.append(...flashBtn(L));
     lines.push(head);
-    if (!cell) {
+    // In Home Assistant the lamp has an area no room on the plan is linked to (the owner: the panel did not say which, and a
+    // room picked here moved the lamp to that room's area in HA, though the room was only linked to the wrong area). Asked
+    // first: which room is that area; a room linked to it brings every lamp of the area at once. Only this lamp elsewhere —
+    // the rooms as before, and its area in HA becomes the room's.
+    const haArea = !cell && L.area ? ed.areaName(L.area) : null;
+    const linkable = haArea ? roomsToLink() : [];
+    if (haArea && linkable.length && aloneLamp !== L.id) {
+      lines.push(
+        el(
+          `<div class="line sub"><small>${esc(t('In Home Assistant: “{0}”, not on the plan yet. Which room is it?', haArea))}</small></div>`,
+        ),
+      );
+      lines.push(linkAreaRow(linkable, L, haArea));
+      const alone = el(`<div class="line foot2"></div>`);
+      const one = el(`<button class="soft">${esc(t('Only this light is elsewhere'))}</button>`);
+      one.onclick = () => {
+        aloneLamp = L.id;
+        ctxPanel();
+      };
+      alone.append(one);
+      lines.push(alone);
+    } else if (!cell) {
+      if (haArea)
+        lines.push(
+          el(
+            `<div class="line sub"><small>${esc(t('In Home Assistant: “{0}”, not on the plan.', haArea))}</small></div>`,
+          ),
+        );
       lines.push(
         el(
           `<div class="line sub"><small>${t('Where is this light?')}${ed.ha.setArea ? ' ' + t("We'll save its area to Home Assistant too.") : ''}</small></div>`,
@@ -1421,12 +1457,26 @@ export function lightsMode(ed: Editor): LightsMode {
         b.onclick = () => {
           const s0 = snap(L);
           L.room = r.id;
+          aloneLamp = null;
+          pointRoom(null);
           if (wizOn() && !L.was) L.was = {k: cellKey(L), s: s0};
           ed.commit();
         };
+        pointedRoom(b, r.id);
         row.append(b);
       }
       lines.push(row);
+      // back to “Which room is it?” when “Only this light is elsewhere” was pressed by mistake
+      if (haArea && linkable.length) {
+        const back = el(`<div class="line foot2"></div>`);
+        const button = el(`<button class="soft">${esc(t('Back'))}</button>`);
+        button.onclick = () => {
+          aloneLamp = null;
+          ctxPanel();
+        };
+        back.append(button);
+        lines.push(back);
+      }
     } else if (merging) lines.push(...mergeLines(L, cell));
     else lines.push(formTiles(L));
     const foot = el(
@@ -1441,6 +1491,52 @@ export function lightsMode(ed: Editor): LightsMode {
       lines.push(t);
     }
     return lines;
+  }
+  // A room chip pointed at shows its room on the plan (draw.ts chipRoom), so “Bedroom” is found before it is picked.
+  let pointed: string | null = null;
+  m.chipRoom = () => pointed;
+  function pointRoom(roomId: string | null): void {
+    if (pointed === roomId) return;
+    pointed = roomId;
+    ed.draw();
+  }
+  function pointedRoom(chip: HTMLElement, roomId: string): void {
+    chip.onpointerenter = () => pointRoom(roomId);
+    chip.onpointerleave = () => pointRoom(null);
+  }
+  // The rooms an HA area that is not on the plan can be linked to: one not linked yet, or one linked to an area without a
+  // single light (HA's own “Bedroom” beside the owner's own name for that room). A room whose area has lights is not offered: linked
+  // to another area, its lights would be left without a room.
+  // Not a light only: an area whose light is on relays (a switch in HA) or that has a device or a sensor is not empty either
+  // (the owner's bathroom has its lights on relays only, was offered for “Bedroom”, and lost its link).
+  function roomsToLink(): Room[] {
+    const used = new Set<string>();
+    for (const l of plan().lights) if (l.entity && l.area) used.add(l.area);
+    for (const w of ed.ha.switches?.() || []) if (w.area) used.add(w.area);
+    for (const d of ed.ha.devices?.() || []) if (d.area) used.add(d.area);
+    for (const x of ed.ha.sensors?.() || []) if (x.area) used.add(x.area);
+    return plan()
+      .rooms.filter(r => !r.solid && !(r.area && used.has(r.area)))
+      .sort((a, b) => +!!a.area - +!!b.area);
+  }
+  function linkAreaRow(rooms: Room[], L: PlanLight, areaName: string): HTMLElement {
+    const row = el(`<div class="line names"></div>`);
+    for (const r of rooms) {
+      const label = r.area ? (r.name ?? '') : `${r.name ?? ''} · ${fmtArea(area(r.polygon))}`;
+      const b = el(`<button class="chip">${esc(label)}</button>`);
+      b.onclick = () => {
+        pointRoom(null);
+        setRoomArea(plan(), r, L.area!, areaName);
+        delete r.noArea;
+        // the panel goes on with this lamp, now in the room: its shape is asked next
+        cur = L.id;
+        merging = false;
+        ed.commit();
+      };
+      pointedRoom(b, r.id);
+      row.append(b);
+    }
+    return row;
   }
   // a chandelier with three smart bulbs, a ceiling light with main and ambient light — several HA lamps in one fixture
   const hosts = (L: PlanLight, cell: LampCell): PlanLight[] =>
@@ -1974,74 +2070,133 @@ export function lightsMode(ed: Editor): LightsMode {
     // a lamp the AI build saw has no HA area: it is listed with its room's lights, next to the one it may be
     const listArea = (l: PlanLight): string =>
       l.area || (isSeenLamp(l) ? roomById(plan(), l.room)?.area : '') || '';
-    for (const ar of ed.sortAreas(new Set([...L0.map(listArea), ...relays.map(w => w.area || '')]))) {
-      const lamps = L0.filter(l => listArea(l) === ar);
-      const done = lamps.filter(l => !todo(l)).length;
-      const away = !!ar && !ed.areaOnPlan(ar);
-      const body = section(side, 'zone:' + ar, ar ? ed.areaName(ar) : t('No area'), {
-        count: `${done}/${lamps.length}`,
-        open: done < lamps.length && !away,
-      });
-      if (away)
-        body.appendChild(
-          el(`<p class="empty">${t('This area isn’t on the plan — click a light, then its spot.')}</p>`),
-        );
-      for (const L of lamps) {
-        const f = L.placed && !L.with ? formFor(L) : null;
-        const row = el(
-          `<div class="row lamp ${todo(L) ? 'todo' : ''} ${L.id === sel().light || L === a ? 'sel' : ''}" data-id="${L.id}" title="${L.placed ? '' : t('Click to identify this light, or drag it onto the plan')}"><button class="bulb ib ${L.on ? 'on' : ''}" title="${t('Turn on / off')}">${icon(f ? 'f_' + f : 'bulb', 16)}</button><span class="name">${esc(L.name)}</span><small>${esc(status(L))}</small></div>`,
-        );
-        // the row's markup has its bulb button
-        row.querySelector<HTMLElement>('.bulb')!.onclick = e => {
-          e.stopPropagation();
-          L.on = !L.on;
-          ed.view.setLightOn(L.id, L.on);
-          ed.history.save(plan());
-          m.refresh();
-          ed.draw();
-        };
-        // a press or a click is on the row or inside it
-        row.onpointerdown = e => {
-          if ((e.target as Element).closest('.bulb') || L.placed) return;
-          e.preventDefault();
-          placing = {L};
-        };
-        row.onclick = e => {
-          if ((e.target as Element).closest('.bulb')) return;
-          if (L.placed) ed.select('light', L.id);
-          else {
-            sel().light = null;
-            cur = L.id;
-            merging = false;
+    // The search at the top (the owner: type a device's name, the list is filtered): lights and switches by name, or a whole
+    // area by its name; folded switches are searched too. Only the list under it is made again, so typing keeps the focus.
+    const search = el(
+      `<div class="search">${icon('search', 15)}<input type="search" placeholder="${esc(t('Find a light or switch'))}" aria-label="${esc(t('Find a light or switch'))}" value="${esc(lightQuery)}"></div>`,
+    );
+    const field = search.querySelector('input')!; // in the markup above
+    field.oninput = () => {
+      lightQuery = field.value;
+      renderList();
+    };
+    field.onkeydown = e => {
+      e.stopPropagation();
+      if (e.key !== 'Escape') return;
+      lightQuery = '';
+      field.value = '';
+      renderList();
+      field.blur();
+    };
+    const list = el(`<div class="lights-list"></div>`);
+    // pinned at the top on a solid background, as the catalog's search: the list slides under it instead of showing through
+    const top = el(`<div class="cat-top lights-top"></div>`);
+    top.append(search);
+    side.append(top, list);
+    renderList();
+    function renderList(): void {
+      list.replaceChildren();
+      const q = lightQuery.trim().toLocaleLowerCase();
+      const has = (text: string): boolean => text.toLocaleLowerCase().includes(q);
+      let found = false;
+      for (const ar of ed.sortAreas(new Set([...L0.map(listArea), ...relays.map(w => w.area || '')]))) {
+        const lamps = L0.filter(l => listArea(l) === ar);
+        const done = lamps.filter(l => !todo(l)).length;
+        const away = !!ar && !ed.areaOnPlan(ar);
+        const areaTitle = (ar ? ed.areaName(ar) : '') || t('No area');
+        const wholeArea = !q || has(areaTitle);
+        const shownLamps = wholeArea ? lamps : lamps.filter(l => has(l.name ?? ''));
+        const areaRelays = relays.filter(w => (w.area || '') === ar);
+        const matchedRelays = wholeArea ? areaRelays : areaRelays.filter(w => has(w.name));
+        if (q && !shownLamps.length && !matchedRelays.length) continue;
+        found = true;
+        const body = section(list, 'zone:' + ar, areaTitle, {
+          count: `${done}/${lamps.length}`,
+          open: q ? true : done < lamps.length && !away,
+          fixed: !!q,
+        });
+        if (away)
+          body.appendChild(
+            el(`<p class="empty">${t('This area isn’t on the plan — click a light, then its spot.')}</p>`),
+          );
+        for (const L of shownLamps) {
+          const f = L.placed && !L.with ? formFor(L) : null;
+          const row = el(
+            `<div class="row lamp ${todo(L) ? 'todo' : ''} ${L.id === sel().light || L === a ? 'sel' : ''}" data-id="${L.id}" title="${L.placed ? '' : t('Click to identify this light, or drag it onto the plan')}"><button class="bulb ib ${L.on ? 'on' : ''}" title="${t('Turn on / off')}">${icon(f ? 'f_' + f : 'bulb', 16)}</button><span class="name">${esc(L.name)}</span><small>${esc(status(L))}</small></div>`,
+          );
+          // the row's markup has its bulb button
+          row.querySelector<HTMLElement>('.bulb')!.onclick = e => {
+            e.stopPropagation();
+            L.on = !L.on;
+            ed.view.setLightOn(L.id, L.on);
+            ed.history.save(plan());
             m.refresh();
             ed.draw();
-          }
-        };
-        body.appendChild(row);
+          };
+          // a press or a click is on the row or inside it
+          row.onpointerdown = e => {
+            if ((e.target as Element).closest('.bulb') || L.placed) return;
+            e.preventDefault();
+            placing = {L};
+          };
+          row.onclick = e => {
+            if ((e.target as Element).closest('.bulb')) return;
+            if (L.placed) ed.select('light', L.id);
+            else {
+              sel().light = null;
+              cur = L.id;
+              merging = false;
+              m.refresh();
+              ed.draw();
+            }
+          };
+          body.appendChild(row);
+        }
+        // the switches that look like lights first; the ones that look like something else (an air conditioner's options, a
+        // socket, a boiler) folded under “Other switches” (the owner: the light relays were lost among twenty of them)
+        // (while searching, every switch that matches is shown, folded or not)
+        const areaSwitches = matchedRelays
+          .map(w => ({w, score: switchLightScore(w.name)}))
+          .sort((a, b) => b.score - a.score);
+        const folded = q ? [] : areaSwitches.filter(x => x.score < 0);
+        const shown = q || otherSwitchesOpen.has(ar) ? areaSwitches : areaSwitches.filter(x => x.score >= 0);
+        for (const {w} of shown) {
+          const row = el(
+            `<div class="row relay" title="${t('A light on this switch? Add it as a light')}"><span class="name">${esc(w.name)}</span><small>${t('switch')}</small><button class="soft">${t("It's a light")}</button></div>`,
+          );
+          // the row's markup has its button
+          row.querySelector('button')!.onclick = () => {
+            L0.push({
+              id: 'relay_' + w.entity,
+              entity: w.entity,
+              name: w.name,
+              area: w.area,
+              relay: true,
+              color: '#ffce87',
+              on: true,
+              placed: false,
+              points: [],
+              segments: [],
+              room: null,
+            });
+            ed.commit();
+          };
+          body.appendChild(row);
+        }
+        if (folded.length) {
+          const open = otherSwitchesOpen.has(ar);
+          const more = el(
+            `<button class="row relay-more">${icon(open ? 'up' : 'down', 13)}<span>${esc(open ? t('Fewer switches') : t('Other switches · {0}', folded.length))}</span></button>`,
+          );
+          more.onclick = () => {
+            if (open) otherSwitchesOpen.delete(ar);
+            else otherSwitchesOpen.add(ar);
+            m.refresh();
+          };
+          body.appendChild(more);
+        }
       }
-      for (const w of relays.filter(w => (w.area || '') === ar)) {
-        const row = el(
-          `<div class="row relay" title="${t('A light on this switch? Add it as a light')}"><span class="name">${esc(w.name)}</span><small>${t('switch')}</small><button class="soft">${t("It's a light")}</button></div>`,
-        );
-        // the row's markup has its button
-        row.querySelector('button')!.onclick = () => {
-          L0.push({
-            id: 'relay_' + w.entity,
-            entity: w.entity,
-            name: w.name,
-            area: w.area,
-            relay: true,
-            color: '#ffce87',
-            on: true,
-            placed: false,
-            points: [],
-            segments: [],
-            room: null,
-          });
-          ed.commit();
-        };
-        body.appendChild(row);
-      }
+      if (q && !found) list.append(el(`<p class="empty">${esc(t('Nothing found'))}</p>`));
     }
     // below the list: a fixture comes only from HA — the one you need is missing, add it there (the owner)
     if (ed.ha.devicesUrl) {

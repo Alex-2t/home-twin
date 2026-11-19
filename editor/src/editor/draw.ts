@@ -143,9 +143,15 @@ export function drawPlan(ed: Editor): void {
       ctx.fillStyle = alpha(pal.acc, 0.08);
       ctx.fill();
     }
-    if (isBad || isSel || isHover || !ed.walls2d) {
-      ctx.strokeStyle = isBad ? pal.bad : isSel || isHover ? pal.acc : pal.wall;
-      ctx.lineWidth = isSel || isHover || isBad ? 2 : 1.5;
+    // the room of the "Link rooms" chip under the pointer: filled and outlined, to be found at a glance
+    const isPointed = ed.mode.chipRoom?.() === r.id;
+    if (isPointed) {
+      ctx.fillStyle = alpha(pal.acc, 0.3);
+      ctx.fill();
+    }
+    if (isBad || isSel || isHover || isPointed || !ed.walls2d) {
+      ctx.strokeStyle = isBad ? pal.bad : isSel || isHover || isPointed ? pal.acc : pal.wall;
+      ctx.lineWidth = isSel || isHover || isPointed || isBad ? 2 : 1.5;
       ctx.stroke();
     }
   }

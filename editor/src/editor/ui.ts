@@ -186,7 +186,7 @@ export function tipHide(): void {
   tipEl?.classList.remove('on');
 }
 // The texts given to tip(), for showing them on keyboard focus too.
-const tipTexts = new WeakMap<HTMLElement, string>();
+const tipTexts = new WeakMap<HTMLElement, () => string>();
 /**
  * With the keyboard, a control's tooltip (its title, or the text given to tip()) shows when it gets the focus: the keys in
  * tooltips (D-022) are for keyboard users most of all, and an icon button says what it is. The mouse sees no change.
@@ -194,25 +194,27 @@ const tipTexts = new WeakMap<HTMLElement, string>();
 export function tipsOnFocus(): void {
   addEventListener('focusin', e => {
     const target = e.target as HTMLElement;
-    const text = tipTexts.get(target) || target.dataset?.help || target.getAttribute?.('title');
+    const text = tipTexts.get(target)?.() || target.dataset?.help || target.getAttribute?.('title');
     if (text && keyboardInUse() && target.matches(':focus-visible')) tipShow(target, text);
     else tipHide();
   });
   addEventListener('focusout', tipHide);
 }
-export function tip(target: HTMLElement, text: string, info?: HTMLElement | null): void {
-  tipTexts.set(target, text);
+/** text: the tooltip, or a function giving it as it is now (a button whose meaning changes, as “Save view” / “View saved”). */
+export function tip(target: HTMLElement, text: string | (() => string), info?: HTMLElement | null): void {
+  const textNow = typeof text === 'function' ? text : (): string => text;
+  tipTexts.set(target, textNow);
   target.addEventListener('pointerenter', e => {
     if (e.pointerType !== 'mouse') return;
     clearTimeout(tipT);
-    tipT = setTimeout(() => tipShow(target, text), 200);
+    tipT = setTimeout(() => tipShow(target, textNow()), 200);
   });
   target.addEventListener('pointerleave', tipHide);
   target.addEventListener('pointerdown', tipHide);
   if (info)
     info.addEventListener('click', e => {
       e.stopPropagation();
-      tipShow(target, text);
+      tipShow(target, textNow());
       setTimeout(() =>
         addEventListener(
           'pointerdown',
@@ -394,6 +396,8 @@ export interface SectionOptions {
   count?: number | string | null;
   open?: boolean;
   action?: [label: string, action: () => void, title?: string];
+  /** Open as given, not as the user last left it (a search shows every section it found in). */
+  fixed?: boolean;
 }
 // Which sections are open, by key: written only here; a value edited by hand is not checked (it never was).
 type SectionsOpen = Record<string, boolean | undefined>;
@@ -401,9 +405,9 @@ export function section(
   parent: HTMLElement,
   key: string,
   title: string,
-  {count, open = true, action}: SectionOptions = {},
+  {count, open = true, action, fixed = false}: SectionOptions = {},
 ): HTMLElement {
-  const saved = JSON.parse(localStorage.getItem(SEC) || '{}') as SectionsOpen;
+  const saved = (fixed ? {} : JSON.parse(localStorage.getItem(SEC) || '{}')) as SectionsOpen;
   const d = el<HTMLDetailsElement>(
     `<details class="sec"><summary>${icon('right', 14, 'chev')}<span>${esc(title)}</span>${count != null && count !== '' ? `<span class="count">${esc(count)}</span>` : ''}</summary><div class="sec-body"></div></details>`,
   );

@@ -31,7 +31,7 @@ import {icon, fillIcons} from './icons.ts';
 import {roomsMode, DRAW_RECT} from './modes/rooms.ts';
 import {furnitureMode} from './modes/furniture.ts';
 import {lightsMode} from './modes/lights.ts';
-import {$, el, esc, ask, banner, find, tipsOnFocus, tipsOnHelp} from './ui.ts';
+import {$, el, esc, ask, banner, find, tip, tipsOnFocus, tipsOnHelp} from './ui.ts';
 import {
   watchInputKind,
   keyboardInUse,
@@ -1776,16 +1776,19 @@ export function createApp({haLights, ha, photos}: AppOptions): Editor {
       path.cur() !== 'fin' && !ed.modes.lights.wizardOn?.() && ed.plan.lights.some(l => !l.placed && !l.skip),
   };
   // in the “Outline” and “Rooms” wizard steps the list is collapsed: everything is done on the plan, an open list would cover it (the owner).
-  // Opened by the user — open until the end of the step; after the wizard — as chosen for the mode
+  // In the “Lights” step it is open: the area's lights and its switches are there, a switch with a light behind it is added from
+  // it (“It's a light”), and a light is dragged from it onto the plan (the owner).
+  // Folded or opened by the user — so until the end of the step; after the wizard — as chosen for the mode
   let wizSide: {k: string; open: boolean} | null = null;
-  const wizStep = (): 'rect' | 'split' | null => {
+  const wizStep = (): 'rect' | 'split' | 'lights' | null => {
+    if (ed.mode.id === 'lights' && ed.modes.lights.wizardOn?.()) return 'lights';
     const k = ed.mode.id === 'rooms' && ed.path?.cur();
     return k === 'rect' || k === 'split' ? k : null;
   };
   ed.sideOpen = () => {
     const k = wizStep();
     if (wizSide?.k !== k) wizSide = null;
-    if (k) return !!wizSide?.open;
+    if (k) return wizSide?.open ?? k === 'lights';
     return ui.sideBy[ed.mode.id] ?? sideAuto[ed.mode.id]?.() ?? true;
   };
   // The panel lies on top and does not move the view: the plan and 3D are moved only by the user.
@@ -1809,6 +1812,60 @@ export function createApp({haLights, ha, photos}: AppOptions): Editor {
     pin.title = ui.pinned ? t('Unpin: panel over the plan') : t('Pin left: plan next to the panel');
     placeFloats();
   };
+  // The panel's width: its right edge is dragged (the owner: long light and switch names were cut), a double click gives the
+  // stylesheet's width back. Kept for every mode, in this browser.
+  // At most what leaves room on its right for the step's card and the panel of what is selected (about 880 px together):
+  // wider, the two met and the card covered the room's lights (checked at 1280 px). Narrowed again when the window is.
+  const SIDE_MIN = 220;
+  const SIDE_ROOM = 880;
+  const sideMax = (): number => Math.max(280, Math.min(640, work.clientWidth - SIDE_ROOM));
+  const setSideWidth = (width: number | undefined): void => {
+    if (width == null) root.removeProperty('--side');
+    else root.setProperty('--side', Math.max(SIDE_MIN, Math.min(sideMax(), width)) + 'px');
+  };
+  setSideWidth(ui.sideW);
+  addEventListener('resize', () => {
+    if (ui.sideW == null) return;
+    setSideWidth(ui.sideW);
+    placeFloats();
+  });
+  const sideGrip = el(`<div class="side-resize" title="${esc(t('Drag to resize'))}"></div>`);
+  side.append(sideGrip);
+  sideGrip.addEventListener('pointerdown', event => {
+    if (event.button !== 0) return;
+    event.preventDefault();
+    event.stopPropagation();
+    sideGrip.setPointerCapture(event.pointerId);
+    const startX = event.clientX;
+    const startWidth = side.offsetWidth;
+    sideGrip.classList.add('drag');
+    const move = (moveEvent: PointerEvent): void => {
+      setSideWidth(startWidth + moveEvent.clientX - startX);
+      placeFloats();
+      insets3d();
+    };
+    const up = (): void => {
+      sideGrip.removeEventListener('pointermove', move);
+      for (const type of ['pointerup', 'pointercancel', 'lostpointercapture'])
+        sideGrip.removeEventListener(type, up);
+      sideGrip.classList.remove('drag');
+      ui.sideW = side.offsetWidth;
+      saveUI();
+      ed.draw();
+    };
+    sideGrip.addEventListener('pointermove', move);
+    for (const type of ['pointerup', 'pointercancel', 'lostpointercapture'])
+      sideGrip.addEventListener(type, up);
+  });
+  sideGrip.addEventListener('dblclick', event => {
+    event.stopPropagation();
+    delete ui.sideW;
+    saveUI();
+    setSideWidth(undefined);
+    placeFloats();
+    insets3d();
+    ed.draw();
+  });
   $('side-pin').onclick = e => {
     e.stopPropagation();
     ui.pinned = !ui.pinned;
@@ -2526,17 +2583,28 @@ export function createApp({haLights, ha, photos}: AppOptions): Editor {
         ),
     };
   };
-  // “Save view” at 3D — only in the “Sensors” step (at other times it is unclear what it is for — the owner).
+  // “Save view” at 3D — only in “Sensors” (at other times it is unclear what it is for — the owner); in the whole mode, not only
+  // its wizard step (the owner, 2026-11-19: the readings go on the walls seen from that view, so it belongs to Sensors).
+  // Entering Sensors, a small 3D window grows to SENSORS_PIP once, so the view is seen well enough to choose.
   // There it is always visible: there is something to save (no view yet or the model was rotated) — it pulses; saved — “View saved”,
   // inactive until the model is rotated again. In the view step a cursor moves over the 3D window and shows how to rotate (view-demo.js).
   let viewMoved = false;
   let asked = false;
+  const SENSORS_PIP = 440;
+  let saveTip = '';
+  for (const id of ['save-view', 'save-view-pip']) tip($(id), () => saveTip);
+  let sensorsGrew = false;
   const demo = createViewDemo(panes['3d'], ed.view);
   ed.viewReady = () => viewAsk() && (!ed.plan.view || viewMoved);
   ed.syncSave = () => {
     if (!ed.modes) return;
     const ask = viewAsk();
-    const scope = step?.mode === ed.mode && !!ed.modes.sensors.wizardOn?.();
+    const scope = !look && ed.mode === ed.modes.sensors;
+    if (!scope) sensorsGrew = false;
+    else if (!sensorsGrew && ed.role('3d') === 'win') {
+      sensorsGrew = true;
+      if (pw < SENSORS_PIP) growPip(Math.min(1.8, SENSORS_PIP / pw));
+    }
     const live = !ed.plan.view || viewMoved;
     if (ask && !asked && ed.role('3d') === 'off') setPip('win'); // a step about 3D, and the window is collapsed — show it
     asked = ask;
@@ -2547,9 +2615,11 @@ export function createApp({haLights, ha, photos}: AppOptions): Editor {
       b.classList.toggle('done', scope && !live);
       b.setAttribute('aria-disabled', String(scope && !live));
       find(b, 'span').textContent = live ? t('Save view') : t('View saved');
-      b.title = live
+      // what it does, on hover at once (the owner: a title took a second, and nobody knew what the button was for)
+      saveTip = live
         ? t('Save as the home view — your home opens with it, and the card shows it')
         : t('Rotate the model to save a new view');
+      b.removeAttribute('title');
     }
     demo.run(ask && !viewMoved && !ed.reducedMotion() && ed.role('3d') !== 'off');
     syncFinishHint();

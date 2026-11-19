@@ -3022,6 +3022,8 @@ export function openAiBuild(ed: Editor, options: AiBuildOptions = {}): AiBuildSc
           ed.setMain('plan');
           ed.path.go(step);
         };
+        // the rooms the build linked, each with its area, to look over and change (the owner: which ones, and to what?)
+        const checkRooms = ed.modes.rooms.linkRow();
         if (lightsPlaced < lights.length) {
           const text = lightsPlaced
             ? t(
@@ -3032,6 +3034,7 @@ export function openAiBuild(ed: Editor, options: AiBuildOptions = {}): AiBuildSc
             : t('Your home is here. Its rooms are linked to your Home Assistant areas.');
           ed.banner(text, [
             [t('Place lights'), toStep('lights'), true],
+            checkRooms,
             [t('Later'), () => ed.banner()],
           ]);
           return;
@@ -3043,10 +3046,7 @@ export function openAiBuild(ed: Editor, options: AiBuildOptions = {}): AiBuildSc
               devicesPlaced,
               devices.length,
             ),
-            [
-              [t('Place devices'), toStep('devices'), true],
-              [t('Later'), () => ed.banner()],
-            ],
+            [[t('Place devices'), toStep('devices'), true], checkRooms, [t('Later'), () => ed.banner()]],
           );
           return;
         }
@@ -3054,7 +3054,7 @@ export function openAiBuild(ed: Editor, options: AiBuildOptions = {}): AiBuildSc
           lights.length || devices.length
             ? t('Your home is here. Everything in it is linked to Home Assistant.')
             : t('Your home is here. Its rooms are linked to your Home Assistant areas.');
-        ed.banner(text, [[t('Got it'), () => ed.banner(), true]]);
+        ed.banner(text, [checkRooms, [t('Got it'), () => ed.banner(), true]]);
         return;
       }
       const text = linked
@@ -3065,6 +3065,8 @@ export function openAiBuild(ed: Editor, options: AiBuildOptions = {}): AiBuildSc
           )
         : t('Your home is here. Link its rooms to Home Assistant.');
       ed.banner(text, [
+        // which rooms are linked and which are not, each shown on the home when pointed at (the owner)
+        ed.modes.rooms.linkRow(),
         [
           t('Link rooms'),
           () => {

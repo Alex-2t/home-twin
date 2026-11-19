@@ -278,6 +278,25 @@ export function recommend(
   }
   return out;
 }
+/**
+ * The recommended readings a room does not show yet: the walls already hold some (the AI build's, the user's), and a room
+ * that shows a temperature is not given a second one from another sensor.
+ */
+export function missingRecommended(
+  plan: Pick<Plan, 'rooms' | 'sensors'>,
+  ctx: SensorContext,
+): Array<{entity: string; room: string}> {
+  const metricKey = (entity: string): string | null => {
+    const s = ctx.sensors.find(x => x.entity === entity);
+    return s ? metricOf(s).k : null;
+  };
+  return recommend(plan, ctx).filter(
+    x =>
+      !plan.sensors.some(
+        s => s.entity === x.entity || (s.room === x.room && metricKey(s.entity) === metricKey(x.entity)),
+      ),
+  );
+}
 // What to write: a caption and a number. The sensor is gone from HA: nothing; no number: a dash.
 export function sensorItem(
   S: Pick<PlanSensor, 'entity' | 'label' | 'k' | 'c'>,

@@ -270,6 +270,8 @@ export interface EditorMode {
   flipCut?(): void;
   /** The room whose panel is under the pointer: draw.ts tints it. */
   tintRoom?(): string | null;
+  /** The room of a room chip under the pointer (the "Link rooms" row, the Lights step's rooms): draw.ts shows it clearly. */
+  chipRoom?(): string | null;
   /** The "Link rooms" step: the room or its zone still has no HA area (its label is marked). */
   unnamed?(room: Room): boolean;
   unnamedZone?(room: Room): boolean;
@@ -299,6 +301,9 @@ export interface RoomsMode extends EditorMode {
   /** The outline (or a room) from the keyboard: its width and depth are typed instead of two clicks. */
   typeOutline(): void;
   tintRoom(): string | null;
+  chipRoom(): string | null;
+  /** The rooms of the "Link rooms" step in a row, for the card the AI build opens the home with. */
+  linkRow(): HTMLElement;
   unnamed(room: Room): boolean;
   unnamedZone(room: Room): boolean;
 }

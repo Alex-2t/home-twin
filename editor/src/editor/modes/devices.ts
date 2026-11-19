@@ -472,20 +472,26 @@ export function devicesMode(ed: Editor): DevicesMode {
     tools.innerHTML = '';
     tools.appendChild(ed.selectButton());
     const D = devs();
-    const todo = D.filter(d => !recOf(plan(), d.entity) && roomOfArea(plan(), d.area));
+    // The button is there only while it would place something (the owner: it stayed after a press that placed nothing):
+    // cameras, valves and leak sensors are not placed by it, nor a curtain whose room has no window, so a device without a
+    // place is not enough. It is tried on a copy of the plan.
+    const placeable = autoPlace(structuredClone(plan()), D, e => ha().entity?.(e));
     if (placing) {
       tools.appendChild(el(`<span class="hint">${esc(want(placing))}</span>`));
       const c = el(`<button class="soft">${t('Cancel')}</button>`);
       c.onclick = () => m.closeHint();
       tools.appendChild(c);
-    } else if (todo.length) {
+    } else if (placeable) {
       const b = el(
         `<button class="primary" title="${esc(t('Air conditioners go on a free wall, curtains on windows, sensors on their room’s windows and doors'))}">${icon('sparkles', 15)}${t('Place automatically')}</button>`,
       );
       b.onclick = () => {
         ed.versions.mark('before', 'autoDevices');
-        autoPlace(plan(), D, e => ha().entity?.(e));
+        const placed = autoPlace(plan(), D, e => ha().entity?.(e));
         ed.commit();
+        ed.banner(t('Placed {0, plural, one {# device} other {# devices}}. Move any that are off.', placed), [
+          [t('Got it'), () => ed.banner()],
+        ]);
       };
       tools.appendChild(b);
     }

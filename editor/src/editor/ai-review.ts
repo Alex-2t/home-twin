@@ -8,7 +8,7 @@
 // not work out last time come back with why.
 import {t} from '../i18n/i18n.ts';
 import {zOf} from '../core/catalog.ts';
-import {$, el, esc, find} from './ui.ts';
+import {$, el, esc, find, tip} from './ui.ts';
 import {icon} from './icons.ts';
 import {reportStatusWords} from './ai-reports.ts';
 import {newPin, pinLabel, changeCount, MAX_PIN_PHOTOS, MISSED_REASON, reportOf} from './ai-pins.ts';
@@ -130,6 +130,10 @@ const retryText = (retry: PinRetry): string => {
 };
 const understoodText = (retry: PinRetry | undefined): string =>
   retry?.understood ? t('Understood as: {0}', retry.understood) : '';
+// What the pen in a pin's bubble does, and what sending a pin to the developer gives: on hover, in a few words.
+const SKETCH_TIP = (): string => t('Screenshot with arrows: show what goes where');
+const REPORT_TIP = (): string =>
+  t('The developer sees your pin and what we answered, and teaches the app to do it');
 const isPicture = (file: File): boolean =>
   /^image\//.test(file.type) || /\.(heic|heif)$/i.test(file.name || '');
 // The element an event is on: clicks and pointers on the page land on elements. Where the page itself can be the target (keys,
@@ -235,7 +239,7 @@ export function openReview(
       ${
         onReport
           ? `<div class="aib-report-box" hidden>
-        <button class="soft aib-report" data-act="pin-report" title="${esc(t('The developer sees your pin and what we answered, and teaches the app to do it'))}">${esc(t('Send to the developer'))}</button>
+        <button class="soft aib-report" data-act="pin-report">${esc(t('Send to the developer'))}</button>
         <div class="aib-report-form" hidden>
           <input class="aib-report-line" maxlength="300" placeholder="${esc(t('What is wrong? Not required'))}">
           <button class="primary" data-act="pin-report-send">${esc(t('Send'))}</button>
@@ -248,8 +252,8 @@ export function openReview(
       ${upload ? '<div class="aib-thumbs"></div><input type="file" accept="image/*" multiple hidden>' : ''}
       <small class="aib-photo-err" hidden></small>
       <footer>
-        <button class="ib" data-act="pin-delete" title="${esc(t('Delete'))}">${icon('trash', 15)}</button>
-        ${upload ? `<button class="ib" data-act="pin-sketch" title="${esc(t('A screenshot with arrows'))}">${icon('pen', 15)}</button>` : ''}
+        <button class="ib" data-act="pin-delete" aria-label="${esc(t('Delete'))}">${icon('trash', 15)}</button>
+        ${upload ? `<button class="ib" data-act="pin-sketch" aria-label="${esc(SKETCH_TIP())}">${icon('pen', 15)}</button>` : ''}
         <button class="primary" data-act="pin-done">${esc(t('Done'))}</button>
       </footer>
     </div>
@@ -267,6 +271,12 @@ export function openReview(
   host.append(box);
   const panel = find(box, '.aib-panel');
   const pop = find(box, '.aib-pop:not(.aib-past-pop)');
+  // The bubble's buttons say what they are at once on hover (a title waits a second or more, and the owner saw nothing).
+  tip(find(pop, '[data-act=pin-delete]'), t('Delete'));
+  const sketchButton = pop.querySelector<HTMLElement>('[data-act=pin-sketch]');
+  if (sketchButton) tip(sketchButton, SKETCH_TIP());
+  const reportButton = pop.querySelector<HTMLElement>('[data-act=pin-report]');
+  if (reportButton) tip(reportButton, REPORT_TIP());
   const pastPop = find(box, '.aib-past-pop');
   const popText = find<HTMLTextAreaElement>(pop, 'textarea');
   const general = find<HTMLTextAreaElement>(box, '.aib-general');
@@ -821,7 +831,7 @@ export function openReview(
       ...notes.pins.map((pin, i) => {
         const row = el(`<li class="aib-note" data-i="${i}">
           <span class="aib-num">${i + 1}</span>
-          <span class="aib-note-body"><small></small><span></span><em class="aib-retry" hidden></em><em class="aib-understood" hidden></em><em class="aib-report-status" hidden></em></span>
+          <span class="aib-note-body"><small></small><span></span><em class="aib-retry" hidden></em><em class="aib-understood" hidden></em><em class="aib-report-status" hidden></em>${onReport ? `<button class="soft aib-report" data-act="pin-report" hidden>${esc(t('Send to the developer'))}</button>` : ''}</span>
           ${pin.photos?.length ? `<span class="aib-note-photos" title="${esc(t('{0, plural, one {# photo} other {# photos}}', pin.photos.length))}">${icon('image', 12)}${pin.photos.length}</span>` : ''}
           <button class="ib" data-act="pin-delete" title="${esc(t('Delete'))}">${icon('trash', 14)}</button>
         </li>`);
@@ -834,6 +844,12 @@ export function openReview(
         understood.textContent = understoodText(pin.retry);
         understood.hidden = !understood.textContent;
         showReportStatus(find(row, '.aib-report-status'), pin);
+        // A pin that came back can be sent to the developer from its row too (the owner looked for the button here).
+        const rowReport = row.querySelector<HTMLElement>('[data-act=pin-report]');
+        if (rowReport) {
+          rowReport.hidden = !pin.retry || !!reportStatusText(pin);
+          tip(rowReport, REPORT_TIP());
+        }
         const words = find(row, '.aib-note-body>span');
         words.textContent = pin.text.trim() || t('What is wrong here?');
         words.classList.toggle('muted', !pin.text.trim());
@@ -1014,6 +1030,19 @@ export function openReview(
     }
   }
 
+  // "Send to the developer" in the bubble opens its line there; in a row it opens that pin's bubble with the line, after the
+  // bubble has put the focus in its text (setActive), so the line keeps it.
+  function reportFrom(button: HTMLElement): void {
+    const row = button.closest<HTMLElement>('.aib-note');
+    if (!row) {
+      if (active != null) openReportLine(notes.pins[active]);
+      return;
+    }
+    const pin = notes.pins[Number(row.dataset.i)];
+    setActive(Number(row.dataset.i));
+    requestAnimationFrame(() => openReportLine(pin));
+  }
+
   /** The reports as the service tells them now: the pin open and the list show where each stands. */
   function setReports(next: ReportView[]): void {
     reports = next;
@@ -1044,7 +1073,7 @@ export function openReview(
     if (act === 'pin-sketch' && active != null) return openSketch(notes.pins[active]);
     if (act === 'past-close') return closePast();
     if (act === 'past-again') return pinAgain();
-    if (act === 'pin-report' && active != null) return openReportLine(notes.pins[active]);
+    if (act === 'pin-report') return reportFrom(target);
     if (act === 'pin-report-send' && active != null) return report(notes.pins[active]);
     if (act === 'photo-remove' && active != null) {
       notes.pins[active].photos.splice(Number(target.dataset.k), 1);

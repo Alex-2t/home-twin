@@ -120,10 +120,15 @@ body:not([data-mode=rooms]) #rotate-plan{display:none}
 .seg button.on{background:var(--panel-solid);color:var(--tx);box-shadow:0 1px 2px rgba(0,0,0,.12)}
 
 /* the left panel — a floating card under the house icon; collapsed — only the header; pinned — a column on the left */
-.side{position:absolute;left:12px;top:70px;z-index:16;width:var(--side);max-height:calc(100% - 70px - 70px);display:flex;flex-direction:column;border-radius:var(--r);overflow:hidden}
+.side{position:absolute;left:12px;top:70px;z-index:16;width:var(--side);max-width:calc(100% - 24px);max-height:calc(100% - 70px - 70px);display:flex;flex-direction:column;border-radius:var(--r);overflow:hidden}
 .side.closed{width:auto}.side.closed .side-body,.side.closed .pin{display:none}
 .work.pinned .side:not(.closed){left:0;top:0;bottom:0;max-height:none;border-radius:0;border-width:0 1px 0 0;box-shadow:none;padding-top:60px;background:var(--panel-solid)}
 .work.pinned.side-open .pane.main{left:var(--side)}
+/* the panel's right edge widens or narrows it (app.ts); not while folded or on a phone */
+.side-resize{position:absolute;top:0;right:0;bottom:0;width:7px;z-index:3;cursor:ew-resize;touch-action:none}
+.side-resize:hover,.side-resize.drag{background:color-mix(in srgb,var(--acc) 35%,transparent)}
+.side.closed .side-resize{display:none}
+@media (max-width:760px){.side-resize{display:none}}
 .side-head{display:flex;align-items:center;flex:none;height:44px;padding:0 6px 0 14px;gap:2px}
 .side-title{flex:1;justify-content:flex-start;height:44px;padding:0;gap:8px;font-weight:600;font-size:14px;border-radius:0}.side-title:hover{background:none}
 .side-title .c{font-size:11.5px;font-weight:600;color:var(--mut);background:var(--chip);padding:1px 8px;border-radius:99px}.side-title .c:empty{display:none}
@@ -132,6 +137,7 @@ body:not([data-mode=rooms]) #rotate-plan{display:none}
 .search{position:sticky;top:0;z-index:2;display:flex;align-items:center;gap:8px;height:36px;padding:0 10px;border-radius:10px;background:var(--chip);color:var(--mut)}
 .search input{all:unset;flex:1;color:var(--tx)}
 .cat-top{position:sticky;top:0;z-index:3;margin:0 -10px;padding:0 10px;background:var(--panel-solid)}.cat-top .search{position:static}.cat-top .chips{margin-bottom:8px}
+.lights-top{padding-bottom:6px}
 .cat-top::after{content:'';position:absolute;left:0;right:0;top:100%;height:8px;background:linear-gradient(var(--panel-solid),transparent);pointer-events:none}
 .chips{display:flex;gap:6px;margin:10px -10px;padding:0 10px;overflow-x:auto;scrollbar-width:none;-webkit-mask-image:linear-gradient(90deg,transparent,#000 10px,#000 85%,transparent);mask-image:linear-gradient(90deg,transparent,#000 10px,#000 85%,transparent)}.chips::-webkit-scrollbar{display:none}.chips button{flex:none}
 .chips button{height:26px;padding:0 10px;border-radius:99px;background:var(--chip);color:var(--mut);font-size:12px}.chips button.on{background:var(--acc2);color:var(--acc)}
@@ -230,6 +236,8 @@ body:not([data-mode=rooms]) #rotate-plan{display:none}
 .ctx button.chip:hover{background:var(--hov)}.ctx button.chip.on{background:var(--acc);color:var(--acc-tx)}
 .ctx button.chip small{padding:0;display:inline-flex;align-items:center;gap:1px;color:inherit;opacity:.65}
 .ctx button.chip:disabled{opacity:.4;cursor:default;pointer-events:none}
+/* an area another room has: a click takes it (the two swap) */
+.ctx button.chip.taken{opacity:.6}.ctx button.chip.taken:hover{opacity:1}
 /* a taken area beside this room: the chip joins the two rooms (dashed: not a plain pick) */
 .ctx button.chip.join{background:transparent;box-shadow:inset 0 0 0 1px var(--line);border:1px dashed var(--mut)}
 .ctx .line.foot{gap:4px;margin-left:0;margin-right:0;padding:4px 2px 0;border-top:1px solid var(--line)}.ctx .hint{flex:1;min-width:150px;max-width:240px;padding:0 6px;color:var(--mut);font-size:11.5px;line-height:1.3}
@@ -463,8 +471,9 @@ button.gcard:focus-visible,a.gcard:focus-visible{outline:2px solid var(--acc);ou
 #dock .save-view{background:var(--acc);color:var(--acc-tx);padding:0 10px}
 /* view step (D-035): there is something to save — pulses like “Done”; saved — “View saved”, inactive until the model is rotated */
 .save-view.pulse{position:relative;outline:2px solid color-mix(in srgb,var(--acc) 35%,transparent);outline-offset:2px}
-.save-view.pulse::after{content:'';position:absolute;inset:-1px;border-radius:inherit;pointer-events:none;animation:finish-ready 1.8s ease-out .3s infinite}
-.save-view.pulse:is(:hover,:focus-visible)::after{animation-play-state:paused;opacity:0}
+/* it breathes while there is a view to save (the owner: the thin ring was cut by the 3D window's edge and went unseen) */
+.save-view.pulse{animation:save-breathe 1.6s ease-in-out infinite}.save-view.pulse:is(:hover,:focus-visible){animation:none}
+@keyframes save-breathe{0%,100%{box-shadow:0 0 0 0 transparent;filter:none}50%{box-shadow:0 0 0 4px color-mix(in srgb,var(--acc) 45%,transparent);filter:brightness(1.18)}}
 .view-tools .save-view.done,#dock .save-view.done{background:var(--chip);color:var(--sub);filter:none;cursor:default}
 /* the cursor shows how to rotate the model (view-demo.js) */
 .drag-demo{position:absolute;left:0;top:0;width:0;height:0;z-index:7;pointer-events:none;opacity:0;will-change:transform,opacity}
@@ -472,10 +481,11 @@ button.gcard:focus-visible,a.gcard:focus-visible{outline:2px solid var(--acc);ou
 .drag-demo path{fill:#fff;stroke:#1b1d22;stroke-width:1.3;stroke-linejoin:round}
 .drag-demo .dd-ring{position:absolute;left:-15px;top:-15px;width:30px;height:30px;border-radius:50%;background:color-mix(in srgb,var(--acc) 30%,transparent);box-shadow:0 0 0 2px color-mix(in srgb,var(--acc) 75%,transparent);opacity:0;transform:scale(.4);transition:opacity .15s,transform .15s}
 .drag-demo.press .dd-ring{opacity:1;transform:scale(1)}.drag-demo.press svg{transform:scale(.88)}
-@media (prefers-reduced-motion:reduce){.save-view.pulse::after{animation:none}}
+@media (prefers-reduced-motion:reduce){.save-view.pulse{animation:none}}
 .ctx .step{display:inline-flex;align-items:center;height:26px;border-radius:8px;background:var(--chip)}.ctx .step button{width:24px;height:26px;padding:0;background:none;font-size:14px;color:var(--tx)}
 .ctx .step button:hover{color:var(--acc)}.ctx .step button:disabled{opacity:.35;pointer-events:none}.ctx .step small{min-width:34px;text-align:center;padding:0;font-size:11.5px}
 .more-sens{width:100%;height:30px;margin-top:8px;font-size:12.5px}
+.row.relay-more{width:100%;height:auto;gap:6px;padding:6px 8px 6px 34px;background:none;color:var(--mut);font-size:12.5px;justify-content:flex-start}.row.relay-more:hover{color:var(--tx);background:var(--hov)}
 .row.relay{gap:6px;padding-left:34px}.row.relay small{color:var(--mut)}.row.relay button{height:24px;padding:0 9px;font-size:12px;margin-left:auto}
 .ctx .ib.grip{margin-left:auto;width:24px;color:var(--sub);cursor:grab;touch-action:none}.ctx .ib.grip:hover{color:var(--tx);background:var(--hov)}.ctx .ib.grip:active{cursor:grabbing}
 .pip-grip.pulse{width:34px;height:34px}
@@ -588,6 +598,13 @@ button.gcard:focus-visible,a.gcard:focus-visible{outline:2px solid var(--acc);ou
 .banner .wizard-result button{justify-content:flex-start;flex-wrap:wrap;min-width:0;gap:2px 7px;background:var(--chip);font-size:12px}
 .wizard-result span{flex:1 1 auto;text-align:left}.wizard-result small{margin:0;font-size:11px;white-space:nowrap;font-variant-numeric:tabular-nums}
 .wizard-result [data-status=confirmed]>.ic{color:var(--acc)}
+/* The “Link rooms” step: its rooms in a row, each linked (a check), not linked (an orange dot) or left for later (faded) */
+.link-cells{flex-basis:100%;display:flex;flex-wrap:wrap;gap:6px;margin:2px 0}
+.banner:has(>.link-cells){flex-wrap:wrap}.banner:not(.wizard-card)>.link-cells{order:1;margin:0 0 2px}
+.banner .link-cell{height:auto;display:inline-flex;align-items:center;gap:5px;min-height:28px;padding:3px 10px 3px 8px;border-radius:99px;background:var(--chip);font-size:12.5px;font-weight:500;text-align:left}
+.banner .link-cell:hover{background:var(--hov)}.banner .link-cell.on{background:var(--acc2);box-shadow:inset 0 0 0 1.5px var(--acc)}
+.link-cell .ic{flex:none;color:var(--acc)}.link-cell .dot{flex:none;width:7px;height:7px;margin:0 2px;border-radius:50%;background:var(--warn)}
+.link-cell[data-state=open]:not(.on){box-shadow:inset 0 0 0 1px color-mix(in srgb,var(--warn) 50%,transparent)}.link-cell[data-state=later]{color:var(--mut)}
 .ctx-extra{border-top:1px solid var(--line);padding:5px 5px 3px;max-width:100%;font-size:12px;color:var(--mut)}
 .ctx-extra summary{cursor:pointer;padding:3px}.ctx-extra[open]>summary{margin-bottom:8px}.ctx-extra .line{margin-bottom:5px}
 .ctx .line.next{flex-wrap:wrap}.ctx .line.next button{white-space:normal;height:auto;min-height:30px}
@@ -970,7 +987,7 @@ button.aib-big{height:46px;padding:0 22px;border-radius:12px;font-size:15px;box-
 .fix-also{margin:0;font-size:12px;color:var(--sub)}
 .fix-choice footer{display:flex;justify-content:flex-end;gap:8px}
 .aib-report-box{display:flex;flex-direction:column;gap:6px}
-.aib-report{align-self:flex-start;font-size:12px;padding:3px 9px}.aib-report:disabled{opacity:.6;cursor:default}
+.aib-report{align-self:flex-start;font-size:12px;padding:3px 9px}.aib-note-body .aib-report{margin-top:4px}.aib-report:disabled{opacity:.6;cursor:default}
 .aib-report-form{display:flex;gap:6px}.aib-report-line{flex:1;min-width:0;font-size:12px;padding:4px 8px}.aib-report-form .primary{font-size:12px;padding:3px 10px}
 .aib-report-status{margin:0;color:var(--sub);font-size:12px;line-height:1.35}.aib-note-body em.aib-report-status{font-style:normal;display:block}
 .aib-report-status[data-status=looking]{color:var(--acc)}.aib-report-status[data-status=fixed]{color:var(--ok,#3fb37f)}.aib-report-status[data-status=cannot]{color:var(--warn)}
