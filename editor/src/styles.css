@@ -357,17 +357,17 @@ button.gal-chip[aria-pressed=true]{background:var(--tx);color:var(--cv);box-shad
 .gal-sub{margin:0 0 14px;color:var(--mut);font-size:13.5px}
 .gal-error{margin:0 0 14px;padding:10px 14px;border-radius:12px;background:color-mix(in srgb,var(--bad) 12%,transparent);color:var(--tx);font-size:13.5px}
 .gal-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(270px,1fr));gap:16px}
-button.gcard{position:relative;display:flex;flex-direction:column;align-items:stretch;justify-content:flex-start;height:auto;padding:0;border-radius:16px;overflow:hidden;text-align:left;white-space:normal;font-weight:400;
+button.gcard,a.gcard{position:relative;display:flex;flex-direction:column;align-items:stretch;justify-content:flex-start;height:auto;padding:0;border-radius:16px;overflow:hidden;text-align:left;white-space:normal;font-weight:400;
   background:var(--panel-solid);box-shadow:inset 0 0 0 1px var(--line),var(--sh);transition:transform .18s ease,box-shadow .18s ease}
-button.gcard:hover{background:var(--panel-solid);transform:translateY(-2px);box-shadow:inset 0 0 0 1px var(--acc),var(--sh-lg)}
-button.gcard:focus-visible{outline:2px solid var(--acc);outline-offset:2px}
+button.gcard:hover,a.gcard:hover{background:var(--panel-solid);transform:translateY(-2px);box-shadow:inset 0 0 0 1px var(--acc),var(--sh-lg)}
+button.gcard:focus-visible,a.gcard:focus-visible{outline:2px solid var(--acc);outline-offset:2px}
 .gcard-ai{position:absolute;top:10px;left:10px;display:inline-flex;align-items:center;gap:4px;height:22px;padding:0 8px;border-radius:99px;font-size:11.5px;font-weight:600;color:#fff;
   background:rgba(14,16,26,.6);-webkit-backdrop-filter:blur(8px);backdrop-filter:blur(8px);box-shadow:inset 0 0 0 1px rgba(255,255,255,.18)}
 .gcard-ai .ic{color:#c4b5fd}
 .gcard-text{display:flex;flex-direction:column;gap:2px;min-width:0;padding:10px 14px 12px}
 .gcard-text b{font-size:14.5px;font-weight:600;line-height:1.3;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .gcard-text span{color:var(--mut);font-size:12.5px;line-height:1.3;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-@media (prefers-reduced-motion:reduce){button.gcard{transition:none}button.gcard:hover{transform:none}}
+@media (prefers-reduced-motion:reduce){button.gcard,a.gcard{transition:none}button.gcard:hover,a.gcard:hover{transform:none}}
 @media (max-width:640px){
   .gal-box{width:calc(100% - 32px);padding-bottom:24px}
   .gal-head{padding:10px 0 10px;gap:8px}.gal-head h1{font-size:19px}
@@ -768,6 +768,28 @@ a.aib-link{color:var(--acc);font-size:12.5px;font-weight:500;text-decoration:non
 .aib-gate{margin-top:4px}.aib-gate>.aib-card{max-width:560px}
 .aib-upload.aib-gated{text-align:center}.aib-gated .aib-lead{margin-inline:auto}.aib-gated .aib-gate{display:flex;justify-content:center;text-align:left}.aib-gated .aib-gate>.aib-card{width:100%}
 .aib-sign.aib-sign-inline{width:min(400px,100%);box-shadow:var(--sh);animation:none}
+/* what the AI build gives, under the upload page's gate or files (ai-showcase.ts): three gains, then homes it built to open in 3D */
+.aib-why{margin-top:28px;padding-top:22px;border-top:1px solid var(--line);display:flex;flex-direction:column;gap:22px;text-align:left}
+.aib-gains{list-style:none;margin:0;padding:0;display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px}
+.aib-gains li{display:grid;grid-template-columns:auto minmax(0,1fr);grid-template-rows:auto 1fr;column-gap:10px;row-gap:3px;padding:12px 14px;border-radius:14px;background:var(--panel);border:1px solid var(--line)}
+.aib-gain-ic{grid-row:1/3;width:32px;height:32px;border-radius:10px;display:grid;place-items:center;background:var(--acc2);color:var(--acc)}
+.aib-gains b{font-size:13.5px;font-weight:600;line-height:1.3}
+.aib-gains small{color:var(--mut);font-size:12.5px;line-height:1.4}
+.aib-showcase-head{display:flex;align-items:baseline;justify-content:space-between;gap:12px}
+.aib-showcase-head b{font-size:15px;font-weight:600;letter-spacing:-.01em}
+.aib-showcase-head a.aib-link{display:inline-flex;align-items:center;gap:2px;font-size:13px}
+.aib-showcase-sub{margin:2px 0 12px;color:var(--mut);font-size:13px;line-height:1.4}
+.aib-showcase-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px}
+a.gcard{color:var(--tx);text-decoration:none}
+.aib-showcase-open{position:absolute;top:8px;left:8px;display:inline-flex;align-items:center;gap:4px;height:22px;padding:0 8px;border-radius:99px;font-size:11.5px;font-weight:600;color:#fff;
+  background:rgba(14,16,26,.6);-webkit-backdrop-filter:blur(8px);backdrop-filter:blur(8px);box-shadow:inset 0 0 0 1px rgba(255,255,255,.18);opacity:0;transition:opacity .15s}
+.aib-showcase-open .ic{color:#c4b5fd}
+a.aib-showcase-card:hover .aib-showcase-open,a.aib-showcase-card:focus-visible .aib-showcase-open{opacity:1}
+.aib-showcase-card .gcard-text{padding:8px 12px 10px}.aib-showcase-card .gcard-text b{font-size:13.5px}
+@media (hover:none){.aib-showcase-open{opacity:1}}
+@media (max-width:640px){.aib-why{margin-top:22px;padding-top:18px;gap:18px}
+  .aib-gains{grid-template-columns:minmax(0,1fr);gap:8px}.aib-gains li{padding:10px 12px}
+  .aib-showcase-grid{grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}.aib-showcase-card:nth-child(n+3){display:none}}
 /* the pages of a plan PDF to pick the plan from (plan-pages.ts, D-131): a grid, the picked page larger beside it */
 .aib-pages{width:min(880px,100%);max-height:min(720px,calc(100vh - 32px));display:flex;flex-direction:column;gap:10px;padding:16px 18px;border-radius:18px;background:var(--panel-solid);border:1px solid var(--line);box-shadow:var(--sh-lg);animation:aib-pop .25s ease-out}
 .aib-pages header{display:flex;align-items:center;gap:8px}.aib-pages header b{flex:1;font-size:17px;font-weight:600;letter-spacing:-.01em}.aib-pages header .ib{color:var(--mut)}

@@ -1661,7 +1661,6 @@
  "a file is too big: a video up to 2 GB, a photo up to 40 MB, the plan up to 50 MB": "un archivo es demasiado grande: un vídeo hasta 2 GB, una foto hasta 40 MB, el plano hasta 50 MB",
  "A photo, a scan or a PDF": "Una foto, un escaneo o un PDF",
  "add the floor plan and a video or photos of your home": "añade el plano y un vídeo o fotos de tu casa",
- "Add the floor plan and a video or photos of your home. We build the rooms, doors, windows and furniture, and you check the result.": "Añade el plano y un vídeo o fotos de tu casa. Construimos las habitaciones, puertas, ventanas y muebles, y tú revisas el resultado.",
  "Comparing the drawing with the photos": "Comparando el dibujo con las fotos",
  "Finding the same room in different photos": "Reconociendo la misma habitación en distintas fotos",
  "From the corners, the whole room in view": "Desde las esquinas, con toda la habitación a la vista",
@@ -1842,5 +1841,19 @@
  "See the fix": "Ver la corrección",
  "The developer is looking at it: {0}": "El desarrollador lo está revisando: {0}",
  "The developer sees each pin and answers here. A fix comes to your home in the editor.": "El desarrollador ve cada marca y responde aquí. La corrección llega a tu casa en el editor.",
- "You added: {0}": "Añadiste: {0}"
+ "You added: {0}": "Añadiste: {0}",
+ "Film one walk through your home. We build the rest: rooms, windows, doors and your furniture where it stands.": "Graba un recorrido por tu casa. Nosotros construimos el resto: habitaciones, ventanas, puertas y tus muebles donde están.",
+ "Almost nothing to do": "Casi nada que hacer",
+ "A plan photo and one video. Nothing to measure or draw.": "Una foto del plano y un vídeo. Nada que medir ni dibujar.",
+ "Your furniture, where it stands": "Tus muebles, donde están",
+ "Beds, sofas, tables and lamps, as your video shows them.": "Camas, sofás, mesas y lámparas, como los muestra tu vídeo.",
+ "Your lights in their rooms": "Tus luces en sus habitaciones",
+ "Lights, curtains and air conditioners placed and linked, ready to use.": "Luces, cortinas y aires acondicionados colocados y conectados, listos para usar.",
+ "Ready for Home Assistant": "Listo para Home Assistant",
+ "Sign in there with the same account and your home is in it.": "Inicia sesión allí con la misma cuenta y tu casa ya está.",
+ "What you get": "Lo que obtienes",
+ "Homes built by AI": "Casas creadas con IA",
+ "All homes": "Todas las casas",
+ "Open one in 3D and look around before you try.": "Abre una en 3D y recórrela antes de probar.",
+ "Open in 3D": "Abrir en 3D"
 }

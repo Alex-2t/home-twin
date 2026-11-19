@@ -1661,7 +1661,6 @@
  "a file is too big: a video up to 2 GB, a photo up to 40 MB, the plan up to 50 MB": "文件太大：视频最多 2 GB，照片最多 40 MB，平面图最多 50 MB",
  "A photo, a scan or a PDF": "照片、扫描件或 PDF",
  "add the floor plan and a video or photos of your home": "请添加平面图以及家的视频或照片",
- "Add the floor plan and a video or photos of your home. We build the rooms, doors, windows and furniture, and you check the result.": "添加平面图以及家的视频或照片。我们搭建房间、门、窗和家具，由你检查结果。",
  "Comparing the drawing with the photos": "将示意图与照片对比",
  "Finding the same room in different photos": "在不同照片中认出同一个房间",
  "From the corners, the whole room in view": "从角落拍，把整个房间拍进去",
@@ -1842,5 +1841,19 @@
  "See the fix": "查看修复",
  "The developer is looking at it: {0}": "开发者正在处理：{0}",
  "The developer sees each pin and answers here. A fix comes to your home in the editor.": "开发者会查看每个标记并在这里回复。修复会出现在编辑器中你的家里。",
- "You added: {0}": "你补充了：{0}"
+ "You added: {0}": "你补充了：{0}",
+ "Film one walk through your home. We build the rest: rooms, windows, doors and your furniture where it stands.": "在家里走一圈拍段视频，其余交给我们：房间、窗、门，以及按原位摆放的你的家具。",
+ "Almost nothing to do": "几乎无需动手",
+ "A plan photo and one video. Nothing to measure or draw.": "一张平面图照片加一段视频，无需测量或绘图。",
+ "Your furniture, where it stands": "你的家具，原位摆放",
+ "Beds, sofas, tables and lamps, as your video shows them.": "床、沙发、桌子和灯，与视频中一致。",
+ "Your lights in their rooms": "灯光已在各自房间",
+ "Lights, curtains and air conditioners placed and linked, ready to use.": "灯、窗帘和空调已摆好并关联，即可使用。",
+ "Ready for Home Assistant": "直接用于 Home Assistant",
+ "Sign in there with the same account and your home is in it.": "在那里用同一账户登录，你的家就在其中。",
+ "What you get": "你将得到",
+ "Homes built by AI": "AI 构建的户型",
+ "All homes": "全部户型",
+ "Open one in 3D and look around before you try.": "先在 3D 中打开一个看看，再决定是否尝试。",
+ "Open in 3D": "在 3D 中打开"
 }

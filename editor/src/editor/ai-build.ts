@@ -30,6 +30,7 @@ import {changedWhen, setHistoryBuilds} from './versions-panel.ts';
 import type {HistoryBuild} from './versions-panel.ts';
 import {fetchAccountPlans} from './account-plan.ts';
 import {factsLine, homeFacts} from './gallery.ts';
+import {fillShowcase, gainsHtml, showcaseHtml} from './ai-showcase.ts';
 import type {HeldFocus} from './keyboard.ts';
 import {icon} from './icons.ts';
 import {idb} from './idb.ts';
@@ -1682,6 +1683,12 @@ export function openAiBuild(ed: Editor, options: AiBuildOptions = {}): AiBuildSc
     const want = uploadGate();
     files.hidden = want !== null;
     gate.hidden = want === null || want === 'wait';
+    // what the build gives, under it all once the page knows what it asks for; the package's card says it in its own points
+    const why = root.querySelector<HTMLElement>('.aib-why');
+    if (why) {
+      why.hidden = want === 'wait';
+      find(why, '.aib-gains').hidden = want === 'package';
+    }
     // asked first, the page is one card under the title: all of it centred, not a narrow card on the left of the column
     gate.closest('.aib-upload')?.classList.toggle('aib-gated', want === 'sign-in' || want === 'package');
     // the package's card is drawn on every change (its line: a payment on its way, one that did not go through)
@@ -1944,7 +1951,7 @@ export function openAiBuild(ed: Editor, options: AiBuildOptions = {}): AiBuildSc
         </header>
         <main class="aib-upload">
           <h1>${esc(t('Your home in 3D, built by AI'))}</h1>
-          <p class="aib-lead">${esc(t('Add the floor plan and a video or photos of your home. We build the rooms, doors, windows and furniture, and you check the result.'))}</p>
+          <p class="aib-lead">${esc(t('Film one walk through your home. We build the rest: rooms, windows, doors and your furniture where it stands.'))}</p>
           <div class="aib-gate" hidden></div>
           <div class="aib-files" hidden>
           <div class="aib-drops">
@@ -1973,9 +1980,14 @@ export function openAiBuild(ed: Editor, options: AiBuildOptions = {}): AiBuildSc
           </div>
           <div class="aib-sending" hidden><i class="aib-meter"><i></i></i><span></span></div>
           </div>
+          <div class="aib-why" hidden>
+            ${gainsHtml(inHa)}
+            ${showcaseHtml(inHa)}
+          </div>
         </main>
       </div>`;
     find(root, '.aib-head').append(newHeadBar(false));
+    fillShowcase(root, inHa);
     const start = find<HTMLButtonElement>(root, '[data-act=start]');
     for (const place of [find(root, '.aib-go-account'), find(root, '.aib-gate')]) {
       place.addEventListener('click', e => {

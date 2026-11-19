@@ -1661,7 +1661,6 @@
  "a file is too big: a video up to 2 GB, a photo up to 40 MB, the plan up to 50 MB": "файл слишком большой: видео до 2 ГБ, фото до 40 МБ, план до 50 МБ",
  "A photo, a scan or a PDF": "Фото, скан или PDF",
  "add the floor plan and a video or photos of your home": "добавьте план и видео или фото дома",
- "Add the floor plan and a video or photos of your home. We build the rooms, doors, windows and furniture, and you check the result.": "Добавьте план и видео или фото дома. Мы соберём комнаты, двери, окна и мебель, а вы проверите результат.",
  "Comparing the drawing with the photos": "Сравниваем схему с фото",
  "Finding the same room in different photos": "Узнаём одну комнату на разных фото",
  "From the corners, the whole room in view": "Из углов, чтобы была видна вся комната",
@@ -1842,5 +1841,19 @@
  "See the fix": "Посмотреть исправление",
  "The developer is looking at it: {0}": "Разработчик разбирается: {0}",
  "The developer sees each pin and answers here. A fix comes to your home in the editor.": "Разработчик видит каждую метку и отвечает здесь. Исправление придёт в ваш дом в редакторе.",
- "You added: {0}": "Вы добавили: {0}"
+ "You added: {0}": "Вы добавили: {0}",
+ "Film one walk through your home. We build the rest: rooms, windows, doors and your furniture where it stands.": "Снимите одно видео, пройдя по дому. Остальное построим мы: комнаты, окна, двери и вашу мебель там, где она стоит.",
+ "Almost nothing to do": "Делать почти ничего не нужно",
+ "A plan photo and one video. Nothing to measure or draw.": "Фото плана и одно видео. Ничего не нужно мерить и рисовать.",
+ "Your furniture, where it stands": "Ваша мебель — там, где она стоит",
+ "Beds, sofas, tables and lamps, as your video shows them.": "Кровати, диваны, столы и лампы — как на вашем видео.",
+ "Your lights in their rooms": "Свет уже в своих комнатах",
+ "Lights, curtains and air conditioners placed and linked, ready to use.": "Свет, шторы и кондиционеры расставлены и подключены — можно пользоваться.",
+ "Ready for Home Assistant": "Сразу в Home Assistant",
+ "Sign in there with the same account and your home is in it.": "Войдите там с тем же аккаунтом — и ваш дом уже на месте.",
+ "What you get": "Что вы получите",
+ "Homes built by AI": "Дома, построенные ИИ",
+ "All homes": "Все дома",
+ "Open one in 3D and look around before you try.": "Откройте любой в 3D и осмотритесь, прежде чем пробовать.",
+ "Open in 3D": "Открыть в 3D"
 }
