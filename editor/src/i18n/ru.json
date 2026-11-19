@@ -1870,5 +1870,9 @@
  "Try it in 3D": "Попробуйте в 3D",
  "Open any home and look around before you try.": "Откройте любой дом и осмотритесь, прежде чем пробовать.",
  "The glow of the wall switch’s own panel, not the room’s light: that one is its switch.": "Подсветка самой панели выключателя, а не свет комнаты. Свет комнаты — это её выключатель.",
- "backlight": "подсветка"
+ "backlight": "подсветка",
+ "Confirm": "Подтвердить",
+ "Confirm this light and go to the next": "Подтвердить этот свет и перейти к следующему",
+ "Check the light type and position, then press “Next”.": "Проверьте вид и положение света и нажмите «Дальше».",
+ "Check each light, then press “Next”.": "Проверьте каждый свет и нажмите «Дальше»."
 }

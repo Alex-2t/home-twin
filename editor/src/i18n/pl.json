@@ -1870,5 +1870,9 @@
  "Try it in 3D": "Wypróbuj w 3D",
  "Open any home and look around before you try.": "Otwórz dowolny dom i rozejrzyj się, zanim spróbujesz.",
  "The glow of the wall switch’s own panel, not the room’s light: that one is its switch.": "Podświetlenie samego panelu włącznika, nie światło pokoju: to jest jego włącznik.",
- "backlight": "podświetlenie"
+ "backlight": "podświetlenie",
+ "Confirm": "Potwierdź",
+ "Confirm this light and go to the next": "Potwierdź to światło i przejdź do następnego",
+ "Check the light type and position, then press “Next”.": "Sprawdź rodzaj i położenie światła, a następnie naciśnij „Dalej”.",
+ "Check each light, then press “Next”.": "Sprawdź każde światło, a następnie naciśnij „Dalej”."
 }

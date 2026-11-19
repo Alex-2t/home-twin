@@ -273,7 +273,7 @@ export function lightsMode(ed: Editor): LightsMode {
       : t('Placed {0} of {1}.', n, all.length);
     // while lights are left: what to do, and the count below; once none is, the count alone (it was said three times)
     const text = left
-      ? `${t('Check the light type and position. Then confirm the room.')}<small>${t('The position was chosen automatically. Drag the light if needed.')}</small><small>${tail}</small>`
+      ? `${t('Check the light type and position, then press “Next”.')}<small>${t('The position was chosen automatically. Drag the light if needed.')}</small><small>${tail}</small>`
       : all.length
         ? tail
         : t('No lights in Home Assistant yet. Click “Done”.');
@@ -282,7 +282,7 @@ export function lightsMode(ed: Editor): LightsMode {
       text,
       [[left ? t('Finish later') : t('Finish placing lights'), () => finish(!!left), !left]],
       null,
-      {id: 'lights', short: left ? t('Check the lights and confirm the room.') + ' ' + tail : tail},
+      {id: 'lights', short: left ? t('Check each light, then press “Next”.') + ' ' + tail : tail},
     );
   }
   // “Finish later” — without a question: the room's unsaved lights stay a draft (it is in the plan), to be returned to;
@@ -419,8 +419,12 @@ export function lightsMode(ed: Editor): LightsMode {
   }
   // a lamp of another room, while this one is not saved — ask first
   const away = (L: PlanLight): boolean => wizOn() && cellKey(L) !== sess && dirty(sess);
+  // The card is about one light (the owner): "Next" confirms it and goes to the next one to check in this room, one standing
+  // there by guess (a draft) or one without a place, then on to the next room.
   function nextInRoom(): PlanLight | null {
-    return sess != null ? order().find(x => open(x) && x.id !== near && cellKey(x) === sess) || null : null;
+    if (sess == null) return null;
+    const toCheck = (x: PlanLight): boolean => !x.with && (open(x) || (!!x.placed && !!x.draft));
+    return order().find(x => toCheck(x) && x.id !== near && cellKey(x) === sess) || null;
   }
   function nextRoom(): PlanLight | null {
     const o = order();
@@ -487,9 +491,8 @@ export function lightsMode(ed: Editor): LightsMode {
         if (nx) cur = nx.id;
       } else {
         const nx = nextInRoom();
-        const pl = !nx && order().find(x => x.placed && !x.with && cellKey(x) === sess);
-        if (nx) cur = nx.id;
-        else if (pl) sel().light = pl.id;
+        if (nx?.placed) sel().light = nx.id;
+        else if (nx) cur = nx.id;
         else {
           save(sess);
           ch = true;
@@ -1642,87 +1645,13 @@ export function lightsMode(ed: Editor): LightsMode {
     b.onclick = () => skip(L);
     return b;
   }
-  // In the wizard, a room with several lamps gets a list: all of the room's lamps from HA, which one stands, for a strip — at the floor or at the ceiling;
-  // a click goes to it (without a place — it lands as a draft). It shows right away how many lamps there are and what is left.
-  function roomList(L: PlanLight): HTMLElement | null {
-    const k = cellKey(L);
-    if (!wizOn() || !k) return null;
-    const ls = order().filter(x => cellKey(x) === k);
-    if (ls.length < 2) return null;
-    const box = el(`<div class="line rlist"></div>`);
-    const gOpt = (x: PlanLight): string | undefined => {
-      const g = guessForm(x).opt;
-      const c = lampCell(plan(), x);
-      return (c && furnGuess(plan(), c, x, g)) || g;
-    }; // not placed yet — where it will land
-    for (const x of ls) {
-      const H = host(x);
-      const f = x.placed ? formFor(H || x) : guessForm(x).form;
-      const opt = x.placed ? (H || x).opt : gOpt(x);
-      const where =
-        f === 'strip'
-          ? isFurnStrip(opt)
-            ? FURN_STRIP[opt].where
-            : opt === 'floor'
-              ? t('at floor')
-              : t('at ceiling')
-          : '';
-      const st = H
-        ? t('part of “{0}”', esc(H.name))
-        : x.skip && !x.placed
-          ? t('skipped')
-          : x.placed && !x.draft
-            ? icon('check', 14)
-            : '';
-      const line = el(`<div class="lrow-line"></div>`);
-      const b = el(
-        `<button class="lrow ${x === L ? 'on' : ''} ${x.placed && !x.draft ? 'done' : ''} ${!x.placed ? 'todo' : ''}">${icon('f_' + f, 15)}<span class="nm">${esc(x.name)}</span>${where ? `<small>${where}</small>` : ''}<span class="st">${st}</span></button>`,
-      );
-      line.append(b, dropButton(x, H ?? null));
-      b.onclick = () => {
-        if (x === L) return;
-        merging = false;
-        if (x.placed) {
-          sel().light = x.id;
-          cur = null;
-        } else {
-          sel().light = null;
-          cur = x.id;
-        }
-        m.refresh();
-        ed.draw();
-      };
-      box.append(line);
-    }
-    return box;
-  }
-  // The trash on a room's list row, seen on hover (the owner: a light added by mistake had no way out of the room's card): a
-  // lamp that is not an HA light is deleted, an HA light on the plan is skipped (taken off, not put back by the step). A part
-  // of another fixture, an HA light not placed or skipped has an empty place, keeping the rows in line.
-  function dropButton(x: PlanLight, partOf: PlanLight | null): HTMLElement {
-    const gone = removable(x);
-    if (partOf || (!gone && !x.placed)) return el(`<span class="x"></span>`);
-    const title = gone ? t('Delete') : t('Remove from plan');
-    const b = el(`<button class="x ib" title="${esc(title)}">${icon('trash', 14)}</button>`);
-    b.onclick = e => {
-      e.stopPropagation();
-      if (gone) return deleteLamp(x);
-      const current = x.id === sel().light || x.id === cur;
-      lift(x);
-      x.skip = true;
-      if (current) advance();
-      ed.commit();
-    };
-    return b;
-  }
   function editLines(L: PlanLight): HTMLElement[] {
     const hl = host(L);
     const cell = lampCell(plan(), hl || L);
-    const list = roomList(L);
+    // the card is about this one light, its room under its name; another light is picked in the list on the left (the owner:
+    // the card's own list of the room's lights was a second place to pick and to delete in)
     const line = el(
-      list
-        ? `<div class="line"><b>${esc(roomName(cell!, L))}</b></div>` // a room's list: the lamp has its cell
-        : `<div class="line"><b${formFor(L) === 'strip' ? '' : ` title="${t('Arrows move it: 1 cm, with Shift 10 cm')}"`}>${esc(L.name)}</b>${cell && wizOn() ? `<small>${esc(roomName(cell, L))}</small>` : ''}</div>`,
+      `<div class="line lamp-head"><span class="lamp-title"><b${formFor(L) === 'strip' ? '' : ` title="${t('Arrows move it: 1 cm, with Shift 10 cm')}"`}>${esc(L.name)}</b>${cell && wizOn() ? `<small>${esc(roomName(cell, L))}</small>` : ''}</span></div>`,
     );
     line.append(...flashBtn(L));
     if (hl) {
@@ -1739,7 +1668,7 @@ export function lightsMode(ed: Editor): LightsMode {
         ed.commit();
       };
       line.append(un);
-      return [line, ...(list ? [list] : []), ...nextLine(L)];
+      return [line, ...nextLine(L)];
     }
     const c = el<HTMLInputElement>(
       `<input type="color" value="${L.color || '#ffce87'}" title="${t('Light color')}">`,
@@ -1754,10 +1683,9 @@ export function lightsMode(ed: Editor): LightsMode {
       `<button class="ib bad" title="${esc(gone ? t('Delete') : t('Remove from plan'))}">${icon('trash', 15)}</button>`,
     );
     d.onclick = () => (gone ? deleteLamp(L) : unplace(L));
-    line.append(c);
-    if (!wizOn() || gone) line.append(d);
+    line.append(c, d);
     if (merging && cell && wizOn()) return [line, ...mergeLines(L, cell)];
-    const lines = [line, ...(list ? [list] : []), formTiles(L)];
+    const lines = [line, formTiles(L)];
     const f = formFor(L);
     const opts = el(`<div class="line opts"></div>`);
     const chips = (map: Choices, val: string | undefined): HTMLElement[] =>
@@ -2013,24 +1941,23 @@ export function lightsMode(ed: Editor): LightsMode {
     el(
       `<a class="soft btn" href="${esc(ed.ha.devicesUrl)}" target="_blank" rel="noopener" title="${t('Open devices in Home Assistant')}">${t('Open HA')} ↗</a>`,
     );
-  // the bottom of the panel in the wizard: “part of another” — on the left, “Next” — on the right: the room's lights are saved, on to the next room.
-  // There is no “Skip” here (the owner: not needed); to finish — “Done”
+  // the bottom of the panel in the wizard: “part of another” — on the left, “Next” — on the right: this light is confirmed, on
+  // to the next one to check (this room's first, then the next room's). The last one says “Confirm”. There is no “Skip” here
+  // (the owner: not needed; the trash at the top takes a light off); to finish — “Done”
   function nextLine(L: PlanLight, cell?: LampCell | null): HTMLElement[] {
     if (!wizOn()) return [];
     const ln = el(`<div class="line next"></div>`);
     const mb = cell && mergeBtn(L, cell);
     if (mb) ln.append(mb);
-    if (queue().length || dirty(sess)) {
-      // “Next”, not “Confirm room” (read as a check of the room) and not “Next light” (it goes to the next room first,
-      // past this room's lights without a place): nothing left anywhere — “Confirm room” (the owner)
-      const label = nextRoom() ? t('Next') : t('Confirm room');
+    if (todo(L) || queue().length || dirty(sess)) {
+      const more = !!nextInRoom() || queue().some(x => x !== L);
+      const label = more ? t('Next') : t('Confirm');
       const nx = el(
-        `<button class="soft pri" title="${t("Save this room's lights and go to the next")}">${label}</button>`,
+        `<button class="soft pri" title="${t('Confirm this light and go to the next')}">${label}</button>`,
       );
       nx.onclick = () => {
-        save(sess);
+        confirmLamp(L);
         advance();
-        go = 'room';
         ed.commit();
       };
       ln.append(el(`<span class="sp"></span>`), nx);

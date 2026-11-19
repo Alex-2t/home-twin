@@ -1870,5 +1870,9 @@
  "Try it in 3D": "在 3D 中试试",
  "Open any home and look around before you try.": "打开任意户型四处看看，再决定是否尝试。",
  "The glow of the wall switch’s own panel, not the room’s light: that one is its switch.": "这是墙壁开关面板自身的背光，不是房间的灯：房间的灯是它的开关。",
- "backlight": "背光"
+ "backlight": "背光",
+ "Confirm": "确认",
+ "Confirm this light and go to the next": "确认这盏灯并转到下一盏",
+ "Check the light type and position, then press “Next”.": "检查灯的类型和位置，然后点按“下一步”。",
+ "Check each light, then press “Next”.": "逐一检查灯光，然后点按“下一步”。"
 }
