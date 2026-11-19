@@ -45,6 +45,7 @@ import {changeCount, pinsToSend, pinsToRetry, refreshRetries, withoutFixed} from
 import {markSource, seeFix} from './ai-fix.ts';
 import {accountReports} from './ai-reports.ts';
 import {recordStep} from './wizard-state.ts';
+import {parseSearchAi} from './route.ts';
 import {PLACEABLE, autoPlace, deviceKind, isCentral, recOf} from '../core/devices.ts';
 import {recommend} from '../core/sensors.ts';
 import type {Pin, PinNotes, PinRetry, PinRound, ReportView} from './ai-pins.ts';
@@ -82,6 +83,7 @@ import type {UploadArea, UploadJob, UploadLight} from './ai-upload.ts';
 import type {Estimate, RoundSize} from './ai-estimate.ts';
 import type {HaDevice, Outline, Plan, PlanLight} from '../core/types.ts';
 import type {Editor, EditorFlows} from './editor-types.ts';
+import type {AiPage} from './route.ts';
 
 // ---------- what the service answers ----------
 // The service is ours (the harness's build server writes its answers as the API above says): its answers are read as these
@@ -346,9 +348,6 @@ const START_POLL_MS = 3000;
 const POLLS_PER_ACCOUNT = 5;
 // The upload page asks the account again this often while the payments service does not answer.
 const ACCOUNT_RETRY_MS = 10_000;
-// The upload page's address: ?ai=new.
-const UPLOAD_PARAM = 'ai';
-const UPLOAD_VALUE = 'new';
 const NOTES = 'home-twin-editor:ai-notes:';
 // The build this browser started or opened last: the start screen shows how it goes until its home is opened.
 const FOLLOWED = 'home-twin-editor:ai-build';
@@ -1173,9 +1172,9 @@ export async function openAiFromAddress(
   const back = readReturn(location.href);
   if (back.found) history.replaceState(history.state, '', back.clean);
   const params = new URLSearchParams(location.search);
-  const id = params.get('build');
-  const upload = params.get(UPLOAD_PARAM) === UPLOAD_VALUE;
-  if (!id && !upload && !back.found) return null;
+  const page = parseSearchAi(location.search);
+  const id = page && page !== 'upload' ? page.build : null;
+  if (!page && !back.found) return null;
   // The tab of a provider's sign-in from Home Assistant's panel (D-133): the panel is signed in, not this tab; it says to go
   // back there, and closes itself where the browser lets it.
   if (back.signIn === 'linked' || back.signIn === 'link-failed' || back.signIn === 'link-cancelled') {
@@ -1219,7 +1218,7 @@ export async function openAiFromAddress(
     }
   }
   const signInNotice = back.signIn === 'failed' ? t('Could not sign in. Try again or use your email.') : null;
-  return openAiBuild(ed, {api, id, notice, account: claimed, signInNotice});
+  return openAiBuild(ed, {api, id, notice, account: claimed, signInNotice, fromAddress: true});
 }
 
 /**
@@ -1266,6 +1265,8 @@ export interface AiBuildOptions {
    * replaces the plan only once it is taken (until then HA's plan and the dashboard stay as they are).
    */
   inHa?: boolean;
+  /** Opened by the page's address (a reload, a link, Forward): its page is already the address, no new step is made. */
+  fromAddress?: boolean;
 }
 
 /** What the upload page asks for before the files (D-133): nothing yet known, to sign in, a package; null: the files. */
@@ -1287,7 +1288,15 @@ const PACKAGE_WAIT_MS = 30 * 60 * 1000;
  * the start screen's card).
  */
 export function openAiBuild(ed: Editor, options: AiBuildOptions = {}): AiBuildScreen {
-  const {api = '', id = null, flows = ed.flows, notice = null, signInNotice = null, inHa = false} = options;
+  const {
+    api = '',
+    id = null,
+    flows = ed.flows,
+    notice = null,
+    signInNotice = null,
+    inHa = false,
+    fromAddress = false,
+  } = options;
   const root = el(`<div class="aib"></div>`);
   document.body.append(root);
   flows?.hideStart();
@@ -1316,20 +1325,23 @@ export function openAiBuild(ed: Editor, options: AiBuildOptions = {}): AiBuildSc
 
   // ---------- the address and the editor underneath ----------
 
-  // The address names the page shown: the upload, a build, or neither (the editor).
-  function setAddress(page: 'upload' | {build: string} | null): void {
-    // Home Assistant's panel has an address of its own (HA's): its path names the page, so a reload keeps it (the owner:
-    // a reload on the upload went to the plan)
-    if (inHa) {
-      flows?.aiAddress?.(page);
+  // The address names the page shown: the upload, a build, or neither (the editor) — ?ai=new / ?build=<id> on our site, the
+  // panel's path in Home Assistant (route.ts), so a reload keeps it. Opened from the editor it is a step of its own in the
+  // history: the browser's Back closes it, as its own Back does (the owner: Back looped). Opened by its address, the step is
+  // the one it came with.
+  let inAddress = false;
+  function setAddress(page: AiPage | null): void {
+    if (!page) {
+      inAddress = false;
+      flows?.aiLeft();
       return;
     }
-    const url = new URL(location.href);
-    url.searchParams.delete('build');
-    url.searchParams.delete(UPLOAD_PARAM);
-    if (page === 'upload') url.searchParams.set(UPLOAD_PARAM, UPLOAD_VALUE);
-    else if (page) url.searchParams.set('build', page.build);
-    history.replaceState(history.state, '', url);
+    if (inAddress) {
+      flows?.aiAddress(page);
+      return;
+    }
+    inAddress = true;
+    flows?.aiOpened(page, !fromAddress, {close});
   }
 
   // ---------- the account (D-088) ----------
@@ -3070,12 +3082,13 @@ export function openAiBuild(ed: Editor, options: AiBuildOptions = {}): AiBuildSc
     ed.banner(t('Your home is ready. Change anything you like.'), [[t('Got it'), () => ed.banner(), true]]);
   }
 
-  // Back to the start screen; a build that goes on shows there, and can be followed again by its link.
+  // Back to the page it was opened from, as the browser's Back; opened by its address, to the start screen. A build that goes on
+  // shows there, and can be followed again by its link.
   function exit(): void {
     close();
-    setAddress(null);
+    inAddress = false;
     // flows.ts adds it before the AI build can open.
-    ed.showStart();
+    if (flows?.aiBack() ?? true) ed.showStart();
   }
 
   if (buildId) {

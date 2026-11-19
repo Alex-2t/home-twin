@@ -12,7 +12,7 @@ import {NewerPlanError, newerPlanText} from '../core/plan-format.ts';
 import {autoPlace} from '../core/devices.ts';
 import {idb} from './underlay.ts';
 import {axisCursor} from './drag-gesture.ts';
-import {routeHash} from './route.ts';
+import {routeHash, tellAddressChanged} from './route.ts';
 import {OUTLINE_LIVING_SHARE} from './wizard-state.ts';
 import {holdFocus, menuKeys, focusMenuStart} from './keyboard.ts';
 import {cardPicture, factsLine, fetchGallery, galleryView, homeFacts} from './gallery.ts';
@@ -24,7 +24,7 @@ import type {GalleryHome, GalleryView} from './gallery.ts';
 import type {HeldFocus} from './keyboard.ts';
 import type {Outline, Plan, PlanInput, Point, Room, UnderlayPlace} from '../core/types.ts';
 import type {Underlay} from './underlay.ts';
-import type {PanelRouter, Route, RoutePage, Router} from './route.ts';
+import type {AiPage, Route, RoutePage, Router} from './route.ts';
 import type {BannerItem, CanvasPoint, Editor, EditorFlows, ModeId, PathStep} from './editor-types.ts';
 
 /** An example's plan photo (the designer interiors): its image and the two "pixel → metres" pairs that place it. */
@@ -263,6 +263,13 @@ export function createFlows(
   let queued = false;
   let shown: string | undefined = routeHash(r0);
   let leaving = false;
+  // The AI build open over the editor (D-132): its page is in the address, a step of its own, and the editor's page under it is
+  // not written (it would be a step that Back shows as nothing changing). Back closes it.
+  let aiScreen: {close(): void} | null = null;
+  // the AI build closed with the home taken: the editor's page takes its step instead of adding one
+  let replaceNext = false;
+  // how a Forward or a link to the AI build's page opens it (ai-from-ha.ts, main.ts: once its service is known)
+  let openAiAt: ((page: AiPage) => void) | null = null;
   const routeNow = (): Route | null => {
     if (!galleryBox.hidden) return {ex: null, page: 'gallery'};
     if (!$('start').hidden) return null;
@@ -271,17 +278,40 @@ export function createFlows(
   const pageOf = (h: string): string => h.replace(/^#\/example\/[\w-]+/, '#') || 'start';
   function writeRoute(push: boolean | null = null): void {
     queued = false;
-    if (!router || quiet || leaving) return;
+    if (!router || quiet || leaving || aiScreen) return;
+    const replace = replaceNext;
+    replaceNext = false;
     const now = routeNow();
     const h = routeHash(now);
     if (h === shown) return;
     // shown is undefined only while an address from outside is applied, and then push is false
-    router.write(now, push ?? pageOf(h) !== pageOf(shown as string));
+    router.write(now, !replace && (push ?? pageOf(h) !== pageOf(shown as string)));
     shown = h;
   }
-  // the AI build's page, in the panel's path (route.ts showAi); our site's AI build writes ?ai= / ?build= itself
-  f.aiAddress = page => {
-    if (router && 'showAi' in router) (router as PanelRouter).showAi(page);
+  // ---------- the AI build's page in the address (route.ts) ----------
+  f.aiOpened = (page, push, screen) => {
+    aiScreen = screen;
+    router?.writeAi(page, push);
+  };
+  f.aiAddress = page => router?.writeAi(page, false);
+  f.aiLeft = () => {
+    aiScreen = null;
+    replaceNext = true;
+    router?.writeAi(null, false);
+  };
+  // Opened with a step of its own: one step back, as the browser's Back (the address heard below shows the page before it).
+  // Opened by its address (a reload, a link): there is no step before it here, its address goes and the caller shows the start.
+  f.aiBack = () => {
+    aiScreen = null;
+    if (router?.atAiStep()) {
+      router.back();
+      return false;
+    }
+    router?.writeAi(null, false);
+    return true;
+  };
+  f.onAiAddress = open => {
+    openAiAt = open;
   };
   // several changes in one go (a mode button: leave Preview, switch the mode) — one step
   f.syncRoute = () => {
@@ -351,7 +381,19 @@ export function createFlows(
     coverDown();
   }
   // an address from outside: once its page is open, the address is written as it is now (a wrong one is cleaned, a refused mode corrected)
-  router?.listen(r => {
+  router?.listen((r, ai) => {
+    tellAddressChanged();
+    // Forward to the AI build's page, a link to it: it opens over the editor
+    if (ai) {
+      if (!aiScreen) openAiAt?.(ai);
+      return;
+    }
+    // Back from the AI build's page: it closes, and the page before it shows
+    if (aiScreen) {
+      const screen = aiScreen;
+      aiScreen = null;
+      screen.close();
+    }
     if (routeHash(r) === shown && r) return;
     shown = undefined;
     quiet++;

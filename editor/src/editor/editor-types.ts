@@ -403,8 +403,19 @@ export interface EditorFlows {
   offerAi(setup: (button: HTMLElement) => void): void;
   /** Writes the page into the address (once for several changes). */
   syncRoute(): void;
-  /** The AI build's page in Home Assistant's panel path (null: closed); our site keeps it in the query itself. */
-  aiAddress(page: AiPage | null): void;
+  /**
+   * The AI build opened over the editor: its page into the address (push: a new step, Back closes it; else the step is
+   * corrected — opened by its address). screen.close() is how Back closes it.
+   */
+  aiOpened(page: AiPage, push: boolean, screen: {close(): void}): void;
+  /** The open AI build's page changed (the upload became a build): the step is corrected. */
+  aiAddress(page: AiPage): void;
+  /** The AI build closed with the home taken (or is not here): the editor's page takes its step. */
+  aiLeft(): void;
+  /** The AI build's own Back: one step back if opening it made one (false); else its address goes, and true: show the start. */
+  aiBack(): boolean;
+  /** How Forward or a link to the AI build's page opens it. */
+  onAiAddress(open: (page: AiPage) => void): void;
   /** Opens the file picker for a plan photo. */
   pickUnderlay(): void;
   /** The "back to examples" button follows whether the plan is an example. */

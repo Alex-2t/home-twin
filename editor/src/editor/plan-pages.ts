@@ -9,6 +9,7 @@ import {t} from '../i18n/i18n.ts';
 import {el, esc, find} from './ui.ts';
 import {holdFocus} from './keyboard.ts';
 import {icon} from './icons.ts';
+import {closeOnAddressChange} from './route.ts';
 
 /** The service's guess of the plan's page. */
 export interface PlanPageGuess {
@@ -134,11 +135,14 @@ export function openPagePicker(
     const finish = (page: number | null): void => {
       if (done) return;
       done = true;
+      stopListening();
       held.release();
       veil.remove();
       resolve(page);
     };
     const held = holdFocus(veil, {onEscape: () => finish(null)});
+    // Back / Forward: the page under it changes, no page is picked
+    const stopListening = closeOnAddressChange(() => finish(null));
 
     veil.addEventListener('click', e => {
       const target = e.target as HTMLElement;

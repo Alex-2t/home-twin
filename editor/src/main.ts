@@ -6,7 +6,7 @@ import {DEMO_NAME, DEMO, HA, DEMO_UNDERLAY} from './gen/demo.gen.js';
 import {EXAMPLES} from './gen/examples.gen.js';
 import {hashRouter} from './editor/route.ts';
 import {linkWindows} from './editor/link.ts';
-import {openAiFromAddress, aiService, aiStartCard} from './editor/ai-build.ts';
+import {openAiFromAddress, openAiBuild, aiService, aiStartCard} from './editor/ai-build.ts';
 import {watchFixes} from './editor/ai-fix.ts';
 import {keepPlanOnAccount} from './editor/account-plan.ts';
 import {localizeDemo} from './i18n/demo-names.ts';
@@ -57,6 +57,10 @@ linkWindows(ha, ed);
 aiService().then(ok => {
   if (!ok) return;
   ed.flows.offerAi(card => aiStartCard(ed, card));
+  // Forward back to the AI build's page (?ai=new, ?build=<id>): it opens again
+  ed.flows.onAiAddress(page => {
+    openAiBuild(ed, {id: page === 'upload' ? null : page.build, fromAddress: true});
+  });
   // signed in on our site, your plan is kept on your account, to take into Home Assistant later (D-134)
   keepPlanOnAccount(ed);
   // a home taken from the AI build is offered the developer's fixes of its pins (D-129)

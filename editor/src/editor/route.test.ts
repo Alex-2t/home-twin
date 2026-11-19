@@ -1,7 +1,15 @@
 import {test} from 'node:test';
 import assert from 'node:assert/strict';
-import {parseRoute, routeHash, parsePanelPath, parsePanelAi, haRouter} from './route.ts';
-import type {PanelRoute, Route} from './route.ts';
+import {
+  parseRoute,
+  routeHash,
+  parsePanelPath,
+  parsePanelAi,
+  parseSearchAi,
+  withSearchAi,
+  haRouter,
+} from './route.ts';
+import type {AiPage, PanelRoute, Route} from './route.ts';
 
 test('the address names the page: start screen, your plan in a mode, an example', () => {
   assert.equal(parseRoute(''), null);
@@ -52,40 +60,121 @@ test("in Home Assistant the AI build's page is in the panel path too, so a reloa
   assert.equal(parsePanelPath('/ai'), null);
 });
 
-test("the panel's path: the AI build's page while it is open, the editor's page again once it closes", () => {
-  const urls: string[] = [];
-  const fakeWindow = {
+/** A stand-in for HA's page: its history and address, the routes HA would pass on, and the steps made. */
+function fakeHaPage(startPath: string) {
+  const steps: string[] = [];
+  const entries: {url: string; state: unknown}[] = [{url: startPath, state: null}];
+  let at = 0;
+  const page = {
+    location: {
+      get pathname() {
+        return entries[at].url;
+      },
+    },
     history: {
-      pushState: (_state: unknown, _title: string, url: string) => urls.push('push ' + url),
-      replaceState: (_state: unknown, _title: string, url: string) => urls.push('replace ' + url),
-      state: null,
+      pushState: (state: unknown, _title: string, url: string) => {
+        steps.push('push ' + url);
+        entries.splice(at + 1);
+        entries.push({url, state});
+        at += 1;
+      },
+      replaceState: (state: unknown, _title: string, url: string) => {
+        steps.push('replace ' + url);
+        entries[at] = {url, state};
+      },
+      get state() {
+        return entries[at].state;
+      },
+      back: () => {
+        at -= 1;
+      },
     },
     dispatchEvent: () => true,
   };
+  return {page, steps};
+}
+
+function withPage<T>(page: unknown, run: () => T): T {
   const saved = globalThis.window;
-  Object.defineProperty(globalThis, 'window', {value: {parent: fakeWindow}, configurable: true});
+  Object.defineProperty(globalThis, 'window', {value: {parent: page}, configurable: true});
   try {
-    const panel: {route: PanelRoute} = {route: {prefix: '/home-twin', path: '/lights'}};
-    const router = haRouter(panel);
-    const heard: (Route | null)[] = [];
-    router.listen(route => heard.push(route));
-    router.showAi('upload');
-    // the editor writes its page under the AI build (the start screen hidden): the path stays the AI build's, no new step
-    router.write({ex: null, page: 'plan'}, true);
-    router.showAi({build: 'home-1'});
-    // HA sets the route again after the write: not an editor page to go to
-    router.route({prefix: '/home-twin', path: '/ai/home-1'});
-    router.showAi(null);
-    assert.deepEqual(urls, [
-      'replace /home-twin/ai',
-      'replace /home-twin/ai',
-      'replace /home-twin/ai/home-1',
-      'replace /home-twin/plan',
-    ]);
-    assert.deepEqual(heard, []);
-    router.route({prefix: '/home-twin', path: '/furniture'});
-    assert.deepEqual(heard, [{ex: null, page: 'furniture'}]);
+    return run();
   } finally {
     Object.defineProperty(globalThis, 'window', {value: saved, configurable: true});
   }
+}
+
+test("the panel's path: the AI build's page is a step of its own, the editor's page again once it closes", () => {
+  const {page, steps} = fakeHaPage('/home-twin');
+  withPage(page, () => {
+    const panel: {route: PanelRoute} = {route: {prefix: '/home-twin', path: ''}};
+    const router = haRouter(panel);
+    const heard: [Route | null, AiPage | null][] = [];
+    router.listen((route, ai) => heard.push([route, ai]));
+    router.writeAi('upload', true);
+    assert.equal(router.atAiStep(), true, 'opened from the editor: its in-app Back goes back a step');
+    router.writeAi({build: 'home-1'}, false);
+    assert.equal(router.atAiStep(), true, 'the upload becoming a build keeps the step');
+    // HA passes the routes on a moment later: echoes of our own writes, not changes from outside
+    router.route({prefix: '/home-twin', path: '/ai'});
+    router.route({prefix: '/home-twin', path: '/ai/home-1'});
+    assert.deepEqual(heard, []);
+    router.writeAi(null, false);
+    router.write({ex: null, page: 'preview'}, false);
+    assert.deepEqual(steps, [
+      'push /home-twin/ai',
+      'replace /home-twin/ai/home-1',
+      'replace /home-twin',
+      'replace /home-twin/preview',
+    ]);
+    // the first echo comes when the address is already the second: stale, not heard
+    router.route({prefix: '/home-twin', path: ''});
+    router.route({prefix: '/home-twin', path: '/preview'});
+    assert.deepEqual(heard, []);
+  });
+});
+
+test("the panel's route from outside is heard once, and answering it writes nothing (the loop on Back)", () => {
+  const {page, steps} = fakeHaPage('/home-twin');
+  withPage(page, () => {
+    const panel: {route: PanelRoute} = {route: {prefix: '/home-twin', path: ''}};
+    const router = haRouter(panel);
+    const heard: [Route | null, AiPage | null][] = [];
+    router.listen((route, ai) => {
+      heard.push([route, ai]);
+      // the editor answers with the address as it is now
+      router.write(route, false);
+    });
+    router.writeAi('upload', true);
+    router.back();
+    router.route({prefix: '/home-twin', path: ''});
+    // HA sets the same route again (another render): nothing new
+    router.route({prefix: '/home-twin', path: ''});
+    assert.deepEqual(heard, [[null, null]]);
+    assert.deepEqual(
+      steps,
+      ['push /home-twin/ai'],
+      'the answer is the address already: no step, no route from HA',
+    );
+    // a page of the editor by HA's sidebar or a link
+    page.history.pushState(null, '', '/home-twin/furniture');
+    router.route({prefix: '/home-twin', path: '/furniture'});
+    assert.deepEqual(heard.at(-1), [{ex: null, page: 'furniture'}, null]);
+  });
+});
+
+test("on our site the AI build is in the query, beside the editor's hash", () => {
+  assert.equal(parseSearchAi('?ai=new'), 'upload');
+  assert.deepEqual(parseSearchAi('?x=1&build=home-1'), {build: 'home-1'});
+  assert.equal(parseSearchAi(''), null);
+  assert.equal(parseSearchAi('?ai=old'), null);
+  assert.equal(
+    withSearchAi('https://twin.sync.md/?x=1#/plan', 'upload'),
+    'https://twin.sync.md/?x=1&ai=new#/plan',
+  );
+  assert.equal(
+    withSearchAi('https://twin.sync.md/?ai=new', {build: 'b-2'}),
+    'https://twin.sync.md/?build=b-2',
+  );
+  assert.equal(withSearchAi('https://twin.sync.md/?build=b-2&x=1', null), 'https://twin.sync.md/?x=1');
 });

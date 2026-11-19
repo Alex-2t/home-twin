@@ -23,6 +23,7 @@ import {
   sendSignInCode,
   verifySignInCode,
 } from './ai-account.ts';
+import {closeOnAddressChange} from './route.ts';
 import type {Account, Offer, Provider} from './ai-account.ts';
 
 /** Why the sign-in is asked for now: its title says so. */
@@ -185,6 +186,8 @@ export function openSignIn(host: HTMLElement, options: SignInOptions): SignInShe
   let email = '';
   let busy = false;
   let closed = false;
+  // Back / Forward: the page under the window changes, it is cancelled (a card in a page goes with its page)
+  const stopListening = inline ? (): void => {} : closeOnAddressChange(() => cancel());
   // The tab's sign-in the panel waits for (linkSite): its link, asked until it is through; null while it waits for none.
   let waiting: {link: string; secret: string; until: number} | null = null;
   let askTimer: ReturnType<typeof setTimeout> | number = 0;
@@ -353,6 +356,7 @@ export function openSignIn(host: HTMLElement, options: SignInOptions): SignInShe
   function close(): void {
     if (closed) return;
     closed = true;
+    stopListening();
     stopWaiting();
     removeEventListener('keydown', onKey, true);
     document.removeEventListener('visibilitychange', onVisible);

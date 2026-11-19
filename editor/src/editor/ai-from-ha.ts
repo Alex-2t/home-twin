@@ -33,11 +33,16 @@ export async function aiBuildInPanel(ed: Editor, hass: Hass, at: AiPage | null =
   const api = await proxyAddress(hass);
   if (!api || !(await aiService(api))) {
     // no AI build here (now): the path goes back to the editor's page
-    if (at) ed.flows.aiAddress(null);
+    if (at) ed.flows.aiLeft();
     return;
   }
   ed.flows.offerAi(card => aiStartCard(ed, card, {api, inHa: true}));
-  if (at) openAiBuild(ed, {api, id: at === 'upload' ? null : at.build, inHa: true});
+  // the AI build's page by its address: a reload on it, Forward back to it
+  const openAt = (page: AiPage): void => {
+    openAiBuild(ed, {api, id: page === 'upload' ? null : page.build, inHa: true, fromAddress: true});
+  };
+  ed.flows.onAiAddress(openAt);
+  if (at) openAt(at);
   // a home taken from the AI build is offered the developer's fixes of its pins (D-129)
   watchFixes(ed, {api});
 }

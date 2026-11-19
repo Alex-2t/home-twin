@@ -7,6 +7,7 @@
 import {t, N, locale, clock} from '../i18n/i18n.ts';
 import {el, esc, find} from './ui.ts';
 import {holdFocus} from './keyboard.ts';
+import {closeOnAddressChange} from './route.ts';
 import type {HeldFocus} from './keyboard.ts';
 import {icon} from './icons.ts';
 import {pal, FONT} from './draw.ts';
@@ -207,9 +208,11 @@ export function openVersions(ed: Editor): {close(): void} {
     ...V.list().map(v => ({...v, plan: JSON.parse(v.plan) as Plan})),
   ];
   let held: HeldFocus | null = null;
+  let stopListening = (): void => {};
   const close = (): void => {
     box?.remove();
     box = null;
+    stopListening();
     removeEventListener('keydown', key, true);
     held?.release();
     held = null;
@@ -409,6 +412,8 @@ export function openVersions(ed: Editor): {close(): void} {
   };
   document.body.append(box);
   addEventListener('keydown', key, true);
+  // Back / Forward: the page under it changes, it closes
+  stopListening = closeOnAddressChange(close);
   // a dialog: the editor under it sleeps, and the focus goes back to what opened it (keyboard.ts)
   held = holdFocus(box);
   render();

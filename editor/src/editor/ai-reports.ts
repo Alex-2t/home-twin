@@ -6,6 +6,7 @@ import {dateTime, t} from '../i18n/i18n.ts';
 import {el, esc, find} from './ui.ts';
 import {holdFocus} from './keyboard.ts';
 import {icon} from './icons.ts';
+import {closeOnAddressChange} from './route.ts';
 import type {HeldFocus} from './keyboard.ts';
 import type {ReportStatus} from './ai-pins.ts';
 import type {ReportsSeen} from './ai-account-ui.ts';
@@ -120,11 +121,15 @@ export function openReports(host: HTMLElement, options: ReportsListOptions): {cl
   for (const report of reports) list.append(reportRow(api, report, home, waiting));
   if (!reports.length) list.append(el(`<li class="aib-reports-empty">${esc(t('Nothing sent yet'))}</li>`));
   let held: HeldFocus | null = null;
+  let stopListening = (): void => {};
   const close = (): void => {
+    stopListening();
     held?.release();
     veil.remove();
     onClose?.();
   };
+  // Back / Forward: the page under it changes, it closes
+  stopListening = closeOnAddressChange(close);
   veil.addEventListener('click', event => {
     const target = event.target as Element;
     if (target === veil) return close();
