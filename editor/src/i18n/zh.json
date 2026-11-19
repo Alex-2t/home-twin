@@ -1873,6 +1873,7 @@
  "backlight": "背光",
  "Confirm": "确认",
  "Confirm this light and go to the next": "确认这盏灯并转到下一盏",
- "Check the light type and position, then press “Next”.": "检查灯的类型和位置，然后点按“下一步”。",
- "Check each light, then press “Next”.": "逐一检查灯光，然后点按“下一步”。"
+ "Check the light type and position, then press “Confirm”.": "检查灯的类型和位置，然后点按“确认”。",
+ "Check each light, then press “Confirm”.": "逐一检查灯光，然后点按“确认”。",
+ "Confirmed": "已确认"
 }

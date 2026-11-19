@@ -273,7 +273,7 @@ export function lightsMode(ed: Editor): LightsMode {
       : t('Placed {0} of {1}.', n, all.length);
     // while lights are left: what to do, and the count below; once none is, the count alone (it was said three times)
     const text = left
-      ? `${t('Check the light type and position, then press “Next”.')}<small>${t('The position was chosen automatically. Drag the light if needed.')}</small><small>${tail}</small>`
+      ? `${t('Check the light type and position, then press “Confirm”.')}<small>${t('The position was chosen automatically. Drag the light if needed.')}</small><small>${tail}</small>`
       : all.length
         ? tail
         : t('No lights in Home Assistant yet. Click “Done”.');
@@ -282,7 +282,7 @@ export function lightsMode(ed: Editor): LightsMode {
       text,
       [[left ? t('Finish later') : t('Finish placing lights'), () => finish(!!left), !left]],
       null,
-      {id: 'lights', short: left ? t('Check each light, then press “Next”.') + ' ' + tail : tail},
+      {id: 'lights', short: left ? t('Check each light, then press “Confirm”.') + ' ' + tail : tail},
     );
   }
   // “Finish later” — without a question: the room's unsaved lights stay a draft (it is in the plan), to be returned to;
@@ -1942,7 +1942,7 @@ export function lightsMode(ed: Editor): LightsMode {
       `<a class="soft btn" href="${esc(ed.ha.devicesUrl)}" target="_blank" rel="noopener" title="${t('Open devices in Home Assistant')}">${t('Open HA')} ↗</a>`,
     );
   // the bottom of the panel in the wizard: “part of another” — on the left, “Next” — on the right: this light is confirmed, on
-  // to the next one to check (this room's first, then the next room's). The last one says “Confirm”. There is no “Skip” here
+  // to the next one to check (this room's first, then the next room's); it says “Confirm”. There is no “Skip” here
   // (the owner: not needed; the trash at the top takes a light off); to finish — “Done”
   function nextLine(L: PlanLight, cell?: LampCell | null): HTMLElement[] {
     if (!wizOn()) return [];
@@ -1950,8 +1950,7 @@ export function lightsMode(ed: Editor): LightsMode {
     const mb = cell && mergeBtn(L, cell);
     if (mb) ln.append(mb);
     if (todo(L) || queue().length || dirty(sess)) {
-      const more = !!nextInRoom() || queue().some(x => x !== L);
-      const label = more ? t('Next') : t('Confirm');
+      const label = t('Confirm'); // the owner: it confirms this light (and opens the next), so it says so
       const nx = el(
         `<button class="soft pri" title="${t('Confirm this light and go to the next')}">${label}</button>`,
       );
@@ -2101,6 +2100,12 @@ export function lightsMode(ed: Editor): LightsMode {
     // what it is, and "It's a light" makes a lamp of it (the owner's kids' room: its "Main light" was the panel's glow)
     const backlightEntities = haBacklights(ed.ha);
     const backlights = ed.ha.lights().filter(l => l.backlight && !L0.some(lamp => lamp.entity === l.entity));
+    // In the step a light confirmed has a green check at the end of its row (the owner: the confirmed ones were not told
+    // from the rest); one standing by guess (a draft) is the orange row still to check.
+    const confirmedMark = (L: PlanLight): string =>
+      wizOn() && L.placed && !L.draft && !L.with
+        ? `<span class="ok" title="${esc(t('Confirmed'))}">${icon('check', 14)}</span>`
+        : '';
     // a lamp on a backlight (one marked "It's a light", one placed before) says so: beside its relay of the same name
     const lampNote = (L: PlanLight): string => {
       const onBacklight = !!L.entity && backlightEntities.has(L.entity);
@@ -2168,7 +2173,7 @@ export function lightsMode(ed: Editor): LightsMode {
         for (const L of shownLamps) {
           const f = L.placed && !L.with ? formFor(L) : null;
           const row = el(
-            `<div class="row lamp ${todo(L) ? 'todo' : ''} ${L.id === sel().light || L === a ? 'sel' : ''}" data-id="${L.id}" title="${L.placed ? '' : t('Click to identify this light, or drag it onto the plan')}"><button class="bulb ib ${L.on ? 'on' : ''}" title="${t('Turn on / off')}">${icon(f ? 'f_' + f : 'bulb', 16)}</button><span class="name">${esc(L.name)}</span><small>${esc(lampNote(L))}</small></div>`,
+            `<div class="row lamp ${todo(L) ? 'todo' : ''} ${L.id === sel().light || L === a ? 'sel' : ''}" data-id="${L.id}" title="${L.placed ? '' : t('Click to identify this light, or drag it onto the plan')}"><button class="bulb ib ${L.on ? 'on' : ''}" title="${t('Turn on / off')}">${icon(f ? 'f_' + f : 'bulb', 16)}</button><span class="name">${esc(L.name)}</span><small>${esc(lampNote(L))}</small>${confirmedMark(L)}</div>`,
           );
           // the row's markup has its bulb button
           row.querySelector<HTMLElement>('.bulb')!.onclick = e => {

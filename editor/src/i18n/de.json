@@ -1873,6 +1873,7 @@
  "backlight": "Tastenlicht",
  "Confirm": "Bestätigen",
  "Confirm this light and go to the next": "Dieses Licht bestätigen und zum nächsten",
- "Check the light type and position, then press “Next”.": "Prüfe Lichttyp und Position und tippe dann auf „Weiter“.",
- "Check each light, then press “Next”.": "Prüfe jedes Licht und tippe dann auf „Weiter“."
+ "Check the light type and position, then press “Confirm”.": "Prüfe Lichttyp und Position und tippe dann auf „Bestätigen“.",
+ "Check each light, then press “Confirm”.": "Prüfe jedes Licht und tippe dann auf „Bestätigen“.",
+ "Confirmed": "Bestätigt"
 }

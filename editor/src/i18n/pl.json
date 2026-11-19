@@ -1873,6 +1873,7 @@
  "backlight": "podświetlenie",
  "Confirm": "Potwierdź",
  "Confirm this light and go to the next": "Potwierdź to światło i przejdź do następnego",
- "Check the light type and position, then press “Next”.": "Sprawdź rodzaj i położenie światła, a następnie naciśnij „Dalej”.",
- "Check each light, then press “Next”.": "Sprawdź każde światło, a następnie naciśnij „Dalej”."
+ "Check the light type and position, then press “Confirm”.": "Sprawdź rodzaj i położenie światła, a następnie naciśnij „Potwierdź”.",
+ "Check each light, then press “Confirm”.": "Sprawdź każde światło, a następnie naciśnij „Potwierdź”.",
+ "Confirmed": "Potwierdzone"
 }

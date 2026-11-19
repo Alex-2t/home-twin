@@ -1873,6 +1873,7 @@
  "backlight": "luz del panel",
  "Confirm": "Confirmar",
  "Confirm this light and go to the next": "Confirmar esta luz y pasar a la siguiente",
- "Check the light type and position, then press “Next”.": "Revisa el tipo y la posición de la luz y pulsa «Siguiente».",
- "Check each light, then press “Next”.": "Revisa cada luz y pulsa «Siguiente»."
+ "Check the light type and position, then press “Confirm”.": "Revisa el tipo y la posición de la luz y pulsa «Confirmar».",
+ "Check each light, then press “Confirm”.": "Revisa cada luz y pulsa «Confirmar».",
+ "Confirmed": "Confirmada"
 }

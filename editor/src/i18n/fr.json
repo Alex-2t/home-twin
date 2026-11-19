@@ -1873,6 +1873,7 @@
  "backlight": "rétroéclairage",
  "Confirm": "Confirmer",
  "Confirm this light and go to the next": "Confirmer ce luminaire et passer au suivant",
- "Check the light type and position, then press “Next”.": "Vérifiez le type et la position du luminaire, puis appuyez sur « Suivant ».",
- "Check each light, then press “Next”.": "Vérifiez chaque luminaire, puis appuyez sur « Suivant »."
+ "Check the light type and position, then press “Confirm”.": "Vérifiez le type et la position du luminaire, puis appuyez sur « Confirmer ».",
+ "Check each light, then press “Confirm”.": "Vérifiez chaque luminaire, puis appuyez sur « Confirmer ».",
+ "Confirmed": "Confirmé"
 }

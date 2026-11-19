@@ -1873,6 +1873,7 @@
  "backlight": "luce tasto",
  "Confirm": "Conferma",
  "Confirm this light and go to the next": "Conferma questa luce e passa alla successiva",
- "Check the light type and position, then press “Next”.": "Controlla il tipo e la posizione della luce, poi premi «Avanti».",
- "Check each light, then press “Next”.": "Controlla ogni luce, poi premi «Avanti»."
+ "Check the light type and position, then press “Confirm”.": "Controlla il tipo e la posizione della luce, poi premi «Conferma».",
+ "Check each light, then press “Confirm”.": "Controlla ogni luce, poi premi «Conferma».",
+ "Confirmed": "Confermata"
 }

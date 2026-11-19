@@ -1873,6 +1873,7 @@
  "backlight": "подсветка",
  "Confirm": "Подтвердить",
  "Confirm this light and go to the next": "Подтвердить этот свет и перейти к следующему",
- "Check the light type and position, then press “Next”.": "Проверьте вид и положение света и нажмите «Дальше».",
- "Check each light, then press “Next”.": "Проверьте каждый свет и нажмите «Дальше»."
+ "Check the light type and position, then press “Confirm”.": "Проверьте вид и положение света и нажмите «Подтвердить».",
+ "Check each light, then press “Confirm”.": "Проверьте каждый свет и нажмите «Подтвердить».",
+ "Confirmed": "Подтверждено"
 }

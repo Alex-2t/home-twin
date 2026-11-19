@@ -1873,6 +1873,7 @@
  "backlight": "paneellicht",
  "Confirm": "Bevestigen",
  "Confirm this light and go to the next": "Deze lamp bevestigen en naar de volgende",
- "Check the light type and position, then press “Next”.": "Controleer het type en de positie van de lamp en druk op ‘Volgende’.",
- "Check each light, then press “Next”.": "Controleer elke lamp en druk op ‘Volgende’."
+ "Check the light type and position, then press “Confirm”.": "Controleer het type en de positie van de lamp en druk op ‘Bevestigen’.",
+ "Check each light, then press “Confirm”.": "Controleer elke lamp en druk op ‘Bevestigen’.",
+ "Confirmed": "Bevestigd"
 }
