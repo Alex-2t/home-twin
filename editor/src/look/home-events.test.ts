@@ -232,6 +232,27 @@ test('live: clicks in a row settle into one event, back-and-forth into none', ()
   assert.deepEqual(result.notes, []);
 });
 
+test('a lamp of the plan alone (no device to bounce) is told at once, without settling', () => {
+  const lamp: EventItem = {
+    key: 'lamp:l1',
+    entity: null,
+    kind: 'light',
+    name: 'Table lamp',
+    room: 'Bedroom',
+    icon: 'lamp',
+  };
+  let state = 'off';
+  const read = (): EventState => ({state});
+  const first = homeEvents(null, read, [lamp], {now: 0});
+  state = 'on';
+  const result = homeEvents(first.snapshot, read, [lamp], {now: 100});
+  assert.deepEqual(
+    result.notes.map(note => note.title),
+    ['Table lamp: on'],
+  );
+  assert.equal(result.pending.size, 0);
+});
+
 test('a lamp of the plan alone is read like any other', () => {
   const lamp: EventItem = {
     key: 'lamp:L1',

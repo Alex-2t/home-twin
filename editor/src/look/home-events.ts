@@ -18,8 +18,10 @@ export const BURST = 3;
 export const RUN_MEMORY_MS = 3600e3;
 // One device's changes settle first: clicks in a row and relay bounce — “on-off-on” within a second, as Sonoff relays do when the
 // state comes both over the network and from the cloud — make one event with the result, and none if the device came back where it
-// was. Until the series ends the notification waits. The water valve, CO₂ and alerts do not wait.
-export const SETTLE_MS = 5000;
+// was. Until the series ends the notification waits. The water valve, CO₂ and alerts do not wait, nor a lamp of the plan alone
+// (no device to bounce), nor anything in the demo (editor/look-notes.ts settles it in 0). 1.5 s, was 5 s (the owner, 2026-11-19:
+// a light switched from the card said nothing for so long that it looked broken); a bounce is over within a second.
+export const SETTLE_MS = 1500;
 
 /** What a device in the catalog is, for its events. */
 export type EventKind = 'light' | 'cover' | 'climate' | 'water' | 'alert' | 'link' | 'vacuum' | 'co2';
@@ -85,7 +87,7 @@ export interface HomeEventsResult {
   notes: NoteDraft[];
 }
 
-/** The valve, alerts and CO₂ do not settle and are never folded into a summary. */
+/** The valve, alerts and CO₂ do not settle and are never folded into a summary; a lamp with no entity does not settle either. */
 const IMMEDIATE = new Set<EventKind>(['water', 'alert', 'co2']);
 
 /**
@@ -331,7 +333,7 @@ export function homeEvents(
     const auto = item.kind !== 'link' && changeOrigin(current?.context, runs) === 'automation';
     const contextId = current?.context?.id;
     const by = auto && contextId ? runs?.get(contextId)?.name || null : null;
-    if (IMMEDIATE.has(item.kind)) {
+    if (IMMEDIATE.has(item.kind) || !item.entity) {
       const change = settled({item, from: before, to: value, at: now, auto, by});
       if (change) ready.push(change);
       continue;

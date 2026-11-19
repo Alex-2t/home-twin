@@ -142,12 +142,14 @@ export function createNotes(source: NotesSource): NotesPanel {
     lastCatalog = catalog;
     const first = !snapshot;
     runs = automationRuns(runs, automations());
-    const result = homeEvents(snapshot, source.read, catalog, {runs, pending});
+    // the demo shows a change at once: its devices are ours, nothing bounces, and the visitor clicks to see what happens
+    const settleMs = isDemo() ? 0 : SETTLE_MS;
+    const result = homeEvents(snapshot, source.read, catalog, {runs, pending, settleMs});
     snapshot = result.snapshot;
     pending = result.pending;
     // a series of clicks has ended, and no new look comes — finish it by the clock
     clearTimeout(settleTimer);
-    if (pending.size) settleTimer = setTimeout(() => collect(), SETTLE_MS + 50);
+    if (pending.size) settleTimer = setTimeout(() => collect(), settleMs + 50);
     if (result.notes.length) add(result.notes);
     if (first && !historyLoaded) {
       historyLoaded = true;
