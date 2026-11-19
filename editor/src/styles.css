@@ -781,7 +781,7 @@ a.aib-link{color:var(--acc);font-size:12.5px;font-weight:500;text-decoration:non
 .aib-showcase-sub{margin:2px 0 12px;color:var(--mut);font-size:13px;line-height:1.4}
 .aib-showcase-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px}
 a.gcard{color:var(--tx);text-decoration:none}
-.aib-showcase-open{position:absolute;top:8px;left:8px;display:inline-flex;align-items:center;gap:4px;height:22px;padding:0 8px;border-radius:99px;font-size:11.5px;font-weight:600;color:#fff;
+.aib-showcase-open{position:absolute;top:8px;right:8px;display:inline-flex;align-items:center;gap:4px;height:22px;padding:0 8px;border-radius:99px;font-size:11.5px;font-weight:600;color:#fff;
   background:rgba(14,16,26,.6);-webkit-backdrop-filter:blur(8px);backdrop-filter:blur(8px);box-shadow:inset 0 0 0 1px rgba(255,255,255,.18);opacity:0;transition:opacity .15s}
 .aib-showcase-open .ic{color:#c4b5fd}
 a.aib-showcase-card:hover .aib-showcase-open,a.aib-showcase-card:focus-visible .aib-showcase-open{opacity:1}
@@ -789,7 +789,7 @@ a.aib-showcase-card:hover .aib-showcase-open,a.aib-showcase-card:focus-visible .
 @media (hover:none){.aib-showcase-open{opacity:1}}
 @media (max-width:640px){.aib-why{margin-top:22px;padding-top:18px;gap:18px}
   .aib-gains{grid-template-columns:minmax(0,1fr);gap:8px}.aib-gains li{padding:10px 12px}
-  .aib-showcase-grid{grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}.aib-showcase-card:nth-child(n+3){display:none}}
+  .aib-showcase-grid{grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}.aib-showcase-open{display:none}}
 /* the pages of a plan PDF to pick the plan from (plan-pages.ts, D-131): a grid, the picked page larger beside it */
 .aib-pages{width:min(880px,100%);max-height:min(720px,calc(100vh - 32px));display:flex;flex-direction:column;gap:10px;padding:16px 18px;border-radius:18px;background:var(--panel-solid);border:1px solid var(--line);box-shadow:var(--sh-lg);animation:aib-pop .25s ease-out}
 .aib-pages header{display:flex;align-items:center;gap:8px}.aib-pages header b{flex:1;font-size:17px;font-weight:600;letter-spacing:-.01em}.aib-pages header .ib{color:var(--mut)}

@@ -1,17 +1,47 @@
 // What the AI build gives, on its upload page under the sign-in, the package or the files (the owner, 2026-11-19: people did
-// not see why they would use it). Three short gains, and a row of homes the AI built that open in 3D in a new tab, so the
-// result can be tried before paying. The homes are the gallery's (gallery.ts): on our site the list beside the page, in Home
-// Assistant the one on our site (the panel has no gallery of its own). No list (offline, local work): the row stays hidden.
-import {t} from '../i18n/i18n.ts';
+// not see why they would use it). Three short gains, and a row of homes that open in 3D in a new tab, so the result can be
+// tried before paying: three of the editor's examples the owner picked (they look best) and three homes the AI built, marked
+// so. Both lists come from our service: the examples' list the editor's build publishes (showcase/examples.json, D-116) and
+// the gallery's (gallery/index.json, D-113); in Home Assistant through the integration's proxy (ai.py), as the build's other
+// requests. The homes open on our site: this page's editor there, our site's in Home Assistant (the panel has no examples).
+// Neither list (offline, local work): the row stays hidden.
+import {getLang, t} from '../i18n/i18n.ts';
 import {icon} from './icons.ts';
 import {esc} from './ui.ts';
 import {cardPicture, factsLine, fetchGallery} from './gallery.ts';
 import type {GalleryHome} from './gallery.ts';
 
-/** Our site, where the gallery is for Home Assistant's panel (as the start screen's "See example homes"). */
+/** Our site, where the homes open from Home Assistant's panel (as the start screen's "See example homes"). */
 const ONLINE_EDITOR = 'https://twin.sync.md/';
-/** How many homes the row shows: a row of the page's width. */
-const SHOWN_HOMES = 3;
+/** The examples the row shows first, in this order (the owner, 2026-11-19): the loft, the studio, the period apartment. */
+const SHOWN_EXAMPLES = ['loft', 'studio', 'altbau'];
+/** How many homes the AI built the row shows after the examples. */
+const SHOWN_AI_HOMES = 3;
+/** How long the lists are waited for before the row goes on without them. */
+const FETCH_TIMEOUT_MS = 8000;
+// What an example's id, render and address may be: a plain name beside the list, an address inside the editor.
+const EXAMPLE_ID = /^[a-z0-9][a-z0-9-]{0,63}$/;
+const EXAMPLE_RENDER = /^[a-z0-9][a-z0-9-]*\.(webp|jpg|jpeg|png)$/;
+const EXAMPLE_OPEN = /^#\/example\/[a-z0-9-]+\/?$/;
+
+/** A card of the row: its picture, name and facts, where it opens, and whether the AI built it. */
+export interface ShowcaseHome {
+  id: string;
+  name: string;
+  area: number;
+  rooms: number;
+  render: string | null;
+  /** The address inside the editor it opens at ("#/example/loft/", "#/home/<id>"). */
+  open: string;
+  aiBuilt: boolean;
+}
+
+/** Where the lists are read and the homes opened. */
+export interface ShowcasePlace {
+  /** The service's address the lists are read from: '' on our site, the integration's proxy in Home Assistant. */
+  api: string;
+  inHa: boolean;
+}
 
 /** One gain: its icon, its title and the line under it. */
 interface Gain {
@@ -55,7 +85,7 @@ export function gainsHtml(inHa: boolean): string {
   return `<ul class="aib-gains" aria-label="${esc(t('What you get'))}">${items.join('')}</ul>`;
 }
 
-/** Where the editor this showcase links to is: this page's on our site, our site's in Home Assistant. */
+/** Where the editor the homes open in is: this page's on our site, our site's in Home Assistant. */
 function editorAddress(inHa: boolean): string {
   if (inHa) return ONLINE_EDITOR;
   return location.origin + location.pathname;
@@ -66,45 +96,118 @@ export function showcaseHtml(inHa: boolean): string {
   const all = editorAddress(inHa) + '#/gallery';
   return `<section class="aib-showcase" hidden>
       <div class="aib-showcase-head">
-        <b>${esc(t('Homes built by AI'))}</b>
+        <b>${esc(t('Try it in 3D'))}</b>
         <a class="aib-link" href="${esc(all)}" target="_blank" rel="noopener">${esc(t('All homes'))}${icon('right', 14)}</a>
       </div>
-      <p class="aib-showcase-sub">${esc(t('Open one in 3D and look around before you try.'))}</p>
+      <p class="aib-showcase-sub">${esc(t('Open any home and look around. The ones built by AI came from just a plan and a video.'))}</p>
       <div class="aib-showcase-grid"></div>
     </section>`;
 }
 
-/** The homes the row shows: those with a picture, a house among them when there is one, in the list's order. */
-export function showcaseHomes(homes: GalleryHome[]): GalleryHome[] {
+/** A value of a list that is a record. */
+const isRecord = (value: unknown): value is Record<string, unknown> =>
+  typeof value === 'object' && value !== null && !Array.isArray(value);
+
+/** An example's name in the page's language, else in English; the list gives one per language. */
+function exampleName(names: unknown): string | null {
+  if (typeof names === 'string') return names.trim() || null;
+  if (!isRecord(names)) return null;
+  const name = names[getLang()] ?? names.en;
+  return typeof name === 'string' && name.trim() ? name.trim().slice(0, 80) : null;
+}
+
+/**
+ * The examples' list (showcase/examples.json) read into cards: only the ids asked for, in their order; `base` is the list's
+ * own address, which the renders are beside. An entry that is not well formed is left out.
+ */
+export function parseShowcaseExamples(data: unknown, base: string, ids: string[]): ShowcaseHome[] {
+  if (!Array.isArray(data)) return [];
+  const homes: ShowcaseHome[] = [];
+  for (const id of ids) {
+    const entry = data.find(item => isRecord(item) && item.id === id);
+    if (!isRecord(entry) || !EXAMPLE_ID.test(id)) continue;
+    const name = exampleName(entry.name);
+    const {area, rooms, render, open} = entry;
+    if (!name) continue;
+    if (typeof area !== 'number' || !Number.isFinite(area) || area <= 0) continue;
+    if (typeof rooms !== 'number' || !Number.isInteger(rooms) || rooms < 0) continue;
+    if (typeof open !== 'string' || !EXAMPLE_OPEN.test(open)) continue;
+    const renderOk = typeof render === 'string' && EXAMPLE_RENDER.test(render);
+    homes.push({
+      id,
+      name,
+      area,
+      rooms,
+      render: renderOk ? new URL(render, base).href : null,
+      open,
+      aiBuilt: false,
+    });
+  }
+  return homes;
+}
+
+/** The examples' list; none (not there, offline, too slow): no cards, no error. */
+async function fetchExamples(listUrl: string): Promise<ShowcaseHome[]> {
+  try {
+    const answer = await fetch(listUrl, {signal: AbortSignal.timeout(FETCH_TIMEOUT_MS)});
+    if (!answer.ok) return [];
+    const base = answer.url || new URL(listUrl, location.href).href;
+    return parseShowcaseExamples(await answer.json(), base, SHOWN_EXAMPLES);
+  } catch {
+    return [];
+  }
+}
+
+/** The gallery's homes the row shows: those with a picture, a house among them when there is one, in the list's order. */
+export function showcaseAiHomes(homes: GalleryHome[]): ShowcaseHome[] {
   const pictured = homes.filter(home => home.render);
   const house = pictured.find(home => home.kind === 'house');
   const others = pictured.filter(home => home !== house);
-  const chosen = others.slice(0, house ? SHOWN_HOMES - 1 : SHOWN_HOMES);
+  const chosen = others.slice(0, house ? SHOWN_AI_HOMES - 1 : SHOWN_AI_HOMES);
   if (house) chosen.push(house);
-  return chosen;
+  return chosen.map(home => ({
+    id: home.id,
+    name: home.name,
+    area: home.area,
+    rooms: home.rooms,
+    render: home.render,
+    open: '#/home/' + encodeURIComponent(home.id),
+    aiBuilt: true,
+  }));
 }
 
-/** A home's card: its picture, name and facts; a click opens it in 3D in a new tab (route.ts #/home/<id>). */
-function homeCard(home: GalleryHome, inHa: boolean): string {
-  const address = editorAddress(inHa) + '#/home/' + encodeURIComponent(home.id);
+/** A home's card: its picture, name and facts, "Built by AI" on one the AI built; a click opens it in 3D in a new tab. */
+function homeCard(home: ShowcaseHome, inHa: boolean): string {
+  const address = editorAddress(inHa) + home.open;
+  const badge = home.aiBuilt
+    ? `<span class="gcard-ai">${icon('sparkles', 12)}<span>${esc(t('Built by AI'))}</span></span>`
+    : '';
   return (
     `<a class="gcard aib-showcase-card" href="${esc(address)}" target="_blank" rel="noopener" title="${esc(t('Open in 3D'))}">` +
-    `<span class="gcard-pic">${cardPicture(home)}</span>` +
+    `<span class="gcard-pic">${cardPicture(home)}</span>${badge}` +
     `<span class="aib-showcase-open">${icon('box', 12)}<span>${esc(t('Open in 3D'))}</span></span>` +
     `<span class="gcard-text"><b>${esc(home.name)}</b><span>${esc(factsLine(home))}</span></span></a>`
   );
 }
 
-// The list is asked for once a page: the upload page is drawn again on each visit, the list does not change meanwhile.
-let galleryAsked: Promise<GalleryHome[]> | null = null;
+// The lists are asked for once a page: the upload page is drawn again on each visit, the lists do not change meanwhile.
+let homesAsked: Promise<ShowcaseHome[]> | null = null;
+
+/** The row's homes: the examples first, then the homes the AI built. */
+function showcaseHomes(api: string): Promise<ShowcaseHome[]> {
+  homesAsked ??= Promise.all([
+    fetchExamples(`${api}/showcase/examples.json`),
+    fetchGallery(`${api}/gallery/index.json`),
+  ]).then(([examples, gallery]) => [...examples, ...showcaseAiHomes(gallery)]);
+  return homesAsked;
+}
 
 /** Finds the homes and shows them in the row inside `root` (showcaseHtml); none found: the row stays hidden. */
-export async function fillShowcase(root: HTMLElement, inHa: boolean): Promise<void> {
-  galleryAsked ??= fetchGallery(new URL('gallery/index.json', editorAddress(inHa)).href);
-  const homes = showcaseHomes(await galleryAsked);
+export async function fillShowcase(root: HTMLElement, place: ShowcasePlace): Promise<void> {
+  const homes = await showcaseHomes(place.api);
   const box = root.querySelector<HTMLElement>('.aib-showcase');
   const grid = box?.querySelector<HTMLElement>('.aib-showcase-grid');
   if (!box || !grid || !homes.length) return;
-  grid.innerHTML = homes.map(home => homeCard(home, inHa)).join('');
+  grid.innerHTML = homes.map(home => homeCard(home, place.inHa)).join('');
   box.hidden = false;
 }

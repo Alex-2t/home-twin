@@ -1987,7 +1987,7 @@ export function openAiBuild(ed: Editor, options: AiBuildOptions = {}): AiBuildSc
         </main>
       </div>`;
     find(root, '.aib-head').append(newHeadBar(false));
-    fillShowcase(root, inHa);
+    fillShowcase(root, {api, inHa});
     const start = find<HTMLButtonElement>(root, '[data-act=start]');
     for (const place of [find(root, '.aib-go-account'), find(root, '.aib-gate')]) {
       place.addEventListener('click', e => {
