@@ -18,6 +18,7 @@ import type {
   HassDeviceEntry,
   HassMessage,
 } from '../core/types.ts';
+import {isSwitchBacklight} from '../core/switch-light.ts';
 import type {PhotoStore} from './underlay.ts';
 import type {RemoteSaveState} from './editor-types.ts';
 
@@ -228,11 +229,26 @@ export function liveHA(initial: Hass): LiveHaLayer {
           humidity_entity_id: a.humidity_entity_id || null,
         }))
         .sort((a, b) => a.name.localeCompare(b.name)),
-    lights: () =>
-      ofDomain('light')
+    lights: () => {
+      // the devices with a relay on them: a light of one of them may be the switch's own backlight (switch-light.ts)
+      const relayDevices = new Set(
+        ofDomain('switch')
+          .filter(shown)
+          .map(e => reg(e)?.device_id)
+          .filter(Boolean),
+      );
+      return ofDomain('light')
         .filter(shown)
         .map(e => {
-          const members = hass.states[e].attributes.entity_id;
+          const attributes = hass.states[e].attributes;
+          const members = attributes.entity_id;
+          const device = reg(e)?.device_id;
+          const onRelayDevice = !!device && relayDevices.has(device);
+          const backlight = isSwitchBacklight(
+            attributes.supported_color_modes,
+            attributes.effect_list,
+            onRelayDevice,
+          );
           return {
             id: e.slice(6),
             entity: e,
@@ -240,8 +256,10 @@ export function liveHA(initial: Hass): LiveHaLayer {
             area: areaOf(e),
             color: '#ffce87',
             ...(Array.isArray(members) ? {members} : {}),
+            ...(backlight ? {backlight} : {}),
           };
-        }),
+        });
+    },
     switches: () =>
       ofDomain('switch')
         .filter(shown)

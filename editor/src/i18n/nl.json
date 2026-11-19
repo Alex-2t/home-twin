@@ -1868,5 +1868,7 @@
  "All homes": "Alle woningen",
  "Open in 3D": "Openen in 3D",
  "Try it in 3D": "Probeer het in 3D",
- "Open any home and look around before you try.": "Open een woning en kijk rond voordat je het probeert."
+ "Open any home and look around before you try.": "Open een woning en kijk rond voordat je het probeert.",
+ "The glow of the wall switch’s own panel, not the room’s light: that one is its switch.": "De gloed van het schakelpaneel zelf, niet het licht van de kamer: dat is zijn schakelaar.",
+ "backlight": "paneellicht"
 }

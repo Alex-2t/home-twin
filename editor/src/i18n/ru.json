@@ -1868,5 +1868,7 @@
  "All homes": "Все дома",
  "Open in 3D": "Открыть в 3D",
  "Try it in 3D": "Попробуйте в 3D",
- "Open any home and look around before you try.": "Откройте любой дом и осмотритесь, прежде чем пробовать."
+ "Open any home and look around before you try.": "Откройте любой дом и осмотритесь, прежде чем пробовать.",
+ "The glow of the wall switch’s own panel, not the room’s light: that one is its switch.": "Подсветка самой панели выключателя, а не свет комнаты. Свет комнаты — это её выключатель.",
+ "backlight": "подсветка"
 }

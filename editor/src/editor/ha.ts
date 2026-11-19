@@ -50,6 +50,7 @@
 //   areasUrl    — where to add an area: in HA — '/config/areas/dashboard', outside — a My Home Assistant link,
 //                 which opens the areas page in the user's own HA.
 // Until HA is connected — demo data (mockHA).
+import {giveSeenBack} from '../core/seen-lamps.ts';
 import {demoStatistics, demoStateHistory} from './ha-demo.ts';
 import {COVER_TRAVEL_MS, DEFAULT_MAX_TEMP_C, DEFAULT_MIN_TEMP_C, coverModel} from '../core/devices.ts';
 import type {
@@ -105,19 +106,43 @@ export type DemoWeather = HaWeather & {temperature: number; feels: number; sunri
 // An entity that is missing right now is no reason to erase its placement from the saved file.
 // HA lamps as plan lamps, not placed yet. An HA light group (it has a member list) whose lamps are also in the list is not placed
 // on the plan — the lamps themselves are.
+// A wall switch's backlight is no lamp of the plan either (switch-light.ts isSwitchBacklight): the Lights list folds it with the
+// switches, "It's a light" makes a lamp of it.
 export function haPlanLights(ha: Pick<HaLayer, 'lights'>): PlanLight[] {
   const all = ha.lights();
   const ids = new Set(all.map(l => l.entity));
   return all
     .filter(l => !l.members?.some(id => ids.has(id)))
+    .filter(l => !l.backlight)
     .map(l => ({...l, on: true, placed: false, points: [], segments: [], room: null}));
 }
 
+/** The entities of the wall switches' backlights HA has now (they are no lamps of the plan: haPlanLights). */
+export function haBacklights(ha: Pick<HaLayer, 'lights'>): Set<string> {
+  const backlights = ha
+    .lights()
+    .filter(l => l.backlight)
+    .map(l => l.entity);
+  return new Set(backlights);
+}
+
+// A backlight's lamp the owner has not chosen (an older plan made one of every light; the guided step put one in a seen
+// lamp's place, a draft) leaves the plan, the seen lamps it held coming back as they were (the owner's kids' room: its
+// "Main light" on the switch panel's glow, its relay listed beside it). One placed and confirmed, or marked "It's a light", stays.
+function dropBacklight(lamp: PlanLight, backlights: Set<string>): boolean {
+  if (!lamp.entity || !backlights.has(lamp.entity) || lamp.backlight) return false;
+  return !lamp.placed || !!lamp.draft;
+}
+
 export function mergePlanLights(
-  saved: PlanLight[],
+  savedLights: PlanLight[],
   current: PlanLight[],
   switches: HaSwitch[] = [],
+  backlights: Set<string> = new Set(),
 ): PlanLight[] {
+  const dropped = savedLights.filter(lamp => dropBacklight(lamp, backlights));
+  const saved = savedLights.filter(lamp => !dropped.includes(lamp));
+  for (const lamp of dropped) giveSeenBack(saved, lamp);
   const live = [
     ...current,
     ...saved

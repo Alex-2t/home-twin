@@ -45,6 +45,7 @@ import {
 import type {Contour, LampCell, StripRuns} from '../../core/fixtures.ts';
 import {autoPlace, bindSeenLamp, placeLight} from '../../core/light-place.ts';
 import {switchLightScore} from '../../core/switch-light.ts';
+import {haBacklights} from '../ha.ts';
 import {giveSeenBack, isSeenLamp, settleSeen} from '../../core/seen-lamps.ts';
 import {moved, slideAlongWall} from '../nudge.ts';
 import {$, el, esc, fmtArea, parseLen, scrollRow, section, tip, tipHide} from '../ui.ts';
@@ -2067,6 +2068,15 @@ export function lightsMode(ed: Editor): LightsMode {
     const a = asking();
     // area switches that are not lamps yet: lights on a relay (Sonoff, Aqara) — in HA this is a switch, not a light
     const relays = (ed.ha.switches?.() || []).filter(w => !L0.some(l => l.entity === w.entity));
+    // a wall switch's own backlight (switch-light.ts) is no lamp of the plan: it is folded with the other switches, named
+    // what it is, and "It's a light" makes a lamp of it (the owner's kids' room: its "Main light" was the panel's glow)
+    const backlightEntities = haBacklights(ed.ha);
+    const backlights = ed.ha.lights().filter(l => l.backlight && !L0.some(lamp => lamp.entity === l.entity));
+    // a lamp on a backlight (one marked "It's a light", one placed before) says so: beside its relay of the same name
+    const lampNote = (L: PlanLight): string => {
+      const onBacklight = !!L.entity && backlightEntities.has(L.entity);
+      return onBacklight ? `${status(L)} · ${t('backlight')}` : status(L);
+    };
     // a lamp the AI build saw has no HA area: it is listed with its room's lights, next to the one it may be
     const listArea = (l: PlanLight): string =>
       l.area || (isSeenLamp(l) ? roomById(plan(), l.room)?.area : '') || '';
@@ -2099,7 +2109,12 @@ export function lightsMode(ed: Editor): LightsMode {
       const q = lightQuery.trim().toLocaleLowerCase();
       const has = (text: string): boolean => text.toLocaleLowerCase().includes(q);
       let found = false;
-      for (const ar of ed.sortAreas(new Set([...L0.map(listArea), ...relays.map(w => w.area || '')]))) {
+      const areasListed = [
+        ...L0.map(listArea),
+        ...relays.map(w => w.area || ''),
+        ...backlights.map(l => l.area || ''),
+      ];
+      for (const ar of ed.sortAreas(new Set(areasListed))) {
         const lamps = L0.filter(l => listArea(l) === ar);
         const done = lamps.filter(l => !todo(l)).length;
         const away = !!ar && !ed.areaOnPlan(ar);
@@ -2108,7 +2123,9 @@ export function lightsMode(ed: Editor): LightsMode {
         const shownLamps = wholeArea ? lamps : lamps.filter(l => has(l.name ?? ''));
         const areaRelays = relays.filter(w => (w.area || '') === ar);
         const matchedRelays = wholeArea ? areaRelays : areaRelays.filter(w => has(w.name));
-        if (q && !shownLamps.length && !matchedRelays.length) continue;
+        const areaBacklights = backlights.filter(l => (l.area || '') === ar);
+        const matchedBacklights = wholeArea ? areaBacklights : areaBacklights.filter(l => has(l.name));
+        if (q && !shownLamps.length && !matchedRelays.length && !matchedBacklights.length) continue;
         found = true;
         const body = section(list, 'zone:' + ar, areaTitle, {
           count: `${done}/${lamps.length}`,
@@ -2122,7 +2139,7 @@ export function lightsMode(ed: Editor): LightsMode {
         for (const L of shownLamps) {
           const f = L.placed && !L.with ? formFor(L) : null;
           const row = el(
-            `<div class="row lamp ${todo(L) ? 'todo' : ''} ${L.id === sel().light || L === a ? 'sel' : ''}" data-id="${L.id}" title="${L.placed ? '' : t('Click to identify this light, or drag it onto the plan')}"><button class="bulb ib ${L.on ? 'on' : ''}" title="${t('Turn on / off')}">${icon(f ? 'f_' + f : 'bulb', 16)}</button><span class="name">${esc(L.name)}</span><small>${esc(status(L))}</small></div>`,
+            `<div class="row lamp ${todo(L) ? 'todo' : ''} ${L.id === sel().light || L === a ? 'sel' : ''}" data-id="${L.id}" title="${L.placed ? '' : t('Click to identify this light, or drag it onto the plan')}"><button class="bulb ib ${L.on ? 'on' : ''}" title="${t('Turn on / off')}">${icon(f ? 'f_' + f : 'bulb', 16)}</button><span class="name">${esc(L.name)}</span><small>${esc(lampNote(L))}</small></div>`,
           );
           // the row's markup has its bulb button
           row.querySelector<HTMLElement>('.bulb')!.onclick = e => {
@@ -2158,8 +2175,9 @@ export function lightsMode(ed: Editor): LightsMode {
         const areaSwitches = matchedRelays
           .map(w => ({w, score: switchLightScore(w.name)}))
           .sort((a, b) => b.score - a.score);
-        const folded = q ? [] : areaSwitches.filter(x => x.score < 0);
-        const shown = q || otherSwitchesOpen.has(ar) ? areaSwitches : areaSwitches.filter(x => x.score >= 0);
+        const opened = !!q || otherSwitchesOpen.has(ar);
+        const folded = q ? 0 : areaSwitches.filter(x => x.score < 0).length + areaBacklights.length;
+        const shown = opened ? areaSwitches : areaSwitches.filter(x => x.score >= 0);
         for (const {w} of shown) {
           const row = el(
             `<div class="row relay" title="${t('A light on this switch? Add it as a light')}"><span class="name">${esc(w.name)}</span><small>${t('switch')}</small><button class="soft">${t("It's a light")}</button></div>`,
@@ -2183,10 +2201,33 @@ export function lightsMode(ed: Editor): LightsMode {
           };
           body.appendChild(row);
         }
-        if (folded.length) {
+        for (const light of opened ? matchedBacklights : []) {
+          const row = el(
+            `<div class="row relay" title="${esc(t('The glow of the wall switch’s own panel, not the room’s light: that one is its switch.'))}"><span class="name">${esc(light.name)}</span><small>${t('backlight')}</small><button class="soft">${t("It's a light")}</button></div>`,
+          );
+          // the row's markup has its button
+          row.querySelector('button')!.onclick = () => {
+            L0.push({
+              id: light.id,
+              entity: light.entity,
+              name: light.name,
+              area: light.area,
+              backlight: true,
+              color: light.color,
+              on: true,
+              placed: false,
+              points: [],
+              segments: [],
+              room: null,
+            });
+            ed.commit();
+          };
+          body.appendChild(row);
+        }
+        if (folded) {
           const open = otherSwitchesOpen.has(ar);
           const more = el(
-            `<button class="row relay-more">${icon(open ? 'up' : 'down', 13)}<span>${esc(open ? t('Fewer switches') : t('Other switches · {0}', folded.length))}</span></button>`,
+            `<button class="row relay-more">${icon(open ? 'up' : 'down', 13)}<span>${esc(open ? t('Fewer switches') : t('Other switches · {0}', folded))}</span></button>`,
           );
           more.onclick = () => {
             if (open) otherSwitchesOpen.delete(ar);

@@ -24,7 +24,7 @@ import {createHistory} from './history.ts';
 import {idbStore} from './idb.ts';
 import {createVersions} from './versions.ts';
 import {openVersions} from './versions-panel.ts';
-import {mergePlanLights} from './ha.ts';
+import {haBacklights, mergePlanLights} from './ha.ts';
 import {createUnderlay} from './underlay.ts';
 import {drawPlan, drawGuides, readPalette} from './draw.ts';
 import {icon, fillIcons} from './icons.ts';
@@ -451,7 +451,7 @@ export function createApp({haLights, ha, photos}: AppOptions): Editor {
   // Lamps “from Home Assistant”: the list comes from HA (for now — demo data), the plan stores only their place.
   // The placement is kept even for entities that are not in the HA list right now.
   const mergeLights = (saved: PlanLight[]): PlanLight[] =>
-    mergePlanLights(saved, haLights(), ha.switches?.() || []);
+    mergePlanLights(saved, haLights(), ha.switches?.() || [], haBacklights(ha));
   ed.setPlan = (plan, {fit = true} = {}) => {
     ed.cancelDrag?.();
     ed.capture = null;

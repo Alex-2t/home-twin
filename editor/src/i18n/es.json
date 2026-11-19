@@ -1868,5 +1868,7 @@
  "All homes": "Todas las casas",
  "Open in 3D": "Abrir en 3D",
  "Try it in 3D": "Pruébalo en 3D",
- "Open any home and look around before you try.": "Abre cualquier casa y recórrela antes de probar."
+ "Open any home and look around before you try.": "Abre cualquier casa y recórrela antes de probar.",
+ "The glow of the wall switch’s own panel, not the room’s light: that one is its switch.": "El brillo del propio panel del interruptor, no la luz de la habitación: esa es su interruptor.",
+ "backlight": "luz del panel"
 }

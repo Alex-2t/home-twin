@@ -438,6 +438,8 @@ export interface PlanLight {
   members?: string[];
   /** A switch marked "It's a light". */
   relay?: boolean;
+  /** A wall switch's backlight marked "It's a light" (it is no lamp of the plan until then: switch-light.ts). */
+  backlight?: boolean;
   /**
    * The AI build put it in a room no lamp was seen in (a ceiling light in the middle): not a lamp of the home, a stand-in for
    * one. Any HA light placed in its room takes it off the plan, whatever its form (light-place.ts).
@@ -1016,6 +1018,8 @@ export interface HassAttributes {
   brightness?: number;
   /** light: 'onoff', 'brightness', 'color_temp', 'hs', 'rgb'…; anything but 'onoff' can be dimmed */
   supported_color_modes?: string[];
+  /** light: the effects it can play ("Night Light", "Party"…) */
+  effect_list?: string[];
   color_mode?: string;
   /** cover: 0 closed … 100 open */
   current_position?: number;
@@ -1130,6 +1134,8 @@ export interface HaLamp {
   model?: string;
   /** A light group: its members' entity ids. */
   members?: string[];
+  /** The backlight of a wall switch's own panel (switch-light.ts isSwitchBacklight): not a lamp of the room. */
+  backlight?: boolean;
   /** Demo only: a shape hint. */
   kind?: LightKind;
   /** Demo only: the mounting height, metres. */

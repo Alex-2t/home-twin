@@ -5,7 +5,7 @@ import {createUnderlay} from './underlay.ts';
 import {emptyPlan, addRoom, addOpening, scalePlan, rotatePlan} from '../core/plan.ts';
 import {readPlan} from '../core/plan-file.ts';
 import {setCeiling} from '../core/ceiling.ts';
-import {mergePlanLights} from './ha.ts';
+import {haBacklights, haPlanLights, mergePlanLights} from './ha.ts';
 import type {Plan, PlanLight} from '../core/types.ts';
 import type {StoreOp} from './idb.ts';
 
@@ -190,6 +190,62 @@ test('loading keeps lights whose entity is missing in HA; a returning entity kee
   assert.equal(merged[1].id, 'relay');
   assert.equal(merged[1].name, 'New relay');
   assert.deepEqual(merged[1].points, [[1, 1]]);
+});
+
+test("a wall switch's backlight is no lamp of the plan until it is chosen; a draft on it gives its seen lamp back", () => {
+  const ha = {
+    lights: () => [
+      {
+        id: 'panel',
+        entity: 'light.panel',
+        name: 'Main light',
+        area: 'kids',
+        color: '#ffce87',
+        backlight: true,
+      },
+      {id: 'lamp', entity: 'light.lamp', name: 'Lamp', area: 'kids', color: '#ffce87'},
+    ],
+  };
+  const current = haPlanLights(ha);
+  assert.deepEqual(
+    current.map(l => l.entity),
+    ['light.lamp'],
+  );
+  const backlights = haBacklights(ha);
+  const seen = {
+    id: 'r5_light',
+    name: 'Pendant',
+    placed: true,
+    points: [[11, 3]],
+    segments: [],
+    room: 'r5',
+  } as PlanLight;
+  // the guided step put the backlight in the seen pendant's place, not confirmed (a draft)
+  const draft = {
+    id: 'panel',
+    entity: 'light.panel',
+    name: 'Main light',
+    placed: true,
+    draft: true,
+    points: [[10, 3]],
+    segments: [],
+    room: 'r5',
+    seen: [seen],
+  } as PlanLight;
+  const merged = mergePlanLights([draft], current, [], backlights);
+  assert.deepEqual(
+    merged.map(l => l.id),
+    ['lamp', 'r5_light'],
+  );
+  assert.deepEqual(merged[1].points, [[11, 3]]);
+  // one placed and confirmed, or marked "It's a light", stays
+  const confirmed = {...draft, draft: false, seen: undefined};
+  assert.ok(mergePlanLights([confirmed], current, [], backlights).some(l => l.id === 'panel'));
+  const marked = {...draft, draft: false, placed: false, points: [], backlight: true, seen: undefined};
+  assert.ok(mergePlanLights([marked], current, [], backlights).some(l => l.id === 'panel'));
+  // an older plan's unplaced lamp of it leaves
+  const older = {...draft, draft: false, placed: false, points: [], seen: undefined};
+  assert.ok(!mergePlanLights([older], current, [], backlights).some(l => l.id === 'panel'));
 });
 
 test('undoing scale and rotation restores the photo along with the plan, in storage too', () => {

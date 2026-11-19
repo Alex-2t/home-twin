@@ -1868,5 +1868,7 @@
  "All homes": "全部户型",
  "Open in 3D": "在 3D 中打开",
  "Try it in 3D": "在 3D 中试试",
- "Open any home and look around before you try.": "打开任意户型四处看看，再决定是否尝试。"
+ "Open any home and look around before you try.": "打开任意户型四处看看，再决定是否尝试。",
+ "The glow of the wall switch’s own panel, not the room’s light: that one is its switch.": "这是墙壁开关面板自身的背光，不是房间的灯：房间的灯是它的开关。",
+ "backlight": "背光"
 }

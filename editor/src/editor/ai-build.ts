@@ -257,13 +257,14 @@ function sameFiles(a: ChosenFiles, b: ChosenFiles): boolean {
 /** The owner's Home Assistant areas, as the build is told them (D-136): each its id and name. */
 const haAreas = (ed: Editor): UploadArea[] =>
   ed.ha.areas().map(area => ({id: area.area_id, name: area.name}));
-// The owner's lights as the Lights step lists them (a group whose lamps are listed is left out, as ha.ts haPlanLights does),
+// The owner's lights as the Lights step lists them (a group whose lamps are listed and a wall switch's backlight are left out, as ha.ts haPlanLights does),
 // with their devices (D-137).
 const haLights = (ed: Editor): UploadLight[] => {
   const all = ed.ha.lights();
   const listed = new Set(all.map(light => light.entity));
   return all
     .filter(light => !light.members?.some(member => listed.has(member)))
+    .filter(light => !light.backlight)
     .map(light => {
       const device = ed.ha.deviceOf?.(light.entity);
       return {id: light.id, name: light.name, area: light.area, ...(device ? {device} : {})};

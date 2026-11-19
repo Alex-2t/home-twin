@@ -16,7 +16,7 @@ import {tryPlanWalls, planFurniture, planSpots, drawableRooms} from './core/plan
 import {loadKenney} from './core/furniture3d.ts';
 import {MODELS} from './gen/models.gen.js';
 import {liveHA} from './editor/ha-live.ts';
-import {haPlanLights, mergePlanLights} from './editor/ha.ts';
+import {haBacklights, haPlanLights, mergePlanLights} from './editor/ha.ts';
 import {createLook} from './editor/look.ts';
 import {NOT_ADMIN_CSS} from './look/roles.ts';
 import {t} from './i18n/i18n.ts';
@@ -233,7 +233,12 @@ export async function createCard(card: CardHost, hass0: Hass, config0: CardConfi
   // as the editor loads it: HA lamps reconciled with the plan's (editor/app.js: setPlan)
   function setPlan(p: PlanInput | null): void {
     ed.plan = migrate(p || {});
-    ed.plan.lights = mergePlanLights(ed.plan.lights, haPlanLights(ha), ha.switches?.() || []);
+    ed.plan.lights = mergePlanLights(
+      ed.plan.lights,
+      haPlanLights(ha),
+      ha.switches?.() || [],
+      haBacklights(ha),
+    );
     keys = {};
     if (!framed) view.reframe();
     sync();

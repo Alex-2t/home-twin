@@ -21,3 +21,19 @@ export function switchLightScore(name: string): number {
   if (OTHER.test(name)) return -1;
   return LIGHT.test(name) || LIGHT_INSIDE.test(name) ? 1 : 0;
 }
+
+/**
+ * Whether an HA light is the backlight of a wall switch's own panel, not a light of the room: a light of the same device as
+ * a relay (a switch), only on and off, with effects to choose (SonoffLAN's T5 and TX Ultimate: switch.…_1 is the relay of the
+ * ceiling light, light.… the panel's glow, "Night Light", "Party"…, both named after the device). A light only on and off
+ * without effects on a relay's device is a light on a channel of it (a Shelly with one channel set as a light): a light.
+ */
+export function isSwitchBacklight(
+  colorModes: string[] | undefined,
+  effects: unknown,
+  onRelayDevice: boolean,
+): boolean {
+  const onOffOnly = !!colorModes?.length && colorModes.every(mode => mode === 'onoff');
+  const hasEffects = Array.isArray(effects) && effects.length > 0;
+  return onRelayDevice && onOffOnly && hasEffects;
+}
