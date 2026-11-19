@@ -52,9 +52,26 @@ import {$, el, esc, fmtArea, parseLen, scrollRow, section, tip, tipHide} from '.
 import {icon} from '../icons.ts';
 import {cssHex, hexNum, isHex, snapColor} from '../../core/color.ts';
 import {FONT, alpha, dimLabel, pal, shiftSegs, shiftPoint} from '../draw.ts';
-import type {LightForm, Plan, PlanLight, Point, Room, Segment, Vector, WallStrip} from '../../core/types.ts';
+import type {
+  HaSwitch,
+  LightForm,
+  Plan,
+  PlanLight,
+  Point,
+  Room,
+  Segment,
+  Vector,
+  WallStrip,
+} from '../../core/types.ts';
 import type {PlanView2d} from '../view2d.ts';
 import type {Editor, LightsMode, Selection} from '../editor-types.ts';
+
+/** A light offered for a lamp the AI build saw (bindLine): one of the plan, or a relay made a light when chosen. */
+interface BindChoice {
+  name: string;
+  relay: boolean;
+  light(): PlanLight;
+}
 
 /** The selected strip of a lamp, on its path (stripOf). */
 interface StripOn {
@@ -960,6 +977,20 @@ export function lightsMode(ed: Editor): LightsMode {
   };
   // Not one of the owner's Home Assistant lights: a lamp the AI build saw, a switch or a backlight marked "It's a light". It can
   // be deleted from the plan (the owner: one added by mistake had no way out); a light from HA can only leave the plan's place.
+  // a switch marked "It's a light": a lamp of the plan on its relay, not placed yet
+  const relayLamp = (w: HaSwitch): PlanLight => ({
+    id: 'relay_' + w.entity,
+    entity: w.entity,
+    name: w.name,
+    area: w.area,
+    relay: true,
+    color: '#ffce87',
+    on: true,
+    placed: false,
+    points: [],
+    segments: [],
+    room: null,
+  });
   const removable = (L: PlanLight): boolean => !L.entity || !!L.relay || !!L.backlight;
   const deleteLamp = (L: PlanLight): void => {
     lift(L);
@@ -1643,9 +1674,11 @@ export function lightsMode(ed: Editor): LightsMode {
           : x.placed && !x.draft
             ? icon('check', 14)
             : '';
+      const line = el(`<div class="lrow-line"></div>`);
       const b = el(
         `<button class="lrow ${x === L ? 'on' : ''} ${x.placed && !x.draft ? 'done' : ''} ${!x.placed ? 'todo' : ''}">${icon('f_' + f, 15)}<span class="nm">${esc(x.name)}</span>${where ? `<small>${where}</small>` : ''}<span class="st">${st}</span></button>`,
       );
+      line.append(b, dropButton(x, H ?? null));
       b.onclick = () => {
         if (x === L) return;
         merging = false;
@@ -1659,9 +1692,28 @@ export function lightsMode(ed: Editor): LightsMode {
         m.refresh();
         ed.draw();
       };
-      box.append(b);
+      box.append(line);
     }
     return box;
+  }
+  // The trash on a room's list row, seen on hover (the owner: a light added by mistake had no way out of the room's card): a
+  // lamp that is not an HA light is deleted, an HA light on the plan is skipped (taken off, not put back by the step). A part
+  // of another fixture, an HA light not placed or skipped has an empty place, keeping the rows in line.
+  function dropButton(x: PlanLight, partOf: PlanLight | null): HTMLElement {
+    const gone = removable(x);
+    if (partOf || (!gone && !x.placed)) return el(`<span class="x"></span>`);
+    const title = gone ? t('Delete') : t('Remove from plan');
+    const b = el(`<button class="x ib" title="${esc(title)}">${icon('trash', 14)}</button>`);
+    b.onclick = e => {
+      e.stopPropagation();
+      if (gone) return deleteLamp(x);
+      const current = x.id === sel().light || x.id === cur;
+      lift(x);
+      x.skip = true;
+      if (current) advance();
+      ed.commit();
+    };
+    return b;
   }
   function editLines(L: PlanLight): HTMLElement[] {
     const hl = host(L);
@@ -1832,21 +1884,55 @@ export function lightsMode(ed: Editor): LightsMode {
     return [...lines, ...bindLine(L), ...missingLine(cell), ...nextLine(L, cell)];
   }
   // A lamp the AI build saw has no HA entity: the owner says which of their lights it is, and that light takes its place
-  // (light-place.ts). Offered: the lights not on the plan, those of this room's area first.
+  // (light-place.ts). Offered: the lights not on the plan of this room's area, then its switches that may have a light behind
+  // them (a relay: the owner's kids' room ceiling light is one, and only its panel's backlight, of the same name, was offered),
+  // then the other lights not on the plan, the skipped ones last.
   function bindLine(seen: PlanLight): HTMLElement[] {
     if (!isSeenLamp(seen)) return [];
     const here = roomById(plan(), seen.room)?.area;
-    const ofThisRoom = (x: PlanLight): number => (here && x.area === here ? 1 : 0);
-    const choices = plan()
-      .lights.filter(x => x.entity && !x.placed && !x.with)
-      .sort((a, b) => ofThisRoom(b) - ofThisRoom(a))
-      .slice(0, BIND_CHOICES);
+    const lamps = plan().lights.filter(x => x.entity && !x.placed && !x.with);
+    const offered = lamps.filter(x => !x.skip);
+    const lampsHere = offered.filter(x => !!here && x.area === here);
+    const lampsElsewhere = offered.filter(x => !lampsHere.includes(x));
+    // a light just skipped (the trash) comes last: it was not this one, the chips after it would be off the card's edge
+    const skipped = lamps.filter(x => x.skip);
+    const relaysHere = (ed.ha.switches?.() || []).filter(
+      w =>
+        !!here &&
+        w.area === here &&
+        switchLightScore(w.name) >= 0 &&
+        !plan().lights.some(x => x.entity === w.entity),
+    );
+    // a choice: a light of the plan, or a relay that becomes one when chosen (as its "It's a light" in the list makes it)
+    const asChoice = (light: PlanLight): BindChoice => ({
+      name: light.name ?? '',
+      relay: false,
+      light: () => light,
+    });
+    const relayChoice = (w: HaSwitch): BindChoice => ({
+      name: w.name,
+      relay: true,
+      light: () => {
+        const lamp = relayLamp(w);
+        plan().lights.push(lamp);
+        return lamp;
+      },
+    });
+    const choices = [
+      ...lampsHere.map(asChoice),
+      ...relaysHere.map(relayChoice),
+      ...lampsElsewhere.map(asChoice),
+      ...skipped.map(asChoice),
+    ].slice(0, BIND_CHOICES);
     if (!choices.length) return [];
     const row = el(`<div class="line names"><small>${t('Which of your lights is it?')}</small></div>`);
     const buttons: HTMLElement[] = [];
-    for (const H of choices) {
-      const b = el(`<button class="chip">${esc(H.name)}</button>`);
+    for (const choice of choices) {
+      const b = el(
+        `<button class="chip">${esc(choice.name)}${choice.relay ? ` <small>${t('switch')}</small>` : ''}</button>`,
+      );
       b.onclick = () => {
+        const H = choice.light();
         const before = snap(H);
         bindSeenLamp(plan(), H, seen);
         delete H.auto;
@@ -2088,15 +2174,6 @@ export function lightsMode(ed: Editor): LightsMode {
     // what it is, and "It's a light" makes a lamp of it (the owner's kids' room: its "Main light" was the panel's glow)
     const backlightEntities = haBacklights(ed.ha);
     const backlights = ed.ha.lights().filter(l => l.backlight && !L0.some(lamp => lamp.entity === l.entity));
-    // On hover a row shows how to undo it: a lamp that is not an HA light is deleted, a placed HA light leaves the plan's place;
-    // an HA light not placed has nothing to undo (an empty place keeps the rows' notes in line).
-    const lampX = (L: PlanLight): string => {
-      if (removable(L))
-        return `<button class="x ib" title="${esc(t('Delete'))}">${icon('trash', 14)}</button>`;
-      if (L.placed)
-        return `<button class="x ib" title="${esc(t('Remove from plan'))}">${icon('trash', 14)}</button>`;
-      return `<span class="x"></span>`;
-    };
     // a lamp on a backlight (one marked "It's a light", one placed before) says so: beside its relay of the same name
     const lampNote = (L: PlanLight): string => {
       const onBacklight = !!L.entity && backlightEntities.has(L.entity);
@@ -2164,16 +2241,8 @@ export function lightsMode(ed: Editor): LightsMode {
         for (const L of shownLamps) {
           const f = L.placed && !L.with ? formFor(L) : null;
           const row = el(
-            `<div class="row lamp ${todo(L) ? 'todo' : ''} ${L.id === sel().light || L === a ? 'sel' : ''}" data-id="${L.id}" title="${L.placed ? '' : t('Click to identify this light, or drag it onto the plan')}"><button class="bulb ib ${L.on ? 'on' : ''}" title="${t('Turn on / off')}">${icon(f ? 'f_' + f : 'bulb', 16)}</button><span class="name">${esc(L.name)}</span><small>${esc(lampNote(L))}</small>${lampX(L)}</div>`,
+            `<div class="row lamp ${todo(L) ? 'todo' : ''} ${L.id === sel().light || L === a ? 'sel' : ''}" data-id="${L.id}" title="${L.placed ? '' : t('Click to identify this light, or drag it onto the plan')}"><button class="bulb ib ${L.on ? 'on' : ''}" title="${t('Turn on / off')}">${icon(f ? 'f_' + f : 'bulb', 16)}</button><span class="name">${esc(L.name)}</span><small>${esc(lampNote(L))}</small></div>`,
           );
-          // the row's markup has its delete button when the lamp can be deleted or taken off the plan (lampX)
-          const x = row.querySelector<HTMLElement>('.x');
-          if (x?.tagName === 'BUTTON')
-            x.onclick = e => {
-              e.stopPropagation();
-              if (removable(L)) deleteLamp(L);
-              else unplace(L);
-            };
           // the row's markup has its bulb button
           row.querySelector<HTMLElement>('.bulb')!.onclick = e => {
             e.stopPropagation();
@@ -2185,12 +2254,12 @@ export function lightsMode(ed: Editor): LightsMode {
           };
           // a press or a click is on the row or inside it
           row.onpointerdown = e => {
-            if ((e.target as Element).closest('.bulb, .x') || L.placed) return;
+            if ((e.target as Element).closest('.bulb') || L.placed) return;
             e.preventDefault();
             placing = {L};
           };
           row.onclick = e => {
-            if ((e.target as Element).closest('.bulb, .x')) return;
+            if ((e.target as Element).closest('.bulb')) return;
             if (L.placed) ed.select('light', L.id);
             else {
               sel().light = null;
@@ -2217,19 +2286,7 @@ export function lightsMode(ed: Editor): LightsMode {
           );
           // the row's markup has its button
           row.querySelector('button')!.onclick = () => {
-            L0.push({
-              id: 'relay_' + w.entity,
-              entity: w.entity,
-              name: w.name,
-              area: w.area,
-              relay: true,
-              color: '#ffce87',
-              on: true,
-              placed: false,
-              points: [],
-              segments: [],
-              room: null,
-            });
+            L0.push(relayLamp(w));
             ed.commit();
           };
           body.appendChild(row);
