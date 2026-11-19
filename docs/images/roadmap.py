@@ -15,6 +15,7 @@ DONE = [
 ]
 HERE = ("First release", "open to everyone")
 NEXT = [
+    ("More devices in 3D", "new kinds, finer models"),
     ("More than one floor", "houses, basements, attics"),
     ("The outside", "facade, roof, garden"),
     ("Real sun and weather", "light follows the sky"),

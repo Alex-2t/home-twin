@@ -22,11 +22,12 @@ The editor is for administrators; the card is for everyone in the home (only adm
 
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="docs/images/roadmap-dark.svg">
-  <img alt="Home Twin roadmap: the floor-plan editor, the Home Assistant panel, the dashboard card and the AI build are done; the first release is next; after it come more than one floor, the outside, real sun and weather, the day replayed, climate on the plan, people and motion" src="docs/images/roadmap-light.svg">
+  <img alt="Home Twin roadmap: the floor-plan editor, the Home Assistant panel, the dashboard card and the AI build are done; the first release is next; after it come more devices in 3D, more than one floor, the outside, real sun and weather, the day replayed, climate on the plan, people and motion" src="docs/images/roadmap-light.svg">
 </picture>
 
 After the first release, in no fixed order and without dates:
 
+- **More devices in 3D** — more kinds of devices come alive in the model (a TV, a fan, a purifier, a washing machine, a lock, a camera, a garage door), and the ones there today get finer 3D models.
 - **More than one floor** — two-storey houses, flats on two levels, basements and attics.
 - **The outside** — the facade, the roof and the plot, with outdoor lights, gates and sensors where they really are.
 - **Real sun and weather** — the light follows the real time of day, the home's orientation and the sky.
