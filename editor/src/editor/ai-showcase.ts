@@ -1,39 +1,35 @@
 // What the AI build gives, on its upload page under the sign-in, the package or the files (the owner, 2026-11-19: people did
-// not see why they would use it). Three short gains, and a row of homes that open in 3D in a new tab, so the result can be
-// tried before paying: three of the editor's examples the owner picked (they look best) and three homes the AI built, marked
-// so. Both lists come from our service: the examples' list the editor's build publishes (showcase/examples.json, D-116) and
-// the gallery's (gallery/index.json, D-113); in Home Assistant through the integration's proxy (ai.py), as the build's other
-// requests. The homes open on our site: this page's editor there, our site's in Home Assistant (the panel has no examples).
-// Neither list (offline, local work): the row stays hidden.
+// not see why they would use it). Three short gains, and a row of homes that open in 3D in a new tab, so a home in Home Twin
+// can be tried before paying: three of the editor's examples the owner picked (they look best; the AI-built homes the owner
+// left out, 2026-11-19). Their list is the one the editor's build publishes (showcase/examples.json, D-116), read from our
+// service: in Home Assistant through the integration's proxy (ai.py), as the build's other requests. The homes open on our
+// site: this page's editor there, our site's in Home Assistant (the panel has no examples). No list (offline, local work):
+// the row stays hidden.
 import {getLang, t} from '../i18n/i18n.ts';
 import {icon} from './icons.ts';
 import {esc} from './ui.ts';
-import {cardPicture, factsLine, fetchGallery} from './gallery.ts';
-import type {GalleryHome} from './gallery.ts';
+import {cardPicture, factsLine} from './gallery.ts';
 
 /** Our site, where the homes open from Home Assistant's panel (as the start screen's "See example homes"). */
 const ONLINE_EDITOR = 'https://twin.sync.md/';
 /** The examples the row shows first, in this order (the owner, 2026-11-19): the loft, the studio, the period apartment. */
 const SHOWN_EXAMPLES = ['loft', 'studio', 'altbau'];
-/** How many homes the AI built the row shows after the examples. */
-const SHOWN_AI_HOMES = 3;
-/** How long the lists are waited for before the row goes on without them. */
+/** How long the list is waited for before the row goes on without it. */
 const FETCH_TIMEOUT_MS = 8000;
 // What an example's id, render and address may be: a plain name beside the list, an address inside the editor.
 const EXAMPLE_ID = /^[a-z0-9][a-z0-9-]{0,63}$/;
 const EXAMPLE_RENDER = /^[a-z0-9][a-z0-9-]*\.(webp|jpg|jpeg|png)$/;
 const EXAMPLE_OPEN = /^#\/example\/[a-z0-9-]+\/?$/;
 
-/** A card of the row: its picture, name and facts, where it opens, and whether the AI built it. */
+/** A card of the row: its picture, name and facts, and where it opens. */
 export interface ShowcaseHome {
   id: string;
   name: string;
   area: number;
   rooms: number;
   render: string | null;
-  /** The address inside the editor it opens at ("#/example/loft/", "#/home/<id>"). */
+  /** The address inside the editor it opens at ("#/example/loft/"). */
   open: string;
-  aiBuilt: boolean;
 }
 
 /** Where the lists are read and the homes opened. */
@@ -99,7 +95,7 @@ export function showcaseHtml(inHa: boolean): string {
         <b>${esc(t('Try it in 3D'))}</b>
         <a class="aib-link" href="${esc(all)}" target="_blank" rel="noopener">${esc(t('All homes'))}${icon('right', 14)}</a>
       </div>
-      <p class="aib-showcase-sub">${esc(t('Open any home and look around. The ones built by AI came from just a plan and a video.'))}</p>
+      <p class="aib-showcase-sub">${esc(t('Open any home and look around before you try.'))}</p>
       <div class="aib-showcase-grid"></div>
     </section>`;
 }
@@ -140,7 +136,6 @@ export function parseShowcaseExamples(data: unknown, base: string, ids: string[]
       rooms,
       render: renderOk ? new URL(render, base).href : null,
       open,
-      aiBuilt: false,
     });
   }
   return homes;
@@ -158,47 +153,23 @@ async function fetchExamples(listUrl: string): Promise<ShowcaseHome[]> {
   }
 }
 
-/** The gallery's homes the row shows: those with a picture, a house among them when there is one, in the list's order. */
-export function showcaseAiHomes(homes: GalleryHome[]): ShowcaseHome[] {
-  const pictured = homes.filter(home => home.render);
-  const house = pictured.find(home => home.kind === 'house');
-  const others = pictured.filter(home => home !== house);
-  const chosen = others.slice(0, house ? SHOWN_AI_HOMES - 1 : SHOWN_AI_HOMES);
-  if (house) chosen.push(house);
-  return chosen.map(home => ({
-    id: home.id,
-    name: home.name,
-    area: home.area,
-    rooms: home.rooms,
-    render: home.render,
-    open: '#/home/' + encodeURIComponent(home.id),
-    aiBuilt: true,
-  }));
-}
-
-/** A home's card: its picture, name and facts, "Built by AI" on one the AI built; a click opens it in 3D in a new tab. */
+/** A home's card: its picture, name and facts; a click opens it in 3D in a new tab. */
 function homeCard(home: ShowcaseHome, inHa: boolean): string {
   const address = editorAddress(inHa) + home.open;
-  const badge = home.aiBuilt
-    ? `<span class="gcard-ai">${icon('sparkles', 12)}<span>${esc(t('Built by AI'))}</span></span>`
-    : '';
   return (
     `<a class="gcard aib-showcase-card" href="${esc(address)}" target="_blank" rel="noopener" title="${esc(t('Open in 3D'))}">` +
-    `<span class="gcard-pic">${cardPicture(home)}</span>${badge}` +
+    `<span class="gcard-pic">${cardPicture(home)}</span>` +
     `<span class="aib-showcase-open">${icon('box', 12)}<span>${esc(t('Open in 3D'))}</span></span>` +
     `<span class="gcard-text"><b>${esc(home.name)}</b><span>${esc(factsLine(home))}</span></span></a>`
   );
 }
 
-// The lists are asked for once a page: the upload page is drawn again on each visit, the lists do not change meanwhile.
+// The list is asked for once a page: the upload page is drawn again on each visit, the list does not change meanwhile.
 let homesAsked: Promise<ShowcaseHome[]> | null = null;
 
-/** The row's homes: the examples first, then the homes the AI built. */
+/** The row's homes: the examples, as their list gives them. */
 function showcaseHomes(api: string): Promise<ShowcaseHome[]> {
-  homesAsked ??= Promise.all([
-    fetchExamples(`${api}/showcase/examples.json`),
-    fetchGallery(`${api}/gallery/index.json`),
-  ]).then(([examples, gallery]) => [...examples, ...showcaseAiHomes(gallery)]);
+  homesAsked ??= fetchExamples(`${api}/showcase/examples.json`);
   return homesAsked;
 }
 

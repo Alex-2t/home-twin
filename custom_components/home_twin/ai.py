@@ -5,7 +5,7 @@ the payments service's session cookie (ht_session): a browser would not send it 
 cookie there), but this integration is a client of the service like any other, so it keeps the session itself, in
 .storage/home_twin.ai, for the whole home: every browser and phone of this HA is signed in once one is.
 
-  /api/home_twin/ai/<key>/<path>   the service's /<path> (api/…, pay/…, gallery/… and showcase/… only), the method, query and body as they came;
+  /api/home_twin/ai/<key>/<path>   the service's /<path> (api/…, pay/… and showcase/… only), the method, query and body as they came;
                                    the session goes with it, a session the service sets or clears comes back here, never to the
                                    browser. Bodies are streamed both ways: a video goes in chunks of 16 MB, HA's own limit.
   home_twin/ai/key                 a key for those addresses (administrators): the editor's images and uploads use plain
@@ -45,9 +45,9 @@ SESSION_COOKIE = "ht_session"  # the payments service's session cookie
 SERVICE_ENV = "HOME_TWIN_AI_SERVICE"
 DATA_AI = f"{DOMAIN}_ai"
 KEY_IDLE = timedelta(hours=12)  # a key not used for this long no longer opens the addresses
-# only the service's API, its account, and the homes it shows (the AI build's upload page shows a few, ai-showcase.ts):
+# only the service's API, its account, and the examples it shows (the AI build's upload page shows a few, ai-showcase.ts):
 # never its pages or its other files
-ALLOWED_PREFIXES = ("api/", "pay/", "gallery/", "showcase/")
+ALLOWED_PREFIXES = ("api/", "pay/", "showcase/")
 # the request headers that go on to the service, and the answer headers that come back
 REQUEST_HEADERS = ("content-type", "accept", "accept-language", "content-length")
 ANSWER_HEADERS = ("content-type", "cache-control", "content-disposition", "etag", "last-modified")
