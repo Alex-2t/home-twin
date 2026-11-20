@@ -61,6 +61,17 @@ export const emptyPlan = (): Plan => ({
   sensorSkip: [],
   devices: [],
 });
+/**
+ * Whether a saved plan holds something the owner made: a room, an opening, a thing, a device or sensor, or a light put on the
+ * plan. What the app saves by itself when it opens — the lights it takes from Home Assistant, not placed, the wizard's marks —
+ * does not count: such a plan is still a first visit, not one to continue (the start screen's "Welcome back").
+ */
+export function hasOwnerWork(p: PlanInput): boolean {
+  const some = (list: unknown): boolean => Array.isArray(list) && list.length > 0;
+  if (some(p.rooms) || some(p.openings) || some(p.furniture) || some(p.devices) || some(p.sensors))
+    return true;
+  return Array.isArray(p.lights) && p.lights.some(light => light?.placed);
+}
 // A list from a file that should be one: anything else becomes empty.
 const listOr = <Entry>(value: Entry[]): Entry[] => (Array.isArray(value) ? value : []);
 // What mendPlan changed in a plan is told in the console, once per plan: a developer looking at a plan that draws oddly sees why.

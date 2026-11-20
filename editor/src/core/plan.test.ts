@@ -41,6 +41,7 @@ import {
   openingGap,
   turnDoor,
   addRoom as add2,
+  hasOwnerWork,
 } from './plan.ts';
 import {checkItem} from './parts.ts';
 import {
@@ -1305,4 +1306,13 @@ test('a door in the middle of a thick wall opens to the side its room is on, wha
     assert.ok(n[1] < 0, 'outward points to the balcony');
     assert.equal(furnitureConflicts(p).size, 0, 'the chair on the balcony is not in the leaf’s way');
   }
+});
+
+test("a plan the app saved by itself on opening — lights from HA, none placed — is not the owner's work to continue", () => {
+  const light = {id: 'l1', entity: 'light.l1', name: 'Plinth light', placed: false, points: [], segments: []};
+  const opened = {rooms: [], openings: [], furniture: [], lights: [light], sensors: [], devices: []};
+  assert.equal(hasOwnerWork(opened as never), false);
+  assert.equal(hasOwnerWork({...opened, lights: [{...light, placed: true}]} as never), true);
+  assert.equal(hasOwnerWork({...opened, rooms: [{id: 'r1'}]} as never), true);
+  assert.equal(hasOwnerWork({...opened, furniture: [{id: 'f1'}]} as never), true);
 });

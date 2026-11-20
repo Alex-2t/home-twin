@@ -17,6 +17,7 @@ import {t, translateDom} from './i18n/i18n.ts';
 import {loadKenney, thumbnails} from './core/furniture3d.ts';
 import {MODELS} from './gen/models.gen.js';
 import {isNewerPlan} from './core/plan-format.ts';
+import {hasOwnerWork} from './core/plan.ts';
 import {showEditorUpdateNotice} from './frontend-build.ts';
 import type {PhotoStore} from './editor/underlay.ts';
 import type {Router} from './editor/route.ts';
@@ -97,10 +98,12 @@ export async function boot({
   }
   keepNewerPlans(ed, onNewerPlan);
   saved ??= ed.history.load() as PlanInput | null;
-  const canContinue = !!(saved && Array.isArray(saved.rooms));
+  // "Continue" is offered for a plan the owner worked on: a room, a thing, a light put on it, or a placed plan photo. The plan
+  // the app saved by itself on an earlier visit (only the lights from HA) starts afresh, as on the first visit.
+  const savedPlan = saved && Array.isArray(saved.rooms) ? saved : null;
+  const canContinue = !!savedPlan && ((await ed.underlay.load()) || hasOwnerWork(savedPlan));
   if (canContinue) {
-    await ed.underlay.load();
-    // canContinue: there is a saved plan
+    // canContinue: there is a saved plan the owner worked on
     if (!saved!.rooms?.length) ed.wizard.set(saved!.id, {open: false, names: false});
     ed.setPlan(saved!);
   } else ed.setPlan({});
