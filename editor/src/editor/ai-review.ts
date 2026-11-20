@@ -11,8 +11,17 @@ import {zOf} from '../core/catalog.ts';
 import {$, el, esc, find, tip} from './ui.ts';
 import {icon} from './icons.ts';
 import {reportStatusWords} from './ai-reports.ts';
-import {newPin, pinLabel, changeCount, MAX_PIN_PHOTOS, MISSED_REASON, reportOf} from './ai-pins.ts';
-import type {Pin, PinHit, PinNotes, PinRetry, PinRound, ReportView, RoundPin} from './ai-pins.ts';
+import {
+  newPin,
+  pinLabel,
+  pinWords,
+  changeCount,
+  MAX_PIN_PHOTOS,
+  reportOf,
+  retryText,
+  understoodText,
+} from './ai-pins.ts';
+import type {Pin, PinHit, PinNotes, PinRound, ReportView, RoundPin} from './ai-pins.ts';
 import type {CanvasPoint, Editor, Pane} from './editor-types.ts';
 
 /** A thing the service could not place clear (it stands where the editor draws it red): which, where, and what to call it. */
@@ -96,40 +105,6 @@ const VIEW_PIXELS = 1280;
 const PHOTO_PIXELS = 1600;
 // The ring round the spot in the kept view, as the service's drawing rings it (harness tools/home.mjs roomDiagram).
 const RING = '#d6249f';
-// Each reason in the service's own words for this pin when it gave them (what it can't do yet and why, what it asks, what it
-// sees now — in the owner's language), else the reason's usual words.
-const saidFor = (retry: PinRetry | undefined, code: string): string =>
-  (retry?.told || [])
-    .filter(told => told.code === code)
-    .map(told => told.say)
-    .join(' ');
-// The reasons by any code the service sends: one this list does not have reads as none.
-const missedReasons: Partial<Record<string, string>> = MISSED_REASON;
-const missedText = (retry: PinRetry): string =>
-  (retry?.codes || []).map(code => reasonText(retry, code)).join(' · ');
-// A thing gone with the round: its name is what the service says, in the reason's words.
-const goneNames = (retry: PinRetry): string =>
-  (retry?.told || [])
-    .filter(told => told.code === 'gone')
-    .map(told => told.say)
-    .join(', ');
-const reasonText = (retry: PinRetry, code: string): string => {
-  if (code === 'gone') return t(MISSED_REASON.gone, goneNames(retry) || '?');
-  return saidFor(retry, code) || t(missedReasons[code] || MISSED_REASON.unchanged);
-};
-// Under a pin that comes back: not done, or done in part, and why (the owner: "Last time: …" told them nothing). What the app
-// can't do yet, and what was not understood, say so plainly (the owner: "why was it unclear?" — it was understood, and the
-// app could not do it).
-const retryText = (retry: PinRetry): string => {
-  const codes = retry?.codes || [];
-  const only = (code: string): string | false =>
-    codes.length > 0 && codes.every(each => each === code) && saidFor(retry, code);
-  if (only('cannot')) return t('We can’t do this yet: {0}', saidFor(retry, 'cannot'));
-  if (only('unclear')) return t('Not understood: {0}', saidFor(retry, 'unclear'));
-  return t(retry.made === 'partly' ? 'Done in part: {0}' : 'Not done: {0}', missedText(retry));
-};
-const understoodText = (retry: PinRetry | undefined): string =>
-  retry?.understood ? t('Understood as: {0}', retry.understood) : '';
 // What the pen in a pin's bubble does, and what sending a pin to the developer gives: on hover, in a few words.
 const SKETCH_TIP = (): string => t('Screenshot with arrows: show what goes where');
 const REPORT_TIP = (): string =>
@@ -183,6 +158,8 @@ export function openReview(
   let view: Pane = '3d';
   let tool: ReviewTool = 'pin';
   let active: number | null = null;
+  // The open pin as it was when its bubble opened: Cancel puts it back (a new pin, empty then, goes).
+  let opened: {pin: Pin; text: string; photos: string[]} | null = null;
   let hovered: number | null = null;
   let photoOpen = false;
   let collapsed = false;
@@ -234,8 +211,7 @@ export function openReview(
     ${photo ? `<div class="aib-photo-big glass" hidden><img src="${photo}" alt=""><button class="ib" data-act="photo" title="${esc(t('Close'))}">${icon('x', 16)}</button></div>` : ''}
     <div class="aib-pop glass" hidden>
       <header><span class="aib-num"></span><span class="aib-pop-target"></span></header>
-      <p class="aib-retry" hidden></p>
-      <p class="aib-understood" hidden></p>
+      <div class="aib-thread" hidden></div>
       ${
         onReport
           ? `<div class="aib-report-box" hidden>
@@ -254,6 +230,7 @@ export function openReview(
       <footer>
         <button class="ib" data-act="pin-delete" aria-label="${esc(t('Delete'))}">${icon('trash', 15)}</button>
         ${upload ? `<button class="ib" data-act="pin-sketch" aria-label="${esc(SKETCH_TIP())}">${icon('pen', 15)}</button>` : ''}
+        <button class="soft aib-cancel" data-act="pin-cancel">${esc(t('Cancel'))}</button>
         <button class="primary" data-act="pin-done">${esc(t('Done'))}</button>
       </footer>
     </div>
@@ -363,6 +340,17 @@ export function openReview(
     changed();
   }
 
+  // Cancel: the pin's words and photos as they were when the bubble opened, then the bubble closes.
+  function cancelPin(): void {
+    const pin = active != null ? notes.pins[active] : null;
+    if (pin && opened?.pin === pin) {
+      pin.text = opened.text;
+      pin.photos = [...opened.photos];
+      changed();
+    }
+    setActive(null);
+  }
+
   function removePin(i: number): void {
     notes.pins.splice(i, 1);
     active = null;
@@ -372,7 +360,31 @@ export function openReview(
 
   // The pin being written: its words in the bubble beside it. Left without words or photos, it goes.
   const empty = (pin: Pin): boolean =>
-    !pin.text.trim() && !pin.photos?.length && !((uploading.get(pin) ?? 0) > 0);
+    !pinWords(pin) && !pin.photos?.length && !((uploading.get(pin) ?? 0) > 0);
+
+  // A pin that came back is a conversation (the owner: it should be a dialog): the owner's words of earlier rounds and the
+  // app's answers, then the words the app answered last and its answer — how it understood the pin, why it was not done or
+  // what it asks — and the box under them for the owner's answer.
+  function renderThread(pin: Pin): void {
+    const thread = find(pop, '.aib-thread');
+    const turn = (who: 'owner' | 'app', text: string): HTMLElement => {
+      const line = el(`<p class="aib-turn ${who}"></p>`);
+      line.textContent = text;
+      return line;
+    };
+    const turns = (pin.thread || []).map(each => turn(each.who, each.text));
+    if (pin.said?.trim()) turns.push(turn('owner', pin.said));
+    if (pin.retry) {
+      const answer = el('<p class="aib-turn app"></p>');
+      const understood = understoodText(pin.retry);
+      if (understood) answer.append(el(`<span class="aib-understood">${esc(understood)}</span>`));
+      answer.append(el(`<span class="aib-retry">${esc(retryText(pin.retry))}</span>`));
+      turns.push(answer);
+    }
+    thread.replaceChildren(...turns);
+    thread.hidden = !turns.length;
+    requestAnimationFrame(() => (thread.scrollTop = thread.scrollHeight));
+  }
   function setActive(i: number | null): void {
     if (i != null && pastOpen != null) {
       pastOpen = null;
@@ -384,20 +396,20 @@ export function openReview(
       active = null;
       changed();
     }
+    const reopened = i != null && i === active;
     active = i;
     pop.hidden = i == null;
+    if (i == null) opened = null;
     if (i != null) {
       const pin = notes.pins[i];
+      if (!reopened) opened = {pin, text: pin.text, photos: [...(pin.photos ?? [])]};
       find(pop, '.aib-num').textContent = String(i + 1);
       find(pop, '.aib-pop-target').textContent = pinLabel(pin, t('Outside'));
-      const retry = find(pop, '.aib-retry');
-      retry.hidden = !pin.retry;
-      retry.textContent = pin.retry ? retryText(pin.retry) : '';
-      const understood = find(pop, '.aib-understood');
-      understood.textContent = understoodText(pin.retry);
-      understood.hidden = !understood.textContent;
+      renderThread(pin);
       renderReport(pin);
       popText.value = pin.text;
+      // a pin that came back is answered: the box is for the owner's answer to what the app said
+      popText.placeholder = pin.said != null ? t('Your answer') : t('What is wrong here?');
       photoError('');
       requestAnimationFrame(() => popText.focus({preventScroll: true}));
     }
@@ -672,7 +684,7 @@ export function openReview(
         const b = el(`<button class="aib-pin" data-i="${i}">${i + 1}</button>`);
         b.classList.toggle('on', i === active);
         b.classList.toggle('hover', i === hovered);
-        b.classList.toggle('draft', !pin.text.trim());
+        b.classList.toggle('draft', !pinWords(pin));
         return b;
       }),
     );
@@ -851,8 +863,8 @@ export function openReview(
           tip(rowReport, REPORT_TIP());
         }
         const words = find(row, '.aib-note-body>span');
-        words.textContent = pin.text.trim() || t('What is wrong here?');
-        words.classList.toggle('muted', !pin.text.trim());
+        words.textContent = pinWords(pin) || t('What is wrong here?');
+        words.classList.toggle('muted', !pinWords(pin));
         return row;
       }),
     );
@@ -1069,6 +1081,7 @@ export function openReview(
     if (act === 'collapse') return toggleCollapsed();
     if (act === 'send') return send();
     if (act === 'pin-done') return setActive(null);
+    if (act === 'pin-cancel') return cancelPin();
     if (act === 'pin-photo') return pop.querySelector<HTMLInputElement>('input[type=file]')?.click();
     if (act === 'pin-sketch' && active != null) return openSketch(notes.pins[active]);
     if (act === 'past-close') return closePast();

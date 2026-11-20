@@ -153,8 +153,13 @@ test('the pins of the last round that did not work out come back, with why', () 
   } satisfies PinRound;
   const pins = pinsToRetry(lastRound);
   assert.deepEqual(
-    pins.map(pin => pin.text),
+    pins.map(pin => pin.said),
     ['faces the window', 'a column'],
+    'the words the app answered; the box is for the answer',
+  );
+  assert.deepEqual(
+    pins.map(pin => pin.text),
+    ['', ''],
   );
   assert.deepEqual(pins[0].retry, {round: 1, n: 1, made: 'no', codes: ['refused']});
   assert.equal(pins[0].z, 0.5);
@@ -185,12 +190,12 @@ test('a pin that came back follows what the service says of its round now: made,
   });
   const now = refreshRetries(back, judgedAgain);
   assert.deepEqual(
-    now.map(pin => pin.text),
+    now.map(pin => pin.said),
     ['what is this cube?'],
   );
   assert.deepEqual(now[0].retry?.codes, ['unchanged']);
   // A made pin the owner added to stays, without its reason.
-  const added = refreshRetries([{...back[0], text: 'flowers stand here, three pots'}], judgedAgain);
+  const added = refreshRetries([{...back[0], text: 'three pots'}], judgedAgain);
   assert.equal(added.length, 1);
   assert.equal('retry' in added[0], false);
   // A pin kept before pins had their number is found by its words and its thing.
@@ -280,5 +285,75 @@ test('a pin the developer fixed leaves the pins that came back, whichever round 
   assert.deepEqual(
     withoutFixed([pin(1), pin(2), pin(3)], reports).map(kept => kept.text),
     ['pin 2', 'pin 3'],
+  );
+});
+
+// The owner: a pin not done should be a dialog. "Not clear where to move it: point at the spot" was answered by writing the
+// pin again from scratch, and the service never saw what it had asked.
+test('a pin that came back is a conversation: the answer goes with the words the app answered and what it said, round after round', () => {
+  const lastRound = {
+    round: 1,
+    pins: [
+      {
+        n: 8,
+        x: 7.3,
+        y: 5.2,
+        text: 'it is inside the shower, not outside',
+        made: 'no',
+        understood: 'The shower set hangs inside the glass shower.',
+        why: [{code: 'same-place', text: '…'}],
+      },
+    ],
+  } satisfies PinRound;
+  const [back] = pinsToRetry(lastRound);
+  const answerOfApp =
+    'Understood as: The shower set hangs inside the glass shower. Not done: Not clear where to move it: point at the spot';
+  // not answered: it goes again as it was, with what the app said
+  assert.deepEqual(
+    pinsToSend([back]).map(pin => [pin.text, pin.thread]),
+    [
+      [
+        'it is inside the shower, not outside',
+        [
+          {who: 'owner', text: 'it is inside the shower, not outside'},
+          {who: 'app', text: answerOfApp},
+        ],
+      ],
+    ],
+  );
+  // answered: the answer is its words
+  const [sent] = pinsToSend([{...back, text: 'on the back wall, behind the glass'}]);
+  assert.equal(sent.text, 'on the back wall, behind the glass');
+  assert.equal(sent.thread?.length, 2);
+  assert.deepEqual(sent.retryOf, {round: 1, n: 8});
+  // the next round gives the conversation back with the pin: it grows
+  const [again] = pinsToRetry({
+    round: 2,
+    pins: [
+      {
+        ...sent,
+        n: 1,
+        roomName: sent.roomName ?? undefined,
+        itemName: sent.itemName ?? undefined,
+        made: 'no',
+        why: [{code: 'unclear', text: '…', say: 'Which wall do you mean?'}],
+      },
+    ],
+  });
+  assert.equal(again.said, 'on the back wall, behind the glass');
+  const [third] = pinsToSend([{...again, text: 'the one with the tiles'}]);
+  assert.deepEqual(
+    third.thread?.map(turn => turn.who + ': ' + turn.text),
+    [
+      'owner: it is inside the shower, not outside',
+      'app: ' + answerOfApp,
+      'owner: on the back wall, behind the glass',
+      'app: Not understood: Which wall do you mean?',
+    ],
+  );
+  // a new pin has no conversation
+  assert.equal(
+    pinsToSend([{...back, said: undefined, retry: undefined, text: 'a rug here'}])[0].thread,
+    undefined,
   );
 });

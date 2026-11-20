@@ -976,9 +976,15 @@ button.aib-big{height:46px;padding:0 22px;border-radius:12px;font-size:15px;box-
 .aib-photo-big .ib{position:absolute;top:14px;right:14px;background:var(--panel-solid);box-shadow:var(--sh)}
 .aib-pop{position:fixed;left:0;top:0;z-index:45;width:288px;padding:12px;display:flex;flex-direction:column;gap:10px;border-radius:16px;box-shadow:var(--sh-lg)}
 .aib-pop header{display:flex;align-items:center;gap:8px;min-width:0}.aib-pop-target{color:var(--mut);font-size:12.5px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.aib-pop footer{display:flex;align-items:center;gap:2px}.aib-pop footer .ib{color:var(--mut)}.aib-pop footer .primary{margin-left:auto;padding:0 16px}
+.aib-pop footer{display:flex;align-items:center;gap:2px}.aib-pop footer .ib{color:var(--mut)}.aib-pop footer .primary{margin-left:auto;padding:0 16px}.aib-pop footer .aib-cancel{margin-left:auto;padding:0 14px}.aib-pop footer .aib-cancel+.primary{margin-left:6px}
 .aib-retry{margin:0;color:var(--warn);font-size:12px;line-height:1.35}.aib-note-body em.aib-retry{font-style:normal}
 .aib-understood{margin:0;color:var(--sub);font-size:12px;line-height:1.35}.aib-note-body em.aib-understood{font-style:normal;display:block}
+/* A pin that came back is a conversation: the owner's words on the right, the app's answers on the left, the box for the answer under them */
+.aib-thread{display:flex;flex-direction:column;gap:6px;max-height:220px;overflow-y:auto;margin:0 -4px;padding:0 4px}
+.aib-turn{margin:0;max-width:88%;padding:6px 10px;border-radius:12px;font-size:12.5px;line-height:1.38;overflow-wrap:anywhere}
+.aib-turn.owner{align-self:flex-end;background:color-mix(in srgb,var(--acc) 20%,transparent);color:var(--tx);border-bottom-right-radius:4px}
+.aib-turn.app{align-self:flex-start;background:color-mix(in srgb,var(--tx) 9%,transparent);color:var(--tx);border-bottom-left-radius:4px;display:flex;flex-direction:column;gap:3px}
+.aib-turn.app .aib-understood{color:var(--tx);opacity:.82;font-size:12px}.aib-turn.app .aib-retry{color:var(--warn);font-size:12px}
 /* The developer's fix of a pin, offered to a home already taken (D-129, ai-fix.ts): the rooms both changed, the user's and the fixed one side by side */
 .fix-choice{position:fixed;left:50%;top:50%;transform:translate(-50%,-50%);z-index:60;width:min(560px,calc(100vw - 32px));max-height:calc(100vh - 48px);overflow:auto;display:flex;flex-direction:column;gap:12px;padding:16px;border-radius:16px}
 .fix-choice header{display:flex;flex-direction:column;gap:3px}.fix-choice header small{color:var(--sub);font-size:12px}

@@ -3,7 +3,7 @@
 // added — and what goes to the service. A pin that did not work out last time comes back with why. Data only; the screen
 // is ai-review.js.
 import {pointIn, segDist} from '../core/geometry.ts';
-import {N} from '../i18n/i18n.ts';
+import {N, t} from '../i18n/i18n.ts';
 import type {FurnitureItem, HomeView, Point, Room} from '../core/types.ts';
 
 /** What the pins read of a plan: its rooms, and the ids and names of its items. */
@@ -19,6 +19,15 @@ export interface PinHit {
   /** A point a little inside the wall that was hit: the room comes from it. */
   inside?: Point;
   item?: string | null;
+}
+
+/**
+ * One turn of a pin's conversation (the owner: a pin not done should be a dialog): the owner's words, or the app's answer as
+ * the owner read it — how it understood the pin, why it was not done, what it asked — in their language.
+ */
+export interface PinTurn {
+  who: 'owner' | 'app';
+  text: string;
 }
 
 /** Whether the service made a pin: yes, in part, or not. */
@@ -49,6 +58,8 @@ export interface RoundPin {
   why?: PinReason[];
   /** How the service understood the pin, in the owner's language. */
   understood?: string;
+  /** The conversation about the pin before its words, as it was sent (the service gives it back). */
+  thread?: PinTurn[];
 }
 
 /** A round of the owner's pins as the service judged it. */
@@ -91,6 +102,10 @@ export interface Pin {
   photos: string[];
   camera?: HomeView;
   retry?: PinRetry;
+  /** The owner's words the app answered last round, when the pin came back: `text` is then their answer to it. */
+  said?: string;
+  /** The conversation before `said`, oldest first (earlier rounds). */
+  thread?: PinTurn[];
 }
 
 /** The owner's notes on a build: the pins, and the words for the whole home. */
@@ -115,6 +130,8 @@ export interface SentPin {
   photos?: string[];
   /** The pin of an earlier round this one says again: the developer sees how many times it was tried (D-129). */
   retryOf?: {round: number; n: number};
+  /** The conversation before `text`, oldest first: the owner's earlier words and the app's answers. */
+  thread?: PinTurn[];
 }
 
 /** Where a pin sent to the developer stands (D-129; the service's tools/feedback.ts). */
@@ -220,10 +237,69 @@ export const pinLabel = (
   outside: string,
 ): string => [pin.itemName, pin.roomName || outside].filter(Boolean).join(' · ');
 
+// Each reason in the service's own words for this pin when it gave them (what it can't do yet and why, what it asks, what it
+// sees now — in the owner's language), else the reason's usual words.
+const saidFor = (retry: PinRetry | undefined, code: string): string =>
+  (retry?.told || [])
+    .filter(told => told.code === code)
+    .map(told => told.say)
+    .join(' ');
+// The reasons by any code the service sends: one this list does not have reads as none.
+const missedReasons: Partial<Record<string, string>> = MISSED_REASON;
+const missedText = (retry: PinRetry): string =>
+  (retry?.codes || []).map(code => reasonText(retry, code)).join(' · ');
+// A thing gone with the round: its name is what the service says, in the reason's words.
+const goneNames = (retry: PinRetry): string =>
+  (retry?.told || [])
+    .filter(told => told.code === 'gone')
+    .map(told => told.say)
+    .join(', ');
+const reasonText = (retry: PinRetry, code: string): string => {
+  if (code === 'gone') return t(MISSED_REASON.gone, goneNames(retry) || '?');
+  return saidFor(retry, code) || t(missedReasons[code] || MISSED_REASON.unchanged);
+};
+/**
+ * Under a pin that comes back: not done, or done in part, and why (the owner: "Last time: …" told them nothing). What the app
+ * can't do yet, and what was not understood, say so plainly (the owner: "why was it unclear?" — it was understood, and the
+ * app could not do it).
+ */
+export const retryText = (retry: PinRetry): string => {
+  const codes = retry?.codes || [];
+  const only = (code: string): string | false =>
+    codes.length > 0 && codes.every(each => each === code) && saidFor(retry, code);
+  if (only('cannot')) return t('We can’t do this yet: {0}', saidFor(retry, 'cannot'));
+  if (only('unclear')) return t('Not understood: {0}', saidFor(retry, 'unclear'));
+  return t(retry.made === 'partly' ? 'Done in part: {0}' : 'Not done: {0}', missedText(retry));
+};
+/** How the service understood a pin that came back, for the owner to read. */
+export const understoodText = (retry: PinRetry | undefined): string =>
+  retry?.understood ? t('Understood as: {0}', retry.understood) : '';
+
+/** A pin's words as they go: the owner's answer, else, for a pin that came back, the words the app answered. */
+export const pinWords = (pin: Pick<Pin, 'text' | 'said'>): string =>
+  pin.text.trim() || pin.said?.trim() || '';
+
+// The turns of a pin's conversation that go with it (the harness keeps as many).
+const MAX_THREAD_TURNS = 8;
+
+/**
+ * A pin's conversation before the words it goes with: the earlier rounds', then, for a pin that came back, the words the app
+ * answered and its answer as the owner read it (how it understood the pin, why it was not done or what it asked).
+ */
+export function pinThread(pin: Pick<Pin, 'said' | 'retry' | 'thread'>): PinTurn[] {
+  const turns = [...(pin.thread || [])];
+  if (pin.said?.trim() && pin.retry) {
+    turns.push({who: 'owner', text: pin.said.trim()});
+    const answer = [understoodText(pin.retry), retryText(pin.retry)].filter(Boolean).join(' ');
+    if (answer) turns.push({who: 'app', text: answer});
+  }
+  return turns.slice(-MAX_THREAD_TURNS);
+}
+
 /** The pins as the service gets them: only those with words, numbered in order. */
 export function pinsToSend(pins: Pin[]): SentPin[] {
   return pins
-    .filter(pin => pin.text.trim())
+    .filter(pin => pinWords(pin))
     .map((pin, i) => ({
       n: i + 1,
       x: pin.x,
@@ -231,20 +307,21 @@ export function pinsToSend(pins: Pin[]): SentPin[] {
       ...(pin.z != null ? {z: pin.z} : {}),
       ...(pin.room ? {room: pin.room, roomName: pin.roomName} : {}),
       ...(pin.item ? {item: pin.item, itemName: pin.itemName} : {}),
-      text: pin.text.trim(),
+      text: pinWords(pin),
       ...(pin.view ? {view: pin.view} : {}),
       ...(pin.camera ? {camera: pin.camera} : {}),
       ...(pin.photos?.length ? {photos: pin.photos.slice(0, MAX_PIN_PHOTOS)} : {}),
       ...(pin.retry?.round != null && pin.retry.n != null
         ? {retryOf: {round: pin.retry.round, n: pin.retry.n}}
         : {}),
+      ...(pinThread(pin).length ? {thread: pinThread(pin)} : {}),
     }));
 }
 
 /**
  * The pins of the last round that did not work out, as pins again (the service's status lastRound): where they were, the
- * owner's words and pictures, and why (`retry`: the service's reason codes, harness owner-result.ts). The owner can add a
- * photo or say it again, or delete them.
+ * owner's words (`said`) and pictures, the conversation before them, and why (`retry`: the service's reason codes, harness
+ * owner-result.ts). The owner answers in `text`, adds a photo, or deletes them; a pin not answered goes again as it was.
  */
 export function pinsToRetry(lastRound: PinRound | null | undefined): Pin[] {
   // the developer's round answers a pin the owner has already (refreshRetries): nothing comes back twice
@@ -259,7 +336,9 @@ export function pinsToRetry(lastRound: PinRound | null | undefined): Pin[] {
       roomName: pin.roomName || null,
       item: pin.item || null,
       itemName: pin.itemName || null,
-      text: pin.text,
+      text: '',
+      said: pin.text,
+      ...(pin.thread?.length ? {thread: pin.thread} : {}),
       view: pin.view || null,
       ...(pin.camera ? {camera: pin.camera} : {}),
       photos: pin.photos || [],
@@ -309,11 +388,14 @@ export function refreshRetries(pins: Pin[], lastRound: PinRound | null | undefin
       pinRetry.n != null
         ? roundPins.find(roundPin => roundPin.n === pinRetry.n)
         : roundPins.find(
-            roundPin => roundPin.text === pin.text && (roundPin.item || null) === (pin.item || null),
+            roundPin =>
+              roundPin.text === (pin.said ?? pin.text) && (roundPin.item || null) === (pin.item || null),
           );
     if (!now) return [pin];
     if (now.made === 'yes') {
-      const untouched = pin.text === now.text && (pin.photos || []).length === (now.photos || []).length;
+      // not answered (a pin from before the conversation: its words as they were) and no photo added
+      const sameWords = pin.said != null ? !pin.text.trim() : pin.text === now.text;
+      const untouched = sameWords && (pin.photos || []).length === (now.photos || []).length;
       if (untouched) return [];
       const {retry, ...kept} = pin;
       return [kept];
