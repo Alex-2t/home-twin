@@ -138,6 +138,17 @@ test('furniture snaps back-first to a wall and detects overlap', () => {
   p.furniture.push(f, {...f, id: 'w2', x: f.x + 0.5});
   assert.match(furnitureConflicts(p).get('w2')!, /overlaps/);
 });
+// A chair drawn from parts as the AI build draws one: a seat 0.48 m high and a backrest along its back (its back 15 %).
+const chairParts = (w: number, d: number, h: number): PartsItem => ({
+  w,
+  d,
+  h,
+  materials: {m: {color: '#777777'}},
+  parts: [
+    {kind: 'box', mat: 'm', size: [w, 0.48, d * 0.85], at: [0, 0, d * 0.075]},
+    {kind: 'box', mat: 'm', size: [w, h, d * 0.12], at: [0, 0, -d / 2 + d * 0.06]},
+  ],
+});
 test('a chair from parts at a table from parts is tucked under it when both say so, as catalog ones are', () => {
   const box = (w: number, d: number, h: number): PartsItem => ({
     w,
@@ -158,7 +169,8 @@ test('a chair from parts at a table from parts is tucked under it when both say 
     y: 1.5,
     parts: box(1, 1, 0.75),
   };
-  // facing the table, pushed 12 cm under its edge (it used to stand backwards, its back half under the top)
+  // facing the table, pushed 12 cm under its edge (it used to stand backwards, its back half under the top); drawn as a chair
+  // is, a seat and a backrest along its back: the editor checks the drawn parts at the top's height too
   const chair = {
     id: 'c',
     model: 'parts',
@@ -168,7 +180,7 @@ test('a chair from parts at a table from parts is tucked under it when both say 
     rot: 180,
     x: 1.5,
     y: 0.87,
-    parts: box(0.5, 0.5, 0.85),
+    parts: chairParts(0.5, 0.5, 0.85),
   };
   p.furniture.push(table, chair);
   assert.match(furnitureConflicts(p).get('c')!, /overlaps/, 'without a word: overlapping');
@@ -214,7 +226,7 @@ test('a chair goes under a table only as far as a real one: its backrest stays o
     rot,
     x,
     y,
-    parts: {...parts(0.55, 0.55, 0.85, 'box'), under: 0.65},
+    parts: {...chairParts(0.55, 0.55, 0.85), under: 0.65},
   });
   // seated round it as the AI build seats chairs: facing it, 12 cm under its edge, at 30°, 150° and 270°
   const out = 0.5 + 0.275 - 0.12;
@@ -247,6 +259,64 @@ test('a chair goes under a table only as far as a real one: its backrest stays o
   const square = furnitureConflicts(p);
   assert.match(square.get('back')!, /overlaps/, 'its backrest goes into the top');
   assert.ok(!square.has('front'), 'facing it, 12 cm under: tucked');
+});
+test('a tub chair whose drawn arms reach a round table’s top is not tucked under it, whatever height it says; at the edge it is clear', () => {
+  const p = two();
+  const table = {
+    id: 't',
+    model: 'parts',
+    w: 1,
+    d: 1,
+    h: 0.75,
+    rot: 0,
+    x: 1.5,
+    y: 1.5,
+    parts: {
+      w: 1,
+      d: 1,
+      h: 0.75,
+      materials: {m: {color: '#222222'}},
+      parts: [
+        {kind: 'cyl', mat: 'm', r: 0.5, h: 0.04, at: [0, 0.71, 0]},
+        {kind: 'cyl', mat: 'm', r: 0.05, h: 0.71, at: [0, 0, 0]},
+      ],
+      table: true,
+    },
+  } satisfies FurnitureItem;
+  // the AI build's tub chair (home-mwong249): said to go under up to 0.65 m (an armchair's arms at 76 % of its height), its
+  // arms drawn from 0.54 to 0.84 m along nearly all its depth, so they cross the top (0.71–0.75 m)
+  const tubChair = (y: number): FurnitureItem => ({
+    id: 'c',
+    model: 'parts',
+    w: 0.55,
+    d: 0.55,
+    h: 0.85,
+    rot: 180,
+    x: 1.5,
+    y,
+    parts: {
+      w: 0.55,
+      d: 0.55,
+      h: 0.85,
+      materials: {m: {color: '#5d6064'}},
+      parts: [
+        {kind: 'box', mat: 'm', size: [0.5, 0.12, 0.48], at: [0, 0.42, 0.03]},
+        {kind: 'box', mat: 'm', size: [0.55, 0.3, 0.1], at: [0, 0.54, -0.17], tilt: [-6, 0, 0]},
+        {kind: 'box', mat: 'm', size: [0.07, 0.3, 0.42], at: [-0.24, 0.54, -0.02]},
+        {kind: 'box', mat: 'm', size: [0.07, 0.3, 0.42], at: [0.24, 0.54, -0.02]},
+        {kind: 'cyl', mat: 'm', r: 0.02, h: 0.43, at: [-0.2, 0, 0.2]},
+        {kind: 'cyl', mat: 'm', r: 0.02, h: 0.43, at: [0.2, 0, 0.2]},
+      ],
+      under: 0.65,
+    },
+  });
+  // facing the table, its middle 0.52 m from the table's: its seat short of the pedestal and its backrest out, so the old
+  // rule tucked it, while its arms are 0.08 m inside the top's edge
+  p.furniture = [table, tubChair(1.5 - 0.52)];
+  assert.match(furnitureConflicts(p).get('c') || '', /overlaps/, 'its arms in the top: overlapping');
+  // at the top's edge, nothing of it over the top
+  p.furniture = [table, tubChair(1.5 - 0.5 - 0.275 - 0.01)];
+  assert.equal(furnitureConflicts(p).size, 0, 'at the edge: clear');
 });
 test('a radiator under the window goes under the top of a table standing at it; one reaching above the top does not', () => {
   const p = two();

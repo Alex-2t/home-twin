@@ -5,6 +5,7 @@ import {roomWalls, roomAt, uniqueName, swingOf} from './plan.ts';
 import {byId, zOf, lArms, nameOf} from './catalog.ts';
 import {isRun, runGeo} from './runs.ts';
 import {giveSeenBack} from './seen-lamps.ts';
+import {partBoxes} from './part-bounds.ts';
 import type {
   CatalogEntry,
   FootRect,
@@ -335,9 +336,32 @@ function notTooDeep(under: FurnitureItem, table: FurnitureItem): boolean {
     !inEllipse(back, table) && !footRects(under, 0.01).some(foot => inEllipse(foot, table, PEDESTAL_SHARE))
   );
 }
+// A seat drawn from parts goes under a table only when none of its parts at the top's height stands over the top. The height
+// it says it goes under to (parts.under) is a guess from what it is called (an armchair's arms at 76 % of its height): the
+// owner's AI build drew a tub chair's arms up to 99 % of it, 13 cm past the underside of a round table's top, and the rule let
+// two of them be tucked through the top ("why does furniture go through the texture?"; 12 seats in 7 of 28 saved builds).
+// A part counts at the top's height as the height test above does: reaching within TOP_GAP of the top.
+const TOP_GAP = 0.03;
+function partsClearOfTop(seat: FurnitureItem, table: FurnitureItem, topHeight: number): boolean {
+  const axesOfSeat = axes(seat);
+  const round = roundTop(table);
+  const tableRects = round ? [] : footRects(table, 0.01);
+  return partBoxes(seat).every(box => {
+    if (box.y1 <= topHeight - TOP_GAP) return true;
+    const outline: Outline = (
+      [
+        [box.x0 + 0.01, box.z0 + 0.01],
+        [box.x1 - 0.01, box.z0 + 0.01],
+        [box.x1 - 0.01, box.z1 - 0.01],
+        [box.x0 + 0.01, box.z1 - 0.01],
+      ] as Point[]
+    ).map(([x, z]) => W2(seat, axesOfSeat, x, z));
+    return round ? !inEllipse(outline, table) : !tableRects.some(rect => overlap(outline, rect));
+  });
+}
 // Truthy when one of the two tucks under the other (the value is the last test made, as before: false, undefined or true).
-// A thing that goes under up to a height (a chair's seat) goes under no deeper than a real one (notTooDeep); one that goes
-// under entirely (true: a radiator, a mobile pedestal) at any depth.
+// A thing that goes under up to a height (a chair's seat) goes under no deeper than a real one (notTooDeep), and none of its
+// drawn parts at the top's height over the top (partsClearOfTop); one that goes under entirely (true: a radiator, a mobile pedestal) at any depth.
 export const tuck = (f: FurnitureItem, g: FurnitureItem): boolean | number | undefined => {
   // what it says of itself: under (true or a height), table (true or the top's height)
   const U = (x: FurnitureItem): boolean | number | undefined => entryOf(x)?.under ?? x.parts?.under;
@@ -351,7 +375,8 @@ export const tuck = (f: FurnitureItem, g: FurnitureItem): boolean | number | und
     const table = T(x);
     return table === true ? x.h : table || 0;
   };
-  const deep = (x: FurnitureItem, table: FurnitureItem): boolean => U(x) === true || notTooDeep(x, table);
+  const deep = (x: FurnitureItem, table: FurnitureItem): boolean =>
+    U(x) === true || (notTooDeep(x, table) && partsClearOfTop(x, table, t(table)));
   return (
     (U(f) && T(g) && u(f) <= t(g) - 0.03 && deep(f, g)) || (U(g) && T(f) && u(g) <= t(f) - 0.03 && deep(g, f))
   );
