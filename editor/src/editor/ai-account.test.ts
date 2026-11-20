@@ -326,7 +326,7 @@ test('a provider sign-in from Home Assistant: a tab on the service with a fresh 
   assert.notEqual(newLinkToken(), link);
   assert.equal(
     linkSignInUrl('https://twin.example', 'github', link),
-    `https://twin.example/pay/auth/github/start?link=${link}`,
+    `https://twin.example/pay/auth/github/start?link=${link}&return=%2F%3Flang%3Den`,
   );
   await withService(202, {pending: true}, async seen => {
     assert.deepEqual(await askSignInLink('/ha/ai/k', link, 'the-secret'), {state: 'waiting'});

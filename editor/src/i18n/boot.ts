@@ -10,8 +10,12 @@ try {
 } catch {}
 // in the HA panel, ha-panel.js sets the HA user's language (HOME_TWIN_LANG) before the other modules load
 const host = globalThis.HOME_TWIN_LANG;
+// A tab the HA panel opened on the site (back from the checkout or a sign-in) carries the panel's language in ?lang: it
+// speaks that, not the browser's language or the site's last choice.
+const asked = typeof location !== 'undefined' ? new URLSearchParams(location.search).get('lang') : null;
 setLang(
-  saved ||
+  (asked && pickLang([asked]) === asked ? asked : null) ||
+    saved ||
     pickLang(
       host ? [host] : typeof navigator !== 'undefined' ? navigator.languages || [navigator.language] : [],
     ),

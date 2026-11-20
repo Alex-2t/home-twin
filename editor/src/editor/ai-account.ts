@@ -266,9 +266,13 @@ export function newLinkToken(): string {
     .replace(/=+$/, '');
 }
 
-/** The tab's address for a provider's sign-in that goes to the link, not to the tab: on the service's own site. */
+/**
+ * The tab's address for a provider's sign-in that goes to the link, not to the tab: on the service's own site. The tab comes
+ * back to the site in the panel's language (?lang), which the browser's own need not be.
+ */
 export function linkSignInUrl(site: string, provider: Provider, link: string): string {
-  return `${site}/pay/auth/${provider}/start?link=${encodeURIComponent(link)}`;
+  const back = `/?lang=${getLang()}`;
+  return `${site}/pay/auth/${provider}/start?link=${encodeURIComponent(link)}&return=${encodeURIComponent(back)}`;
 }
 
 /** What the panel hears when it asks for its link. */
