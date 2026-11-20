@@ -4,7 +4,7 @@ A live 3D twin of your home for Home Assistant: draw the floor plan, place light
 
 <img alt="Home Twin in Home Assistant: a furnished loft in 3D; a tap on the living room flies into it, its lights go off and on one by one and all together, then the home switches from night to day and back" src="docs/images/hero.webp">
 
-[![Support Home Twin on Ko-fi](https://img.shields.io/badge/Ko--fi-Support%20Home%20Twin-FF5E5B?logo=ko-fi&logoColor=white)](https://ko-fi.com/hometwin)
+[![Star Home Twin on GitHub](https://img.shields.io/github/stars/Alex-2t/home-twin?style=flat&logo=github&label=Star)](https://github.com/Alex-2t/home-twin) [![Support Home Twin on Ko-fi](https://img.shields.io/badge/Ko--fi-Support%20Home%20Twin-FF5E5B?logo=ko-fi&logoColor=white)](https://ko-fi.com/hometwin)
 
 ## Install
 1. Add this repository and download **Home Twin**, then restart Home Assistant:
@@ -35,7 +35,7 @@ After the first release, in no fixed order and without dates:
 - **Climate on the plan** — a heat map of temperature, humidity or CO₂ room by room; energy drawn on the devices that use it.
 - **People and motion** — rooms light up where someone is; the robot vacuum moves along its real path.
 
-Want these sooner? [Buy me a coffee on Ko-fi](https://ko-fi.com/hometwin) — Home Twin is free and open, and support keeps it moving.
+Want these sooner? [Buy me a coffee on Ko-fi](https://ko-fi.com/hometwin) — Home Twin is free and open, and support keeps it moving. A ⭐ star on GitHub helps too: it is how others find Home Twin.
 
 License: [GPL-3.0](LICENSE).
 

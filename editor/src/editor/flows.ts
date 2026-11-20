@@ -19,6 +19,7 @@ import {cardPicture, factsLine, fetchGallery, galleryView, homeFacts} from './ga
 import {drawPlan, changedWhen} from './versions-panel.ts';
 import {EXAMPLE, GALLERY_KIND} from './example-info.ts';
 import {SHOWCASE} from './showcase.ts';
+import {openRepo, starAskOnce} from './star-ask.ts';
 import type {ExampleInfo} from './example-info.ts';
 import type {GalleryHome, GalleryView} from './gallery.ts';
 import type {HeldFocus} from './keyboard.ts';
@@ -1639,6 +1640,7 @@ export function createFlows(
     prev: () => swapPrev(),
     versions: () => ed.showVersions(),
     board: () => f.addBoard(),
+    star: () => openRepo(),
   };
   document.querySelectorAll<HTMLElement>('.menu [data-a]').forEach(
     b =>
@@ -1683,11 +1685,16 @@ export function createFlows(
     try {
       await b.add(name);
       syncBoard();
+      // the setup's last step done, the home in 3D: the moment to ask for a GitHub star, once (star-ask.ts)
+      const star = starAskOnce();
+      let message = t('Your home is on the dashboard “{0}” in the sidebar.', name);
+      if (star) message += ' ' + star.sentence;
       // the message is seen in Preview too: its button is there
       ed.banner(
-        t('Your home is on the dashboard “{0}” in the sidebar.', name),
+        message,
         [
           [t('Got it'), done],
+          ...(star ? [star.link] : []),
           [
             t('Open|verb'),
             () => {
