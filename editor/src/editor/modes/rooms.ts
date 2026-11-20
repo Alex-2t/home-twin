@@ -2967,9 +2967,6 @@ export function roomsMode(ed: Editor): RoomsMode {
     return [Math.min(...xs), Math.min(...ys), Math.max(...xs), Math.max(...ys)];
   };
   m.ctxKey = () => ctxRoom() || '';
-  // The panel that follows the pointer while splitting (not a selected room's): it must not lie over another room. Beside an
-  // inner room it used to lie over the next room to split, and the click meant for the split landed on the panel.
-  m.ctxHideOverRooms = () => tool === 'split' && !hintRoom && !sel().room && !sel().wall && !sel().opening;
   m.status = () => '';
   return m;
 }

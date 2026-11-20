@@ -263,8 +263,6 @@ export interface EditorMode {
   ctxPin?(): string | null;
   /** The panel stays where it is when the selection moves on (it moves only where it would cover the new one or not fit). */
   ctxSteady?(): boolean;
-  /** The panel is hidden rather than laid over another room (the one following the pointer while splitting). */
-  ctxHideOverRooms?(): boolean;
   dblclick?(e: MouseEvent, p: Point): void;
   /** "Split" (Tab): turns the split line by 90°. */
   flipCut?(): void;
