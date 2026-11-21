@@ -1991,6 +1991,19 @@ export function lightsMode(ed: Editor): LightsMode {
           const row = el(
             `<div class="row lamp ${todo(L) ? 'todo' : ''} ${L.id === sel().light || L === a ? 'sel' : ''}" data-id="${L.id}" title="${L.placed ? '' : t('Click to identify this light, or drag it onto the plan')}"><button class="bulb ib ${L.on ? 'on' : ''}" title="${t('Turn on / off')}">${icon(f ? 'f_' + f : 'bulb', 16)}</button><span class="name">${esc(L.name)}</span><small>${esc(lampNote(L))}</small>${confirmedMark(L)}</div>`,
           );
+          // a switch or a backlight marked "It's a light" by mistake: on hover, back to the switches (the owner: a misclick
+          // on "It's a light" had no way back where it was made)
+          if ((L.relay || L.backlight) && !L.placed) {
+            const back = el(
+              `<button class="ib row-back" aria-label="${esc(t('Not a light: back to the switches'))}">${icon('undo', 15)}</button>`,
+            );
+            tip(back, t('Not a light: back to the switches'));
+            back.onclick = e => {
+              e.stopPropagation();
+              deleteLamp(L);
+            };
+            row.append(back);
+          }
           // the row's markup has its bulb button
           row.querySelector<HTMLElement>('.bulb')!.onclick = e => {
             e.stopPropagation();
@@ -2002,12 +2015,12 @@ export function lightsMode(ed: Editor): LightsMode {
           };
           // a press or a click is on the row or inside it
           row.onpointerdown = e => {
-            if ((e.target as Element).closest('.bulb') || L.placed) return;
+            if ((e.target as Element).closest('.bulb, .row-back') || L.placed) return;
             e.preventDefault();
             placing = {L};
           };
           row.onclick = e => {
-            if ((e.target as Element).closest('.bulb')) return;
+            if ((e.target as Element).closest('.bulb, .row-back')) return;
             if (L.placed) ed.select('light', L.id);
             else {
               sel().light = null;

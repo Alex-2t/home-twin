@@ -1042,3 +1042,5 @@ button.aib-unplaced{display:grid;grid-template-columns:22px minmax(0,1fr);gap:9p
 /* "Fix with AI" (ai-after.ts): on the top bar in Plan and Furniture; while its review is open the editor's own card waits */
 body:not([data-mode=rooms]):not([data-mode=furniture]) #ai-fix-btn{display:none}
 body.aib-after #banner{display:none}
+/* a lamp made from a switch ("It's a light"): on hover its note gives way to the way back (lights.ts) */
+.row .row-back{display:none;width:26px;height:26px;margin-left:auto}.row:hover .row-back,.row .row-back:focus-visible{display:inline-flex}.row:hover:has(.row-back) small{display:none}

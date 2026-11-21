@@ -1891,5 +1891,6 @@
  "{0, plural, one {The AI changed # thing in your home} other {The AI changed # things in your home}}": "{0, plural, one {De AI heeft # meubelstuk in je huis aangepast} other {De AI heeft # meubelstukken in je huis aangepast}}",
  "The AI changed nothing in your home": "De AI heeft niets in je huis aangepast",
  "{0, plural, one {# thing you changed yourself stays yours} other {# things you changed yourself stay yours}}": "{0, plural, one {# meubelstuk dat je zelf hebt aangepast blijft van jou} other {# meubelstukken die je zelf hebt aangepast blijven van jou}}",
- "Could not load the changes: check the connection and try again": "Kon de wijzigingen niet laden: controleer de verbinding en probeer het opnieuw"
+ "Could not load the changes: check the connection and try again": "Kon de wijzigingen niet laden: controleer de verbinding en probeer het opnieuw",
+ "Not a light: back to the switches": "Geen lamp: terug naar de schakelaars"
 }

@@ -1891,5 +1891,6 @@
  "{0, plural, one {The AI changed # thing in your home} other {The AI changed # things in your home}}": "{0, plural, one {AI изменил # предмет в вашем доме} few {AI изменил # предмета в вашем доме} many {AI изменил # предметов в вашем доме} other {AI изменил # предмета в вашем доме}}",
  "The AI changed nothing in your home": "AI ничего не изменил в вашем доме",
  "{0, plural, one {# thing you changed yourself stays yours} other {# things you changed yourself stay yours}}": "{0, plural, one {# предмет, который вы меняли сами, остался вашим} few {# предмета, которые вы меняли сами, остались вашими} many {# предметов, которые вы меняли сами, остались вашими} other {# предмета, которые вы меняли сами, остались вашими}}",
- "Could not load the changes: check the connection and try again": "Не удалось загрузить изменения: проверьте подключение и попробуйте ещё раз"
+ "Could not load the changes: check the connection and try again": "Не удалось загрузить изменения: проверьте подключение и попробуйте ещё раз",
+ "Not a light: back to the switches": "Не светильник: вернуть в выключатели"
 }
