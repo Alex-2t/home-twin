@@ -3189,28 +3189,10 @@ export function openAiBuild(ed: Editor, options: AiBuildOptions = {}): AiBuildSc
         ed.banner(text, [checkRooms, [t('Got it'), () => ed.banner(), true]]);
         return;
       }
-      const text = linked
-        ? t(
-            'Your home is here. Rooms linked to Home Assistant: {0} of {1}. Link the rest.',
-            linked,
-            rooms.length,
-          )
-        : t('Your home is here. Link its rooms to Home Assistant.');
-      ed.banner(text, [
-        // which rooms are linked and which are not, each shown on the home when pointed at (the owner)
-        ed.modes.rooms.linkRow(),
-        [
-          t('Link rooms'),
-          () => {
-            ed.banner();
-            // rooms are linked by clicking them on the plan
-            ed.setMain('plan');
-            ed.path.go('names');
-          },
-          true,
-        ],
-        [t('Later'), () => ed.banner()],
-      ]);
+      // Rooms left to link: straight to the step on the plan, the first room not linked lit and asked about with HA's areas
+      // above it (the owner: a card with "Link rooms" and a row of rooms under the 3D did not say what its buttons do).
+      ed.setMain('plan');
+      ed.path.go('names');
       return;
     }
     ed.banner(t('Your home is ready. Change anything you like.'), [[t('Got it'), () => ed.banner(), true]]);
