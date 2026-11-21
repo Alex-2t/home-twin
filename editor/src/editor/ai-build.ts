@@ -49,7 +49,7 @@ import {syncFurnStrips} from '../core/fixtures.ts';
 import {accountReports} from './ai-reports.ts';
 import {recordStep} from './wizard-state.ts';
 import {parseSearchAi} from './route.ts';
-import {PLACEABLE, autoPlace, deviceKind, isCentral, recOf} from '../core/devices.ts';
+import {PLACEABLE, autoPlace, deviceKind} from '../core/devices.ts';
 import {recommend} from '../core/sensors.ts';
 import type {Pin, PinNotes, PinRetry, PinRound, ReportView} from './ai-pins.ts';
 import {
@@ -298,11 +298,6 @@ function offerPointsHtml(inHa: boolean): string {
 // The owner's devices the model shows (air conditioners, covers, door and window sensors), as the Devices step lists them.
 const haDevices = (ed: Editor): HaDevice[] =>
   (ed.ha.devices?.() || []).filter(device => PLACEABLE.has(deviceKind(device, ed.ha.entity(device.entity))));
-// The ones placing by itself can put in the model: not a central system's thermostat, which has no unit on a wall.
-const devicesToPlace = (ed: Editor): HaDevice[] =>
-  haDevices(ed).filter(
-    device => !(deviceKind(device, ed.ha.entity(device.entity)) === 'ac' && isCentral(device)),
-  );
 // The HA lights of the plan the Lights step is about: the owner's, not skipped.
 const lightsToPlace = (ed: Editor): PlanLight[] =>
   ed.plan.lights.filter(light => light.entity && !light.skip);
@@ -3137,62 +3132,14 @@ export function openAiBuild(ed: Editor, options: AiBuildOptions = {}): AiBuildSc
     quietSetup();
     if (inHa) placeOwnersThings();
     markBuiltSteps();
-    // In Home Assistant the home is linked next: its rooms to HA's areas, then its lights and devices. The build linked what it
-    // could (D-136, D-137, D-138): all of them — nothing to ask; some — how many, and the rest are asked about (an area that is
-    // missing is made in HA from the same step); none — as before.
+    // In Home Assistant the home is set up next, in the setup's own steps with their Next (the owner: a card under the 3D did
+    // not say what its buttons do, and after a reload nothing said what to do next): the first step left opens on the plan —
+    // the rooms not linked, each lit and asked about with HA's areas above it, then the lights not placed, the devices, the
+    // sensors and the summary. The steps the build did are done already (markBuiltSteps, D-136–D-138), and the setup's place
+    // is kept with the plan, so a reload comes back to it.
     if (inHa) {
-      const rooms = ed.plan.rooms.filter(room => !room.solid);
-      const linked = rooms.filter(room => room.area).length;
-      if (linked && linked === rooms.length) {
-        // what is left after the rooms: the lights first, then the devices; each opens its own step
-        const lights = lightsToPlace(ed);
-        const lightsPlaced = lights.filter(light => light.placed).length;
-        const devices = devicesToPlace(ed);
-        const devicesPlaced = devices.filter(device => recOf(ed.plan, device.entity)).length;
-        const toStep = (step: 'lights' | 'devices') => () => {
-          ed.banner();
-          ed.setMain('plan');
-          ed.path.go(step);
-        };
-        // the rooms the build linked, each with its area, to look over and change (the owner: which ones, and to what?)
-        const checkRooms = ed.modes.rooms.linkRow();
-        if (lightsPlaced < lights.length) {
-          const text = lightsPlaced
-            ? t(
-                'Your home is here. Its rooms are linked to Home Assistant, lights placed: {0} of {1}. Place the rest.',
-                lightsPlaced,
-                lights.length,
-              )
-            : t('Your home is here. Its rooms are linked to your Home Assistant areas.');
-          ed.banner(text, [
-            [t('Place lights'), toStep('lights'), true],
-            checkRooms,
-            [t('Later'), () => ed.banner()],
-          ]);
-          return;
-        }
-        if (devicesPlaced < devices.length) {
-          ed.banner(
-            t(
-              'Your home is here, linked to Home Assistant. Devices placed: {0} of {1}. Place the rest.',
-              devicesPlaced,
-              devices.length,
-            ),
-            [[t('Place devices'), toStep('devices'), true], checkRooms, [t('Later'), () => ed.banner()]],
-          );
-          return;
-        }
-        const text =
-          lights.length || devices.length
-            ? t('Your home is here. Everything in it is linked to Home Assistant.')
-            : t('Your home is here. Its rooms are linked to your Home Assistant areas.');
-        ed.banner(text, [checkRooms, [t('Got it'), () => ed.banner(), true]]);
-        return;
-      }
-      // Rooms left to link: straight to the step on the plan, the first room not linked lit and asked about with HA's areas
-      // above it (the owner: a card with "Link rooms" and a row of rooms under the 3D did not say what its buttons do).
       ed.setMain('plan');
-      ed.path.go('names');
+      ed.path.resume();
       return;
     }
     ed.banner(t('Your home is ready. Change anything you like.'), [[t('Got it'), () => ed.banner(), true]]);
