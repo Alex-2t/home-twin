@@ -1,6 +1,6 @@
 # Home Twin
 
-A live 3D twin of your home for Home Assistant: draw the floor plan, place lights, devices and sensors, and see the home in 3D with live states. Early alpha.
+A live 3D twin of your home for Home Assistant: draw the floor plan, place lights, devices and sensors, and see the home in 3D with live states. First release: expect rough edges, and please report them in Issues.
 
 <img alt="Home Twin in Home Assistant: a furnished loft in 3D; a tap on the living room flies into it, its lights go off and on one by one and all together, then the home switches from night to day and back" src="docs/images/hero.webp">
 
