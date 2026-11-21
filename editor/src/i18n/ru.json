@@ -1877,5 +1877,13 @@
  "Your answer": "Ваш ответ",
  "Star on GitHub": "Поставить звезду на GitHub",
  "A star on GitHub helps others find Home Twin.": "Звезда на GitHub помогает другим найти Home Twin.",
- "Home Twin is free and open: a star helps others find it": "Home Twin бесплатный и открытый: звезда помогает другим его найти"
+ "Home Twin is free and open: a star helps others find it": "Home Twin бесплатный и открытый: звезда помогает другим его найти",
+ "This needs a bigger change than one fix may take": "Для этого нужна правка крупнее, чем одна обычная",
+ "Do it · about {0}% of the package": "Сделать · около {0} % пакета",
+ "Will be done with the next changes · about {0}% of the package": "Сделаем вместе со следующими правками · около {0} % пакета",
+ "This needs us to match the rooms to the plan again: about {0}% of the package, more than one fix may take": "Для этого нужно заново сопоставить комнаты с планом: около {0} % пакета, больше, чем на одну правку",
+ "This needs us to read the plan again: about {0}% of the package, more than one fix may take": "Для этого нужно заново прочитать план: около {0} % пакета, больше, чем на одну правку",
+ "This needs us to read this room from the video again: about {0}% of the package, more than one fix may take": "Для этого нужно заново разобрать эту комнату по видео: около {0} % пакета, больше, чем на одну правку",
+ "This needs us to build the home again: about {0}% of the package, more than one fix may take": "Для этого нужно собрать дом заново: около {0} % пакета, больше, чем на одну правку",
+ "This needs a bigger change: about {0}% of the package, more than one fix may take": "Для этого нужна правка крупнее: около {0} % пакета, больше, чем на одну правку"
 }

@@ -1877,5 +1877,13 @@
  "Your answer": "你的回答",
  "Star on GitHub": "在 GitHub 上点星",
  "A star on GitHub helps others find Home Twin.": "在 GitHub 上点一颗星，能帮助更多人找到 Home Twin。",
- "Home Twin is free and open: a star helps others find it": "Home Twin 免费且开源：点一颗星能帮助更多人找到它"
+ "Home Twin is free and open: a star helps others find it": "Home Twin 免费且开源：点一颗星能帮助更多人找到它",
+ "This needs a bigger change than one fix may take": "这需要比单次修改更大的改动",
+ "Do it · about {0}% of the package": "执行 · 约占套餐的 {0}%",
+ "Will be done with the next changes · about {0}% of the package": "将随下次修改一起完成 · 约占套餐的 {0}%",
+ "This needs us to match the rooms to the plan again: about {0}% of the package, more than one fix may take": "需要重新将房间与平面图对应：约占套餐的 {0}%，超过单次修改",
+ "This needs us to read the plan again: about {0}% of the package, more than one fix may take": "需要重新读取平面图：约占套餐的 {0}%，超过单次修改",
+ "This needs us to read this room from the video again: about {0}% of the package, more than one fix may take": "需要根据视频重新识别这个房间：约占套餐的 {0}%，超过单次修改",
+ "This needs us to build the home again: about {0}% of the package, more than one fix may take": "需要重新构建整个住宅：约占套餐的 {0}%，超过单次修改",
+ "This needs a bigger change: about {0}% of the package, more than one fix may take": "这需要更大的改动：约占套餐的 {0}%，超过单次修改"
 }

@@ -1877,5 +1877,13 @@
  "Your answer": "La tua risposta",
  "Star on GitHub": "Metti una stella su GitHub",
  "A star on GitHub helps others find Home Twin.": "Una stella su GitHub aiuta altri a trovare Home Twin.",
- "Home Twin is free and open: a star helps others find it": "Home Twin è gratuito e aperto: una stella aiuta altri a trovarlo"
+ "Home Twin is free and open: a star helps others find it": "Home Twin è gratuito e aperto: una stella aiuta altri a trovarlo",
+ "This needs a bigger change than one fix may take": "Serve una modifica più grande di una singola correzione",
+ "Do it · about {0}% of the package": "Fallo · circa il {0}% del pacchetto",
+ "Will be done with the next changes · about {0}% of the package": "Verrà fatto con le prossime modifiche · circa il {0}% del pacchetto",
+ "This needs us to match the rooms to the plan again: about {0}% of the package, more than one fix may take": "Serve riabbinare le stanze alla planimetria: circa il {0}% del pacchetto, più di una correzione",
+ "This needs us to read the plan again: about {0}% of the package, more than one fix may take": "Serve rileggere la planimetria: circa il {0}% del pacchetto, più di una correzione",
+ "This needs us to read this room from the video again: about {0}% of the package, more than one fix may take": "Serve rileggere questa stanza dal video: circa il {0}% del pacchetto, più di una correzione",
+ "This needs us to build the home again: about {0}% of the package, more than one fix may take": "Serve ricostruire la casa: circa il {0}% del pacchetto, più di una correzione",
+ "This needs a bigger change: about {0}% of the package, more than one fix may take": "Serve una modifica più grande: circa il {0}% del pacchetto, più di una correzione"
 }

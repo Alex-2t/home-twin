@@ -1877,5 +1877,13 @@
  "Your answer": "Votre réponse",
  "Star on GitHub": "Mettre une étoile sur GitHub",
  "A star on GitHub helps others find Home Twin.": "Une étoile sur GitHub aide d’autres personnes à trouver Home Twin.",
- "Home Twin is free and open: a star helps others find it": "Home Twin est gratuit et ouvert : une étoile aide d’autres personnes à le trouver"
+ "Home Twin is free and open: a star helps others find it": "Home Twin est gratuit et ouvert : une étoile aide d’autres personnes à le trouver",
+ "This needs a bigger change than one fix may take": "Il faut pour cela un changement plus important qu’une simple correction",
+ "Do it · about {0}% of the package": "Le faire · environ {0} % du forfait",
+ "Will be done with the next changes · about {0}% of the package": "Sera fait avec les prochains changements · environ {0} % du forfait",
+ "This needs us to match the rooms to the plan again: about {0}% of the package, more than one fix may take": "Il faut pour cela rattacher à nouveau les pièces au plan : environ {0} % du forfait, plus qu’une correction",
+ "This needs us to read the plan again: about {0}% of the package, more than one fix may take": "Il faut pour cela relire le plan : environ {0} % du forfait, plus qu’une correction",
+ "This needs us to read this room from the video again: about {0}% of the package, more than one fix may take": "Il faut pour cela relire cette pièce dans la vidéo : environ {0} % du forfait, plus qu’une correction",
+ "This needs us to build the home again: about {0}% of the package, more than one fix may take": "Il faut pour cela reconstruire le logement : environ {0} % du forfait, plus qu’une correction",
+ "This needs a bigger change: about {0}% of the package, more than one fix may take": "Il faut pour cela un changement plus important : environ {0} % du forfait, plus qu’une correction"
 }

@@ -1877,5 +1877,13 @@
  "Your answer": "A sua resposta",
  "Star on GitHub": "Dar uma estrela no GitHub",
  "A star on GitHub helps others find Home Twin.": "Uma estrela no GitHub ajuda outras pessoas a encontrar o Home Twin.",
- "Home Twin is free and open: a star helps others find it": "O Home Twin é gratuito e aberto: uma estrela ajuda outras pessoas a encontrá-lo"
+ "Home Twin is free and open: a star helps others find it": "O Home Twin é gratuito e aberto: uma estrela ajuda outras pessoas a encontrá-lo",
+ "This needs a bigger change than one fix may take": "Isto precisa de uma mudança maior do que uma só correção",
+ "Do it · about {0}% of the package": "Fazer · cerca de {0}% do pacote",
+ "Will be done with the next changes · about {0}% of the package": "Será feito com as próximas mudanças · cerca de {0}% do pacote",
+ "This needs us to match the rooms to the plan again: about {0}% of the package, more than one fix may take": "Para isto é preciso voltar a associar as divisões à planta: cerca de {0}% do pacote, mais do que uma correção",
+ "This needs us to read the plan again: about {0}% of the package, more than one fix may take": "Para isto é preciso voltar a ler a planta: cerca de {0}% do pacote, mais do que uma correção",
+ "This needs us to read this room from the video again: about {0}% of the package, more than one fix may take": "Para isto é preciso voltar a ler esta divisão no vídeo: cerca de {0}% do pacote, mais do que uma correção",
+ "This needs us to build the home again: about {0}% of the package, more than one fix may take": "Para isto é preciso construir a casa de novo: cerca de {0}% do pacote, mais do que uma correção",
+ "This needs a bigger change: about {0}% of the package, more than one fix may take": "Isto precisa de uma mudança maior: cerca de {0}% do pacote, mais do que uma correção"
 }

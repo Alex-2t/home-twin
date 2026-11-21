@@ -984,6 +984,7 @@ button.aib-big{height:46px;padding:0 22px;border-radius:12px;font-size:15px;box-
 .aib-turn{margin:0;max-width:88%;padding:6px 10px;border-radius:12px;font-size:12.5px;line-height:1.38;overflow-wrap:anywhere}
 .aib-turn.owner{align-self:flex-end;background:color-mix(in srgb,var(--acc) 20%,transparent);color:var(--tx);border-bottom-right-radius:4px}
 .aib-turn.app{align-self:flex-start;background:color-mix(in srgb,var(--tx) 9%,transparent);color:var(--tx);border-bottom-left-radius:4px;display:flex;flex-direction:column;gap:3px}
+.aib-turn.app .aib-accept{align-self:flex-start;margin-top:4px;height:28px;padding:0 10px;border-radius:9px;font-size:12.5px}.aib-turn.app .aib-accept.on{color:var(--sub)}
 .aib-turn.app .aib-understood{color:var(--tx);opacity:.82;font-size:12px}.aib-turn.app .aib-retry{color:var(--warn);font-size:12px}
 /* The developer's fix of a pin, offered to a home already taken (D-129, ai-fix.ts): the rooms both changed, the user's and the fixed one side by side */
 .fix-choice{position:fixed;left:50%;top:50%;transform:translate(-50%,-50%);z-index:60;width:min(560px,calc(100vw - 32px));max-height:calc(100vh - 48px);overflow:auto;display:flex;flex-direction:column;gap:12px;padding:16px;border-radius:16px}

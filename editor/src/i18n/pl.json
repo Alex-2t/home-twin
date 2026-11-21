@@ -1877,5 +1877,13 @@
  "Your answer": "Twoja odpowiedź",
  "Star on GitHub": "Daj gwiazdkę na GitHubie",
  "A star on GitHub helps others find Home Twin.": "Gwiazdka na GitHubie pomaga innym znaleźć Home Twin.",
- "Home Twin is free and open: a star helps others find it": "Home Twin jest darmowy i otwarty: gwiazdka pomaga innym go znaleźć"
+ "Home Twin is free and open: a star helps others find it": "Home Twin jest darmowy i otwarty: gwiazdka pomaga innym go znaleźć",
+ "This needs a bigger change than one fix may take": "To wymaga większej zmiany niż jedna poprawka",
+ "Do it · about {0}% of the package": "Zrób to · około {0}% pakietu",
+ "Will be done with the next changes · about {0}% of the package": "Zrobimy przy następnych zmianach · około {0}% pakietu",
+ "This needs us to match the rooms to the plan again: about {0}% of the package, more than one fix may take": "Trzeba ponownie dopasować pokoje do planu: około {0}% pakietu, więcej niż jedna poprawka",
+ "This needs us to read the plan again: about {0}% of the package, more than one fix may take": "Trzeba ponownie odczytać plan: około {0}% pakietu, więcej niż jedna poprawka",
+ "This needs us to read this room from the video again: about {0}% of the package, more than one fix may take": "Trzeba ponownie odczytać ten pokój z wideo: około {0}% pakietu, więcej niż jedna poprawka",
+ "This needs us to build the home again: about {0}% of the package, more than one fix may take": "Trzeba zbudować dom od nowa: około {0}% pakietu, więcej niż jedna poprawka",
+ "This needs a bigger change: about {0}% of the package, more than one fix may take": "To wymaga większej zmiany: około {0}% pakietu, więcej niż jedna poprawka"
 }

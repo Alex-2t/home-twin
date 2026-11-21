@@ -379,6 +379,19 @@ export function openReview(
       const understood = understoodText(pin.retry);
       if (understood) answer.append(el(`<span class="aib-understood">${esc(understood)}</span>`));
       answer.append(el(`<span class="aib-retry">${esc(retryText(pin.retry))}</span>`));
+      // A bigger step than one fix may take is the owner's to say yes to, with its share of the package on the button.
+      const offer = pin.retry.offer;
+      if (offer) {
+        const yes = pin.accept === offer.level;
+        const label = yes
+          ? t('Will be done with the next changes · about {0}% of the package', offer.percent)
+          : t('Do it · about {0}% of the package', offer.percent);
+        answer.append(
+          el(
+            `<button class="soft aib-accept${yes ? ' on' : ''}" data-act="pin-accept">${esc(label)}</button>`,
+          ),
+        );
+      }
       turns.push(answer);
     }
     thread.replaceChildren(...turns);
@@ -937,6 +950,16 @@ export function openReview(
       : t('It opens in the editor: everything stays changeable.');
   }
 
+  // The owner's yes to the bigger step offered for a pin, or taking it back: it goes with the pin in the next changes.
+  function toggleAccept(pin: Pin): void {
+    const level = pin.retry?.offer?.level;
+    if (!level) return;
+    if (pin.accept === level) delete pin.accept;
+    else pin.accept = level;
+    changed();
+    renderThread(pin);
+  }
+
   function changed(): void {
     onChange(notes);
     renderPins();
@@ -1087,6 +1110,7 @@ export function openReview(
     if (act === 'past-close') return closePast();
     if (act === 'past-again') return pinAgain();
     if (act === 'pin-report') return reportFrom(target);
+    if (act === 'pin-accept' && active != null) return toggleAccept(notes.pins[active]);
     if (act === 'pin-report-send' && active != null) return report(notes.pins[active]);
     if (act === 'photo-remove' && active != null) {
       notes.pins[active].photos.splice(Number(target.dataset.k), 1);

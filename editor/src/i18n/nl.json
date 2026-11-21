@@ -1877,5 +1877,13 @@
  "Your answer": "Uw antwoord",
  "Star on GitHub": "Geef een ster op GitHub",
  "A star on GitHub helps others find Home Twin.": "Een ster op GitHub helpt anderen Home Twin te vinden.",
- "Home Twin is free and open: a star helps others find it": "Home Twin is gratis en open: een ster helpt anderen het te vinden"
+ "Home Twin is free and open: a star helps others find it": "Home Twin is gratis en open: een ster helpt anderen het te vinden",
+ "This needs a bigger change than one fix may take": "Hiervoor is een grotere wijziging nodig dan één correctie",
+ "Do it · about {0}% of the package": "Doen · ongeveer {0}% van het pakket",
+ "Will be done with the next changes · about {0}% of the package": "Gebeurt bij de volgende wijzigingen · ongeveer {0}% van het pakket",
+ "This needs us to match the rooms to the plan again: about {0}% of the package, more than one fix may take": "Hiervoor moeten we de kamers opnieuw aan de plattegrond koppelen: ongeveer {0}% van het pakket, meer dan één correctie",
+ "This needs us to read the plan again: about {0}% of the package, more than one fix may take": "Hiervoor moeten we de plattegrond opnieuw lezen: ongeveer {0}% van het pakket, meer dan één correctie",
+ "This needs us to read this room from the video again: about {0}% of the package, more than one fix may take": "Hiervoor moeten we deze kamer opnieuw uit de video halen: ongeveer {0}% van het pakket, meer dan één correctie",
+ "This needs us to build the home again: about {0}% of the package, more than one fix may take": "Hiervoor moeten we de woning opnieuw opbouwen: ongeveer {0}% van het pakket, meer dan één correctie",
+ "This needs a bigger change: about {0}% of the package, more than one fix may take": "Hiervoor is een grotere wijziging nodig: ongeveer {0}% van het pakket, meer dan één correctie"
 }

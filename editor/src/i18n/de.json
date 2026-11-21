@@ -1877,5 +1877,13 @@
  "Your answer": "Ihre Antwort",
  "Star on GitHub": "Auf GitHub einen Stern geben",
  "A star on GitHub helps others find Home Twin.": "Ein Stern auf GitHub hilft anderen, Home Twin zu finden.",
- "Home Twin is free and open: a star helps others find it": "Home Twin ist kostenlos und offen: Ein Stern hilft anderen, es zu finden"
+ "Home Twin is free and open: a star helps others find it": "Home Twin ist kostenlos und offen: Ein Stern hilft anderen, es zu finden",
+ "This needs a bigger change than one fix may take": "Dafür braucht es eine größere Änderung als eine einzelne Korrektur",
+ "Do it · about {0}% of the package": "Ausführen · etwa {0} % des Pakets",
+ "Will be done with the next changes · about {0}% of the package": "Wird mit den nächsten Änderungen erledigt · etwa {0} % des Pakets",
+ "This needs us to match the rooms to the plan again: about {0}% of the package, more than one fix may take": "Dafür müssen wir die Räume neu dem Grundriss zuordnen: etwa {0} % des Pakets, mehr als eine Korrektur",
+ "This needs us to read the plan again: about {0}% of the package, more than one fix may take": "Dafür müssen wir den Grundriss neu lesen: etwa {0} % des Pakets, mehr als eine Korrektur",
+ "This needs us to read this room from the video again: about {0}% of the package, more than one fix may take": "Dafür müssen wir diesen Raum neu aus dem Video erfassen: etwa {0} % des Pakets, mehr als eine Korrektur",
+ "This needs us to build the home again: about {0}% of the package, more than one fix may take": "Dafür müssen wir das Zuhause neu aufbauen: etwa {0} % des Pakets, mehr als eine Korrektur",
+ "This needs a bigger change: about {0}% of the package, more than one fix may take": "Dafür braucht es eine größere Änderung: etwa {0} % des Pakets, mehr als eine Korrektur"
 }

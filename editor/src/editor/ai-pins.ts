@@ -60,6 +60,14 @@ export interface RoundPin {
   understood?: string;
   /** The conversation about the pin before its words, as it was sent (the service gives it back). */
   thread?: PinTurn[];
+  /** The pin needs a bigger step than one fix may spend on: what it is and its share of the package (the harness's pin-ladder.ts). */
+  offer?: PinOffer;
+}
+
+/** A bigger step the service offers for a pin, beyond what one fix may spend: its level and share of the package, percent. */
+export interface PinOffer {
+  level: string;
+  percent: number;
 }
 
 /** A round of the owner's pins as the service judged it. */
@@ -83,6 +91,8 @@ export interface PinRetry {
   told?: Array<{code: string; say: string}>;
   understood?: string;
   reported?: boolean;
+  /** The bigger step the service offered for it, the owner's to say yes to. */
+  offer?: PinOffer;
 }
 
 /**
@@ -106,6 +116,8 @@ export interface Pin {
   said?: string;
   /** The conversation before `said`, oldest first (earlier rounds). */
   thread?: PinTurn[];
+  /** The owner said yes to the bigger step offered for it (retry.offer): its level goes with the pin. */
+  accept?: string;
 }
 
 /** The owner's notes on a build: the pins, and the words for the whole home. */
@@ -132,6 +144,8 @@ export interface SentPin {
   retryOf?: {round: number; n: number};
   /** The conversation before `text`, oldest first: the owner's earlier words and the app's answers. */
   thread?: PinTurn[];
+  /** The bigger step the owner said yes to (the service takes it only if it offered it for the pin named by retryOf). */
+  accept?: string;
 }
 
 /** Where a pin sent to the developer stands (D-129; the service's tools/feedback.ts). */
@@ -188,6 +202,7 @@ export const MISSED_REASON = {
   // {0}: the things that went, by their names
   gone: N('{0} went missing with it: put it back in the editor or pin it'),
   'wrong-door': N('Not clear which door: put the pin right on it'),
+  offer: N('This needs a bigger change than one fix may take'),
 };
 
 /** The room a spot is in, else the nearest one within `near` metres; null outside the home. */
@@ -269,8 +284,29 @@ export const retryText = (retry: PinRetry): string => {
     codes.length > 0 && codes.every(each => each === code) && saidFor(retry, code);
   if (only('cannot')) return t('We can’t do this yet: {0}', saidFor(retry, 'cannot'));
   if (only('unclear')) return t('Not understood: {0}', saidFor(retry, 'unclear'));
+  if (only('offer') && retry.offer) return offerText(retry.offer);
   return t(retry.made === 'partly' ? 'Done in part: {0}' : 'Not done: {0}', missedText(retry));
 };
+/**
+ * A bigger step the service offers for a pin, by its level (the harness's pin-ladder.ts levels; things and room never cost
+ * more than one fix may take): what it would do and its share of the package. Another level reads as a bigger change.
+ */
+const OFFER_TEXT: Partial<Record<string, string>> = {
+  rooms: N(
+    'This needs us to match the rooms to the plan again: about {0}% of the package, more than one fix may take',
+  ),
+  plan: N('This needs us to read the plan again: about {0}% of the package, more than one fix may take'),
+  video: N(
+    'This needs us to read this room from the video again: about {0}% of the package, more than one fix may take',
+  ),
+  whole: N('This needs us to build the home again: about {0}% of the package, more than one fix may take'),
+};
+const OFFER_OTHER = N('This needs a bigger change: about {0}% of the package, more than one fix may take');
+
+/** What the owner reads of a bigger step offered for a pin, in their language. */
+export const offerText = (offer: PinOffer): string =>
+  t(OFFER_TEXT[offer.level] || OFFER_OTHER, offer.percent);
+
 /** How the service understood a pin that came back, for the owner to read. */
 export const understoodText = (retry: PinRetry | undefined): string =>
   retry?.understood ? t('Understood as: {0}', retry.understood) : '';
@@ -315,6 +351,7 @@ export function pinsToSend(pins: Pin[]): SentPin[] {
         ? {retryOf: {round: pin.retry.round, n: pin.retry.n}}
         : {}),
       ...(pinThread(pin).length ? {thread: pinThread(pin)} : {}),
+      ...(pin.accept && pin.retry?.offer?.level === pin.accept ? {accept: pin.accept} : {}),
     }));
 }
 
@@ -365,6 +402,7 @@ function retryOf(round: number, pin: RoundPin): PinRetry {
     codes: reasonCodes(pin),
     ...(told.length ? {told} : {}),
     ...(pin.understood ? {understood: pin.understood} : {}),
+    ...(pin.offer ? {offer: pin.offer} : {}),
   };
 }
 
