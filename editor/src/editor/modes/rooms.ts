@@ -71,6 +71,7 @@ import {
   zoneFromEdge,
 } from '../../core/plan.ts';
 import {setRoomArea} from '../../core/layout.ts';
+import {replaceAfterRelink} from '../../core/devices.ts';
 import {$, el, esc, find, fmtArea, popover, panelPop, closePop, popClosedAt} from '../ui.ts';
 import type {PopoverItem} from '../ui.ts';
 import {icon} from '../icons.ts';
@@ -2552,6 +2553,13 @@ export function roomsMode(ed: Editor): RoomsMode {
         const other = used ? cellWithArea(a.area_id) : null;
         if (other) linkCell(other.r, other.z, mine || null);
         linkCell(r, z, a.area_id);
+        // areas moved between rooms by hand (a linked room given another, or this area taken from another room): the devices
+        // in those rooms that belong to another area go to their own area's room (replaceAfterRelink); a first link moves none
+        const relinked = (!!mine && mine !== a.area_id) || !!other;
+        if (relinked && !z && !other?.z) {
+          const rooms = other ? [r, other.r] : [r];
+          replaceAfterRelink(plan(), rooms, ed.ha.devices?.() || [], entity => ed.ha.entity(entity));
+        }
         if (wiz) wiz.cur = null;
         if (!wiz) roomLink = null;
         ed.commit();

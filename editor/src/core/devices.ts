@@ -880,3 +880,52 @@ export function vacuumSpots(
     ];
   });
 }
+
+/**
+ * After the user moved Home Assistant areas between rooms by hand (Link rooms: a room that had an area given another, two rooms
+ * swapping theirs): the devices standing in those rooms on furniture of another area's room move to the furniture of their own
+ * area's room, as placing them would have put them had the rooms been linked so from the start (the owner: the AI build linked
+ * the kitchen and the bedroom the wrong way round, its devices went by that, and after he swapped the rooms the bedroom's
+ * curtains still opened the kitchen's). Only these rooms, only devices on an item the model already has (not one made for the
+ * device), and only to an item the video showed (seenOnly): a device that finds no place of its own area keeps the one it had,
+ * so nothing ends with fewer devices placed than before. Returns how many moved.
+ */
+export function replaceAfterRelink(
+  plan: DevicePlan,
+  rooms: Room[],
+  devs: HaDevice[],
+  ent: (entity: string) => EntityState | null | undefined = () => null,
+): number {
+  const records = plan.devices ?? [];
+  const deviceOf = new Map(devs.map(device => [device.entity, device]));
+  const roomOfItem = (itemId: string): Room | undefined => {
+    const item = plan.furniture.find(candidate => candidate.id === itemId);
+    return item ? rooms.find(room => room.area && inRoom(item, room)) : undefined;
+  };
+  const strays = records.filter(record => {
+    if (!record.furn || record.made) return false;
+    const room = roomOfItem(record.furn);
+    const area = deviceOf.get(record.entity)?.area;
+    return !!room && !!area && area !== room.area;
+  });
+  if (!strays.length) return 0;
+  plan.devices = records.filter(record => !strays.includes(record));
+  autoPlace(
+    plan,
+    strays.map(record => deviceOf.get(record.entity)!),
+    ent,
+    {seenOnly: true},
+  );
+  let moved = 0;
+  for (const record of strays) {
+    const now = recOf(plan, record.entity);
+    if (now) {
+      if (now.furn !== record.furn) moved++;
+      continue;
+    }
+    // no place of its own area: the one it had, unless a device of that room's own area took it just now
+    const taken = plan.devices.some(other => other.furn === record.furn);
+    if (!taken) plan.devices.push(record);
+  }
+  return moved;
+}

@@ -13,6 +13,7 @@ import {
   coverView,
   moveTo,
   shareStackedCovers,
+  replaceAfterRelink,
 } from './devices.ts';
 import {emptyPlan, migrate} from './plan.ts';
 import type {HaDevice, HassEntityState, Plan} from './types.ts';
@@ -491,4 +492,59 @@ test('three roller blinds an older editor stacked on one window, each the whole 
   const xs = items.map(f => f.x);
   assert.ok(xs[0] < xs[1] && xs[1] < xs[2], xs.join()); // in the order they were placed, left to right
   assert.equal(shareStackedCovers(p), 0, 'shared once: the next time nothing changes');
+});
+
+// Two rooms side by side, each with an air conditioner the video showed; the rooms were linked to the wrong areas at first.
+const twoRooms = (bedroomUnit = true): Plan => {
+  const square = (x0: number): [number, number][] => [
+    [x0, 0],
+    [x0 + 4, 0],
+    [x0 + 4, 3],
+    [x0, 3],
+  ];
+  const unit = (id: string, x: number) => ({id, model: 'aircon', x, y: 0.2, w: 0.8, d: 0.2, h: 0.3, rot: 0});
+  return {
+    ...emptyPlan(),
+    rooms: [
+      {id: 'a', name: 'Kitchen', area: 'kitchen', polygon: square(0)},
+      {id: 'b', name: 'Bedroom', area: 'bedroom', polygon: square(4)},
+    ],
+    furniture: bedroomUnit ? [unit('ac_a', 2), unit('ac_b', 6)] : [unit('ac_a', 2)],
+    devices: [],
+  };
+};
+const units: HaDevice[] = [
+  {entity: 'climate.kitchen', name: 'Air conditioner', area: 'kitchen', domain: 'climate'},
+  {entity: 'climate.bedroom', name: 'Air conditioner', area: 'bedroom', domain: 'climate'},
+];
+
+test('rooms swapped by hand: their devices move to the furniture of their own area, nothing else changes', () => {
+  const p = twoRooms();
+  autoPlace(p, units, () => null, {seenOnly: true});
+  assert.equal(recOf(p, 'climate.kitchen')!.furn, 'ac_a');
+  // the user swaps the two rooms' areas in Link rooms
+  p.rooms[0].area = 'bedroom';
+  p.rooms[1].area = 'kitchen';
+  const furnitureBefore = structuredClone(p.furniture);
+  assert.equal(replaceAfterRelink(p, p.rooms, units), 2);
+  assert.equal(recOf(p, 'climate.kitchen')!.furn, 'ac_b');
+  assert.equal(recOf(p, 'climate.bedroom')!.furn, 'ac_a');
+  assert.deepEqual(p.furniture, furnitureBefore);
+  // asked again, nothing is off any more
+  assert.equal(replaceAfterRelink(p, p.rooms, units), 0);
+});
+
+test('a device whose own area has no free item keeps the place it had; rooms not relinked are not looked at', () => {
+  const p = twoRooms(false);
+  autoPlace(p, units, () => null, {seenOnly: true});
+  p.rooms[0].area = 'bedroom';
+  p.rooms[1].area = 'kitchen';
+  assert.equal(replaceAfterRelink(p, p.rooms, units), 0);
+  assert.equal(recOf(p, 'climate.kitchen')!.furn, 'ac_a');
+  const q = twoRooms();
+  autoPlace(q, units, () => null, {seenOnly: true});
+  q.rooms[0].area = 'bedroom';
+  q.rooms[1].area = 'kitchen';
+  assert.equal(replaceAfterRelink(q, [], units), 0);
+  assert.equal(recOf(q, 'climate.kitchen')!.furn, 'ac_a');
 });
