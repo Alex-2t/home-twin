@@ -3,6 +3,7 @@ import {test} from 'node:test';
 import assert from 'node:assert/strict';
 import {
   activeBuild,
+  buildWinsOverPlan,
   buildIdentity,
   buildStartedAt,
   buildTouchedAt,
@@ -89,4 +90,34 @@ test('a build counts as touched when it was started, or opened since: the start 
   assert.equal(buildTouchedAt(id, {}), started);
   assert.equal(buildTouchedAt(id, {[id]: started + 5000}), started + 5000);
   assert.equal(buildTouchedAt('not-a-time', {}), 0);
+});
+
+// The owner left in the middle of the review: in Home Assistant the review had taken the build's home as the plan, later than
+// the build was touched, and "Continue" opened the editor instead of the pins (2026-11-21).
+test('a build waiting for the review wins over its own home taken as the plan, not over a plan changed by hand', () => {
+  const prints = {rooms: {r1: 'a'}, walls: 'w'} as never;
+  const source = {build: 'home-1', round: 0, prints};
+  const inReview = {id: 'home-1', waiting: 'final', finished: false};
+  const later = {touchedAt: 1, planAt: 2};
+  assert.equal(buildWinsOverPlan({status: inReview, ...later, source, prints}), true);
+  const changed = {rooms: {r1: 'b'}, walls: 'w'} as never;
+  assert.equal(
+    buildWinsOverPlan({status: inReview, ...later, source, prints: changed}),
+    false,
+    'edited by hand',
+  );
+  const otherHome = {...source, build: 'home-2'};
+  assert.equal(
+    buildWinsOverPlan({status: inReview, ...later, source: otherHome, prints}),
+    false,
+    'another build',
+  );
+  const done = {...inReview, finished: true};
+  assert.equal(buildWinsOverPlan({status: done, ...later, source, prints}), false, 'the review finished');
+  const building = {id: 'home-1', waiting: null, finished: false};
+  assert.equal(
+    buildWinsOverPlan({status: building, touchedAt: 3, planAt: 2, source: null, prints}),
+    true,
+    'touched last',
+  );
 });

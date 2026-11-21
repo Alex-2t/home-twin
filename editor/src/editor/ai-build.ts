@@ -42,7 +42,7 @@ import {byId} from '../core/catalog.ts';
 import {openReview} from './ai-review.ts';
 import type {UnplacedThing} from './ai-review.ts';
 import {changeCount, pinsToSend, pinsToRetry, refreshRetries, withoutFixed} from './ai-pins.ts';
-import {markSource, seeFix} from './ai-fix.ts';
+import {editorPrints, markSource, seeFix} from './ai-fix.ts';
 import {accountReports} from './ai-reports.ts';
 import {recordStep} from './wizard-state.ts';
 import {parseSearchAi} from './route.ts';
@@ -81,7 +81,7 @@ import {isPdfFile, openPagePicker, pagePlanFile, splitPlanPdf} from './plan-page
 import type {PlanPages} from './plan-pages.ts';
 import type {UploadArea, UploadJob, UploadLight} from './ai-upload.ts';
 import type {Estimate, RoundSize} from './ai-estimate.ts';
-import type {HaDevice, Outline, Plan, PlanLight} from '../core/types.ts';
+import type {ContentPrints, HaDevice, Outline, Plan, PlanLight, PlanSource} from '../core/types.ts';
 import type {Editor, EditorFlows} from './editor-types.ts';
 import type {AiPage} from './route.ts';
 
@@ -721,6 +721,32 @@ function markTouched(id: string): void {
   } catch {}
 }
 
+/**
+ * Whether the start screen shows the build rather than your plan in "Continue": a build waiting for your review whose home is
+ * the plan open, as it was taken (you left in the middle of the review: in Home Assistant the review takes the home as your
+ * plan, which then counts as touched later than the build, so "Continue" opened the editor instead of the pins — the owner,
+ * 2026-11-21); otherwise the one touched last. A plan you changed by hand since it was taken is yours, and wins as before.
+ */
+export function buildWinsOverPlan({
+  status,
+  touchedAt,
+  planAt,
+  source,
+  prints,
+}: {
+  status: Pick<BuildStatus, 'id' | 'waiting' | 'finished'>;
+  touchedAt: number;
+  planAt: number;
+  source: PlanSource | null | undefined;
+  prints: ContentPrints;
+}): boolean {
+  const inReview = status.waiting === 'final' && !status.finished;
+  const planIsItsHome =
+    !!source && source.build === status.id && JSON.stringify(source.prints) === JSON.stringify(prints);
+  if (inReview && planIsItsHome) return true;
+  return touchedAt > planAt;
+}
+
 /** When a build was touched last: started, or opened in this browser since. */
 export function buildTouchedAt(id: string | undefined, opened: Record<string, number>): number {
   return Math.max(buildStartedAt(id) || 0, (id && opened[id]) || 0);
@@ -968,7 +994,15 @@ export function aiStartCard(
     // a build hidden in this state is not shown; on a return, a build shows only when it was touched after your plan
     const visible = status && !linesHidden().includes(lineKey(status)) ? status : null;
     const planAt = ed.history.lastAt() || 0;
-    const buildWins = !!visible && buildTouchedAt(visible.id, buildsTouched()) > planAt;
+    const buildWins =
+      !!visible &&
+      buildWinsOverPlan({
+        status: visible,
+        touchedAt: buildTouchedAt(visible.id, buildsTouched()),
+        planAt,
+        source: ed.plan.source,
+        prints: editorPrints(ed.plan),
+      });
     shown = back && !buildWins ? null : visible;
     if (continueCard && back) continueCard.hidden = buildWins;
     if (planLabel) planLabel.hidden = back && buildWins;
