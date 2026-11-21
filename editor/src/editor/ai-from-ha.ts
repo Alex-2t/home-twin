@@ -4,6 +4,7 @@
 // addresses — images, uploads, the account — work as they are, with the proxy's address in front.
 import {aiService, aiStartCard, openAiBuild} from './ai-build.ts';
 import {watchFixes} from './ai-fix.ts';
+import {offerFixWithAi} from './ai-after.ts';
 import type {Hass} from '../core/types.ts';
 import type {Editor} from './editor-types.ts';
 import type {AiPage} from './route.ts';
@@ -45,4 +46,6 @@ export async function aiBuildInPanel(ed: Editor, hass: Hass, at: AiPage | null =
   if (at) openAt(at);
   // a home taken from the AI build is offered the developer's fixes of its pins (D-129)
   watchFixes(ed, {api});
+  // and the user's own pins on it after the review, its furniture fixed ("Fix with AI")
+  offerFixWithAi(ed, {api, inHa: true});
 }

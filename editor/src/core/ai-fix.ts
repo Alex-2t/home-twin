@@ -216,3 +216,86 @@ function withFreeIds(items: FurnitureItem[], kept: FurnitureItem[]): FurnitureIt
     return {...item, id};
   });
 }
+
+// ---------- a round of pins on a home already taken: the furniture only ----------
+//
+// After "All right" the user goes on with the home (rooms linked, lights, devices, sensors, their own moves) and may still pin
+// what is wrong. The service makes the round on its own copy of the home, which knows none of that, so the round is taken
+// thing by thing, and only the furniture: each thing the round moved, added or removed reaches the home in the editor, unless
+// the user changed or removed that thing too, when theirs stays. Walls, openings, rooms, finishes, lights, devices and
+// sensors are never touched. Three versions again:
+//   base  — the service's home just before the round,
+//   fixed — the service's home after it,
+//   local — the home in the editor now.
+
+/** A thing's fields as a text that does not depend on their order: two things are the same when their texts are. */
+function thingText(item: FurnitureItem): string {
+  const sorted = Object.keys(item)
+    .sort()
+    .map(key => [key, (item as unknown as Record<string, unknown>)[key]]);
+  return JSON.stringify(sorted);
+}
+
+function sameThing(a: FurnitureItem, b: FurnitureItem): boolean {
+  return thingText(a) === thingText(b);
+}
+
+/** What a round's furniture did to the home in the editor. */
+export interface FurnitureRoundTaken<P> {
+  /** The home with the round's furniture taken. */
+  plan: P;
+  /** Things the round moved or changed, taken. */
+  changed: number;
+  /** Things the round added, taken. */
+  added: number;
+  /** Things the round removed, removed here too. */
+  removed: number;
+  /** Things the round changed or removed that the user had changed or removed too: theirs kept. */
+  kept: number;
+}
+
+/**
+ * The home in the editor with the round's furniture: a thing the round changed is taken when the user's is still the one
+ * before the round, a thing it added is added, a thing it removed is removed when the user left it as it was. Everything
+ * else stays as the user has it.
+ */
+export function takeFurnitureRound<P extends Pick<Plan, 'furniture'>>(
+  local: P,
+  base: Pick<Plan, 'furniture'>,
+  fixed: Pick<Plan, 'furniture'>,
+): FurnitureRoundTaken<P> {
+  const baseById = new Map(base.furniture.map(item => [item.id, item]));
+  const fixedById = new Map(fixed.furniture.map(item => [item.id, item]));
+  let changed = 0;
+  let removed = 0;
+  let kept = 0;
+  const furniture: FurnitureItem[] = [];
+  for (const mine of local.furniture) {
+    const before = baseById.get(mine.id);
+    const after = fixedById.get(mine.id);
+    // not in the service's home before the round (the user's own thing), or the round left it: as it is
+    if (!before || (after && sameThing(before, after))) {
+      furniture.push(mine);
+      continue;
+    }
+    const untouched = sameThing(mine, before);
+    if (!untouched) {
+      kept++;
+      furniture.push(mine);
+      continue;
+    }
+    if (after) {
+      changed++;
+      furniture.push(after);
+    } else removed++;
+  }
+  // what the round changed that the user had removed already: theirs kept (removed by both: nothing to tell)
+  const localIds = new Set(local.furniture.map(item => item.id));
+  for (const [id, before] of baseById) {
+    const after = fixedById.get(id);
+    if (!localIds.has(id) && after && !sameThing(before, after)) kept++;
+  }
+  const newThings = fixed.furniture.filter(item => !baseById.has(item.id));
+  const added = withFreeIds(newThings, furniture);
+  return {plan: {...local, furniture: [...furniture, ...added]}, changed, added: added.length, removed, kept};
+}

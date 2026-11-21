@@ -1885,5 +1885,11 @@
  "This needs us to read the plan again: about {0}% of the package, more than one fix may take": "Para esto hay que volver a leer el plano: cerca del {0} % del paquete, más que una corrección",
  "This needs us to read this room from the video again: about {0}% of the package, more than one fix may take": "Para esto hay que volver a analizar esta habitación en el vídeo: cerca del {0} % del paquete, más que una corrección",
  "This needs us to build the home again: about {0}% of the package, more than one fix may take": "Para esto hay que volver a construir la casa: cerca del {0} % del paquete, más que una corrección",
- "This needs a bigger change: about {0}% of the package, more than one fix may take": "Esto necesita un cambio mayor: cerca del {0} % del paquete, más que una corrección"
+ "This needs a bigger change: about {0}% of the package, more than one fix may take": "Esto necesita un cambio mayor: cerca del {0} % del paquete, más que una corrección",
+ "Fix with AI": "Corregir con IA",
+ "Pin what the AI got wrong: only the furniture it fixes comes into your home": "Marca lo que la IA hizo mal: a tu casa solo llegan los muebles corregidos",
+ "{0, plural, one {The AI changed # thing in your home} other {The AI changed # things in your home}}": "{0, plural, one {La IA cambió # mueble en tu casa} other {La IA cambió # muebles en tu casa}}",
+ "The AI changed nothing in your home": "La IA no cambió nada en tu casa",
+ "{0, plural, one {# thing you changed yourself stays yours} other {# things you changed yourself stay yours}}": "{0, plural, one {# mueble que cambiaste tú sigue siendo tuyo} other {# muebles que cambiaste tú siguen siendo tuyos}}",
+ "Could not load the changes: check the connection and try again": "No se pudieron cargar los cambios: revisa la conexión e inténtalo de nuevo"
 }

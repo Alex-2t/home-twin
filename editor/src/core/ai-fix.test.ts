@@ -2,7 +2,7 @@
 // leaves of the user's own edits.
 import {test} from 'node:test';
 import assert from 'node:assert/strict';
-import {applyFix, contentPrints, fixOffer, untouchedChoice} from './ai-fix.ts';
+import {applyFix, contentPrints, fixOffer, takeFurnitureRound, untouchedChoice} from './ai-fix.ts';
 import {emptyPlan} from './plan.ts';
 import type {FurnitureItem, Plan, PlanLight, Room} from './types.ts';
 
@@ -123,4 +123,74 @@ test("what the user changed is told by the prints taken when the home came in, n
   // then the user moves the sofa: the living room is theirs now too
   const moved = {...opened, furniture: [item('sofa', 'sofa', 1.5, 2), item('bed', 'bed', 7, 2)]};
   assert.equal(fixOffer(moved, baseHome(), fixedHome(), prints).rooms[0].changedByUser, true);
+});
+
+// ---------- a round of pins on a home already taken: the furniture only ----------
+
+test('a round after the review takes the things it moved, added and removed, and nothing else of the home', () => {
+  const base = baseHome();
+  const fixed = structuredClone(base);
+  fixed.furniture = [item('sofa', 'sofa', 3, 2), item('desk', 'desk', 6, 1)];
+  // the round's own copy knows nothing of the user's: its walls, rooms and lights differ from theirs and must not come over
+  fixed.rooms[0].name = 'Lounge';
+  fixed.lights = [];
+  const local = structuredClone(base);
+  local.rooms[0].area = 'living_room';
+  local.lights.push(light('strip', 'r1'));
+  local.furniture.push(item('plant', 'plant', 1, 1));
+  const taken = takeFurnitureRound(local, base, fixed);
+  assert.deepEqual(
+    taken.plan.furniture.map(thing => [thing.id, thing.x]),
+    [
+      ['sofa', 3],
+      ['plant', 1],
+      ['desk', 6],
+    ],
+  );
+  assert.deepEqual([taken.changed, taken.added, taken.removed, taken.kept], [1, 1, 1, 0]);
+  assert.equal(taken.plan.rooms[0].name, 'Living room');
+  assert.equal(taken.plan.rooms[0].area, 'living_room');
+  assert.deepEqual(
+    taken.plan.lights.map(lamp => lamp.id),
+    ['ceiling_1', 'ceiling_2', 'strip'],
+  );
+});
+
+test('a thing the user moved or removed since stays theirs when the round changes it too', () => {
+  const base = baseHome();
+  const fixed = structuredClone(base);
+  fixed.furniture = [item('sofa', 'sofa', 3, 2), item('bed', 'bed', 8, 2)];
+  const local = structuredClone(base);
+  local.furniture = [item('sofa', 'sofa', 2.5, 2)];
+  const taken = takeFurnitureRound(local, base, fixed);
+  assert.deepEqual(
+    taken.plan.furniture.map(thing => [thing.id, thing.x]),
+    [['sofa', 2.5]],
+  );
+  assert.deepEqual([taken.changed, taken.added, taken.removed, taken.kept], [0, 0, 0, 2]);
+});
+
+test("a round's fields in another order are the same thing; an added thing whose id is taken gets a free one", () => {
+  const base = baseHome();
+  const fixed = structuredClone(base);
+  const sofa = fixed.furniture[0];
+  fixed.furniture[0] = {
+    rot: sofa.rot,
+    h: sofa.h,
+    d: sofa.d,
+    w: sofa.w,
+    y: sofa.y,
+    x: sofa.x,
+    model: sofa.model,
+    id: sofa.id,
+  };
+  fixed.furniture.push(item('lamp', 'floorLamp', 1, 3));
+  const local = structuredClone(base);
+  local.furniture.push(item('lamp', 'plant', 4, 3));
+  const taken = takeFurnitureRound(local, base, fixed);
+  assert.deepEqual([taken.changed, taken.added, taken.removed, taken.kept], [0, 1, 0, 0]);
+  assert.deepEqual(
+    taken.plan.furniture.map(thing => thing.id),
+    ['sofa', 'bed', 'lamp', 'lamp_2'],
+  );
 });

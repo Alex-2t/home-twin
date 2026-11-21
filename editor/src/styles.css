@@ -618,7 +618,7 @@ button.gcard:focus-visible,a.gcard:focus-visible{outline:2px solid var(--acc);ou
 .modes.compact button{font-size:0;gap:0;padding:0 10px}.modes.compact button.on{font-size:inherit;gap:6px;padding:0 12px}
 /* “Add to dashboard” in Preview (HA, no dashboard yet): the way out of the editor, so it keeps its label when the modes are icons only */
 body:not([data-look=on]) #board-btn{display:none}.modes #board-btn{margin-left:4px}.modes.compact #board-btn{font-size:inherit;gap:6px;padding:0 12px}
-.modes.tight :is(#board-btn,#look-btn){font-size:0;gap:0;padding:0 10px}.modes.compact em{margin-left:5px}
+.modes.tight :is(#board-btn,#look-btn,#ai-fix-btn){font-size:0;gap:0;padding:0 10px}.modes.compact em{margin-left:5px}
 @media (max-width:760px){
   .modes{top:70px;left:12px!important;right:12px;justify-content:space-around}.modes button{font-size:12px;padding:0 5px;gap:4px}.modes em{padding:1px 4px}
   .side{top:128px;max-height:calc(100% - 320px)}.work.pinned .side:not(.closed){top:128px;padding-top:0;bottom:auto;left:12px;border-radius:16px}.work.pinned.side-open .pane.main{left:0}
@@ -1045,3 +1045,6 @@ button.aib-unplaced{display:grid;grid-template-columns:22px minmax(0,1fr);gap:9p
   .aib-photo-big{left:8px;right:8px;width:auto;top:var(--aib-top,64px);bottom:48vh}}
 @media (prefers-reduced-motion:reduce){.aib .spin,.aib-start-spin{animation-duration:2.4s}.aib-scan i,.aib-frame{animation:none}.aib-step.st-ask .aib-dot{animation:none}
   .aib-swap,.aib-tag,.aib-chip,.aib-hint{animation:none}.aib-tools .ib.aib-pulse{animation:none;box-shadow:0 0 0 2px var(--acc)}}
+/* "Fix with AI" (ai-after.ts): on the top bar in Plan and Furniture; while its review is open the editor's own card waits */
+body:not([data-mode=rooms]):not([data-mode=furniture]) #ai-fix-btn{display:none}
+body.aib-after #banner{display:none}

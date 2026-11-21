@@ -36,13 +36,16 @@ import {icon} from './icons.ts';
 import {idb} from './idb.ts';
 import {readPlan} from '../core/plan-file.ts';
 import {NewerPlanError, newerPlanText, PLAN_VERSION} from '../core/plan-format.ts';
-import {emptyPlan} from '../core/plan.ts';
+import {emptyPlan, migrate} from '../core/plan.ts';
 import {kindName, localRoomName, numberAlike} from '../core/overview.ts';
 import {byId} from '../core/catalog.ts';
 import {openReview} from './ai-review.ts';
 import type {UnplacedThing} from './ai-review.ts';
 import {changeCount, pinsToSend, pinsToRetry, refreshRetries, withoutFixed} from './ai-pins.ts';
 import {editorPrints, markSource, seeFix} from './ai-fix.ts';
+import {takeFurnitureRound} from '../core/ai-fix.ts';
+import type {FurnitureRoundTaken} from '../core/ai-fix.ts';
+import {syncFurnStrips} from '../core/fixtures.ts';
 import {accountReports} from './ai-reports.ts';
 import {recordStep} from './wizard-state.ts';
 import {parseSearchAi} from './route.ts';
@@ -1281,6 +1284,25 @@ function withoutParam(address: string, name: string): string {
   return url.href;
 }
 
+/**
+ * What a round of pins on a home already taken did to it, in one line: how many things changed, and how many the user had
+ * changed too and kept as theirs.
+ */
+export function afterTakenLine(things: number, kept: number): string {
+  const changed = things
+    ? t(
+        '{0, plural, one {The AI changed # thing in your home} other {The AI changed # things in your home}}',
+        things,
+      )
+    : t('The AI changed nothing in your home');
+  if (!kept) return changed;
+  const keptLine = t(
+    '{0, plural, one {# thing you changed yourself stays yours} other {# things you changed yourself stay yours}}',
+    kept,
+  );
+  return `${changed}. ${keptLine}.`;
+}
+
 /** What openAiBuild is given besides the editor. */
 export interface AiBuildOptions {
   api?: string;
@@ -1302,6 +1324,12 @@ export interface AiBuildOptions {
   inHa?: boolean;
   /** Opened by the page's address (a reload, a link, Forward): its page is already the address, no new step is made. */
   fromAddress?: boolean;
+  /**
+   * The pins on a home already taken ("Fix with AI" in the editor, after the review): the review opens over the home in the
+   * editor as it is, without the build's home replacing it; a round's furniture is taken into it thing by thing
+   * (takeFurnitureRound), and "All right" only closes the review. The build is the home's (plan.source.build).
+   */
+  after?: boolean;
 }
 
 /** What the upload page asks for before the files (D-133): nothing yet known, to sign in, a package; null: the files. */
@@ -1331,6 +1359,7 @@ export function openAiBuild(ed: Editor, options: AiBuildOptions = {}): AiBuildSc
     signInNotice = null,
     inHa = false,
     fromAddress = false,
+    after = false,
   } = options;
   const root = el(`<div class="aib"></div>`);
   document.body.append(root);
@@ -1351,6 +1380,10 @@ export function openAiBuild(ed: Editor, options: AiBuildOptions = {}): AiBuildSc
   let chosen: ChosenFiles = noFiles();
   // The upload of the files chosen, once started: pressed again after a stop, the build button goes on with it.
   let uploading: {files: ChosenFiles; job: UploadJob} | null = null;
+  // The pins on a home already taken (options.after): the round they were sent after, and what the last round brought.
+  const afterReview = after && !!id;
+  let afterFrom = 0;
+  let afterTaken: string | null = null;
   // The build's own pages are asked for once it has its id.
   const base = (): string => `${api}/api/builds/${encodeURIComponent(buildId as string)}`;
   // The status the progress shows: it is drawn only once there is one (renderProgress stops before without it), and the
@@ -1926,6 +1959,12 @@ export function openAiBuild(ed: Editor, options: AiBuildOptions = {}): AiBuildSc
       if (status.has?.plan && !planRead) await loadPlanRead();
       if (status.waiting !== 'final') shownFinal = false;
       review?.setReports(status.reports || []);
+      // Pins on a home already taken: once their round is done, its furniture goes into the home, and the review opens again
+      // with what came of each pin.
+      if (afterReview && screen === 'progress' && afterRoundDone(status)) {
+        await takeAfterRound();
+        if (!closed) startReview();
+      }
       // The developer's fix of a pin is being made while the owner is in the review (D-129): the progress shows it, and the
       // review opens again with the fixed home.
       if (screen === 'review' && !answered && status.revising) showProgress();
@@ -2854,7 +2893,7 @@ export function openAiBuild(ed: Editor, options: AiBuildOptions = {}): AiBuildSc
   async function onCta(e: MouseEvent): Promise<void> {
     const act = targetOf(e).closest<HTMLElement>('[data-act]')?.dataset.act;
     if (act === 'review') startReview();
-    else if (act === 'open') openHome();
+    else if (act === 'open') afterReview ? close() : openHome();
     else if (act === 'new-build') newBuild();
     else if (act === 'top-up') {
       // The top-up button: act came from it. Bought at the checkout, it comes back to this build, which goes on by itself
@@ -2906,13 +2945,16 @@ export function openAiBuild(ed: Editor, options: AiBuildOptions = {}): AiBuildSc
   }
 
   async function startReview(): Promise<void> {
-    try {
-      await loadIntoEditor();
-    } catch (e) {
-      status = {...shown(), error: messageOf(e)};
-      renderProgress();
-      return;
-    }
+    // On a home already taken, the home stays the one in the editor.
+    if (!afterReview)
+      try {
+        await loadIntoEditor();
+      } catch (e) {
+        status = {...shown(), error: messageOf(e)};
+        renderProgress();
+        return;
+      }
+    else cover(false);
     screen = 'review';
     closeSignIn();
     root.innerHTML = '';
@@ -2929,7 +2971,7 @@ export function openAiBuild(ed: Editor, options: AiBuildOptions = {}): AiBuildSc
         saveNotes(notes);
         noteRound(notes);
       },
-      onBack: showProgress,
+      onBack: afterReview ? close : showProgress,
       onSend: answer,
       upload: uploadPicture,
       pictureUrl: file => `${base()}/owner/${encodeURIComponent(file)}`,
@@ -2959,10 +3001,16 @@ export function openAiBuild(ed: Editor, options: AiBuildOptions = {}): AiBuildSc
   async function answer(notes: PinNotes): Promise<void> {
     const count = changeCount(notes);
     const text = notes.text.trim();
+    // On a home already taken the build is finished: "All right" has nothing to tell it, and closes the review.
+    if (afterReview && !count) {
+      clearNotes();
+      return close();
+    }
     const body = count
       ? {at: 'final', action: 'correct', ...(text ? {text} : {}), pins: pinsToSend(notes.pins)}
       : {at: 'final', action: 'confirm'};
-    await post('/answer', body);
+    if (afterReview) afterFrom = lastRoundOf(shown());
+    await post('/answer', afterReview ? {...body, after: true} : body);
     clearNotes();
     answered = 'final';
     status = {...shown(), waiting: null};
@@ -2993,6 +3041,55 @@ export function openAiBuild(ed: Editor, options: AiBuildOptions = {}): AiBuildSc
     root.remove();
     cover(false);
     ed.setBare(null);
+    if (afterReview) {
+      document.body.classList.remove('aib-after');
+      if (afterTaken) ed.banner(afterTaken, [[t('Got it'), () => ed.banner(), true]]);
+    }
+  }
+
+  // ---------- pins on a home already taken ----------
+
+  /** The last round of pins the build has done (0: none). */
+  function lastRoundOf(s: BuildStatus): number {
+    return s.rounds?.at(-1)?.round ?? s.lastRound?.round ?? 0;
+  }
+
+  /** The round sent from the editor is done: the build finished again, with a round after the one it was sent after. */
+  function afterRoundDone(s: BuildStatus): boolean {
+    return !!s.finished && !s.revising && lastRoundOf(s) > afterFrom;
+  }
+
+  /** The build's home after a round, as the editor reads a home. */
+  async function homeAfter(round: number): Promise<Plan> {
+    const res = await fetch(`${base()}/home?round=${round}&format=${PLAN_VERSION}`, {cache: 'no-store'});
+    if (!res.ok) throw new Error(res.statusText);
+    return migrate(readPlan(await res.text()));
+  }
+
+  /**
+   * The round's furniture into the home in the editor, as one step of its history: only the things the round moved, added or
+   * removed, and of those only the ones the user left as they were (takeFurnitureRound). The rest of the home is untouched.
+   */
+  async function takeAfterRound(): Promise<void> {
+    const round = lastRoundOf(shown());
+    let taken: FurnitureRoundTaken<Plan>;
+    try {
+      const [before, fixed] = await Promise.all([homeAfter(afterFrom), homeAfter(round)]);
+      taken = takeFurnitureRound(ed.plan, before, fixed);
+    } catch {
+      afterTaken = t('Could not load the changes: check the connection and try again');
+      afterFrom = round;
+      return;
+    }
+    afterFrom = round;
+    const things = taken.changed + taken.added + taken.removed;
+    if (things) {
+      const next = taken.plan;
+      syncFurnStrips(next);
+      ed.applyPlan(next);
+    }
+    if (buildId) markSource(ed, buildId, round);
+    afterTaken = afterTakenLine(things, taken.kept);
   }
 
   // The setup's steps the build did are done (the owner: after "Link rooms", Next went to "Furniture", which the AI had
@@ -3122,13 +3219,27 @@ export function openAiBuild(ed: Editor, options: AiBuildOptions = {}): AiBuildSc
   // Back to the page it was opened from, as the browser's Back; opened by its address, to the start screen. A build that goes on
   // shows there, and can be followed again by its link.
   function exit(): void {
+    if (afterReview) return close();
     close();
     inAddress = false;
     // flows.ts adds it before the AI build can open.
     if (flows?.aiBack() ?? true) ed.showStart();
   }
 
-  if (buildId) {
+  if (afterReview) {
+    // Straight to the pins, over the home as it is; the address stays the editor's.
+    document.body.classList.add('aib-after');
+    getJson('')
+      .then(s => {
+        status = s as BuildStatus;
+        afterFrom = lastRoundOf(status);
+        startReview();
+      })
+      .catch(e => {
+        close();
+        ed.banner(messageOf(e), [[t('Got it'), () => ed.banner(), true]]);
+      });
+  } else if (buildId) {
     setAddress({build: buildId});
     showProgress();
     poll();
