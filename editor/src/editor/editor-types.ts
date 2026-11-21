@@ -299,9 +299,6 @@ export interface RoomsMode extends EditorMode {
   /** The outline (or a room) from the keyboard: its width and depth are typed instead of two clicks. */
   typeOutline(): void;
   tintRoom(): string | null;
-  chipRoom(): string | null;
-  /** The rooms of the "Link rooms" step in a row, for the card the AI build opens the home with. */
-  linkRow(): HTMLElement;
   unnamed(room: Room): boolean;
   unnamedZone(room: Room): boolean;
 }

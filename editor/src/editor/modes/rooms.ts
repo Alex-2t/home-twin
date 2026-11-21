@@ -71,7 +71,7 @@ import {
   zoneFromEdge,
 } from '../../core/plan.ts';
 import {setRoomArea} from '../../core/layout.ts';
-import {$, el, esc, find, fmtArea, popover, panelPop, closePop, popClosedAt, tip} from '../ui.ts';
+import {$, el, esc, find, fmtArea, popover, panelPop, closePop, popClosedAt} from '../ui.ts';
 import type {PopoverItem} from '../ui.ts';
 import {icon} from '../icons.ts';
 import {FONT, dimLabel, labelAt, pal} from '../draw.ts';
@@ -558,7 +558,6 @@ export function roomsMode(ed: Editor): RoomsMode {
     ed.step(
       `${t('Choose a room from Home Assistant so we can find its lights and sensors.')}<small>${tail}${rest.length ? ' ' + t('Not on the plan: {0}.', esc(rest.join(', '))) : ''}</small>`,
       [
-        cellsRow(readingCells(rs), cur),
         [
           left || k ? t('Finish later') : t('Done'),
           () => ed.path.after('names', {defer: !!(left || k)}),
@@ -576,59 +575,6 @@ export function roomsMode(ed: Editor): RoomsMode {
     if (linkedTo) return ed.areaName(linkedTo) || c.r.name || '';
     return c.z ? t('Part of room') : c.r.name || '';
   };
-  // The step's rooms in a row (the owner: after the AI build it was not clear which rooms were linked, and to what): each
-  // with its area or “not linked”; pointed at, its room is shown on the plan and its floor lights up in 3D; a click asks about
-  // it above the room, a linked one too, so a wrong link is changed in two clicks. The same row is on the card the AI build
-  // opens the home with (linkRow): a click there opens the step at that room.
-  let cellHover: string | null = null;
-  function pointCell(roomId: string | null): void {
-    cellHover = roomId;
-    ed.view.select(roomId ?? sel().room);
-    ed.view.redraw();
-    ed.draw();
-  }
-  m.linkRow = () => cellsRow(readingCells(cells()), null);
-  function cellsRow(list: RoomCell[], cur: RoomCell | null): HTMLElement {
-    cellHover = null; // the row is made again under the pointer: the chip it was over is gone
-    const row = el(`<div class="link-cells"></div>`);
-    for (const c of list) {
-      const linkedTo = cellArea(c);
-      const state = linkedTo ? 'linked' : cellSkip(c) ? 'later' : 'open';
-      const mark = linkedTo ? icon('check', 13) : state === 'later' ? '' : '<i class="dot"></i>';
-      const title = linkedTo
-        ? t('Home Assistant area: “{0}”', ed.areaName(linkedTo))
-        : state === 'later'
-          ? t('Left for later. Click to link it.')
-          : t('Not linked to Home Assistant. Click to link it.');
-      const on = cur && cellId(cur) === cellId(c) ? 'on' : '';
-      const chip = el(
-        `<button type="button" class="link-cell ${on}" data-state="${state}" aria-label="${esc(cellName(c))}: ${esc(title)}">${mark}<span></span></button>`,
-      );
-      find(chip, 'span').textContent = cellName(c);
-      tip(chip, title);
-      chip.onclick = () => {
-        pointCell(null);
-        if (wiz?.at !== 'names') {
-          // the AI build's card: the step opens first (on the plan), then asks about this room
-          ed.banner();
-          ed.setMain('plan');
-          ed.path.go('names');
-        }
-        // path.go('names') has started the step
-        wiz!.cur = {id: c.r.id, z: c.z};
-        sel().room = null;
-        sel().vertex = null;
-        sel().wall = null;
-        sel().opening = null;
-        m.refresh();
-        ed.draw();
-      };
-      chip.onpointerenter = () => pointCell(c.r.id);
-      chip.onpointerleave = () => pointCell(null);
-      row.append(chip);
-    }
-    return row;
-  }
   // next — the “Furniture” step (modes/furniture.js), after it “Lights” (modes/lights.js): lighting is often on furniture
   function toFurniture(): void {
     wiz = null;
@@ -1051,13 +997,10 @@ export function roomsMode(ed: Editor): RoomsMode {
   let nameHover: string | null = null;
   m.tintRoom = () => {
     if (wiz?.at === 'names' && tool === 'select') {
-      if (cellHover) return null; // a chip pointed at shows its room more clearly instead (chipRoom)
       return nameHover !== sel().room && nameHover !== curRoom()?.id ? nameHover : null;
     }
     return tool === 'split' && !hintRoom && !sel().room && !selWall() && !sel().opening ? xRoom : null;
   };
-  // the room of the step's chip under the pointer, the one asked about too: it shows which chip is which room
-  m.chipRoom = () => cellHover;
   // A split or a new room produced a piece smaller than 1 m² — looks like a shaft or a column. Everything stops: the piece pulses,
   // above it a panel with “⋯” open and a “Yes / No” question — this shows where it is. A click elsewhere or Esc closes the question.
   // Asked the first 3 times (once is not enough to remember); whoever turned on the switch under “⋯” themselves already knows, not asked again.
