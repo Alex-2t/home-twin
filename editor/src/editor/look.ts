@@ -20,6 +20,7 @@
 //   open() / close(); esc() — one step back; insets() — {right, bottom}: what covers the 3D; room(id) — a room's screen
 import CARD_CSS from '../look/card.css';
 import {icon} from '../look/icons.ts';
+import {buttonsThatFit, tileButtons} from '../look/tile-buttons.ts';
 import {t, N, getLang, locale, num as fmtNum, clock} from '../i18n/i18n.ts';
 import {overview} from '../core/overview.ts';
 import {acView, coverView} from '../core/devices.ts';
@@ -231,6 +232,9 @@ const ROOM_IC: Record<RoomKind, string> = {
   garage: 'home',
   room: 'home',
 };
+// A room tile's round buttons (look/card.css .ltile-lamp) and the gap between them, CSS pixels.
+const TILE_BUTTON_PX = 28;
+const TILE_GAP_PX = 5;
 // A lamp's icon on its room tile: by its form, and for a strip and a standing lamp by where it is.
 function lampIcon(form: LightForm, opt: string | undefined): string {
   if (form === 'strip')
@@ -787,6 +791,8 @@ export function createLook(ed: LookEditor, host0: HTMLElement): LookPanel {
       })
       .join('');
   }
+  // How many round buttons a room tile's row holds (tiles); five until the row is laid out.
+  let tileRoom = 5;
   function tileMarkup(tile: LookRoom): string {
     const running = tile.climate.filter(d => d.view.state === 'on');
     const lit = tile.light?.state === 'on';
@@ -800,18 +806,31 @@ export function createLook(ed: LookEditor, host0: HTMLElement): LookPanel {
       : first
         ? `${t(first.label)}: ${first.view.status.toLowerCase()}`
         : '';
-    // one button per kind of device (the owner, 2026-11-08: “no need to cram a gazillion icons in here”): room lights — turns off
-    // what is on, in a dark room turns on the main light (like the power button in 3d_floor), curtains — all at once; each lamp and section — on the room screen
-    const light = tile.light
+    // As many of the room's devices as fit, each its own button; when they do not, the lamps go together into the room's one
+    // bulb (off turns off what is on, in a dark room on turns on the main light, like the power button in 3d_floor), then
+    // the curtains into one, then a last "+N" opens the room (look/tile-buttons.ts; the owner, 2026-11-22). Each lamp and
+    // section is on the room screen too.
+    const lightsButton = tile.light
       ? `<button class="ltile-lamp${lit ? ' on' : ''}" data-action="ltile-power" data-room="${escape(tile.id)}" aria-pressed="${lit}"
         aria-label="${escape(tile.short)}: ${lit ? t('turn lights off') : t('turn lights on')}" data-tip="${lit ? t('Turn lights off') : t('Turn lights on')}" ${tile.light.power ? '' : 'disabled'}>${icon('bulb')}</button>`
       : '';
+    const lampButton = (lamp: LookLamp): string => {
+      const gone = lamp.status === 'unavailable';
+      const on = lamp.on && !gone;
+      return `<button class="ltile-lamp${on ? ' on' : ''}" data-action="ltile-lamp" data-id="${escape(lamp.id)}" aria-pressed="${on}"
+        aria-label="${escape(lamp.name)} — ${escape(tile.short)}" data-tip="${escape(lamp.name)}" ${gone ? 'disabled' : ''}>${icon(lampIcon(lamp.form, lamp.opt))}</button>`;
+    };
     const live = tile.covers.filter(c => c.ok);
     const open = live.some(c => c.pos! > 1); // an available cover has its position
-    const covers = tile.covers.length
+    const coversButton = tile.covers.length
       ? `<button class="ltile-lamp cover${open ? ' on' : ''}" data-action="covers-toggle" data-room="${escape(tile.id)}" aria-pressed="${open}"
         aria-label="${escape(tile.short)}: ${open ? t('Close curtains') : t('Open curtains')}" data-tip="${open ? t('Close curtains') : t('Open curtains')}" ${live.length ? '' : 'disabled'}>${icon(tile.covers.every(c => c.blind) ? 'blind' : 'curtain')}</button>`
       : '';
+    const coverButton = (cover: RoomCover): string => {
+      const opened = cover.ok && cover.pos! > 1;
+      return `<button class="ltile-lamp cover${opened ? ' on' : ''}" data-action="cover-toggle" data-id="${escape(cover.entity)}" aria-pressed="${opened}"
+        aria-label="${escape(cover.name)}: ${opened ? t('Close curtains') : t('Open curtains')}" data-tip="${escape(cover.name)}" ${cover.ok ? '' : 'disabled'}>${icon(cover.blind ? 'blind' : 'curtain')}</button>`;
+    };
     // air conditioner and boiler — the same round buttons, but at the edge; when running — the mode icon and color
     const power = (d: LookClimate): string => {
       const o = d.view.state === 'on';
@@ -819,6 +838,30 @@ export function createLook(ed: LookEditor, host0: HTMLElement): LookPanel {
       return `<button class="ltile-lamp ac${o ? ' on mode-' + d.view.tone : ''}${d.heater ? ' heater' : ''}" data-action="ctile-power" data-id="${escape(d.id)}" aria-pressed="${o}"
         aria-label="${escape(d.name)}: ${o ? t('turn off') : t('turn on')}" data-tip="${escape(d.name)}" ${d.canPower ? '' : 'disabled'}>${icon(o ? d.view.icon! : d.heater ? 'flame' : 'wind')}</button>`;
     };
+    const more = (count: number): string =>
+      `<button class="ltile-lamp more" data-action="room" data-room="${escape(tile.id)}" aria-label="${escape(tile.short)}: ${t('open room')}" data-tip="${escape(t('{0} more', count))}">+${count}</button>`;
+    const buttons = tileButtons(
+      {lamps: tile.light ? tile.lamps : [], covers: tile.covers, climate: tile.climate},
+      tileRoom,
+    );
+    const leftSide = buttons
+      .map(button =>
+        button.kind === 'lamp'
+          ? lampButton(button.lamp)
+          : button.kind === 'lights'
+            ? lightsButton
+            : button.kind === 'cover'
+              ? coverButton(button.cover)
+              : button.kind === 'covers'
+                ? coversButton
+                : '',
+      )
+      .join('');
+    const rightSide = buttons
+      .map(button =>
+        button.kind === 'climate' ? power(button.device) : button.kind === 'more' ? more(button.count) : '',
+      )
+      .join('');
     const step = (d: LookClimate, dir: number, label: string, text: string): string =>
       `<button class="ctile-step" data-action="ctile-step" data-id="${escape(d.id)}" data-step="${dir}" aria-label="${escape(d.name)}: ${label}" data-tip="${label[0].toUpperCase() + label.slice(1)}">${text}</button>`;
     const row = (
@@ -826,20 +869,25 @@ export function createLook(ed: LookEditor, host0: HTMLElement): LookPanel {
     ): string => `<div class="ctile-bottom rtile-climate mode-${d.view.tone}"><button class="rtile-mode" data-action="room" data-room="${escape(tile.id)}" aria-label="${escape(d.name)}: ${t('remote')}">
         <span class="ctile-target">${escape(d.view.target || '—')}</span><small>${escape(d.view.status)}</small></button>
         ${d.view.adjustable ? `<span class="ctile-steps">${step(d, -1, t('cooler'), '−')}${step(d, 1, t('warmer'), '+')}</span>` : ''}</div>`;
-    const buttons = tile.climate.length
-      ? `<span class="rtile-devices">${tile.climate.map(power).join('')}</span>`
-      : '';
     return `<div class="ctile room${lit ? ' lit' : ''}${warm ? ` ac-on mode-${running[0].view.tone}` : ''}${dead ? ' unavailable' : ''}" data-highlight="${escape(tile.id)}">
       <div class="ctile-top"><button class="ctile-head" data-action="room" data-room="${escape(tile.id)}" aria-label="${escape(tile.short)}: ${t('open room')}">
           <span class="ctile-chip">${icon(ROOM_IC[tile.kind] || 'home')}</span><span class="ctile-text"><strong>${escape(tile.short)}</strong><small>${escape(sub)}</small></span></button>
 </div>
-      <div class="ctile-bottom"><span class="ltile-lamps">${light}${covers}</span>${buttons}</div>
+      <div class="ctile-bottom"><span class="ltile-lamps">${leftSide}</span>${rightSide ? `<span class="rtile-devices">${rightSide}</span>` : ''}</div>
       ${running.map(row).join('')}
     </div>`;
   }
   function tiles(M: LookModel): void {
     const L = M.rooms.filter(r => r.lamps.length || r.climate.length || r.covers.length);
     $('.home-controls').classList.toggle('is-empty', !L.length);
+    $('.room-tiles').innerHTML = L.map(tileMarkup).join('');
+    // How many buttons a tile's row holds, from the row as laid out (the tiles are one width); drawn again when that changed.
+    const row = $('.room-tiles').querySelector<HTMLElement>('.ctile-bottom');
+    if (!row || !row.clientWidth) return;
+    // (the lights and the climate stand apart by a gap 1 px wider than the buttons': card.css .ctile-bottom)
+    const fits = buttonsThatFit(row.clientWidth - 1, TILE_BUTTON_PX, TILE_GAP_PX);
+    if (fits === tileRoom) return;
+    tileRoom = fits;
     $('.room-tiles').innerHTML = L.map(tileMarkup).join('');
   }
 
@@ -2381,6 +2429,12 @@ export function createLook(ed: LookEditor, host0: HTMLElement): LookPanel {
           ?.covers.filter(c => c.ok) || [];
       const open = C.some(c => c.pos! > 1); // an available cover has its position
       for (const c of C) call('cover', open ? 'close_cover' : 'open_cover', {entity_id: c.entity});
+    } else if (a === 'cover-toggle') {
+      // one curtain from its room tile: open when it is closed, else closed
+      const cover = model()
+        .rooms.flatMap(x => x.covers)
+        .find(c => c.entity === id);
+      if (cover?.ok) call('cover', cover.pos! > 1 ? 'close_cover' : 'open_cover', {entity_id: id});
     } else if (a === 'cover')
       // a cover button's command is one of the three
       call(

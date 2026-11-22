@@ -1893,5 +1893,6 @@
  "{0, plural, one {# thing you changed yourself stays yours} other {# things you changed yourself stay yours}}": "{0, plural, one {# предмет, который вы меняли сами, остался вашим} few {# предмета, которые вы меняли сами, остались вашими} many {# предметов, которые вы меняли сами, остались вашими} other {# предмета, которые вы меняли сами, остались вашими}}",
  "Could not load the changes: check the connection and try again": "Не удалось загрузить изменения: проверьте подключение и попробуйте ещё раз",
  "Not a light: back to the switches": "Не светильник: вернуть в выключатели",
- "Move furniture: drag it on the plan (M). Click it again for what is under it": "Двигать мебель: перетащите на плане (M). Клик ещё раз — то, что под ней"
+ "Move furniture: drag it on the plan (M). Click it again for what is under it": "Двигать мебель: перетащите на плане (M). Клик ещё раз — то, что под ней",
+ "{0} more": "Ещё {0}"
 }
