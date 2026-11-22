@@ -34,7 +34,7 @@ The editor is for administrators; the card is for everyone in the home (only adm
 - Home Assistant 2024.7 or newer, installed as above. The editor is for administrators; the card and the dashboard are for everyone in the home.
 - A browser with WebGL. A phone or tablet is fine for watching the home and using the card; drawing is more comfortable with a mouse.
 - One floor per home for now; two-storey houses, basements and attics are on the roadmap. The outside of the house (facade, roof, plot) is not drawn yet.
-- After the AI build, lights, curtains and air conditioners are placed by you, step by step: the AI builds the rooms, openings and furniture.
+- After the AI build, the lights are placed by you, step by step. The AI builds the rooms, openings and furniture; in Home Assistant it also links the rooms to your areas and puts your curtains and air conditioners on the ones the video showed.
 
 ## Roadmap
 

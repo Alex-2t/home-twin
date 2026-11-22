@@ -61,7 +61,9 @@ function gains(inHa: boolean): Gain[] {
   const lights: Gain = {
     icon: 'bulb',
     title: t('Then your lights, in a few clicks'),
-    line: t('Put lights, curtains and air conditioners in their rooms yourself, step by step.'),
+    line: t(
+      'Place your lights in their rooms yourself, step by step. Curtains and air conditioners come linked.',
+    ),
   };
   const intoHa: Gain = {
     icon: 'house',
