@@ -121,6 +121,8 @@ export function createNotes(source: NotesSource): NotesPanel {
   // the home's last look: null — the next look is only remembered
   let snapshot: Record<string, string | null> | null = null;
   let pending: Map<string, Chain> | null = null;
+  // each device's last change by a person, by its context (homeEvents)
+  let persons: Map<string, string> | null = null;
   let runs: Map<string, AutomationRun> | null = null;
   let settleTimer: ReturnType<typeof setTimeout> | undefined;
   let historyLoaded = false;
@@ -144,9 +146,10 @@ export function createNotes(source: NotesSource): NotesPanel {
     runs = automationRuns(runs, automations());
     // the demo shows a change at once: its devices are ours, nothing bounces, and the visitor clicks to see what happens
     const settleMs = isDemo() ? 0 : SETTLE_MS;
-    const result = homeEvents(snapshot, source.read, catalog, {runs, pending, settleMs});
+    const result = homeEvents(snapshot, source.read, catalog, {runs, pending, persons, settleMs});
     snapshot = result.snapshot;
     pending = result.pending;
+    persons = result.persons;
     // a series of clicks has ended, and no new look comes — finish it by the clock
     clearTimeout(settleTimer);
     if (pending.size) settleTimer = setTimeout(() => collect(), settleMs + 50);

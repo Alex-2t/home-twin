@@ -232,6 +232,35 @@ test('live: clicks in a row settle into one event, back-and-forth into none', ()
   assert.deepEqual(result.notes, []);
 });
 
+test("live: a person's clicks are each told at once; the relay's echo of a click still settles into nothing", () => {
+  const read = (states: States) => reader(states);
+  const byOwner = (state: string, id: string): EventState => ({state, context: {id, user_id: 'owner'}});
+  const echo = (state: string): EventState => ({state, context: {id: `device-${state}`}});
+  let result = homeEvents(null, read(base), catalog, {now: 0});
+  const step = (state: string | EventState, now: number): string[] => {
+    result = homeEvents(result.snapshot, read({...base, 'switch.kitchen': state}), catalog, {
+      now,
+      pending: result.pending,
+      persons: result.persons,
+    });
+    return result.notes.map(note => note.title);
+  };
+  // three clicks from the card within a second: three events, none waiting
+  assert.deepEqual(step(byOwner('on', 'c1'), 100), ['Main light: on']);
+  assert.deepEqual(step(byOwner('off', 'c2'), 400), ['Main light: off']);
+  assert.deepEqual(step(byOwner('on', 'c3'), 700), ['Main light: on']);
+  assert.equal(result.pending.size, 0);
+  // the relay bounces after the last click: off and on again by itself, then the click's own context once more
+  assert.deepEqual(step(echo('off'), 800), []);
+  assert.deepEqual(step(echo('on'), 900), []);
+  assert.deepEqual(step(byOwner('off', 'c3'), 950), []);
+  assert.deepEqual(step(byOwner('on', 'c3'), 1000), []);
+  assert.deepEqual(step(byOwner('on', 'c3'), 1000 + SETTLE_MS), []);
+  // a wall switch (no person) still settles: on now, told only once the series ends
+  assert.deepEqual(step(echo('off'), 9000), []);
+  assert.deepEqual(step(echo('off'), 9000 + SETTLE_MS), ['Main light: off']);
+});
+
 test('a lamp of the plan alone (no device to bounce) is told at once, without settling', () => {
   const lamp: EventItem = {
     key: 'lamp:l1',

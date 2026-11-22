@@ -19,7 +19,10 @@ export const RUN_MEMORY_MS = 3600e3;
 // One device's changes settle first: clicks in a row and relay bounce — “on-off-on” within a second, as Sonoff relays do when the
 // state comes both over the network and from the cloud — make one event with the result, and none if the device came back where it
 // was. Until the series ends the notification waits. The water valve, CO₂ and alerts do not wait, nor a lamp of the plan alone
-// (no device to bounce), nor anything in the demo (editor/look-notes.ts settles it in 0). 1.5 s, was 5 s (the owner, 2026-11-19:
+// (no device to bounce), nor anything in the demo (editor/look-notes.ts settles it in 0), nor a change a person made (HA gives
+// it their user: the card, the app, a voice assistant): each click of theirs is its own event at once (the owner, 2026-11-22:
+// a light switched on and off a few times from the card showed only the last "off"). A device's own echo of that click comes
+// without a user, or with the click's own context again, and settles as before. 1.5 s, was 5 s (the owner, 2026-11-19:
 // a light switched from the card said nothing for so long that it looked broken); a bounce is over within a second.
 export const SETTLE_MS = 1500;
 
@@ -84,6 +87,8 @@ interface Settled {
 export interface HomeEventsResult {
   snapshot: Record<string, string | null>;
   pending: Map<string, Chain>;
+  /** Each device's last change by a person: the context it came with (homeEvents `persons`). */
+  persons: Map<string, string>;
   notes: NoteDraft[];
 }
 
@@ -312,11 +317,14 @@ export function homeEvents(
   {
     runs = null,
     pending = null,
+    persons = null,
     now = Date.now(),
     settleMs = SETTLE_MS,
   }: {
     runs?: Map<string, AutomationRun> | null;
     pending?: Map<string, Chain> | null;
+    /** Each device's last change by a person, by the context it came with: the same context again is the device's echo. */
+    persons?: Map<string, string> | null;
     now?: number;
     settleMs?: number;
   } = {},
@@ -324,6 +332,7 @@ export function homeEvents(
   const snapshot: Record<string, string | null> = {};
   const ready: Settled[] = [];
   const chains = new Map<string, Chain>(pending || []);
+  const byPerson = new Map<string, string>(persons || []);
   for (const item of catalog) {
     const current = read(item);
     const before = previous?.[item.key] ?? null;
@@ -339,6 +348,20 @@ export function homeEvents(
       continue;
     }
     const chain = chains.get(item.key);
+    // A person's change with a context not seen on this device yet: its own event now. What the device did before it, still
+    // settling, ends where the person found it.
+    const person = current?.context?.user_id && contextId && byPerson.get(item.key) !== contextId;
+    if (person && contextId && item.kind !== 'link') {
+      byPerson.set(item.key, contextId);
+      if (chain) {
+        chains.delete(item.key);
+        const earlier = settled({...chain, to: before});
+        if (earlier) ready.push(earlier);
+      }
+      const change = settled({item, from: before, to: value, at: now, auto: false, by: null});
+      if (change) ready.push(change);
+      continue;
+    }
     if (chain)
       chains.set(item.key, {...chain, to: value, at: now, auto: chain.auto && auto, by: by || chain.by});
     else chains.set(item.key, {item, from: before, to: value, at: now, auto, by});
@@ -349,7 +372,7 @@ export function homeEvents(
     const change = settled(chain);
     if (change) ready.push(change);
   }
-  return {snapshot, pending: chains, notes: fold(ready)};
+  return {snapshot, pending: chains, persons: byPerson, notes: fold(ready)};
 }
 
 /**
