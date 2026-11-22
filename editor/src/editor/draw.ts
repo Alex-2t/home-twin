@@ -286,14 +286,15 @@ export function drawPlan(ed: Editor): void {
       ctx.setLineDash([]);
     } else glass();
   }
-  // furniture: brighter in its own mode
-  ctx.globalAlpha = mode === 'furniture' ? 1 : 0.6;
+  // furniture: brighter in its own mode, and with the AI build review's move tool (its names, the one taken)
+  const furnitureOn = mode === 'furniture' || !!ed.movingFurniture;
+  ctx.globalAlpha = furnitureOn ? 1 : 0.6;
   ctx.lineJoin = 'round';
   const flat = (f: FurnitureItem): number => (byId(f.model)?.soft && f.h < 0.05 ? 0 : 1); // a rug — below, the furniture on top of it
   for (const f of [...plan.furniture].sort((a, b) => flat(a) - flat(b))) {
     // an item whose model this catalog does not have is drawn too, as its outline and name (catalog.ts modelOf)
-    const isSel = mode === 'furniture' && f.id === sel.furn;
-    const isBad = mode === 'furniture' && ed.conflicts.has(f.id);
+    const isSel = furnitureOn && f.id === sel.furn;
+    const isBad = furnitureOn && ed.conflicts.has(f.id);
     if (isRun(f)) {
       drawRun(ed, f, isSel, isBad);
       continue;
@@ -316,7 +317,7 @@ export function drawPlan(ed: Editor): void {
     ol.front.forEach((q, i) => (i ? ctx.lineTo(...v.S(q)) : ctx.moveTo(...v.S(q))));
     ctx.lineWidth = isSel ? 2.4 : 2;
     ctx.stroke(); // the front side (for an L-shaped one — inside the corner)
-    if (mode === 'furniture') {
+    if (furnitureOn) {
       const r = cs.length > 4 ? footRects(f)[0] : cs;
       const c: Point = [r.reduce((a, q) => a + q[0], 0) / 4, r.reduce((a, q) => a + q[1], 0) / 4];
       furnName(

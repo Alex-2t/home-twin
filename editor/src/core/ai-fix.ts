@@ -240,6 +240,19 @@ function sameThing(a: FurnitureItem, b: FurnitureItem): boolean {
   return thingText(a) === thingText(b);
 }
 
+/** How many things the user moved, changed, added or removed in the home since it came from the service (`base`). */
+export function furnitureEdits(local: Pick<Plan, 'furniture'>, base: Pick<Plan, 'furniture'>): number {
+  const baseById = new Map(base.furniture.map(item => [item.id, item]));
+  const localIds = new Set(local.furniture.map(item => item.id));
+  let edits = 0;
+  for (const mine of local.furniture) {
+    const before = baseById.get(mine.id);
+    if (!before || !sameThing(mine, before)) edits++;
+  }
+  for (const id of baseById.keys()) if (!localIds.has(id)) edits++;
+  return edits;
+}
+
 /** What a round's furniture did to the home in the editor. */
 export interface FurnitureRoundTaken<P> {
   /** The home with the round's furniture taken. */

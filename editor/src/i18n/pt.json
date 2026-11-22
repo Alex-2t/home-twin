@@ -1892,5 +1892,6 @@
  "The AI changed nothing in your home": "A IA não mudou nada na sua casa",
  "{0, plural, one {# thing you changed yourself stays yours} other {# things you changed yourself stay yours}}": "{0, plural, one {# móvel que você mudou continua seu} other {# móveis que você mudou continuam seus}}",
  "Could not load the changes: check the connection and try again": "Não foi possível carregar as mudanças: verifique a conexão e tente de novo",
- "Not a light: back to the switches": "Não é uma luz: voltar aos interruptores"
+ "Not a light: back to the switches": "Não é uma luz: voltar aos interruptores",
+ "Move furniture: drag it on the plan (M)": "Mover móveis: arraste-os na planta (M)"
 }

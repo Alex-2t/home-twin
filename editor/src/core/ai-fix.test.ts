@@ -2,7 +2,14 @@
 // leaves of the user's own edits.
 import {test} from 'node:test';
 import assert from 'node:assert/strict';
-import {applyFix, contentPrints, fixOffer, takeFurnitureRound, untouchedChoice} from './ai-fix.ts';
+import {
+  applyFix,
+  contentPrints,
+  fixOffer,
+  furnitureEdits,
+  takeFurnitureRound,
+  untouchedChoice,
+} from './ai-fix.ts';
 import {emptyPlan} from './plan.ts';
 import type {FurnitureItem, Plan, PlanLight, Room} from './types.ts';
 
@@ -193,4 +200,19 @@ test("a round's fields in another order are the same thing; an added thing whose
     taken.plan.furniture.map(thing => thing.id),
     ['sofa', 'bed', 'lamp', 'lamp_2'],
   );
+});
+
+test('the things moved by hand in the review are counted, and only they: the home as it came counts none', () => {
+  const base = baseHome();
+  assert.equal(furnitureEdits(structuredClone(base), base), 0);
+  const local = structuredClone(base);
+  // the same thing with its keys in another order is no edit
+  local.furniture = local.furniture.map(
+    thing => Object.fromEntries(Object.entries(thing).reverse()) as FurnitureItem,
+  );
+  assert.equal(furnitureEdits(local, base), 0);
+  local.furniture[0].x += 0.5;
+  local.furniture.pop();
+  local.furniture.push(item('plant', 'plant', 1, 1));
+  assert.equal(furnitureEdits(local, base), 3, 'one moved, one removed, one added');
 });

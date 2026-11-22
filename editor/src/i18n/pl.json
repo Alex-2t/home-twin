@@ -1892,5 +1892,6 @@
  "The AI changed nothing in your home": "AI niczego nie zmieniła w twoim domu",
  "{0, plural, one {# thing you changed yourself stays yours} other {# things you changed yourself stay yours}}": "{0, plural, one {# mebel zmieniony przez ciebie zostaje twój} few {# meble zmienione przez ciebie zostają twoje} many {# mebli zmienionych przez ciebie zostaje twoich} other {# mebla zmienionego przez ciebie zostaje twoje}}",
  "Could not load the changes: check the connection and try again": "Nie udało się wczytać zmian: sprawdź połączenie i spróbuj ponownie",
- "Not a light: back to the switches": "To nie światło: z powrotem do przełączników"
+ "Not a light: back to the switches": "To nie światło: z powrotem do przełączników",
+ "Move furniture: drag it on the plan (M)": "Przesuń meble: przeciągnij je na planie (M)"
 }

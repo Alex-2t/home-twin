@@ -62,8 +62,8 @@ export interface ReviewOptions {
   account?: ((slot: HTMLElement) => void) | null;
 }
 
-/** The review's tools: look around, or put pins. */
-type ReviewTool = 'look' | 'pin';
+/** The review's tools: look around, put pins, or move the furniture by hand (on the plan). */
+type ReviewTool = 'look' | 'pin' | 'move';
 
 /** A pin of an earlier round that was made, with its round. */
 type PastPin = RoundPin & {round: number};
@@ -157,6 +157,9 @@ export function openReview(
   let unplacedHovered: number | null = null;
   let view: Pane = '3d';
   let tool: ReviewTool = 'pin';
+  // The furniture mode's drag, used by the move tool; true while a thing is held.
+  const furniture = ed.modes.furniture;
+  let movingThing = false;
   let active: number | null = null;
   // The open pin as it was when its bubble opened: Cancel puts it back (a new pin, empty then, goes).
   let opened: {pin: Pin; text: string; photos: string[]} | null = null;
@@ -177,6 +180,7 @@ export function openReview(
       <div class="aib-tools glass">
         <button class="ib" data-tool="look" title="${esc(t('Look around (V)'))}">${icon('pointer', 17)}</button>
         <button class="ib" data-tool="pin" title="${esc(t('Pin: click where something is wrong (P)'))}">${icon('mapPin', 17)}</button>
+        <button class="ib" data-tool="move" title="${esc(t('Move furniture: drag it on the plan (M)'))}">${icon('move', 17)}</button>
         <span class="sep"></span>
         <div class="seg aib-views"><button data-view="3d">3D</button><button data-view="plan">${esc(t('Plan'))}</button></div>
         <button class="ib" data-act="fit" title="${esc(t('Whole home'))}">${icon('fit', 17)}</button>
@@ -310,6 +314,8 @@ export function openReview(
 
   function setView(next: Pane): void {
     view = next;
+    // The furniture moves on the plan only: the 3D puts the move tool down.
+    if (view === '3d' && tool === 'move') setTool('look');
     // Daylight while the owner checks: colours and finishes are what they compare with their video.
     if (view === '3d') ed.view.setNight(false);
     const ins = insets();
@@ -322,11 +328,29 @@ export function openReview(
     requestAnimationFrame(() => requestAnimationFrame(fit));
   }
 
+  // The move tool (the owner, 2026-11-22: a fridge five rounds of pins did not move is put right by hand in seconds): the
+  // furniture mode's own drag on the plan — snapping to the walls, an L run by its ends, a box by its size handles — while the
+  // rest of the editor stays out. What is moved is an edit of the home, in its history, and stays through a reload and the
+  // next round of pins (ai-build.ts withOwnersMoves).
   function setTool(next: ReviewTool): void {
+    if (tool === 'move' && next !== 'move') {
+      furniture.cancelDrag();
+      furniture.deselect();
+      movingThing = false;
+      ed.furnHover = null;
+      ed.draw();
+    }
     tool = next;
     for (const b of box.querySelectorAll<HTMLElement>('[data-tool]'))
       b.classList.toggle('on', b.dataset.tool === tool);
     document.body.classList.toggle('aib-pinning', tool === 'pin');
+    document.body.classList.toggle('aib-moving', tool === 'move');
+    ed.movingFurniture = tool === 'move';
+    ed.draw();
+    if (tool === 'move') {
+      setActive(null);
+      if (view !== 'plan') setView('plan');
+    }
   }
 
   // ---------- pins ----------
@@ -1238,10 +1262,24 @@ export function openReview(
   // The plan: the editor's own clicks never reach it — a drag pans, a click puts a pin (the wheel still zooms, as in the editor).
   let press: {id: number; x: number; y: number; ox: number; oy: number; moved: boolean} | null = null;
   const onPin = (e: Event): boolean => !!targetOf(e).closest?.('.aib-pin');
+  // Where a pointer is on the plan, in metres.
+  function planPoint(e: PointerEvent): [number, number] {
+    const canvas = ed.v.cv.getBoundingClientRect();
+    const [x, y] = ed.v.W([e.clientX - canvas.left, e.clientY - canvas.top]);
+    return [x, y];
+  }
   function planDown(e: PointerEvent): void {
     if (view !== 'plan' || onPin(e)) return;
     e.stopPropagation();
     e.preventDefault();
+    // With the move tool a press on a thing takes it; elsewhere the plan moves, as with the other tools.
+    if (tool === 'move' && e.button === 0 && furniture.down(e, planPoint(e))) {
+      movingThing = true;
+      try {
+        panes.plan.setPointerCapture(e.pointerId);
+      } catch {} // a pointer the browser no longer tracks
+      return;
+    }
     press = {id: e.pointerId, x: e.clientX, y: e.clientY, ox: ed.v.ox, oy: ed.v.oy, moved: false};
     try {
       panes.plan.setPointerCapture(e.pointerId);
@@ -1250,6 +1288,11 @@ export function openReview(
   function planMove(e: PointerEvent): void {
     if (view !== 'plan' || onPin(e)) return;
     e.stopPropagation();
+    // The thing taken follows the pointer; with nothing pressed, the thing under it shows its name and the move cursor.
+    if (tool === 'move' && (movingThing || !press)) {
+      furniture.move(e, planPoint(e));
+      return;
+    }
     if (!press || e.pointerId !== press.id) return;
     const dx = e.clientX - press.x;
     const dy = e.clientY - press.y;
@@ -1261,11 +1304,22 @@ export function openReview(
     ed.draw();
   }
   function planUp(e: PointerEvent): void {
+    if (view === 'plan' && movingThing) {
+      e.stopPropagation();
+      movingThing = false;
+      furniture.up(e, planPoint(e));
+      return;
+    }
     if (view !== 'plan' || !press || e.pointerId !== press.id) return;
     e.stopPropagation();
     const click = !press.moved;
     press = null;
     if (!click) return;
+    // a click on the floor with the move tool lets go of the thing taken
+    if (tool === 'move') {
+      furniture.deselect();
+      return ed.draw();
+    }
     if (tool !== 'pin') return setActive(null);
     const canvas = ed.v.cv.getBoundingClientRect();
     const [x, y] = ed.v.W([e.clientX - canvas.left, e.clientY - canvas.top]);
@@ -1299,6 +1353,7 @@ export function openReview(
     const key = e.key.toLowerCase();
     if (key === 'v') setTool('look');
     else if (key === 'p') setTool('pin');
+    else if (key === 'm') setTool('move');
     else if (key === 'escape') setActive(null);
     else if ((key === 'delete' || key === 'backspace') && active != null) removePin(active);
     e.stopPropagation();
@@ -1332,7 +1387,12 @@ export function openReview(
     cancelAnimationFrame(raf);
     for (const [target, type, fn] of listeners) target.removeEventListener(type, fn as EventListener, true);
     removeEventListener('resize', resized);
-    document.body.classList.remove('aib-pinning');
+    if (tool === 'move') {
+      furniture.cancelDrag();
+      furniture.deselect();
+    }
+    document.body.classList.remove('aib-pinning', 'aib-moving');
+    ed.movingFurniture = false;
     pinLayer.remove();
     box.remove();
     ed.setBare(null);

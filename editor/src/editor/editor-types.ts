@@ -638,6 +638,8 @@ export interface Editor {
   /** The room under the pointer in the rooms mode, and the item in the furniture mode. */
   hover: string | null;
   furnHover?: string | null;
+  /** The AI build's review has its move tool on (ai-review.ts): the plan draws the furniture as its own mode does, names and the one taken. */
+  movingFurniture?: boolean;
   /** The field on the plan at canvas point (x, y), filled with value; ok gets a number (a length: metres) or text. */
   ask(
     x: number,

@@ -43,7 +43,7 @@ import {openReview} from './ai-review.ts';
 import type {UnplacedThing} from './ai-review.ts';
 import {changeCount, pinsToSend, pinsToRetry, refreshRetries, withoutFixed} from './ai-pins.ts';
 import {editorPrints, markSource, seeFix} from './ai-fix.ts';
-import {takeFurnitureRound} from '../core/ai-fix.ts';
+import {furnitureEdits, takeFurnitureRound} from '../core/ai-fix.ts';
 import type {FurnitureRoundTaken} from '../core/ai-fix.ts';
 import {syncFurnStrips} from '../core/fixtures.ts';
 import {accountReports} from './ai-reports.ts';
@@ -2927,7 +2927,7 @@ export function openAiBuild(ed: Editor, options: AiBuildOptions = {}): AiBuildSc
     // the format this editor reads: a service that writes a newer one can answer in this one, or say to update (D-121)
     const res = await fetch(`${base()}/home?format=${PLAN_VERSION}`, {cache: 'no-store'});
     if (!res.ok) throw new Error(res.statusText);
-    const plan = readPlan(await res.text());
+    const plan = await withOwnersMoves(readPlan(await res.text()));
     cover(false);
     // In Home Assistant the plan open is replaced only now, once per build: kept as a version and as "Restore previous plan"
     if (inHa && takenFor !== buildId && flows) {
@@ -2937,6 +2937,25 @@ export function openAiBuild(ed: Editor, options: AiBuildOptions = {}): AiBuildSc
     // The home remembers the build and the version it was taken at: a fix of one of its pins is offered to it later (D-129).
     if (buildId) markSource(ed, buildId, status?.rounds?.at(-1)?.round ?? 0);
     quietSetup();
+  }
+
+  // The furniture the owner moved by hand in the review (its move tool) stays when the next round's home comes: the round's
+  // things are taken where the owner left them as they came, theirs are kept (takeFurnitureRound, as for pins after the
+  // review). A home the owner did not touch, or another build's, is the service's as it comes.
+  async function withOwnersMoves(fresh: Plan): Promise<Plan> {
+    const source = ed.plan.source;
+    if (!buildId || source?.build !== buildId) return fresh;
+    let before: Plan;
+    try {
+      before = await homeAfter(source.round);
+    } catch {
+      return fresh;
+    }
+    if (!furnitureEdits(ed.plan, before)) return fresh;
+    const furniture = takeFurnitureRound(ed.plan, before, fresh).plan.furniture;
+    const kept = {...fresh, furniture};
+    syncFurnStrips(kept);
+    return kept;
   }
 
   async function startReview(): Promise<void> {
