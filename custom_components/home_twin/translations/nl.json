@@ -1,0 +1,16 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "Home Twin",
+        "description": "Teken uw huis, plaats lampen, apparaten en sensoren en bekijk het live in 3D."
+      }
+    },
+    "create_entry": {
+      "default": "[Teken uw huis](/home-twin). Open daarna **Home Twin** in de zijbalk."
+    },
+    "abort": {
+      "single_instance_allowed": "Home Twin is al ingesteld."
+    }
+  }
+}

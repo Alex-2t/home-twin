@@ -1,0 +1,16 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "Home Twin",
+        "description": "绘制您的家，摆放灯具、设备和传感器，并以 3D 实时查看。"
+      }
+    },
+    "create_entry": {
+      "default": "[绘制您的家](/home-twin)。之后在侧边栏打开 **Home Twin**。"
+    },
+    "abort": {
+      "single_instance_allowed": "Home Twin 已经设置过了。"
+    }
+  }
+}

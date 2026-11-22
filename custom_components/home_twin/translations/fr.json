@@ -1,0 +1,16 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "Home Twin",
+        "description": "Dessinez votre logement, placez les lampes, les appareils et les capteurs, et voyez-le en direct en 3D."
+      }
+    },
+    "create_entry": {
+      "default": "[Dessiner votre logement](/home-twin). Ensuite, ouvrez **Home Twin** dans la barre latérale."
+    },
+    "abort": {
+      "single_instance_allowed": "Home Twin est déjà configuré."
+    }
+  }
+}

@@ -5,7 +5,7 @@ The editor from [`editor/`](../editor/README.md) inside Home Assistant, with the
 ## How it works
 ```
 custom_components/home_twin/
-  manifest.json      domain home_twin, one entry (single_config_entry); version is set by the release
+  manifest.json      domain home_twin, one entry (single_config_entry); version is set by the release (main carries the last released one)
   __init__.py        panel (panel_custom, in its own iframe), plan and photo commands, the photo address, taking up a new build
   serve.py           serving frontend/ build by build: /home_twin_static/<build>/<file>
   config_flow.py     one-button setup

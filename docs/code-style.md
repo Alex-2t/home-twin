@@ -17,7 +17,8 @@ tests straight from the `.ts` files, with no build step (`npm test`). `npm run c
 - **One statement per line, one name per declaration.** No `const a = 1, b = 2`. A long expression is split into named
   steps.
 - **Numbers with a meaning have a name**, with the unit: `const DOOR_CLEARANCE_METRES = 0.05`.
-- **Comments say why**, in plain English.
+- **Comments say why**, in plain English. A `D-123` in a comment cites the author's decision log (kept outside the repository): the
+  comment itself carries what was decided, the number is where to look it up.
 - **Erasable syntax only** (what Node can strip): no `enum`, `namespace`, parameter properties or `import x = require`;
   type-only imports with `import type`. Relative imports name the file with its `.ts` extension.
 - **Formatting** is Prettier's (`npm run format`), with the repo's `editor/.prettierrc.json`.

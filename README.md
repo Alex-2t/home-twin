@@ -66,3 +66,5 @@ The repository holds the code. It contains no personal data from the owner's apa
 - [Home Assistant integration](integration/README.md) — how it works, test HA in Docker, releasing a version
 - [Plan format](docs/plan-format.md) — the plan file and its versions
 - [Code style](docs/code-style.md)
+
+Comments and documents cite decisions as `D-056` and the like: the number is a stable handle on the author's decision log, kept outside the repository with the rest of the product notes. The code around a citation says what was decided; the number only tells which conversation it came from.
