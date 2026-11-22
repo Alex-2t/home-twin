@@ -12,8 +12,8 @@ A live 3D twin of your home for Home Assistant: draw the floor plan, place light
 
 ## Install
 1. Add this repository and download **Home Twin**, then restart Home Assistant:
-   - Home Assistant 2026.11 and newer: Marketplace → **Add from link** → `https://github.com/Alex-2t/home-twin` (the Marketplace asks to connect a GitHub account first, as for any repository outside its catalog).
-   - Older versions with [HACS](https://hacs.xyz): HACS → ⋮ → **Custom repositories** → `https://github.com/Alex-2t/home-twin`, type **Integration**.
+   - **Home Assistant 2026.11 and newer** — Marketplace → **Add from link** → `https://github.com/Alex-2t/home-twin` (the Marketplace asks to connect a GitHub account first, as for any repository outside its catalog). Open **Home Twin** in the list → **Download**.
+   - **Older versions, 2024.7 and up** — through [HACS](https://hacs.xyz) (not installed yet? [how to install it](https://hacs.xyz/docs/use/download/download/)): HACS → ⋮ in the top right corner → **Custom repositories** → `https://github.com/Alex-2t/home-twin`, type **Integration** → **Add**; or [open this link](https://my.home-assistant.io/redirect/hacs_repository/?owner=Alex-2t&repository=home-twin&category=integration) and it is filled in for you. Then find **Home Twin** in HACS → **Download**.
 2. Settings → Devices & services → Add integration → **Home Twin**.
 3. Click **Draw your home** in the dialog that follows. Later, open **Home Twin** in the sidebar (or Settings → Devices & services → Home Twin → Configure).
 4. Put the home on a dashboard: click **Add to dashboard** at the end of the setup (or in the plan menu) — a dashboard with your home appears in the sidebar. You can also add the **Home Twin** card to any dashboard (`type: custom:home-twin-card`): there it is a compact window into the home, and a tap opens the whole home.
