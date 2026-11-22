@@ -5,7 +5,7 @@
   "scripts": {
     "build": "node build.ts",
     "dev": "node build.ts --serve",
-    "test": "node --test src/core/*.test.ts src/editor/*.test.ts src/look/*.test.ts src/i18n/*.test.ts",
+    "test": "node --test src/*.test.ts src/core/*.test.ts src/editor/*.test.ts src/look/*.test.ts src/i18n/*.test.ts",
     "format": "prettier --write \"src/**/*.ts\" \"demo/**/*.ts\" \"tools/**/*.ts\" \"*.ts\"",
     "format:check": "prettier --check \"src/**/*.ts\" \"demo/**/*.ts\" \"tools/**/*.ts\" \"*.ts\"",
     "typecheck": "tsc -p .",
