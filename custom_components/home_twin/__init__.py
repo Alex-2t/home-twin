@@ -39,8 +39,6 @@ from pathlib import Path
 from typing import Any
 
 from aiohttp import web
-import voluptuous as vol
-
 from homeassistant.components import frontend, panel_custom, websocket_api
 from homeassistant.components.http import KEY_HASS_USER, HomeAssistantView
 from homeassistant.config_entries import ConfigEntry
@@ -51,7 +49,9 @@ from homeassistant.helpers.dispatcher import async_dispatcher_connect, async_dis
 from homeassistant.helpers.event import async_track_time_interval
 from homeassistant.helpers.storage import Store
 from homeassistant.helpers.typing import ConfigType
+import voluptuous as vol
 
+from .ai import async_setup_ai
 from .const import (
     DOMAIN,
     PANEL_ELEMENT,
@@ -66,7 +66,6 @@ from .const import (
     STORE_KEY,
     STORE_VERSION,
 )
-from .ai import async_setup_ai
 from .serve import Build, FrontendFiles, FrontendView
 
 _LOGGER = logging.getLogger(__name__)

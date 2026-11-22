@@ -28,14 +28,13 @@ from typing import Any
 
 import aiohttp
 from aiohttp import web
-import voluptuous as vol
-
 from homeassistant.components import websocket_api
 from homeassistant.components.http import HomeAssistantView
 from homeassistant.core import HomeAssistant, callback
 from homeassistant.helpers.aiohttp_client import async_create_clientsession
 from homeassistant.helpers.storage import Store
 from homeassistant.util import dt as dt_util
+import voluptuous as vol
 
 from .const import AI_SERVICE, AI_STORE_KEY, AI_STORE_VERSION, AI_URL, DOMAIN
 

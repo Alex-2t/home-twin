@@ -22,7 +22,6 @@ import threading
 import time
 
 from aiohttp import web
-
 from homeassistant.components.http import HomeAssistantView
 from homeassistant.core import HomeAssistant
 

@@ -844,7 +844,7 @@ export function createFlows(
   // the photo is sized approximately; once rooms are split and named — exactly, by the sum of rooms without balconies and shafts.
   // “Don't know” — scale by a wall, as before. Once the scale is set by a wall, the area no longer touches it.
   // The area dialog: when a photo is uploaded, at the start of “Draw from scratch” and via “Back” from the first steps (to fix the area). If rooms already exist —
-  // the size comes from them right away, the step stays the same. Without a photo “Don't know” means draw by eye (sizes show at the cursor). A balcony is not included in the documented area everywhere (it is in Moldova, not in Russia) — a checkbox,
+  // the size comes from them right away, the step stays the same. Without a photo “Don't know” means draw by eye (sizes show at the cursor). Whether a balcony counts in the documented area differs from country to country — a checkbox,
   // ticked by default (D-112), the last choice is remembered.
   const BALC = 'home-twin-editor:docBalcony';
   f.askArea = ({fromBack = false} = {}) => {

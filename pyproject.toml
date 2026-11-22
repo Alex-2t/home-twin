@@ -1,0 +1,24 @@
+# Checks for the integration's Python (custom_components/home_twin). The editor's TypeScript has its own in editor/.
+# Run: uvx ruff check .   (CI runs the same, .github/workflows/validate.yml). The lint only: the code is laid out by hand, at
+# about 120 columns, with the comments as long as their sentence; the formatter would fold those lines into parentheses.
+[tool.ruff]
+line-length = 120
+target-version = "py312"  # Home Assistant 2024.7, the oldest supported, runs on Python 3.12
+include = ["custom_components/**/*.py"]
+
+[tool.ruff.lint]
+select = [
+  "E",     # pycodestyle errors
+  "W",     # pycodestyle warnings
+  "F",     # pyflakes: unused names, undefined names
+  "I",     # import order
+  "UP",    # modern syntax for the target Python
+  "B",     # bugbear: likely mistakes
+  "SIM",   # simplifications
+  "ASYNC", # blocking calls in async code
+]
+ignore = ["E501"]  # line length is not checked: a comment may be as long as its sentence
+
+[tool.ruff.lint.isort]
+force-sort-within-sections = true  # as Home Assistant's own code
+combine-as-imports = true
