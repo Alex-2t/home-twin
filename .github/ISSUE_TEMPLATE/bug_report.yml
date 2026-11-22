@@ -1,0 +1,75 @@
+name: Bug report
+description: Something in Home Twin does not work as it should
+title: "[Bug] "
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for taking the time. Home Twin is in beta, so reports like this are how it gets better.
+        If the problem is about money or your AI build account (a purchase, a balance, a sign-in), write to support@sync.md instead: a public issue is no place for payment details.
+  - type: textarea
+    id: what-happened
+    attributes:
+      label: What happened
+      description: What you did, what you saw, and what you expected to see instead.
+      placeholder: I clicked "Add to dashboard" after the setup and nothing appeared in the sidebar; I expected a new "Home Twin" dashboard.
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+      description: As exactly as you can, from a fresh page.
+      placeholder: |
+        1. Open Home Twin in the sidebar
+        2. ...
+    validations:
+      required: true
+  - type: input
+    id: ha-version
+    attributes:
+      label: Home Assistant version
+      description: Settings → About.
+      placeholder: "2026.11.2"
+    validations:
+      required: true
+  - type: input
+    id: ht-version
+    attributes:
+      label: Home Twin version
+      description: Settings → Devices & services → Home Twin, or the release you installed.
+      placeholder: "0.3.0"
+    validations:
+      required: true
+  - type: input
+    id: browser
+    attributes:
+      label: Browser and device
+      placeholder: "Safari 19 on iPhone 17; Chrome 142 on Windows 11; the HA Companion app on Android"
+    validations:
+      required: true
+  - type: dropdown
+    id: where
+    attributes:
+      label: Where it happens
+      multiple: true
+      options:
+        - The floor-plan editor (the Home Twin panel)
+        - The dashboard card or the Home Twin dashboard
+        - Build with AI
+        - Installation or setup
+        - Somewhere else
+    validations:
+      required: true
+  - type: textarea
+    id: media
+    attributes:
+      label: Screenshot or video
+      description: Drag an image or a short screen recording here. A picture of the plan or the 3D view says a lot.
+  - type: textarea
+    id: logs
+    attributes:
+      label: Logs
+      description: If Home Assistant shows an error, paste it from Settings → System → Logs. The browser console (F12 → Console) helps for problems in the editor or the card.
+      render: text

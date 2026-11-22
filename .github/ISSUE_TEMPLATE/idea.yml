@@ -1,0 +1,22 @@
+name: Idea
+description: Something Home Twin should do, or do differently
+title: "[Idea] "
+labels: ["idea"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Have a look at the [roadmap](https://github.com/Alex-2t/home-twin#roadmap) first: if it is already there, a 👍 on an existing issue or a comment with your case helps more than a new one.
+  - type: textarea
+    id: idea
+    attributes:
+      label: What you would like, and why
+      description: What you want to see or do in Home Twin, and the situation at home where it would help.
+      placeholder: Show the robot vacuum's real path on the plan — I want to see where it got stuck without opening its own app.
+    validations:
+      required: true
+  - type: textarea
+    id: today
+    attributes:
+      label: How you manage today
+      description: Optional. What you do now instead, in Home Twin or elsewhere.
