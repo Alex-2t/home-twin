@@ -272,6 +272,8 @@ let popAnchor: HTMLElement | null = null;
 // Which of the buttons with the popup button's label it was (the room's Walls and Floor palettes share one label), so the
 // focus finds the right one again after a pick re-rendered the panel.
 let popAnchorIndex = 0;
+// What the open popup does when it closes, whatever closes it (popoverAt: the plan stops showing the item pointed at).
+let onPopClose: (() => void) | null = null;
 export function closePop(): void {
   const hadFocus = !!pop?.contains(document.activeElement);
   pop?.remove();
@@ -279,6 +281,9 @@ export function closePop(): void {
   // the focus was in the popup (an item chosen with the keyboard): back to its button, not to the page's start
   if (hadFocus && popAnchor) anchorNow(popAnchor)?.focus({preventScroll: true});
   popAnchor = null;
+  const closed = onPopClose;
+  onPopClose = null;
+  closed?.();
 }
 // The buttons of the same kind with this button's label, in the page's order.
 function sameLabelled(anchor: HTMLElement): HTMLElement[] {
@@ -308,15 +313,7 @@ export type PopoverItem = [icon: string, label: string, action: () => void, cls?
 export function popover(anchor: HTMLElement, items: PopoverItem[], align: 'start' | 'end' = 'end'): void {
   closePop();
   const m = el(`<div class="menu glass pop"></div>`);
-  for (const [ic, label, fn, cls, tip] of items) {
-    const b = el(`<button class="${cls || ''}">${icon(ic)}${esc(label)}</button>`);
-    if (tip) b.title = tip;
-    b.onclick = () => {
-      closePop();
-      fn();
-    };
-    m.appendChild(b);
-  }
+  for (const button of menuButtons(items)) m.appendChild(button);
   document.body.appendChild(m);
   pop = m;
   const r = anchor.getBoundingClientRect();
@@ -338,6 +335,59 @@ export function popover(anchor: HTMLElement, items: PopoverItem[], align: 'start
       closePop();
       removeEventListener('keydown', esc);
     }
+  });
+}
+// A popup menu's buttons: an item's click closes the popup, then does what the item does.
+function menuButtons(items: PopoverItem[]): HTMLButtonElement[] {
+  return items.map(([ic, label, fn, cls, tip]) => {
+    const b = el<HTMLButtonElement>(`<button class="${cls || ''}">${icon(ic)}${esc(label)}</button>`);
+    if (tip) b.title = tip;
+    b.onclick = () => {
+      closePop();
+      fn();
+    };
+    return b;
+  });
+}
+/**
+ * A menu at a point on the screen instead of under a button (a right-click on the plan): the items as in popover. peek is
+ * told which item the pointer or the keyboard is on (its index), and null when on none or when the menu closes, so the plan
+ * can show the thing an item is about. opener takes the focus back on Escape.
+ */
+export function popoverAt(
+  opener: HTMLElement,
+  at: {x: number; y: number},
+  items: PopoverItem[],
+  peek: (index: number | null) => void = () => {},
+): void {
+  closePop();
+  const m = el(`<div class="menu glass pop"></div>`);
+  const buttons = menuButtons(items);
+  buttons.forEach((button, index) => {
+    button.onpointerenter = () => peek(index);
+    button.onfocus = () => peek(index);
+    m.appendChild(button);
+  });
+  m.onpointerleave = () => peek(null);
+  document.body.appendChild(m);
+  pop = m;
+  onPopClose = () => peek(null);
+  m.style.left = Math.max(8, Math.min(innerWidth - m.offsetWidth - 8, at.x + 2)) + 'px';
+  m.style.top = Math.max(8, Math.min(innerHeight - m.offsetHeight - 8, at.y + 2)) + 'px';
+  popKeys(m, opener);
+  const off = (e: PointerEvent): void => {
+    // A pointer event's target is a node.
+    const target = e.target as Node | null;
+    if (m.isConnected && m.contains(target)) return;
+    if (m.isConnected) closePop();
+    removeEventListener('pointerdown', off, true);
+  };
+  setTimeout(() => addEventListener('pointerdown', off, true));
+  addEventListener('keydown', function escape(e) {
+    if (!m.isConnected) return removeEventListener('keydown', escape);
+    if (e.key !== 'Escape') return;
+    closePop();
+    removeEventListener('keydown', escape);
   });
 }
 // A popup whose content grows while it is open (a finish with a wider pattern block) moves back inside the screen; it moves

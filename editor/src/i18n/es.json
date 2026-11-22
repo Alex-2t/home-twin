@@ -1894,6 +1894,7 @@
  "{0, plural, one {# thing you changed yourself stays yours} other {# things you changed yourself stay yours}}": "{0, plural, one {# mueble que cambiaste tú sigue siendo tuyo} other {# muebles que cambiaste tú siguen siendo tuyos}}",
  "Could not load the changes: check the connection and try again": "No se pudieron cargar los cambios: revisa la conexión e inténtalo de nuevo",
  "Not a light: back to the switches": "No es una luz: volver a los interruptores",
- "Move furniture: drag it on the plan (M). Click it again for what is under it": "Mover muebles: arrástralos en el plano (M). Haz clic otra vez para lo que hay debajo",
- "{0} more": "{0} más"
+ "Move furniture: drag it on the plan (M). Right-click for what is under it": "Mover muebles: arrástralos en el plano (M). Clic derecho para lo que hay debajo",
+ "{0} more": "{0} más",
+ "Also here: {0} · right-click": "También aquí: {0} · clic derecho"
 }

@@ -121,6 +121,8 @@ export interface AppOptions {
 const isMouseWheel = (e: WheelEvent & {wheelDeltaY?: number}): boolean =>
   e.deltaX === 0 && e.wheelDeltaY !== undefined && e.wheelDeltaY !== 0 && e.wheelDeltaY % 120 === 0;
 const UI = 'home-twin-editor:ui';
+// How far the pointer may go between pressing the right button and letting it go for a right-click, not a pan, px.
+const RIGHT_CLICK_PX = 5;
 // the scene settings and the dashboard layout are not plan edits: a restored or undone plan keeps the ones there are now
 const carryOver = <Key extends 'scenes' | 'panel'>(key: Key, from: Plan, to: Plan): void => {
   if (from[key]) to[key] = from[key];
@@ -2164,8 +2166,12 @@ export function createApp({haLights, ha, photos}: AppOptions): Editor {
     if (!press || e.pointerId !== press.id) return;
     // Release the capture before commit: it may switch the wizard tool.
     release();
-    if (pan) pan = null;
-    else if (ed.capture?.up) ed.capture.up(P(e), e);
+    if (pan) {
+      // the right button pans the plan; let go where it was pressed, it is a right-click: the mode's menu of what is there
+      const rightClick = e.button === 2 && Math.hypot(e.offsetX - pan.X, e.offsetY - pan.Y) < RIGHT_CLICK_PX;
+      pan = null;
+      if (rightClick) ed.mode.menuAt?.(e, P(e));
+    } else if (ed.capture?.up) ed.capture.up(P(e), e);
     else ed.mode.up?.(e, P(e));
     ed.guides = [];
     refreshCursor();
@@ -2184,9 +2190,10 @@ export function createApp({haLights, ha, photos}: AppOptions): Editor {
   });
   cv.addEventListener('pointerleave', () => {
     if (!press) lastPointer = null;
-    if (ed.hover || ed.furnHover) {
+    if (ed.hover || ed.furnHover || ed.furnAlso) {
       ed.hover = null;
       ed.furnHover = null;
+      ed.furnAlso = null;
       ed.draw();
     }
   });
@@ -2471,6 +2478,7 @@ export function createApp({haLights, ha, photos}: AppOptions): Editor {
       ed.sel = {};
       ed.hover = null;
       ed.furnHover = null;
+      ed.furnAlso = null;
     }
     layout();
     insets3d();

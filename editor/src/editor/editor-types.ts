@@ -264,6 +264,8 @@ export interface EditorMode {
   /** The panel stays where it is when the selection moves on (it moves only where it would cover the new one or not fit). */
   ctxSteady?(): boolean;
   dblclick?(e: MouseEvent, p: Point): void;
+  /** A right-click on the plan (let go where it was pressed): the mode's menu of what is there; false: it has none there. */
+  menuAt?(e: MouseEvent, p: Point): boolean;
   /** "Split" (Tab): turns the split line by 90°. */
   flipCut?(): void;
   /** The room whose panel is under the pointer: draw.ts tints it. */
@@ -638,6 +640,13 @@ export interface Editor {
   /** The room under the pointer in the rooms mode, and the item in the furniture mode. */
   hover: string | null;
   furnHover?: string | null;
+  /**
+   * The things standing on one another under the pointer besides the one it is on (a rug under a table), and where the
+   * pointer is: draw.ts says beside it that they are there and that a right-click picks them (modes/furniture.ts).
+   */
+  furnAlso?: {at: Point; ids: string[]} | null;
+  /** The thing an item of the "what is here" menu is about, while the pointer is on that item: draw.ts outlines it on top. */
+  furnPeek?: string | null;
   /** The AI build's review has its move tool on (ai-review.ts): the plan draws the furniture as its own mode does, names and the one taken. */
   movingFurniture?: boolean;
   /** The field on the plan at canvas point (x, y), filled with value; ok gets a number (a length: metres) or text. */

@@ -204,7 +204,7 @@ export function openReview(
       <div class="aib-tools glass">
         <button class="ib" data-tool="look" title="${esc(t('Look around (V)'))}">${icon('pointer', 17)}</button>
         <button class="ib" data-tool="pin" title="${esc(t('Pin: click where something is wrong (P)'))}">${icon('mapPin', 17)}</button>
-        <button class="ib" data-tool="move" title="${esc(t('Move furniture: drag it on the plan (M). Click it again for what is under it'))}">${icon('move', 17)}</button>
+        <button class="ib" data-tool="move" title="${esc(t('Move furniture: drag it on the plan (M). Right-click for what is under it'))}">${icon('move', 17)}</button>
         <span class="sep"></span>
         <div class="seg aib-views"><button data-view="3d">3D</button><button data-view="plan">${esc(t('Plan'))}</button></div>
         <button class="ib" data-act="fit" title="${esc(t('Whole home'))}">${icon('fit', 17)}</button>
@@ -362,6 +362,7 @@ export function openReview(
       furniture.deselect();
       movingThing = false;
       ed.furnHover = null;
+      ed.furnAlso = null;
       ed.draw();
     }
     tool = next;
@@ -1343,6 +1344,11 @@ export function openReview(
     const click = !press.moved;
     press = null;
     if (!click) return;
+    // a right-click with the move tool: the menu of the things standing there (a rug under a table), as in the editor
+    if (tool === 'move' && e.button === 2) {
+      furniture.menuAt?.(e, planPoint(e));
+      return;
+    }
     // a click on the floor with the move tool lets go of the thing taken
     if (tool === 'move') {
       furniture.deselect();

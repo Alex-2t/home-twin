@@ -330,6 +330,7 @@ export function drawPlan(ed: Editor): void {
     }
   }
   ctx.globalAlpha = 1;
+  if (furnitureOn) drawPeek(ed);
   // lights: a soft glow and a shape icon; a lamp that is off is gray, without a glow. A lamp that is part of another fixture is not drawn.
   const glow = +pal.glow || 0.3;
   const lit = mode === 'lights' ? 1 : 0.75;
@@ -477,6 +478,7 @@ export function drawPlan(ed: Editor): void {
       );
   }
   if (pill) drawPill(ctx, pill);
+  if (furnitureOn && !ed.drag) drawAlsoHere(ed);
 }
 // A floor strip on the plan is 12 cm into the room and thinner, a ceiling one is at the wall: on the same wall they do not merge.
 // Only the plan view; in the data and in 3D the strip is where it is. Neighbouring segments are joined at the corner (like an offset outline).
@@ -709,6 +711,49 @@ export function furnitureDrawOrder(furniture: FurnitureItem[]): FurnitureItem[] 
     .map((f, i) => ({f, i}))
     .sort((a, b) => flat(a.f) - flat(b.f) || footprint(b.f) - footprint(a.f) || a.i - b.i)
     .map(({f}) => f);
+}
+// The thing an item of the "what is here" menu is about: its outline over everything, even when it lies under the others
+// (a rug under a table), so the owner sees which one the item means.
+function drawPeek(ed: Editor): void {
+  const f = ed.furnPeek ? ed.plan.furniture.find(item => item.id === ed.furnPeek) : null;
+  if (!f) return;
+  const {v} = ed;
+  const {ctx} = v;
+  const shapes: Point[][] = isRun(f)
+    ? (runGeo(ed.plan, f)?.outline || []).map(polygon => polygon[0])
+    : [outline(f).pts];
+  ctx.save();
+  ctx.strokeStyle = pal.acc;
+  ctx.lineWidth = 2.4;
+  ctx.setLineDash([6, 4]);
+  for (const shape of shapes) {
+    v.path(shape);
+    ctx.stroke();
+  }
+  ctx.restore();
+}
+// Things standing on one another under the pointer: beside it, what else is there and that a right-click picks it
+// (2026-11-22: nothing on the plan said a rug lay under the table the pointer was on).
+function drawAlsoHere(ed: Editor): void {
+  const also = ed.furnAlso;
+  if (!also) return;
+  const names = also.ids
+    .map(id => ed.plan.furniture.find(item => item.id === id))
+    .filter((f): f is FurnitureItem => !!f)
+    .map(f => nameOf(f));
+  if (!names.length) return;
+  const {v} = ed;
+  const {ctx} = v;
+  const text = t('Also here: {0} · right-click', names.join(', '));
+  ctx.font = `500 11px ${FONT}`;
+  const tw = ctx.measureText(text).width + 8;
+  const [pointerX, pointerY] = v.S(also.at);
+  const width = v.cv.clientWidth;
+  // below and right of the pointer, clear of its arrow, as a tooltip; to its left at the plan's right edge
+  const right = pointerX + 14 + tw / 2;
+  const X = right + tw / 2 + 6 > width ? Math.max(tw / 2 + 6, pointerX - 14 - tw / 2) : right;
+  const Y = pointerY + 28;
+  drawPill(ctx, {text, X, Y, tw});
 }
 let pill: NamePill | null = null;
 function drawPill(ctx: CanvasRenderingContext2D, shown: NamePill): void {

@@ -34,7 +34,7 @@ import {
   RUN_MIN,
 } from '../../core/runs.ts';
 import {roomAt} from '../../core/plan.ts';
-import {$, el, esc, section} from '../ui.ts';
+import {$, el, esc, popoverAt, section} from '../ui.ts';
 import {icon} from '../icons.ts';
 import {dimLabel, drawRun, furnitureDrawOrder, pal} from '../draw.ts';
 import type {Ring, RunGeo, RunHandles} from '../../core/runs.ts';
@@ -49,10 +49,13 @@ import type {
   VariantSize,
 } from '../../core/types.ts';
 import type {PlanView2d} from '../view2d.ts';
+import type {PopoverItem} from '../ui.ts';
 import type {Editor, FurnitureMode, PlanBox, Selection} from '../editor-types.ts';
 import {cleanRugSpec} from '../../core/rug-pattern-spec.ts';
 import {moved} from '../nudge.ts';
 
+// How long a finger is held still on a thing before the "what is here" menu opens, ms (a phone's own long press).
+const HOLD_MS = 500;
 // The pattern chip that stands for an item's own pattern (patSpec): no named pattern has this key.
 const CUSTOM_PATTERN = ' custom';
 
@@ -157,12 +160,19 @@ export function furnitureMode(ed: Editor): FurnitureMode {
   let drag: FurnitureDrag | null = null;
   // Where the press that may take the next thing under the selected one was (takeNextUnder); null: not such a press.
   let cycleAt: Point | null = null;
+  // A finger held still on things standing on one another opens the "what is here" menu (holdMenu); the wait.
+  let holdTimer: ReturnType<typeof setTimeout> | null = null;
+  const stopHold = (): void => {
+    if (holdTimer) clearTimeout(holdTimer);
+    holdTimer = null;
+  };
   let placing: Placing | null = null;
   const sizeCursor = (f: FurnitureItem, handle: ItemHandle): string =>
     isRun(f) ? runCursor(f, handle) : axisCursor(axes(f)[handle === 'w' ? 0 : 1]);
   m.dragCursor = () =>
     drag?.kind === 'size' ? sizeCursor(drag.orig, drag.handle) : drag?.kind === 'run' ? drag.cursor : 'move';
   m.cancelDrag = () => {
+    stopHold();
     drag = null;
   };
   const plan = (): Plan => ed.plan;
@@ -387,6 +397,8 @@ export function furnitureMode(ed: Editor): FurnitureMode {
     const was = sel().furn;
     // A press on the thing already selected, let go without moving it, takes the next one under it (cycleAt, in up).
     cycleAt = was === h.f.id && !h.handle ? p : null;
+    stopHold();
+    if (e.pointerType === 'touch') holdTimer = setTimeout(() => holdMenu(e, p), HOLD_MS);
     sel().furn = h.f.id;
     drag = isRun(h.f)
       ? runStart(h.f, h.handle, p)
@@ -407,7 +419,12 @@ export function furnitureMode(ed: Editor): FurnitureMode {
       const gi = gapAt(p);
       const h = gi < 0 ? hit(p) : null;
       const hv = h?.f.id || null; // under the pointer — the name, if it did not fit into the outline (draw.js)
-      if (gi !== hoverGap || hv !== ed.furnHover) {
+      // the others standing there with it: draw.ts says so beside the pointer, following it
+      const others = h && !h.handle ? stackAt(p).filter(f => f.id !== h.f.id) : [];
+      const also = others.length ? {at: p, ids: others.map(f => f.id)} : null;
+      const alsoChanged = !!also || !!ed.furnAlso;
+      ed.furnAlso = also;
+      if (gi !== hoverGap || hv !== ed.furnHover || alsoChanged) {
         hoverGap = gi;
         ed.furnHover = hv;
         ed.draw();
@@ -420,6 +437,7 @@ export function furnitureMode(ed: Editor): FurnitureMode {
       return;
     }
     drag.moved = true;
+    stopHold();
     const f = drag.f;
     const free = e.shiftKey;
     if (drag.kind === 'run') {
@@ -455,6 +473,7 @@ export function furnitureMode(ed: Editor): FurnitureMode {
     ed.update();
   };
   m.up = () => {
+    stopHold();
     if (drag) {
       const moved = drag.moved;
       drag = null;
@@ -474,6 +493,44 @@ export function furnitureMode(ed: Editor): FurnitureMode {
     const at = stack.findIndex(f => f.id === sel().furn);
     sel().furn = stack[(at + 1) % stack.length].id;
     m.refresh();
+  }
+  // A right-click on things standing on one another: a menu of them, the top one first; the one pointed at in it is
+  // outlined on the plan, a click on it selects it (2026-11-22: a second click on the selected thing for the one under it
+  // stays, but few users would find it on their own).
+  m.menuAt = (e, p) => {
+    const stack = stackAt(p);
+    if (stack.length < 2) return false;
+    ed.furnAlso = null;
+    ed.furnHover = null;
+    const items = stack.map((f): PopoverItem => {
+      const selected = f.id === sel().furn;
+      return [selected ? 'check' : 'box', nameOf(f), () => pick(f), selected ? 'on' : ''];
+    });
+    const peek = (index: number | null): void => {
+      const id = index === null ? null : stack[index].id;
+      if (id === ed.furnPeek) return;
+      ed.furnPeek = id;
+      ed.draw();
+    };
+    popoverAt(v().cv, {x: e.clientX, y: e.clientY}, items, peek);
+    ed.draw();
+    return true;
+  };
+  function pick(f: FurnitureItem): void {
+    if (sel().furn !== f.id) more = false;
+    sel().furn = f.id;
+    m.refresh();
+    ed.draw();
+  }
+  // A finger held still on a thing (touch has no right-click): the same menu when there is more than one thing there; the
+  // press then drags nothing.
+  function holdMenu(e: PointerEvent, p: Point): void {
+    holdTimer = null;
+    if (!drag || drag.moved || stackAt(p).length < 2) return;
+    drag = null;
+    ed.drag = null;
+    cycleAt = null;
+    m.menuAt?.(e, p);
   }
   m.deselect = () => {
     if (sel().furn) {
@@ -742,6 +799,7 @@ export function furnitureMode(ed: Editor): FurnitureMode {
     placing = null;
     ed.guides = [];
     ed.furnHover = null;
+    ed.furnAlso = null;
   };
   // ---------- top row, catalog, panel above the object ----------
   let query = '';
