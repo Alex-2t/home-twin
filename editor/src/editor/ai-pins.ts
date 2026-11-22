@@ -184,12 +184,12 @@ export const MAX_PIN_PHOTOS = 4;
  */
 export const MISSED_REASON = {
   'no-fix': N('Not understood what to change: say it another way or add a photo'),
-  refused: N('We could not fit it there: drag it in the editor'),
-  undone: N('It ran into another thing and we could not make room: drag it in the editor'),
+  refused: N('We could not fit it there: drag it yourself on the plan'),
+  undone: N('It ran into another thing and we could not make room: drag it yourself on the plan'),
   unchanged: N('It did not work, our mistake: we try again'),
-  'same-place': N('Not clear where to move it: point at the spot'),
+  'same-place': N('Not clear where to move it: point at the spot, or drag it yourself on the plan'),
   'put-back': N('Our layout put it back: we try again'),
-  'too-small': N('Moved too little to see: say how far'),
+  'too-small': N('Moved too little to see: say how far, or drag it yourself on the plan'),
   swapped: N('Width and depth mixed up: we try again'),
   'left-out': N('We leave such things out: add it in the editor'),
   box: N('We could not draw it yet: we try again'),
@@ -198,7 +198,7 @@ export const MISSED_REASON = {
   still: N('From where you looked it still looks wrong: we try again'),
   cannot: N('We can’t do this yet'),
   unclear: N('Not understood: say it another way or add a photo'),
-  blocked: N('Done, but it runs into the thing next to it: drag one of them in the editor'),
+  blocked: N('Done, but it runs into the thing next to it: drag one of them on the plan'),
   // {0}: the things that went, by their names
   gone: N('{0} went missing with it: put it back in the editor or pin it'),
   'wrong-door': N('Not clear which door: put the pin right on it'),

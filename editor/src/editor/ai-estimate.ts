@@ -77,8 +77,8 @@ export function roundSize(notes: PinNotes): RoundSize {
 
 /** The estimate in words: "About 30–45% of your package", or "Up to 2% of your package" for a small one. */
 export function estimateText(estimate: Estimate): string {
-  if (estimate.low === 0) return t('Up to {0}% of your package', estimate.high);
-  return t('About {0}–{1}% of your package', estimate.low, estimate.high);
+  if (estimate.low === 0) return t('Usually up to {0}% of your package', estimate.high);
+  return t('Usually {0}–{1}% of your package', estimate.low, estimate.high);
 }
 
 /**
@@ -87,7 +87,7 @@ export function estimateText(estimate: Estimate): string {
  */
 export function estimateLine(estimate: Estimate | null): string {
   if (!estimate) return '';
-  const title = t('An estimate: a bigger home or more furniture takes more');
+  const title = t('An estimate: a bigger home, more furniture or a harder change takes more');
   const warning = estimate.short
     ? `<span class="aib-cost-short">${esc(t('Your package may run out midway. It pauses and goes on once you top up.'))}</span>`
     : '';

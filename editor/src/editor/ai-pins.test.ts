@@ -288,7 +288,7 @@ test('a pin the developer fixed leaves the pins that came back, whichever round 
   );
 });
 
-// The owner: a pin not done should be a dialog. "Not clear where to move it: point at the spot" was answered by writing the
+// The owner: a pin not done should be a dialog. "Not clear where to move it: point at the spot, or drag it yourself on the plan" was answered by writing the
 // pin again from scratch, and the service never saw what it had asked.
 test('a pin that came back is a conversation: the answer goes with the words the app answered and what it said, round after round', () => {
   const lastRound = {
@@ -307,7 +307,7 @@ test('a pin that came back is a conversation: the answer goes with the words the
   } satisfies PinRound;
   const [back] = pinsToRetry(lastRound);
   const answerOfApp =
-    'Understood as: The shower set hangs inside the glass shower. Not done: Not clear where to move it: point at the spot';
+    'Understood as: The shower set hangs inside the glass shower. Not done: Not clear where to move it: point at the spot, or drag it yourself on the plan';
   // not answered: it goes again as it was, with what the app said
   assert.deepEqual(
     pinsToSend([back]).map(pin => [pin.text, pin.thread]),

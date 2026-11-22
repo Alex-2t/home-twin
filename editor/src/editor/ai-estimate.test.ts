@@ -76,10 +76,10 @@ test('a round counts the rooms of the pins that say something, and words for the
 });
 
 test('the line says percent of the package, never money; a plain warning when it is more than what is left', () => {
-  assert.equal(estimateText({low: 30, high: 45, short: null}), 'About 30–45% of your package');
-  assert.equal(estimateText({low: 0, high: 2, short: null}), 'Up to 2% of your package');
+  assert.equal(estimateText({low: 30, high: 45, short: null}), 'Usually 30–45% of your package');
+  assert.equal(estimateText({low: 0, high: 2, short: null}), 'Usually up to 2% of your package');
   const enough = estimateLine({low: 30, high: 45, short: false});
-  assert.match(enough, /About 30–45% of your package/);
+  assert.match(enough, /Usually 30–45% of your package/);
   assert.doesNotMatch(enough, /\$|aib-cost-short/);
   const short = estimateLine({low: 30, high: 45, short: true});
   assert.match(short, /aib-cost short/);

@@ -5000,6 +5000,33 @@ button.mini-tile:hover:not(:disabled) {
 .reading.on .reading-value {
   color: var(--amber);
 }
+/* The technical readings (a valve's current, a plug's voltage): one quiet line that opens them under it. */
+.readings-more {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  width: 100%;
+  min-height: 36px;
+  padding: 8px 2px;
+  border: 0;
+  border-top: 1px solid var(--line);
+  background: none;
+  color: var(--muted);
+  font: inherit;
+  font-size: 12px;
+  text-align: left;
+  cursor: pointer;
+}
+.readings-more span {
+  flex: 1;
+}
+.readings-more svg {
+  width: 15px;
+  height: 15px;
+}
+.readings-more:hover {
+  color: var(--ink);
+}
 /* ── Room panel in the demo: Minimalist cards from a dashboard snapshot (demo-cards.js) ──
    Sizes and colors were measured from the home's cards: light tile 68 px, icon circle 42 px,
    name 14/700, state 12/700; mini-graph — header 40, figure 25 px/300, chart 63 px;

@@ -262,6 +262,19 @@ const READ_IC: Record<string, string> = {
   illuminance: 'sun',
   battery: 'device',
 }; // power, energy: a bolt — the ⏻ “power” icon read as a switch
+// Readings a person does not look at in a room (a valve's current, a plug's voltage and power): folded in “More in the room”.
+// Home Assistant marks only some of them diagnostic; many devices give them without a category.
+const TECHNICAL_CLASSES = new Set([
+  'current',
+  'voltage',
+  'power',
+  'power_factor',
+  'apparent_power',
+  'reactive_power',
+  'frequency',
+  'energy',
+  'signal_strength',
+]);
 // The Minimalist dark theme (minimalist-desktop, dark) — how the card looks at home (3d_floor/web/index.html)
 const DARK: Record<string, string> = {
   '--primary-background-color': '#121212',
@@ -2066,10 +2079,13 @@ export function createLook(ed: LookEditor, host0: HTMLElement): LookPanel {
   }
   // “More in the room”: window and door sensors and other area sensors (except service ones and those already shown as badges). They are
   // readings, not controls: rows of icon, name and value, with no button look and no hover (the owner: “sensors must not look like buttons”)
+  // The rooms whose technical readings the user opened: kept while the panel redraws.
+  const technicalOpen = new Set<string>();
   const reading = (ic: string, name: string, value: string, on = false): string =>
     `<div class="reading${on ? ' on' : ''}" role="listitem"><span class="reading-ic">${icon(ic)}</span><span class="reading-name">${escape(name)}</span><span class="reading-value">${escape(value)}</span></div>`;
   function extras(r: LookRoom): string {
     const used = new Set([r.sens.t?.entity, r.sens.h?.entity, r.sens.co2?.entity].filter(Boolean));
+    const technical: string[] = [];
     const areas = [
       ed.plan.rooms.find(x => x.id === r.id)?.area,
       ed.plan.rooms.find(x => x.id === r.id)?.zone?.area,
@@ -2084,11 +2100,18 @@ export function createLook(ed: LookEditor, host0: HTMLElement): LookPanel {
           !s.hidden &&
           (fitsAuto(s) || !isClimate(s)),
       )
-      .map(s => {
+      .flatMap(s => {
         const v = C.state(s.entity);
         const m = metricOf(s);
         // a sensor without a class reads no icon of its own
-        return reading(READ_IC[s.cls as string] || 'device', s.name, v == null ? '—' : m.text(v, s.unit));
+        const row = reading(
+          READ_IC[s.cls as string] || 'device',
+          s.name,
+          v == null ? '—' : m.text(v, s.unit),
+        );
+        if (!TECHNICAL_CLASSES.has(s.cls as string)) return [row];
+        technical.push(row);
+        return [];
       });
     const doors = r.dev.contacts.map(c =>
       reading(
@@ -2099,9 +2122,19 @@ export function createLook(ed: LookEditor, host0: HTMLElement): LookPanel {
       ),
     );
     const all = [...doors, ...reads];
-    return all.length
-      ? `<div class="section-label">${escape(t('More in the room'))}</div><div class="readings" role="list">${all.join('')}</div>`
-      : '';
+    if (!all.length && !technical.length) return '';
+    const label = `<div class="section-label">${escape(t('More in the room'))}</div>`;
+    const rows = all.length ? `<div class="readings" role="list">${all.join('')}</div>` : '';
+    return label + rows + technicalReadings(r, technical);
+  }
+  // The technical readings of a room (a valve's current, a plug's voltage): folded under one line, opened by the user.
+  function technicalReadings(r: LookRoom, rows: string[]): string {
+    if (!rows.length) return '';
+    const open = technicalOpen.has(r.id);
+    const name = t('Technical readings · {0}', rows.length);
+    const toggle = `<button class="readings-more" data-action="extras-technical" data-room="${escape(r.id)}" aria-expanded="${open}"><span>${escape(name)}</span>${icon(open ? 'up' : 'down')}</button>`;
+    const list = open ? `<div class="readings" role="list">${rows.join('')}</div>` : '';
+    return toggle + list;
   }
   // room screen parts (ROOM_BUILTIN): an empty one is '' (it is not visible; in the settings — “Empty now”)
   const roomParts = (r: LookRoom, M: LookModel): Record<string, string> => ({
@@ -2398,6 +2431,10 @@ export function createLook(ed: LookEditor, host0: HTMLElement): LookPanel {
       if (performance.now() < dimClickUntil) return; // the end of a brightness drag, not a tap
       const L = ed.plan.lights.find(x => x.id === id);
       if (L) turn([id], !lampState(id).on);
+    } else if (a === 'extras-technical') {
+      if (technicalOpen.has(room)) technicalOpen.delete(room);
+      else technicalOpen.add(room);
+      render();
     } else if (a === 'ltile-power') {
       const p = model().rooms.find(x => x.id === room)?.light?.power;
       if (p) turn(p.ids, p.on);
