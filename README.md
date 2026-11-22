@@ -1,6 +1,10 @@
 # Home Twin
 
-A live 3D twin of your home for Home Assistant: draw the floor plan, place lights, devices and sensors, and see the home in 3D with live states. First release: expect rough edges, and please report them in Issues.
+A live 3D twin of your home for Home Assistant: draw the floor plan, place lights, devices and sensors, and see the home in 3D with live states.
+
+> **Status: beta.** Home Twin 0.3.x works for single-floor homes: the floor-plan editor, the Home Assistant panel and the dashboard card. Expect rough edges, and please report them in [Issues](https://github.com/Alex-2t/home-twin/issues) with your Home Assistant version, browser and a screenshot.
+>
+> **Build with AI** is a paid early-access service inside the editor: film one walk through your home, and the rooms, windows, doors and furniture are built for you. The video or photos are uploaded to our server for processing and kept with your account; everything else in Home Twin runs locally in Home Assistant and needs no account. See the [terms](https://twin.sync.md/terms) and [privacy policy](https://twin.sync.md/privacy).
 
 <img alt="Home Twin in Home Assistant: a furnished loft in 3D; a tap on the living room flies into it, its lights go off and on one by one and all together, then the home switches from night to day and back" src="docs/images/hero.webp">
 
@@ -17,6 +21,20 @@ A live 3D twin of your home for Home Assistant: draw the floor plan, place light
 Manual install: download `home_twin.zip` from the latest release, unzip it into `config/custom_components/home_twin`, restart Home Assistant.
 
 The editor is for administrators; the card is for everyone in the home (only administrators change its scenes and layout). The plan and its photo are stored in Home Assistant (`.storage/home_twin.plan`, `.storage/home_twin.photo`) and are included in backups, so every computer and browser sees the same plan. Removing the integration keeps them, so reinstalling brings them back; delete those files to remove them completely.
+
+## What it does
+- **Draw the floor plan** over a photo of your plan or by eye: rooms, walls, windows and doors, with sizes in metres.
+- **Furnish it** from a catalog of furniture, and place the lights, curtains, climate devices and sensors you already have in Home Assistant.
+- **See it live in 3D**: lights go on and off as they do at home, doors and windows open, sensors show their readings in their rooms.
+- **Put it on a dashboard**: a Home Twin dashboard for everyone in the home, or a compact card on any dashboard that opens the whole home on a tap.
+- **Build with AI**: film one walk through your home and get the rooms, openings and furniture built for you, then review and move what needs it (paid, see above).
+- **In your language**: English, German, French, Spanish, Italian, Dutch, Polish, Portuguese, Russian and Chinese.
+
+## Requirements and limitations
+- Home Assistant 2024.7 or newer, installed as above. The editor is for administrators; the card and the dashboard are for everyone in the home.
+- A browser with WebGL. A phone or tablet is fine for watching the home and using the card; drawing is more comfortable with a mouse.
+- One floor per home for now; two-storey houses, basements and attics are on the roadmap. The outside of the house (facade, roof, plot) is not drawn yet.
+- After the AI build, lights, curtains and air conditioners are placed by you, step by step: the AI builds the rooms, openings and furniture.
 
 ## Roadmap
 
