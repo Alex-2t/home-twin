@@ -36,7 +36,7 @@ import {
 import {roomAt} from '../../core/plan.ts';
 import {$, el, esc, section} from '../ui.ts';
 import {icon} from '../icons.ts';
-import {dimLabel, drawRun, pal} from '../draw.ts';
+import {dimLabel, drawRun, furnitureDrawOrder, pal} from '../draw.ts';
 import type {Ring, RunGeo, RunHandles} from '../../core/runs.ts';
 import type {
   CatalogEntry,
@@ -155,6 +155,8 @@ type ShownGap = WallGap & {r: LabelBox; X: number; Y: number};
 export function furnitureMode(ed: Editor): FurnitureMode {
   const m = {id: 'furniture'} as FurnitureMode; // its members are set below, before app.ts calls any
   let drag: FurnitureDrag | null = null;
+  // Where the press that may take the next thing under the selected one was (takeNextUnder); null: not such a press.
+  let cycleAt: Point | null = null;
   let placing: Placing | null = null;
   const sizeCursor = (f: FurnitureItem, handle: ItemHandle): string =>
     isRun(f) ? runCursor(f, handle) : axisCursor(axes(f)[handle === 'w' ? 0 : 1]);
@@ -180,35 +182,40 @@ export function furnitureMode(ed: Editor): FurnitureMode {
     const s = f.mx && !L.u ? -1 : 1;
     return {w: [s * W, -D + L.back / 2, s], d: [s * (-W + L.side / 2), D]};
   }
+  // Whether a point is on a thing (a built-in run: on its outline).
+  function onThing(f: FurnitureItem, p: Point): boolean {
+    if (!isRun(f)) return inFoot(f, p);
+    const g: RunGeo | null = runGeo(plan(), f);
+    return !!g && g.outline.some(P => pointIn(p, P[0]));
+  }
+  // The things under a point, the one drawn on top first (draw.ts furnitureDrawOrder).
+  function stackAt(p: Point): FurnitureItem[] {
+    return furnitureDrawOrder(plan().furniture)
+      .reverse()
+      .filter(f => onThing(f, p));
+  }
+  // The selected thing's handles first, then the selected thing itself (it is dragged even where another stands on it), then
+  // the thing on top.
   function hit(p: Point): FurnitureHit | null {
     const tol = v().tol();
-    const flat = (f: FurnitureItem): number => (byId(f.model)?.soft && f.h < 0.05 ? 1 : 0);
-    const order = [...plan().furniture].sort(
-      (a, b) => +(b.id === sel().furn) - +(a.id === sel().furn) || flat(a) - flat(b),
-    ); // a rug goes last: a click on the sofa on top of it selects the sofa
-    for (const f of order) {
-      if (isRun(f)) {
-        const g: RunGeo | null = runGeo(plan(), f);
-        if (!g) continue;
-        const H = g.handles;
-        const near = (q: Point): boolean => Math.hypot(p[0] - q[0], p[1] - q[1]) < tol * 1.2;
-        if (f.id === sel().furn && H) {
-          if (near(H.a)) return {f, handle: 'a'};
-          if (near(H.b)) return {f, handle: 'b'};
-          if (near(H.d.p)) return {f, handle: 'rd'};
-        }
-        if (g.outline.some(P => pointIn(p, P[0]))) return {f};
-        continue;
+    const selected = find(sel().furn);
+    if (selected && isRun(selected)) {
+      const H: RunHandles | null | undefined = runGeo(plan(), selected)?.handles;
+      const near = (q: Point): boolean => Math.hypot(p[0] - q[0], p[1] - q[1]) < tol * 1.2;
+      if (H) {
+        if (near(H.a)) return {f: selected, handle: 'a'};
+        if (near(H.b)) return {f: selected, handle: 'b'};
+        if (near(H.d.p)) return {f: selected, handle: 'rd'};
       }
-      const [lx, lz] = localXY(f, p);
-      if (f.id === sel().furn && modelOf(f).kind === 'gen') {
-        const H = handlesOf(f);
-        if (Math.hypot(lx - H.w[0], lz - H.w[1]) < tol * 1.2) return {f, handle: 'w'};
-        if (Math.hypot(lx - H.d[0], lz - H.d[1]) < tol * 1.2) return {f, handle: 'd'};
-      }
-      if (inFoot(f, p)) return {f};
+    } else if (selected && modelOf(selected).kind === 'gen') {
+      const [lx, lz] = localXY(selected, p);
+      const H = handlesOf(selected);
+      if (Math.hypot(lx - H.w[0], lz - H.w[1]) < tol * 1.2) return {f: selected, handle: 'w'};
+      if (Math.hypot(lx - H.d[0], lz - H.d[1]) < tol * 1.2) return {f: selected, handle: 'd'};
     }
-    return null;
+    const stack = stackAt(p);
+    if (selected && stack.includes(selected)) return {f: selected};
+    return stack[0] ? {f: stack[0]} : null;
   }
   // to a corner and the middle of a wall — within 12 px on screen (no farther than 25 cm): zoomed in — barely pulls, zoomed out — as before
   // at a window — to its center; curtains from the catalog also take the window width with a margin (fit)
@@ -378,6 +385,8 @@ export function furnitureMode(ed: Editor): FurnitureMode {
     const h = hit(p);
     if (!h) return false;
     const was = sel().furn;
+    // A press on the thing already selected, let go without moving it, takes the next one under it (cycleAt, in up).
+    cycleAt = was === h.f.id && !h.handle ? p : null;
     sel().furn = h.f.id;
     drag = isRun(h.f)
       ? runStart(h.f, h.handle, p)
@@ -451,10 +460,21 @@ export function furnitureMode(ed: Editor): FurnitureMode {
       drag = null;
       ed.drag = null;
       ed.guides = [];
+      if (!moved && cycleAt) takeNextUnder(cycleAt);
+      cycleAt = null;
       if (moved) ed.commit();
       else ed.draw();
     }
   };
+  // Things standing on one another (a fridge on a rug, a chair under a table): a click on the selected one takes the one
+  // under it, round the stack again after the last.
+  function takeNextUnder(p: Point): void {
+    const stack = stackAt(p);
+    if (stack.length < 2) return;
+    const at = stack.findIndex(f => f.id === sel().furn);
+    sel().furn = stack[(at + 1) % stack.length].id;
+    m.refresh();
+  }
   m.deselect = () => {
     if (sel().furn) {
       sel().furn = null;

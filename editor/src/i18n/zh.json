@@ -1893,5 +1893,5 @@
  "{0, plural, one {# thing you changed yourself stays yours} other {# things you changed yourself stay yours}}": "{0, plural, other {你自己改过的 # 件家具保持不变}}",
  "Could not load the changes: check the connection and try again": "无法加载修改：请检查网络连接后重试",
  "Not a light: back to the switches": "不是灯：放回开关",
- "Move furniture: drag it on the plan (M)": "移动家具：在平面图上拖动 (M)"
+ "Move furniture: drag it on the plan (M). Click it again for what is under it": "移动家具：在平面图上拖动 (M)。再次点击可选中下方的物品"
 }

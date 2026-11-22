@@ -40,7 +40,7 @@ import {emptyPlan, migrate} from '../core/plan.ts';
 import {kindName, localRoomName, numberAlike} from '../core/overview.ts';
 import {byId} from '../core/catalog.ts';
 import {openReview} from './ai-review.ts';
-import type {UnplacedThing} from './ai-review.ts';
+import type {HandMovedThing, UnplacedThing} from './ai-review.ts';
 import {changeCount, pinsToSend, pinsToRetry, refreshRetries, withoutFixed} from './ai-pins.ts';
 import {editorPrints, markSource, seeFix} from './ai-fix.ts';
 import {furnitureEdits, takeFurnitureRound} from '../core/ai-fix.ts';
@@ -2958,6 +2958,9 @@ export function openAiBuild(ed: Editor, options: AiBuildOptions = {}): AiBuildSc
     return kept;
   }
 
+  // The things the owner moved by hand in this review (ai-review.ts move tool), by id: sent to the service with each move.
+  const handMoved = new Map<string, HandMovedThing>();
+
   async function startReview(): Promise<void> {
     // On a home already taken, the home stays the one in the editor.
     if (!afterReview)
@@ -3001,6 +3004,11 @@ export function openAiBuild(ed: Editor, options: AiBuildOptions = {}): AiBuildSc
           ...(comment ? {comment} : {}),
         }),
       reports: status?.reports || [],
+      // Moved by hand: kept by the service too, all of this review's at once (one that did not get through goes with the next).
+      onHandMove: thing => {
+        handMoved.set(thing.id, thing);
+        post('/hand-moves', {things: [...handMoved.values()]}).catch(() => {});
+      },
     });
   }
 

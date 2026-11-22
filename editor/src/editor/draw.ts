@@ -290,8 +290,7 @@ export function drawPlan(ed: Editor): void {
   const furnitureOn = mode === 'furniture' || !!ed.movingFurniture;
   ctx.globalAlpha = furnitureOn ? 1 : 0.6;
   ctx.lineJoin = 'round';
-  const flat = (f: FurnitureItem): number => (byId(f.model)?.soft && f.h < 0.05 ? 0 : 1); // a rug — below, the furniture on top of it
-  for (const f of [...plan.furniture].sort((a, b) => flat(a) - flat(b))) {
+  for (const f of furnitureDrawOrder(plan.furniture)) {
     // an item whose model this catalog does not have is drawn too, as its outline and name (catalog.ts modelOf)
     const isSel = furnitureOn && f.id === sel.furn;
     const isBad = furnitureOn && ed.conflicts.has(f.id);
@@ -696,6 +695,20 @@ function furnName(ed: Editor, f: FurnitureItem, c: Point, e1: Vector, e2: Vector
     return;
   }
   if (ed.furnHover === f.id && !ed.drag) pill = {text, X, Y, tw}; // drawn last — over the neighbours and the room labels
+}
+/**
+ * The furniture as the plan draws it, bottom first: rugs, then the bigger footprint below the smaller (a fridge on a rug, a
+ * chair at a table, a nightstand by a bed show on top), the plan's own order between equals. The furniture mode picks in the
+ * same order from the top (modes/furniture.ts), so what is seen on top is what a click takes (the owner, 2026-11-22: the
+ * rug under the fridge came up instead of the fridge).
+ */
+export function furnitureDrawOrder(furniture: FurnitureItem[]): FurnitureItem[] {
+  const flat = (f: FurnitureItem): number => (byId(f.model)?.soft && f.h < 0.05 ? 0 : 1);
+  const footprint = (f: FurnitureItem): number => (f.w || 0) * (f.d || 0);
+  return furniture
+    .map((f, i) => ({f, i}))
+    .sort((a, b) => flat(a.f) - flat(b.f) || footprint(b.f) - footprint(a.f) || a.i - b.i)
+    .map(({f}) => f);
 }
 let pill: NamePill | null = null;
 function drawPill(ctx: CanvasRenderingContext2D, shown: NamePill): void {

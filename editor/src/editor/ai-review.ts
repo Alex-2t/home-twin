@@ -8,6 +8,7 @@
 // not work out last time come back with why.
 import {t} from '../i18n/i18n.ts';
 import {zOf} from '../core/catalog.ts';
+import {isRun} from '../core/runs.ts';
 import {$, el, esc, find, tip} from './ui.ts';
 import {icon} from './icons.ts';
 import {reportStatusWords} from './ai-reports.ts';
@@ -60,6 +61,19 @@ export interface ReviewOptions {
   /** The pins sent to the developer and where each stands (D-129): shown on the pin instead of the button. */
   reports?: ReportView[];
   account?: ((slot: HTMLElement) => void) | null;
+  /** A thing the owner moved by hand with the move tool, where it stands now: kept by the service too (ai-build.ts). */
+  onHandMove?: ((thing: HandMovedThing) => void) | null;
+}
+
+/** A thing moved by hand in the review: which, and where it stands now (the service keeps it, its hand-moves.ts). */
+export interface HandMovedThing {
+  id: string;
+  name: string;
+  x: number;
+  y: number;
+  rot: number;
+  w: number;
+  d: number;
 }
 
 /** The review's tools: look around, put pins, or move the furniture by hand (on the plan). */
@@ -142,6 +156,7 @@ export function openReview(
     onReport = null,
     reports: reportsAtStart = [],
     account = null,
+    onHandMove = null,
   }: ReviewOptions,
 ): {close(): void; setReports(reports: ReportView[]): void} {
   let reports = reportsAtStart;
@@ -160,6 +175,15 @@ export function openReview(
   // The furniture mode's drag, used by the move tool; true while a thing is held.
   const furniture = ed.modes.furniture;
   let movingThing = false;
+  // The thing taken with the move tool as it stood when it was taken: told on when it was let go somewhere else.
+  let takenAs: HandMovedThing | null = null;
+  const handThing = (id: string | null | undefined): HandMovedThing | null => {
+    const thing = ed.plan.furniture.find(item => item.id === id);
+    // a built-in run moves by its ends and its wall (runs.ts), not by a spot: it stays the editor's edit only
+    if (!thing || isRun(thing)) return null;
+    const {x, y, rot, w, d} = thing;
+    return {id: thing.id, name: thing.name || '', x, y, rot, w, d};
+  };
   let active: number | null = null;
   // The open pin as it was when its bubble opened: Cancel puts it back (a new pin, empty then, goes).
   let opened: {pin: Pin; text: string; photos: string[]} | null = null;
@@ -180,7 +204,7 @@ export function openReview(
       <div class="aib-tools glass">
         <button class="ib" data-tool="look" title="${esc(t('Look around (V)'))}">${icon('pointer', 17)}</button>
         <button class="ib" data-tool="pin" title="${esc(t('Pin: click where something is wrong (P)'))}">${icon('mapPin', 17)}</button>
-        <button class="ib" data-tool="move" title="${esc(t('Move furniture: drag it on the plan (M)'))}">${icon('move', 17)}</button>
+        <button class="ib" data-tool="move" title="${esc(t('Move furniture: drag it on the plan (M). Click it again for what is under it'))}">${icon('move', 17)}</button>
         <span class="sep"></span>
         <div class="seg aib-views"><button data-view="3d">3D</button><button data-view="plan">${esc(t('Plan'))}</button></div>
         <button class="ib" data-act="fit" title="${esc(t('Whole home'))}">${icon('fit', 17)}</button>
@@ -1275,6 +1299,7 @@ export function openReview(
     // With the move tool a press on a thing takes it; elsewhere the plan moves, as with the other tools.
     if (tool === 'move' && e.button === 0 && furniture.down(e, planPoint(e))) {
       movingThing = true;
+      takenAs = handThing(ed.sel.furn);
       try {
         panes.plan.setPointerCapture(e.pointerId);
       } catch {} // a pointer the browser no longer tracks
@@ -1308,6 +1333,9 @@ export function openReview(
       e.stopPropagation();
       movingThing = false;
       furniture.up(e, planPoint(e));
+      const now = takenAs && handThing(takenAs.id);
+      if (takenAs && now && JSON.stringify(now) !== JSON.stringify(takenAs)) onHandMove?.(now);
+      takenAs = null;
       return;
     }
     if (view !== 'plan' || !press || e.pointerId !== press.id) return;
