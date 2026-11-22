@@ -108,7 +108,7 @@ const P: Record<string, string> = {
   f_wall: '<path d="M4 4v16"/><path d="M4 13h4"/><path d="M8 7h6l3 7H8z"/>',
   f_lamp: '<path d="M9 2h6l3 7H6z"/><path d="M12 9v12"/><path d="M8.5 21h7"/>',
   zap: '<path d="M4 14a1 1 0 0 1-.78-1.63l9.9-10.2a.5.5 0 0 1 .86.46l-1.92 6.02A1 1 0 0 0 13 10h7a1 1 0 0 1 .78 1.63l-9.9 10.2a.5.5 0 0 1-.86-.46l1.92-6.02A1 1 0 0 0 11 14z"/>',
-  // “Preview” (look.js): rooms, light fixtures, power. Lucide; pendant, spots, track, strip are our own, in the same style
+  // “Preview” (look.ts): rooms, light fixtures, power. Lucide; pendant, spots, track, strip are our own, in the same style
   power: '<path d="M12 2v10"/><path d="M18.4 6.6a9 9 0 1 1-12.77.04"/>',
   bed: '<path d="M2 4v16"/><path d="M2 8h18a2 2 0 0 1 2 2v10"/><path d="M2 17h20"/><path d="M6 8v9"/>',
   utensils:

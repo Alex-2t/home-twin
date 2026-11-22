@@ -4134,7 +4134,7 @@ button.mini-tile:hover:not(:disabled) {
 }
 
 /* On hover, a room button under the model takes on the color of the glow
-   its room lights up with at that moment (GLOW_COLOR in room-glow.js):
+   its room lights up with at that moment (GLOW_COLOR in room-glow.ts):
    you can see that the button and the light in the model are one thing. The selected one stays amber. */
 :host {
   --glow: #a3c6ff;
@@ -4909,7 +4909,7 @@ button.mini-tile:hover:not(:disabled) {
   grid-template-columns: minmax(0, 1.75fr) minmax(0, 0.65fr) auto;
 }
 
-/* Day / night (D-068): “A” in the corner of the button — auto; the tip on hover — how auto works, with “Don't show again” (daynight-tip.js). */
+/* Day / night (D-068): “A” in the corner of the button — auto; the tip on hover — how auto works, with “Don't show again” (daynight-tip.ts). */
 .icon-btn.dn-auto {
   position: relative;
 }

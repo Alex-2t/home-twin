@@ -2,7 +2,7 @@
 // an icon, temperature and condition, below it a forecast strip — “now”, then every 2 hours, and sunrise or sunset if it
 // falls within those hours. Difference: the source is not Open-Meteo by coordinates as in 3d_floor, but the weather from HA (HA layer: weather()) —
 // any home, no extra outside requests. The condition follows HA conditions (sunny, partlycloudy…), not WMO codes.
-// No DOM: look.js lays out the markup.
+// No DOM: look.ts lays out the markup.
 import {t, N, clock} from '../i18n/i18n.ts';
 import type {HaWeather} from '../core/types.ts';
 

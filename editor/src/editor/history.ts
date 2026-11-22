@@ -139,7 +139,7 @@ export function createHistory<SavedPlan extends HistoryPlan = Plan>(
     clearTimeout(timer);
     timer = setTimeout(flush, 400);
   }
-  // the project goes first in the recent list; those beyond six are erased: steps, their list and versions (versions.js)
+  // the project goes first in the recent list; those beyond six are erased: steps, their list and versions (versions.ts)
   // Called only with a store (adopt checks it).
   async function recent(store: KeyValueStore, id: string): Promise<void> {
     // This module writes the index: a list of project ids.

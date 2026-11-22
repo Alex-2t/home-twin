@@ -311,7 +311,7 @@ export function createApp({haLights, ha, photos}: AppOptions): Editor {
     return b;
   }
   // Each step has “Exit setup” (except “yes / no” questions: {exit:false}).
-  // “Back” — to the previous step on the path (wizard-path.js); on the first step — correct the area, without a photo — to the start screen.
+  // “Back” — to the previous step on the path (wizard-path.ts); on the first step — correct the area, without a photo — to the start screen.
   ed.exitBtn = () => {
     const b: BannerButton = [t('Exit setup'), () => ed.exitWizard(), 'quiet wizard-exit'];
     b.exit = true;
@@ -415,7 +415,7 @@ export function createApp({haLights, ha, photos}: AppOptions): Editor {
     restore: s => ed.underlay.restore(s),
     store: idbStore,
   });
-  // Version history (versions.js, the dialog — versions-panel.js): mark — a snapshot now ('step' — a step passed, 'before' — before
+  // Version history (versions.ts, the dialog — versions-panel.ts): mark — a snapshot now ('step' — a step passed, 'before' — before
   // a large edit, 'auto'); tick — after an edit, every third one (or the first after 10 minutes). Written with a delay, and the undo steps — before the tab closes.
   {
     const V = createVersions({store: idbStore});
@@ -620,7 +620,7 @@ export function createApp({haLights, ha, photos}: AppOptions): Editor {
     ed.draw();
   });
   ed.areaOnPlan = a => areaOnPlan(ed.plan, a);
-  ed.lampWaits = L => lampWaits(ed.plan, L); // wizard-state.js
+  ed.lampWaits = L => lampWaits(ed.plan, L); // wizard-state.ts
   // lists by area (lights, devices, sensors): first the plan rooms in their order, then “No area”,
   // at the end — areas that are not on the plan
   ed.sortAreas = list => {
@@ -668,7 +668,7 @@ export function createApp({haLights, ha, photos}: AppOptions): Editor {
     ed.applySide?.();
     if (pending) return;
     pending = true;
-    // ed.hold: an example is about to replace this plan (flows.js) — it is not built in 3D for nothing
+    // ed.hold: an example is about to replace this plan (flows.ts) — it is not built in 3D for nothing
     requestAnimationFrame(() => {
       pending = false;
       if (ed.hold) return;
@@ -1219,7 +1219,7 @@ export function createApp({haLights, ha, photos}: AppOptions): Editor {
   const panes: Record<Pane, HTMLElement> = {plan: $('pane-plan'), '3d': $('pane-3d')};
   const root = document.documentElement.style;
   // “Side by side” — only on a wide screen; on a narrow one the second view stays a small window.
-  // “Preview” (D-047, look.js): 3D full screen, the home panel on the right; no plan and no small window, the ui layout does not change
+  // “Preview” (D-047, look.ts): 3D full screen, the home panel on the right; no plan and no small window, the ui layout does not change
   let look = false;
   const lookUI = createLook(ed, work);
   // the showcase (?show): the home panel offers nothing that changes the plan, and the editor's tools are hidden (styles.css)
@@ -1229,7 +1229,7 @@ export function createApp({haLights, ha, photos}: AppOptions): Editor {
     $('look').shadowRoot?.append(notAdmin);
     document.body.dataset.showcase = 'on';
   }
-  // “Bare” (the AI build's review, ai-review.js): one view alone, 'plan' or '3d', full screen, without the editor's tools; the
+  // “Bare” (the AI build's review, ai-review.ts): one view alone, 'plan' or '3d', full screen, without the editor's tools; the
   // review's own panel covers bareRight pixels on the right (bareBottom at the bottom on a phone). The ui layout does not change.
   let bare: Pane | null = null;
   let bareRight = 0;
@@ -1592,7 +1592,7 @@ export function createApp({haLights, ha, photos}: AppOptions): Editor {
     put(M, pinL, W - R, brandR, modesR);
     put($('dock'), pinL, W - R, pinL + 12, Math.min(W - R - 12, pipL));
     put($('pill'), pinL, W - R, floatL, Math.min(W - R - 12, pipL), true);
-    // the step hint — at its area (coach.js), no area — at the bottom above the toolbar (at the top it covered the wall
+    // the step hint — at its area (coach.ts), no area — at the bottom above the toolbar (at the top it covered the wall
     // menu); the problems badge — above the hint, if it is at the bottom
     // lane — between the open side panel and the 3D window: there the card covers neither. Too narrow for it (a tablet held upright
     // with the catalog open) — the card goes right of the panel and above the 3D window (wide); narrower still — over the panel, as before
@@ -1716,7 +1716,7 @@ export function createApp({haLights, ha, photos}: AppOptions): Editor {
 
   // Theme: light or dark; “Match system” — by the system setting (in HA later — by the HA theme). The plan drawing takes its colors from the theme.
   const mq = matchMedia('(prefers-color-scheme: dark)');
-  // “Match system”: in the HA panel — whether the HA theme is dark (ha-panel.js: HOME_TWIN_DARK), otherwise — the system's
+  // “Match system”: in the HA panel — whether the HA theme is dark (ha-panel.ts: HOME_TWIN_DARK), otherwise — the system's
   ed.themeName = () =>
     ui.theme === 'dark' || ((ui.theme || 'auto') === 'auto' && (globalThis.HOME_TWIN_DARK ?? mq.matches))
       ? 'dark'
@@ -2586,7 +2586,7 @@ export function createApp({haLights, ha, photos}: AppOptions): Editor {
   // its wizard step (the owner, 2026-11-19: the readings go on the walls seen from that view, so it belongs to Sensors).
   // Entering Sensors, a small 3D window grows to SENSORS_PIP once, so the view is seen well enough to choose.
   // There it is always visible: there is something to save (no view yet or the model was rotated) — it pulses; saved — “View saved”,
-  // inactive until the model is rotated again. In the view step a cursor moves over the 3D window and shows how to rotate (view-demo.js).
+  // inactive until the model is rotated again. In the view step a cursor moves over the 3D window and shows how to rotate (view-demo.ts).
   let viewMoved = false;
   let asked = false;
   const SENSORS_PIP = 440;
@@ -2772,7 +2772,7 @@ export function createApp({haLights, ha, photos}: AppOptions): Editor {
     ed.commit();
   };
   // Day / night (D-068): auto — by the sun (it opens as it is outside, turns night after sunset and day after sunrise), or always day,
-  // always night (core/daynight.js). The button steps auto → day → night; the label says the mode, the icon what is shown now.
+  // always night (core/daynight.ts). The button steps auto → day → night; the label says the mode, the icon what is shown now.
   // The mode is Preview's (and the showcase's): in the editor the 3D is by day while the home is drawn and furnished, and at night
   // from the lights on (the lights, devices and sensors), so the lamps are seen; the editor's own buttons stay hidden.
   // The sun: ha.sunDown (sun.sun in HA, the weather profile in the demo), checked on HA changes and once a minute (the demo has no sun events)

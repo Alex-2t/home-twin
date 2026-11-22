@@ -854,7 +854,7 @@ export const furnOf = (
 };
 export const furnOpts = (plan: Pick<Plan, 'furniture'>, cell: Pick<LampCell, 'poly'>): string[] =>
   Object.keys(FURN_STRIP).filter(k => furnOf(plan, cell, k).length);
-// for an item along walls (kitchen cabinets, runs.js) the strip runs along the front of each of its walls and turns the corner with it
+// for an item along walls (kitchen cabinets, runs.ts) the strip runs along the front of each of its walls and turns the corner with it
 const RUN_AT: Record<string, (f: FurnitureItem) => {h: number; k: number}> = {
   plinth: f => ({h: 0.04, k: 0.08}),
   under: f => ({h: zOf(f) - 0.01, k: 0.06}),
@@ -1122,7 +1122,7 @@ function bedWall(plan: LightPlan, cell: LampCell, n: number): Point[] | null {
   return (n >= 2 ? [sa, sb] : [sa]).map(x => along(e, cl(x), k));
 }
 // A table lamp on furniture: by a bed — a nightstand, at a desk — the desk, else a side table, dresser or console. The light's point is
-// the bulb: the lamp's base stands on the top (scene.js draws the base 42 cm below it). None of these: null.
+// the bulb: the lamp's base stands on the top (scene.ts draws the base 42 cm below it). None of these: null.
 const STANDS = [
   'nightstand',
   'sideTable',

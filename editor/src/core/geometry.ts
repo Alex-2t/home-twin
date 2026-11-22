@@ -609,7 +609,7 @@ function buildRaw(
     .filter(cut => cut !== null);
   if (cuts.length) walls = pc.difference(walls, ...cuts);
   // Railings: the wall at those edges becomes a parapet as high as the railing — its own solid, under no facade, never hidden.
-  // A glass railing: the wall goes down to a kerb, and a pane stands on it (glassRails; scene.js draws the glass and a handrail).
+  // A glass railing: the wall goes down to a kerb, and a pane stands on it (glassRails; scene.ts draws the glass and a handrail).
   const railBy = new Map<number, ClipPolygon[]>();
   const glassRails: GlassRail[] = [];
   for (const r of rooms)

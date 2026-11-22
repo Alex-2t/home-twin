@@ -9,7 +9,7 @@
 //   setArea(e,a) — set a lamp's area (in HA: callWS {type:'config/entity_registry/update', entity_id, area_id};
 //                 on the entity, not the device — so the rest of a socket with sensors does not move; admin rights required);
 //   sensors()   — numeric sensors (sensor domain): [{entity, name, area, device, cls — device_class, unit, cat — entity_category,
-//                 hidden}]. area — the entity's or its device's. Which of them to write on the wall is decided by core/sensors.js (D-033);
+//                 hidden}]. area — the entity's or its device's. Which of them to write on the wall is decided by core/sensors.ts (D-033);
 //   state(e)    — the sensor's current number or null (unavailable, unknown, not a number);
 //   onState(f)  — readings changed (in HA: subscribe_entities for the sensors); returns an unsubscribe function;
 //   an area in areas() may have temperature_entity_id and humidity_entity_id — its own sensors from the HA area settings;

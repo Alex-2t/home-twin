@@ -1,7 +1,7 @@
 // “Statistics” markup — like 3d_floor/apartment/smart-home/web/src/stats-view.js (D-049): tiles in the overview and a section screen
-// built from shared blocks (total, legend, bars, lines, hours of the day, list). Data comes from stats.js. The room color is categorical,
-// in the fixed order of plan rooms (colour(id) — from look.js); the name always sits next to it. Each chart is registered
-// in charts — look.js uses it to build the hover tooltip (statsTip) without parsing the markup back.
+// built from shared blocks (total, legend, bars, lines, hours of the day, list). Data comes from stats.ts. The room color is categorical,
+// in the fixed order of plan rooms (colour(id) — from look.ts); the name always sits next to it. Each chart is registered
+// in charts — look.ts uses it to build the hover tooltip (statsTip) without parsing the markup back.
 import {
   PERIODS,
   SECTIONS,

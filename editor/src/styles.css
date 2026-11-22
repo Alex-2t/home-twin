@@ -278,7 +278,7 @@ body:not([data-mode=rooms]) #rotate-plan{display:none}
 .spot.on{opacity:1;visibility:visible;transition:opacity .4s,box-shadow .6s}.spot.dim{z-index:22;box-shadow:0 0 0 2px var(--acc),0 0 0 200vmax rgba(5,7,12,.58)}
 .spot.glide{transition:opacity .4s,visibility 0s .4s,box-shadow .6s,left .45s cubic-bezier(.2,.8,.2,1),top .45s cubic-bezier(.2,.8,.2,1),width .45s,height .45s}
 .spot.on.glide{transition:opacity .4s,box-shadow .6s,left .45s cubic-bezier(.2,.8,.2,1),top .45s cubic-bezier(.2,.8,.2,1),width .45s,height .45s}
-/* photo rotation circle (flows.js, D-040): above the step hint frame, below the card */
+/* photo rotation circle (flows.ts, D-040): above the step hint frame, below the card */
 .knob{position:absolute;z-index:23;width:28px;height:28px;min-width:0;padding:0;border-radius:50%;transform:translate(-50%,-50%);display:grid;place-items:center;
   background:#fff;color:var(--acc);box-shadow:0 0 0 2px var(--acc),0 2px 8px rgba(0,0,0,.35);cursor:grab;touch-action:none}
 .knob:hover{transform:translate(-50%,-50%) scale(1.08)}.knob.drag{cursor:grabbing;transform:translate(-50%,-50%) scale(1.08)}
@@ -412,12 +412,12 @@ button.gcard:focus-visible,a.gcard:focus-visible{outline:2px solid var(--acc);ou
 .choice:hover>.ic:last-child{color:var(--acc);transform:translateX(2px)}
 @media (max-width:640px){.cont-pic{width:84px;height:56px}.choice.continue{column-gap:12px}.choice.continue .cont-go{padding:0 8px 0 10px}}
 .start-prev{margin-top:16px;background:none;border:0;color:var(--mut);font-size:13px;text-decoration:underline;text-underline-offset:3px;cursor:pointer}.start-prev:hover{color:var(--tx)}.start-prev[hidden]{display:none}
-/* Day / night (D-068): “A” in the corner of the 3D window's button — auto; the tip on hover — how auto works (daynight-tip.js) */
+/* Day / night (D-068): “A” in the corner of the 3D window's button — auto; the tip on hover — how auto works (daynight-tip.ts) */
 #daynight-pip.auto{position:relative}#daynight-pip.auto::after{content:'A';position:absolute;right:3px;bottom:2px;font-size:8px;font-weight:700;line-height:1}
 .dn-tip{position:absolute;z-index:46;pointer-events:auto;width:max-content;max-width:250px;padding:10px 12px 8px;border-radius:12px;background:var(--inv);color:var(--inv-tx);box-shadow:var(--sh-lg);font-size:12.5px;line-height:1.4}
 .dn-tip p{margin:0 0 6px}.dn-tip button{height:auto;min-width:0;padding:2px 0;font-size:12px;font-weight:500;color:inherit;opacity:.7;text-decoration:underline;text-underline-offset:3px}
 .dn-tip button:hover{opacity:1;background:none}
-/* Loading (flows.js): over the page until the editor is up and the plan is drawn; opening an example — its start-screen card, enlarged */
+/* Loading (flows.ts): over the page until the editor is up and the plan is drawn; opening an example — its start-screen card, enlarged */
 .loading{position:fixed;inset:0;z-index:60;display:grid;place-items:center;background:var(--cv);transition:opacity .25s ease}.loading.out{opacity:0;pointer-events:none}
 .loading[data-boot]{animation:loading-giveup 0s 15s forwards}@keyframes loading-giveup{to{visibility:hidden}} /* the editor failed to start: give way */
 .loading-card{width:132px}.loading .logo.big{margin:0 auto}

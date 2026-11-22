@@ -1,5 +1,5 @@
-// The editor in the Home Assistant panel: real HA (editor/ha-live.js), the plan and its photo stored in HA (the home_twin integration), no demo apartment.
-// Loaded from ha-panel.js after the HA user's language is set.
+// The editor in the Home Assistant panel: real HA (editor/ha-live.ts), the plan and its photo stored in HA (the home_twin integration), no demo apartment.
+// Loaded from ha-panel.ts after the HA user's language is set.
 import './i18n/boot.ts';
 import {boot} from './boot.ts';
 import {liveHA, hassPlans, hassPhotos} from './editor/ha-live.ts';
@@ -65,7 +65,7 @@ export async function start(panel: PanelHost): Promise<PanelApp> {
   const status = (): void => ed?.syncSave?.();
   const plans = hassPlans(hass, {onConflict: ask, onStatus: status, onOutdated: showUpdated});
   const photos = hassPhotos(hass, {local: browserPhotos, onStatus: status});
-  // the page in the panel's path (/home-twin/lights …, D-066): HA sets route on the panel, ha-panel.js passes it on
+  // the page in the panel's path (/home-twin/lights …, D-066): HA sets route on the panel, ha-panel.ts passes it on
   const router = haRouter(panel);
   ed = await boot({ha, plans, photos, router, onNewerPlan: showUpdated});
   // the “Saved” mark at the top: whether HA has everything. While HA is unreachable its frontend holds requests until it is back,

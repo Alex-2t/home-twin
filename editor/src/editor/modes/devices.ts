@@ -1,11 +1,11 @@
 // The “Devices” mode (D-048): air conditioners, curtains and blinds, door/window sensors from Home Assistant — in the model, like lights.
 // On the left — devices by area: in the model or not, what is happening now (heating 25°, open). “Place automatically” —
-// everything not yet in the model (core/devices.js: autoPlace). A device is dragged from the list onto the plan, like furniture from the catalog (or a click,
+// everything not yet in the model (core/devices.ts: autoPlace). A device is dragged from the list onto the plan, like furniture from the catalog (or a click,
 // then a place): a curtain — onto a window, a sensor — onto a window or a door, an air conditioner — onto a wall (its model appears). On the plan each has
 // an icon: for the air conditioner and the curtain — on their object, for the sensor — at the opening. The icon is dragged (the owner: “why not a regular drag”):
 // the air conditioner slides along walls, the curtain and the sensor jump to the window or door under the pointer; dropped elsewhere — they stay where they were.
 // A click on the icon selects it: “Remove from model” (and Delete).
-// Wizard step: after “Lights” a question (wizard-path.js: askDevices) → begin: place them automatically and check.
+// Wizard step: after “Lights” a question (wizard-path.ts: askDevices) → begin: place them automatically and check.
 import {t} from '../../i18n/i18n.ts';
 import {segDist, pointIn, openingCoords} from '../../core/geometry.ts';
 import {roomOfArea} from '../../core/sensors.ts';

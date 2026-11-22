@@ -1,6 +1,6 @@
 // The “Version history” window (⌂ menu): versions with thumbnails on the left, the selected one large on the right, plus “Restore this version”.
 // The first row is “Now”. Restoring is an edit: ⌘Z brings it back, and the current plan itself becomes a “Before restoring a version” version.
-// At the bottom — the “Previous plan” from the backup slot (flows.js), if there is one.
+// At the bottom — the “Previous plan” from the backup slot (flows.ts), if there is one.
 // Under the versions, where the AI build has accounts, "In your account": in Home Assistant the plan drawn on our site (D-134),
 // which "Take this plan" opens here; and the account's builds by AI (D-133: one home and its history), each with its picture
 // in 3D, which "Open" takes you to, to check it or take it.
@@ -106,7 +106,7 @@ const summary = (p: Plan): string =>
     .filter(Boolean)
     .join(' · ');
 
-// Plan to picture: rooms, furniture, lamps; at large size also room names. Colours come from the theme (draw.js).
+// Plan to picture: rooms, furniture, lamps; at large size also room names. Colours come from the theme (draw.ts).
 export function drawPlan(cv: HTMLCanvasElement, p: Plan, {names = false}: {names?: boolean} = {}): void {
   const dpr = Math.min(devicePixelRatio || 1, 2);
   const w = cv.clientWidth || cv.width;

@@ -1,5 +1,5 @@
 // The “Lights” mode: lamps from Home Assistant land on the plan. Which lamp it is — chandelier, pendant, spots, line, strip, wall light,
-// floor lamp — the user says with one click (the one guessed by name is highlighted); the default place comes from fixtures.js,
+// floor lamp — the user says with one click (the one guessed by name is highlighted); the default place comes from fixtures.ts,
 // then — drag on the plan. The “Lights” wizard step: room by room is highlighted and asked about its lamp without a place.
 import {t, num} from '../../i18n/i18n.ts';
 import {area, dist2, segDist, pointIn, WALL, ceilingOf} from '../../core/geometry.ts';
@@ -504,7 +504,7 @@ export function lightsMode(ed: Editor): LightsMode {
       }
     return null;
   }
-  // Strip (fixtures.js): a solid line along the cell outline. The cell is its own part of the room if the strip is in the room of its
+  // Strip (fixtures.ts): a solid line along the cell outline. The cell is its own part of the room if the strip is in the room of its
   // area, otherwise the whole room it stands in.
   function stripCell(L: PlanLight): LampCell | null {
     const c = lampCell(plan(), L);

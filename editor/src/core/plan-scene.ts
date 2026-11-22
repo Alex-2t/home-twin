@@ -1,4 +1,4 @@
-// The plan in the 3D view: the parts the editor (editor/app.js) and the dashboard card (card-main.js) both hand to it.
+// The plan in the 3D view: the parts the editor (editor/app.ts) and the dashboard card (card-main.ts) both hand to it.
 import {buildPlan2d, ceilingOf, openingCoords, validate} from './geometry.ts';
 import {wallDefaults} from './plan.ts';
 import {isRun, runGeo} from './runs.ts';
@@ -53,7 +53,7 @@ export function tryPlanWalls(plan: Pick<Plan, 'rooms' | 'openings' | 'wall'>): P
     return null;
   }
 }
-// furniture as the view takes it: built-in runs with their shape, curtains and doors as open as HA says (live — devices.js: liveScene)
+// furniture as the view takes it: built-in runs with their shape, curtains and doors as open as HA says (live — devices.ts: liveScene)
 export const planFurniture = (
   plan: Pick<Plan, 'rooms' | 'furniture'>,
   live: Pick<LiveScene, 'open'> & Partial<Pick<LiveScene, 'heading'>>,
@@ -65,7 +65,7 @@ export const planFurniture = (
     return heading ? {...f, open: live.open.get(f.id), heading} : {...f, open: live.open.get(f.id)};
   });
 
-// readings on the walls (D-033): ctx — sensors, areas, state (editor/app.js: sensorCtx); cam — the home view direction; moving — the one being dragged
+// readings on the walls (D-033): ctx — sensors, areas, state (editor/app.ts: sensorCtx); cam — the home view direction; moving — the one being dragged
 export const planSpots = (
   plan: Pick<Plan, 'rooms' | 'openings' | 'furniture' | 'lights'> & Partial<Pick<Plan, 'sensors' | 'wall'>>,
   ctx: Pick<SensorContext, 'sensors' | 'state'>,

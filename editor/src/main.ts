@@ -18,7 +18,7 @@ import type {ExampleHome} from './core/types.ts';
 type StartHome = ExampleHome & {UNDERLAY?: unknown};
 
 // The start screen's examples (D-062): the ten typical homes, and first the build's demo apartment if it is not one of them (own.ts).
-// Home Assistant is not connected — each example's own demo data through the same interface as the real one (editor/ha.js, ha-live.js).
+// Home Assistant is not connected — each example's own demo data through the same interface as the real one (editor/ha.ts, ha-live.ts).
 // The example in the address (#/example/<id>, D-066) or else the one opened last: after a reload its plan meets its own lights, sensors and devices.
 const own: StartHome = {id: 'demo', HA, DEMO, UNDERLAY: DEMO_UNDERLAY};
 // The examples' rooms, lamps and devices are named in the UI language (D-120); the build's own home keeps the names it has.

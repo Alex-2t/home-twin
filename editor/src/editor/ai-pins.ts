@@ -1,7 +1,7 @@
 // The AI build's pins (D-073, D-076): the owner marks spots where something is wrong, on the plan or on the home in 3D, and
 // says what. This is what a spot is — its room and the item there, what the owner was looking at (view) and the photos they
 // added — and what goes to the service. A pin that did not work out last time comes back with why. Data only; the screen
-// is ai-review.js.
+// is ai-review.ts.
 import {pointIn, segDist} from '../core/geometry.ts';
 import {N, t} from '../i18n/i18n.ts';
 import type {FurnitureItem, HomeView, Point, Room} from '../core/types.ts';

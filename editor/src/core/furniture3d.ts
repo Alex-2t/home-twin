@@ -1,4 +1,4 @@
-// Furniture in 3D: size-driven furniture generators and Kenney models. Catalog data lives in catalog.js.
+// Furniture in 3D: size-driven furniture generators and Kenney models. Catalog data lives in catalog.ts.
 // Item coordinate system: origin on the floor at the center, width along X, depth along Z, facing +Z.
 import * as THREE from 'three';
 import {RoundedBoxGeometry} from 'three/addons/geometries/RoundedBoxGeometry.js';
@@ -4720,7 +4720,7 @@ const GEN: Record<string, Generator> = {
     for (let y = h - 0.05; y > h - 0.2; y -= 0.02)
       part(g, w * 0.5, 0.004, 0.003, mat(0x3a3c40, 0.6), 0, y, d / 2 + 0.004, 0.001);
   },
-  // Car: a fastback electric sedan or a large luxury SUV, a smooth lofted body (car3d.js).
+  // Car: a fastback electric sedan or a large luxury SUV, a smooth lofted body (car3d.ts).
   car(g, o) {
     car3d(g, o);
   },
@@ -4983,7 +4983,7 @@ export async function loadKenney(models: Record<string, string>): Promise<void> 
     kenney.set(c.id, holder);
   }
 }
-// ---------- built-in wardrobe (runs.js) ----------
+// ---------- built-in wardrobe (runs.ts) ----------
 // The shape comes ready-made in the plan (item.geo, x/y — plan): the carcass is a prism along the outline, the plinth is recessed, doors run along the front
 // of each wall. Each wall is its own part: 3D hides the one facing away from the camera, like tall furniture (userData.ry).
 // Without a shape (catalog picture) — a straight w×d wardrobe at the wall.
@@ -5103,7 +5103,7 @@ interface RunLook {
   v: string | undefined;
   M: Record<'front' | 'body' | 'base' | 'metal' | 'al' | 'top', THREE.Material>;
 }
-// The look of each wall-run item: which layers (runs.js: body at depth d − layer) and what is on the front.
+// The look of each wall-run item: which layers (runs.ts: body at depth d − layer) and what is on the front.
 const RUN_LOOK: Record<string, (g: THREE.Group, s: RunSide, look: RunLook) => void> = {
   // built-in wardrobe: plinth recessed by 5 cm, full-depth carcass, sliding or hinged doors
   wardrobeRun(g, s, {h, v, M}) {
@@ -5205,10 +5205,10 @@ function plainBox(item: Item3d): THREE.Group {
   g.userData.plainBox = true;
   return g;
 }
-// ---------- an item from parts (model 'parts', parts.js) ----------
+// ---------- an item from parts (model 'parts', parts.ts) ----------
 // The parts describe the item at its own size (parts.w/d/h); resized on the plan, it is stretched to the item's w/d/h along each axis.
 // Shared materials (mat) and merged by material, like a generated item. Parts that do not pass checkItem (a plan from HA or the history
-// is not checked by plan-file.js) — a plain box of the item's size.
+// is not checked by plan-file.ts) — a plain box of the item's size.
 function partsObject(item: Item3d): THREE.Group {
   const P = item.parts;
   if (!P || checkItem(P).length) return plainBox(item);

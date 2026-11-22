@@ -6,9 +6,9 @@
 // plane, depth along z}, lathe {points: [[r,y],…] turned around y}, repeat {count, step: [x,y,z], part}. Every part: mat, at: [x,y,z] —
 // the anchor (box, cyl, sphere stand on it; profile and lathe use their own coordinates around it), tilt: [x,y,z] degrees around the anchor.
 // Optional: under (true, or the height in meters up to which it slides under a table: a chair's seat) and table (true, or the
-// tabletop height) — a chair from parts at a table from parts is then tucked under it, not overlapping it (layout.js), as catalog
+// tabletop height) — a chair from parts at a table from parts is then tucked under it, not overlapping it (layout.ts), as catalog
 // chairs and tables are.
-// checkItem works without WebGL (plan-file.js validates with it); buildItem makes a three.js group, furniture3d.js bakes it.
+// checkItem works without WebGL (plan-file.ts validates with it); buildItem makes a three.js group, furniture3d.ts bakes it.
 import * as THREE from 'three';
 import {RoundedBoxGeometry} from 'three/addons/geometries/RoundedBoxGeometry.js';
 import type {ExpandedPart, ItemCheck, Part, PartMaterial, PartsItem, ShapePart, Vec3} from './types.ts';
@@ -203,7 +203,7 @@ function partObject(p: ShapePart, material: THREE.Material): THREE.Group {
 }
 
 // A group at the item's own size (item.w × item.h × item.d). material(m) makes a material from {color, rough, metal}:
-// the editor passes its shared cache (furniture3d.js), so equal materials of different items are one.
+// the editor passes its shared cache (furniture3d.ts), so equal materials of different items are one.
 const ownMaterial = (m: PartMaterial): THREE.MeshStandardMaterial =>
   new THREE.MeshStandardMaterial({color: m.color, roughness: m.rough ?? 0.6, metalness: m.metal ?? 0});
 export function buildItem(
@@ -260,7 +260,7 @@ export function validateItem(value: unknown): ItemCheck {
   return {errors: [], warnings, parts: expand(item.parts).length};
 }
 
-// A short stable key of the parts for the 3D cache (scene.js rebuilds an item when its key changes): another plan may have an item
+// A short stable key of the parts for the 3D cache (scene.ts rebuilds an item when its key changes): another plan may have an item
 // with the same id and size but other parts. Computed once per parts object.
 const keys = new WeakMap<object, string>();
 export function partsKey(parts: unknown): string {

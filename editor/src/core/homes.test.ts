@@ -117,7 +117,7 @@ for (const h of HOMES)
 
     await t.test('lights', () => {
       const bad = [];
-      // an area that is not a room on the plan (“Outside”) is fine: its lights wait for a room (wizard-state.js: lampWaits); a typo is not
+      // an area that is not a room on the plan (“Outside”) is fine: its lights wait for a room (wizard-state.ts: lampWaits); a typo is not
       for (const a of new Set(HA.lights.map(l => l.area).filter((a): a is string => Boolean(a))))
         if (!HA.areas[a]) bad.push(`area “${a}” has lights but is not in HA.areas`);
       for (const L of plan.lights.filter(L => L.placed)) {

@@ -2,7 +2,7 @@
 // “Whole home” dashboard, “Customize” — what each one does with each device. Differences: any home, so the default actions
 // go by room kinds and lamp shapes, not by lamp ids of a single apartment; no brightness (plan lights are only on or off);
 // TVs are not in the HA layer yet. Settings live in the plan (plan.scenes), not in the browser: they travel with the project into HA.
-// No DOM: look.js lays out the markup.
+// No DOM: look.ts lays out the markup.
 import {N} from '../i18n/i18n.ts';
 import type {SceneId} from '../core/types.ts';
 
@@ -84,7 +84,7 @@ const ACTIONS: Record<SceneDevice['kind'], string[]> = {
   ac: ['on', 'off'],
 };
 
-// Scene devices by dashboard rooms (look.js: model().rooms): plan lamps, curtains, air conditioners (not the boiler or thermostat:
+// Scene devices by dashboard rooms (look.ts: model().rooms): plan lamps, curtains, air conditioners (not the boiler or thermostat:
 // “Away” must not turn off the heating). The settings key is kind:id.
 export function sceneDevices(rooms: SceneRoom[] = []): SceneDevice[] {
   return rooms

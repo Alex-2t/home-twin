@@ -33,6 +33,7 @@ In French, both in HA and here, “pièce” is both an area and a room. If both
 | Plan | Grundriss | Plan | Plattegrond | Plano | 平面图 | Pianta | Plan | Planta |
 | Furniture | Möbel | Mobilier | Meubels | Muebles | 家具 | Arredi | Meble | Móveis |
 | Lights | Licht | Éclairage | Verlichting | Luces | 灯光 | Luci | Światło | Luzes |
+| Devices | Geräte | Appareils | Apparaten | Dispositivos | 设备 | Dispositivi | Urządzenia | Dispositivos |
 | Sensors | Sensoren | Capteurs | Sensoren | Sensores | 传感器 | Sensori | Czujniki | Sensores |
 | Room | Raum | Pièce | Kamer | Habitación | 房间 | Stanza | Pokój | Cômodo |
 | Wall | Wand | Mur | Muur | Pared | 墙 | Parete | Ściana | Parede |

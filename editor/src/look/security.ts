@@ -1,9 +1,9 @@
 // “Security” in the overview — as in 3d_floor/apartment/smart-home/web/src (D-049): card.js — watchMarkup, updateLeaks,
-// updateWatch, waterPress; overview.js — leakView, waterView, sinceText. Below “Lights & climate”: a camera frame, the water valve and
+// updateWatch, waterPress; overview.ts — leakView, waterView, sinceText. Below “Lights & climate”: a camera frame, the water valve and
 // the “Leaks” tile with a button per sensor.
 // Difference from 3d_floor: devices come not from the card settings but from HA by kind — camera (camera.*), water valve (valve.* of class
 // water or without a class — or a motorized valve that arrived as a curtain: a cover without a class with “valve” in its name, as at the owner's;
-// a gas valve is not water; core/devices.js: isWaterValve), leak sensors (binary_sensor of class moisture) with the battery
+// a gas valve is not water; core/devices.ts: isWaterValve), leak sensors (binary_sensor of class moisture) with the battery
 // of their own device. None at all — no section. Time follows the browser clock, not the 3d_floor time zone. No DOM: look.js lays out the markup.
 import {t, locale, clock} from '../i18n/i18n.ts';
 import {isWaterValve} from '../core/devices.ts';

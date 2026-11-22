@@ -71,10 +71,10 @@ export function readPlan(text: string): Plan {
     // a finish's pattern parameters (D-089): an object; a value inside it that is not well formed is left out when drawn
     optional(r, 'wallPattern', obj);
     optional(r, 'floorPattern', obj);
-    // pieces of finish (pieces.js, D-084): on the walls per edge, on the floor as outlines; a bad value inside one is skipped when drawn
+    // pieces of finish (pieces.ts, D-084): on the walls per edge, on the floor as outlines; a bad value inside one is skipped when drawn
     optional(r, 'wp', x => isList(x) && x.every(v => v == null || (isList(v) && v.every(obj))));
     optional(r, 'fp', x => isList(x) && x.every(v => obj(v) && points(v.poly)));
-    optional(r, 'rail', x => isList(x) && x.every(v => v == null || (isNumber(v) && v >= 0))); // a railing's height per edge (geometry.js RAIL)
+    optional(r, 'rail', x => isList(x) && x.every(v => v == null || (isNumber(v) && v >= 0))); // a railing's height per edge (geometry.ts RAIL)
     optional(r, 'railGlass', x => x === true); // its railings are glass (D-075)
     if (r.zone != null) {
       check(obj(r.zone) && point(r.zone.a) && point(r.zone.b));
@@ -152,7 +152,7 @@ export function readPlan(text: string): Plan {
   if (p.onboarding != null) {
     check(obj(p.onboarding) && obj(p.onboarding.steps));
   }
-  // “Preview” scene settings (look/scenes.js): {scene: {kind:id: {action}}}
+  // “Preview” scene settings (look/scenes.ts): {scene: {kind:id: {action}}}
   if (p.scenes != null) {
     check(
       obj(p.scenes) &&
@@ -170,7 +170,7 @@ export function readPlan(text: string): Plan {
     check(point(p.view.fit));
     check(Number.isFinite(p.view.theta) && Number.isFinite(p.view.phi));
   }
-  // an item from parts (model 'parts', parts.js) must be buildable; the message names the item and the first problem
+  // an item from parts (model 'parts', parts.ts) must be buildable; the message names the item and the first problem
   for (const f of objects(p.furniture))
     if (f.model === 'parts' || f.parts != null) {
       const e = checkItem(f.parts);

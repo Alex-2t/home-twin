@@ -1,4 +1,4 @@
-// HA layer on a real Home Assistant (the Home Twin panel). The same interface as mockHA (editor/ha.js describes each
+// HA layer on a real Home Assistant (the Home Twin panel). The same interface as mockHA (editor/ha.ts describes each
 // method), only built from the hass object that HA hands to the panel and replaces with a new one on every event:
 //   registries — hass.areas / hass.entities / hass.devices (changed — onChange), states — hass.states (changed —
 //   onState; events within a frame are merged into one: in a home they come constantly). History, statistics, energy — callWS, the answer comes later.
@@ -23,7 +23,7 @@ import type {PhotoStore} from './underlay.ts';
 import type {RemoteSaveState} from './editor-types.ts';
 
 const HOUR = 3600e3;
-const BOARD = 'home-twin-3d'; // the Home Twin dashboard (D-059); card.js and card-main.js know it too
+const BOARD = 'home-twin-3d'; // the Home Twin dashboard (D-059); card.js and card-main.ts know it too
 
 /** The live layer has every member the demo lacks, and sets areas. */
 export type LiveHaLayer = HaLayer &
@@ -207,7 +207,7 @@ export function liveHA(initial: Hass): LiveHaLayer {
 
   const ha: LiveHaLayer = {
     demo: false,
-    // registries are loaded: before that an empty area list does not mean “areas were deleted” (app.js: syncAreas)
+    // registries are loaded: before that an empty area list does not mean “areas were deleted” (app.ts: syncAreas)
     ready: () => !!hass.areas && !!hass.entities,
     update(next) {
       const previous = hass;
@@ -567,7 +567,7 @@ export interface HassPlans {
 // The plan in HA (the home_twin integration): read at startup, written with a delay after edits. rev — the revision the plan
 // was changed from: if it was changed in another window, HA does not write (conflict) and reports onConflict; keepMine — write ours on top.
 // No connection (HA restarts, the network dropped): the write is retried every 5 s and the state is 'offline' (onStatus). The browser
-// keeps the plan (history.js) and a mark “not sent yet, edited from revision N”, so the next start sends it instead of losing it:
+// keeps the plan (history.ts) and a mark “not sent yet, edited from revision N”, so the next start sends it instead of losing it:
 // load(local) — the browser's plan; HA has not changed since — ours goes up, it has — ask (D-058).
 const UNSENT = 'home-twin-editor:ha-unsent';
 const keep = <Value>(key: string): UnsentMark<Value> => ({
@@ -745,7 +745,7 @@ export interface HassPhotos extends PhotoStore {
 }
 
 // The plan photo in HA (D-058): the image goes to /api/home_twin/photo over HTTP, its placement — home_twin/photo/place.
-// The same interface as underlay.js: browserPhotos. Writes wait a moment (dragging) and are retried while there is no
+// The same interface as underlay.ts: browserPhotos. Writes wait a moment (dragging) and are retried while there is no
 // connection; until HA confirms them they also sit in the browser (local — browserPhotos, and the mark of what is not sent yet),
 // so a closed tab does not lose them. HA has never had a photo, but this browser kept one (before D-058) — it is sent once.
 const PHOTO_UNSENT = 'home-twin-editor:photo-unsent';

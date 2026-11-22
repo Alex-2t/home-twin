@@ -2,7 +2,7 @@
 
 A live 3D twin of your home for Home Assistant: draw the floor plan, place lights, devices and sensors, and see the home in 3D with live states.
 
-> **Status: beta.** Home Twin 0.3.x works for single-floor homes: the floor-plan editor, the Home Assistant panel and the dashboard card. Expect rough edges, and please report them in [Issues](https://github.com/Alex-2t/home-twin/issues) with your Home Assistant version, browser and a screenshot.
+> **Status: beta.** Home Twin 0.3.x works for single-floor homes: the floor-plan editor, the Home Assistant panel and the dashboard card. Expect rough edges, and please report them in [Issues](https://github.com/Alex-2t/home-twin/issues) with your Home Assistant version, browser and a screenshot. What each version brought is in [Releases](https://github.com/Alex-2t/home-twin/releases).
 >
 > **Build with AI** is a paid early-access service inside the editor: film one walk through your home, and the rooms, windows, doors and furniture are built for you. The video or photos are uploaded to our server for processing and kept with your account; everything else in Home Twin runs locally in Home Assistant and needs no account. See the [terms](https://twin.sync.md/terms) and [privacy policy](https://twin.sync.md/privacy).
 
@@ -20,7 +20,7 @@ A live 3D twin of your home for Home Assistant: draw the floor plan, place light
 
 Manual install: download `home_twin.zip` from the latest release, unzip it into `config/custom_components/home_twin`, restart Home Assistant.
 
-The editor is for administrators; the card is for everyone in the home (only administrators change its scenes and layout). The plan and its photo are stored in Home Assistant (`.storage/home_twin.plan`, `.storage/home_twin.photo`) and are included in backups, so every computer and browser sees the same plan. Removing the integration keeps them, so reinstalling brings them back; delete those files to remove them completely.
+The editor is for administrators; the card is for everyone in the home (only administrators change its scenes and layout). The plan and its photo are stored in Home Assistant (`.storage/home_twin.plan`, `.storage/home_twin.photo`) and are included in backups, so every computer and browser sees the same plan. Two more files may appear there: `home_twin.plan.format<N>`, the plan as it was before an update changed its format, and `home_twin.ai`, the sign-in to your AI build account once you have signed in from the panel (it is kept for the whole home, so every browser of this Home Assistant is signed in at once). Removing the integration keeps all of them, so reinstalling brings them back; delete those files to remove them completely, `home_twin.ai` included if you want the account signed out of this Home Assistant.
 
 ## What it does
 - **Draw the floor plan** over a photo of your plan or by eye: rooms, walls, windows and doors, with sizes in metres.

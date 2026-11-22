@@ -3,14 +3,14 @@
 // one picks a finish for a whole wall or a whole floor, and the pick removes the pieces it covers: the AI build may do more
 // than the editor's controls, on purpose (the owner).
 //
-// room.wp[i] — the pieces on edge i, later ones on top. An edge key like wf: they follow the corners (plan.js).
+// room.wp[i] — the pieces on edge i, later ones on top. An edge key like wf: they follow the corners (plan.ts).
 //   [{t: [from, to] — fractions of the edge from its start corner (none: all of it),
 //     z: [bottom, top] — metres above the floor (none: floor to ceiling),
-//     k: a wall finish (surfaces.js WALL_KINDS), tint: '#rrggbb',
+//     k: a wall finish (surfaces.ts WALL_KINDS), tint: '#rrggbb',
 //     and the pattern parameters (types.ts FinishPattern, D-089): tile: [width, height] — metres, the tile, brick, slat or
 //     panel; joint — metres; grout, tint2: '#rrggbb'; lay: 'grid' | 'bond'}]
 // room.fp — pieces of the floor, later ones on top, drawn only inside the room:
-//   [{poly: [[x, y], …] — plan metres, k: a floor finish (surfaces.js FLOOR_KINDS), tint: '#rrggbb', the pattern parameters}]
+//   [{poly: [[x, y], …] — plan metres, k: a floor finish (surfaces.ts FLOOR_KINDS), tint: '#rrggbb', the pattern parameters}]
 import pc from 'polygon-clipping';
 import {poly} from './geometry.ts';
 import type {

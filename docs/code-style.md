@@ -2,7 +2,7 @@
 
 The editor is TypeScript (D-087). esbuild bundles it for the browser and for Home Assistant (`npm run build`); Node runs the
 tests straight from the `.ts` files, with no build step (`npm test`). `npm run check` runs the formatter's check, `tsc`
-(strict) and the tests. The code is written to be read, not to be short.
+(strict), the tests and the English-only check. The code is written to be read, not to be short.
 
 - **Types.** Named functions (declarations and named `const` arrows) have their parameters and return type written out.
   Inline callbacks (`map`, `filter`, event handlers) may leave them to inference. The data the modules hand to each other

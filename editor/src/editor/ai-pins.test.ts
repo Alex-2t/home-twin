@@ -1,4 +1,4 @@
-// The AI build's pins (ai-pins.js): which room and item a spot is, and what the service gets.
+// The AI build's pins (ai-pins.ts): which room and item a spot is, and what the service gets.
 import {test} from 'node:test';
 import assert from 'node:assert/strict';
 import {

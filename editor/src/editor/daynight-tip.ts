@@ -1,13 +1,13 @@
 // The tip on hover over the day / night button (D-068): what the current mode does and what a click turns on, and “Don't show again”. It stays while the pointer is over the
-// button or the tip, so its button can be pressed; once dismissed it does not show again, in the editor or the card (core/daynight.js).
+// button or the tip, so its button can be pressed; once dismissed it does not show again, in the editor or the card (core/daynight.ts).
 // btn — the button; box — a positioned element the tip goes into (its coordinates and edges); side — above, below or right of the button.
 // The look of .dn-tip is in each stylesheet (styles.css, look/card.css). While the tip is wanted the button has no title (no double tooltip):
-// 'dn-tip-off' on the button (and 'daynight-tip-off' on window, core/daynight.js) tells the owners to put the title back.
+// 'dn-tip-off' on the button (and 'daynight-tip-off' on window, core/daynight.ts) tells the owners to put the title back.
 import {t} from '../i18n/i18n.ts';
 import {tipWanted, tipOff, readMode} from '../core/daynight.ts';
 import type {DayNightMode} from '../core/types.ts';
 
-// the current mode, then what a click turns on (the order is core/daynight.js MODES: auto → day → night → auto)
+// the current mode, then what a click turns on (the order is core/daynight.ts MODES: auto → day → night → auto)
 const TEXT: Record<DayNightMode, () => string> = {
   auto: () => t('Auto: night after sunset, day after sunrise.') + ' ' + t('Click for always day.'),
   day: () => t('Always day, at any hour.') + ' ' + t('Click for always night.'),

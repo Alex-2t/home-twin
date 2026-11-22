@@ -3,7 +3,7 @@
 //   upload   — the plan photo and a video of the home; the build starts
 //   progress — what the build does now, as it happens: each stage with a line on what it works on and a bar, the rooms on the
 //              plan as they are read, each room of the video with the furniture found there, the pieces being made, time left
-//   review   — the finished home alone, full screen (ai-review.js), opened by itself when it is ready: pins where something is
+//   review   — the finished home alone, full screen (ai-review.ts), opened by itself when it is ready: pins where something is
 //              wrong, words, "All right". Confirmed, the home opens in the editor, theirs to change.
 // The address names the page: ?ai=new the upload, ?build=<id> a build; a sign-in or the checkout comes back to it.
 // The service is private; the editor talks to its API only (locally the harness's tools/build-server.ts serves this page):
@@ -902,7 +902,7 @@ export function activeBuild<Status extends {id?: string; finished?: boolean}>(
 }
 
 /**
- * The start screen's AI parts (flows.js offerAi). One home and its history (D-133): on a return, the plan in "Continue" is
+ * The start screen's AI parts (flows.ts offerAi). One home and its history (D-133): on a return, the plan in "Continue" is
  * your home, and a build at work on it shows as a line under that card (building, waiting for a top-up, ready to check);
  * "Build with AI" is one of the ways to start a new home, and the account's builds are in "Version history". On a first
  * visit (no plan yet) the big card is "Build with AI", or the build on its way. Opens the build, or the upload for a new one.
@@ -1303,7 +1303,7 @@ export interface AiBuildOptions {
   api?: string;
   /** The build to follow; none: the upload for a new one. */
   id?: string | null;
-  /** The start screen (flows.js): back to it, and the plan kept aside before a new one replaces it. */
+  /** The start screen (flows.ts): back to it, and the plan kept aside before a new one replaces it. */
   flows?: EditorFlows;
   /** A line for the owner on arrival (a payment that did not go through), on the account's place. */
   notice?: string | null;

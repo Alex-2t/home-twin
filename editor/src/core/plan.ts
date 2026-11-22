@@ -1,5 +1,5 @@
 // The floor plan and operations on it. The plan is plain JSON (D-005), stored by the editor and then by the HA integration.
-// Rooms: an outline of [x,y] in meters (x is east, y is north). Walls are not stored: geometry.js builds them from the outlines.
+// Rooms: an outline of [x,y] in meters (x is east, y is north). Walls are not stored: geometry.ts builds them from the outlines.
 import {t} from '../i18n/i18n.ts';
 import {
   area,
@@ -156,7 +156,7 @@ function insertEdgeValue(list: unknown[] | undefined, i: number): void {
 function removeEdgeValue(list: unknown[] | undefined, i: number): void {
   if (list) list.splice(i, 1);
 }
-// Pieces of finish on the walls (room.wp, pieces.js, D-084) follow the corners by position: a new corner splits the pieces of
+// Pieces of finish on the walls (room.wp, pieces.ts, D-084) follow the corners by position: a new corner splits the pieces of
 // its edge between the two parts, a removed one joins the pieces of both edges.
 function padWallPieces(wallPieces: Array<WallPiece[] | null>, count: number): void {
   while (wallPieces.length < count) wallPieces.push(null);
@@ -922,7 +922,7 @@ export function cutChord(room: Room, c: Point, dir: Vector): Segment | null {
   ];
 }
 // Split an outline (and edge thicknesses) along p1–p2 into two parts. The parts follow the traversal order; the last edge of each is the split.
-// Wall pieces (wp, pieces.js): a split point on an edge splits its pieces too.
+// Wall pieces (wp, pieces.ts): a split point on an edge splits its pieces too.
 export function splitPolygon(
   polygon: Outline,
   wt: Array<number | null> | null | undefined,

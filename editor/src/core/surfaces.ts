@@ -1642,7 +1642,7 @@ export function wallSwatch(k: string, tint?: string | null, pattern: FinishPatte
 }
 // The edge map: top-down, 2 cm per pixel; each room edge gets a strip 30 cm inward (ends cut along the corner bisector)
 // holding a stack number. In the shader a wall reads the number 9 cm in front of its face. A stack is up to four finishes
-// bottom to top with the heights where each next one starts (pieces of finish, pieces.js, D-084: tiles up to 1.5 m, a
+// bottom to top with the heights where each next one starts (pieces of finish, pieces.ts, D-084: tiles up to 1.5 m, a
 // backsplash); a wall without pieces is a stack of one. Along an edge the stack changes where pieces start and end.
 // The finish numbers index a table: color, pattern, sizes.
 const FIN_PAT: Record<WallKind['pattern'], number> = {

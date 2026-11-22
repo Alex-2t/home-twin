@@ -102,7 +102,7 @@ export const alpha = (hex: string, a: number): string => {
   return `rgba(${n >> 16},${(n >> 8) & 255},${n & 255},${a})`;
 };
 
-export const outward = openingOut; // outward from the opening's room (geometry.js)
+export const outward = openingOut; // outward from the opening's room (geometry.ts)
 
 export function drawPlan(ed: Editor): void {
   const {v, plan, sel} = ed;
@@ -124,7 +124,7 @@ export function drawPlan(ed: Editor): void {
         ctx.fillRect(Math.round(X) - 1, Math.round(Y) - 1, 2, 2);
       }
   }
-  // plan photo (underlay) — only the plan lines, the paper is transparent (underlay.js, inkMask)
+  // plan photo (underlay) — only the plan lines, the paper is transparent (underlay.ts, inkMask)
   if (ed.underlay.ready && ed.underlay.visible) ed.underlay.draw(v, pal.dark);
 
   const bad = new Set(ed.errors.flatMap(e => [e.room, e.other].filter(Boolean)));

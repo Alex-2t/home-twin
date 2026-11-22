@@ -1,5 +1,5 @@
 // Underlay: the plan image beneath the rooms. A similarity “world = a·z + b”, where z = (u, −v) is an image pixel.
-// Where it is kept is up to a store: in the standalone app — this browser (browserPhotos), in the HA panel — Home Assistant (ha-live.js: hassPhotos, D-058).
+// Where it is kept is up to a store: in the standalone app — this browser (browserPhotos), in the HA panel — Home Assistant (ha-live.ts: hassPhotos, D-058).
 const KEY = 'home-twin-editor:underlay';
 import {idb} from './idb.ts';
 import type {Point} from '../core/types.ts';

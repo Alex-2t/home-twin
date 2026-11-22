@@ -3,11 +3,11 @@
 <style>/*STYLES*/</style>
 <!-- the theme before the first paint (as app.js: themeName) -->
 <script>try{const th=JSON.parse(localStorage.getItem('home-twin-editor:ui')||'{}').theme||'auto';document.documentElement.dataset.theme=th==='dark'||th==='auto'&&matchMedia('(prefers-color-scheme: dark)').matches?'dark':'light';}catch{}</script></head><body data-mode="rooms" data-main="plan">
-<!-- Loading (flows.js): covers the page until the editor is up and the plan is drawn, so its bare markup is never seen. Opening an example
+<!-- Loading (flows.ts): covers the page until the editor is up and the plan is drawn, so its bare markup is never seen. Opening an example
      shows that example's card from the start screen. After a reload for the example's own HA data, this script puts the card up at the first paint. -->
 <div id="loading" class="loading" translate="no" data-boot><div class="loading-card"><div class="loading-ex"><span class="logo big"><svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 21v-8a1 1 0 0 0-1-1h-4a1 1 0 0 0-1 1v8"/><path d="M3 10a2 2 0 0 1 .709-1.528l7-5.999a2 2 0 0 1 2.582 0l7 5.999A2 2 0 0 1 21 10v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/></svg></span></div><i class="loading-bar"></i></div></div>
 <script>try{const o=JSON.parse(sessionStorage.getItem('home-twin-editor:loading')||'null'),e=document.getElementById('loading');if(o){e.querySelector('.loading-ex').innerHTML=o.card;e.dataset.ex='';}}catch{}</script>
-<!-- Full-screen canvas; all controls float on top (D-017, D-018). Icons <i data-ic> are filled in by icons.js. -->
+<!-- Full-screen canvas; all controls float on top (D-017, D-018). Icons <i data-ic> are filled in by icons.ts. -->
 <main id="work" class="work">
   <section id="pane-plan" class="pane plan-pane">
     <canvas id="plan"></canvas>

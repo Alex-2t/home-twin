@@ -32,7 +32,7 @@ declare global {
 }
 
 const APP = new URL('./card-app.js', import.meta.url).href; // beside this file: the same build's folder (serve.py)
-const BOARD = 'home-twin-3d'; // the Home Twin dashboard the editor creates (editor/ha-live.js: board)
+const BOARD = 'home-twin-3d'; // the Home Twin dashboard the editor creates (editor/ha-live.ts: board)
 const OURS = buildOf(import.meta.url);
 // the notice over the card (over the 3D's top edge), or in its place when the 3D could not load
 const NOTICE_PLACE = `.ht-updated{position:absolute;top:10px;left:50%;transform:translateX(-50%);z-index:9}

@@ -1,7 +1,7 @@
-// The dashboard card (D-059): the plan from HA in 3D with the home panel — the editor's “Preview” (editor/look.js, D-047) without
+// The dashboard card (D-059): the plan from HA in 3D with the home panel — the editor's “Preview” (editor/look.ts, D-047) without
 // the editor. The plan comes from home_twin/plan/subscribe and follows every write; states, commands, history and statistics — the
-// HA layer (editor/ha-live.js). What goes into the 3D is what the editor sends there too (core/plan-scene.js). Out of sight —
-// scrolled away, another page, a dashboard HA keeps in memory — the 3D stops drawing (scene.js: pause).
+// HA layer (editor/ha-live.ts). What goes into the 3D is what the editor sends there too (core/plan-scene.ts). Out of sight —
+// scrolled away, another page, a dashboard HA keeps in memory — the 3D stops drawing (scene.ts: pause).
 // Night follows the sun (sun.sun) until the “Day / night” button is pressed. Settings the panel writes into the plan (scenes,
 // “Customize panel”) are saved by administrators only; for others those buttons are hidden.
 // Compact (card.js decides: an ordinary dashboard while the Home Twin dashboard exists) — the 3D as a still live picture, the room strip
@@ -73,7 +73,7 @@ const esc = (s: unknown): string => {
   };
   return String(s ?? '').replace(/[&<>"']/g, c => entities[c]);
 };
-const BOARD = 'home-twin-3d'; // the Home Twin dashboard (card.js, editor/ha-live.js)
+const BOARD = 'home-twin-3d'; // the Home Twin dashboard (card.js, editor/ha-live.ts)
 const CSS = `:host{display:block;height:var(--home-twin-height,600px)}:host([compact]){height:var(--home-twin-height,360px)}:host([panel]),:host([grid]){height:100%}
 ha-card{position:relative;display:block;height:100%;overflow:hidden;isolation:isolate}
 .view{position:absolute;inset:0}
@@ -85,7 +85,7 @@ ha-card{position:relative;display:block;height:100%;overflow:hidden;isolation:is
 .open:hover{background:var(--card-background-color,#1c1c1c)}:host([compact]) .open{display:grid}`;
 const EXPAND =
   '<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 3h6v6M9 21H3v-6M21 3l-7 7M3 21l7-7"/></svg>';
-// inside the panel (look.js): it is as tall as the card, not as the browser window; settings buttons — administrators only (look/roles.ts)
+// inside the panel (look.ts): it is as tall as the card, not as the browser window; settings buttons — administrators only (look/roles.ts)
 const IN_CARD = ':host(.embedded) .shell{height:100%;min-height:0}';
 // compact: the model fills the card, “Now” lies over its top, the room strip — over its bottom, nothing else of the panel (no notifications)
 const COMPACT = `:host(.compact) .main{padding:0!important}:host(.compact) .workspace{display:block!important;position:relative;height:100%}
@@ -114,7 +114,7 @@ export async function createCard(card: CardHost, hass0: Hass, config0: CardConfi
   const dark = (): boolean => !!hass.themes?.darkMode;
   const sunDown = (): boolean => hass.states['sun.sun']?.state === 'below_horizon';
   // day / night (D-068): auto — by the sun (night after sunset, day after sunrise), or always day, always night; the mode is shared with the
-  // editor (core/daynight.js), the button steps through them
+  // editor (core/daynight.ts), the button steps through them
   let dayMode = readMode();
   let night = isNight(dayMode, sunDown());
   let themeDark = dark();
@@ -128,7 +128,7 @@ export async function createCard(card: CardHost, hass0: Hass, config0: CardConfi
   view.setTheme(themeDark);
   view.setNight(night);
 
-  // what look.js expects from the editor
+  // what look.ts expects from the editor
   const ed: LookEditor = {
     plan: migrate({}),
     ha,
@@ -230,7 +230,7 @@ export async function createCard(card: CardHost, hass0: Hass, config0: CardConfi
   let rev: number | null = null;
   let mine: number | null = null;
   let framed = false;
-  // as the editor loads it: HA lamps reconciled with the plan's (editor/app.js: setPlan)
+  // as the editor loads it: HA lamps reconciled with the plan's (editor/app.ts: setPlan)
   function setPlan(p: PlanInput | null): void {
     ed.plan = migrate(p || {});
     ed.plan.lights = mergePlanLights(

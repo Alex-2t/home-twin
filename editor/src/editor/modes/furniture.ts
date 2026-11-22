@@ -230,7 +230,7 @@ export function furnitureMode(ed: Editor): FurnitureMode {
   // to a corner and the middle of a wall — within 12 px on screen (no farther than 25 cm): zoomed in — barely pulls, zoomed out — as before
   // at a window — to its center; curtains from the catalog also take the window width with a margin (fit)
   function place(f: FurnitureItem, p: Point, free: boolean, fit?: boolean): void {
-    // an along-the-walls object — right away over the whole free wall under the pointer (runs.js): up to a corner, a door, a window at its height, other
+    // an along-the-walls object — right away over the whole free wall under the pointer (runs.ts): up to a corner, a door, a window at its height, other
     // furniture at the wall (fridge, tall cabinet, hood); no wall nearby — it is not placed
     if (isRun(f)) {
       const z = zOf(f);
@@ -418,7 +418,7 @@ export function furnitureMode(ed: Editor): FurnitureMode {
     if (!drag) {
       const gi = gapAt(p);
       const h = gi < 0 ? hit(p) : null;
-      const hv = h?.f.id || null; // under the pointer — the name, if it did not fit into the outline (draw.js)
+      const hv = h?.f.id || null; // under the pointer — the name, if it did not fit into the outline (draw.ts)
       // the others standing there with it: draw.ts says so beside the pointer, following it
       const others = h && !h.handle ? stackAt(p).filter(f => f.id !== h.f.id) : [];
       const also = others.length ? {at: p, ids: others.map(f => f.id)} : null;
@@ -603,7 +603,7 @@ export function furnitureMode(ed: Editor): FurnitureMode {
     else gaps = [];
   };
 
-  // ---------- built-in cabinet (runs.js) ----------
+  // ---------- built-in cabinet (runs.ts) ----------
   // Dragged by the ends — the cabinet follows the wall faces and around the corner; by the middle of the front — depth; by the cabinet itself — slides along the walls,
   // into another room — moves there. The ends snap to corners and to the edges of doors and windows (Shift — no snapping).
   const placeable = (f: FurnitureItem): boolean => !isRun(f) || !!runGeo(plan(), f);

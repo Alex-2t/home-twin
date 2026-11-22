@@ -1,5 +1,5 @@
 // The dashboard card's 3D and home panel (D-059), loaded by card.js when a card is shown. The language goes first: the other
-// modules build some strings when they load, so they are imported only after it is set (as ha-panel.js does for the panel).
+// modules build some strings when they load, so they are imported only after it is set (as ha-panel.ts does for the panel).
 import {setLang, pickLang, setFormats} from './i18n/i18n.ts';
 import type {CardApp, CardConfig, CardHost} from './card-main.ts';
 import type {Hass} from './core/types.ts';

@@ -2,7 +2,7 @@
 // the model and drags it to the right — the model rotates with it — and back to the same view. Repeats every 3.6 s until the user
 // takes hold of the model. The camera returns exactly: rotation via view.spin, the offset is computed here (off).
 // Pressing the window pauses the demo, the model stays put; releasing without rotating (a click swaps the windows) — again after 1.5 s.
-//   run(on) — show or not (app.js decides: view step, model not yet rotated, 3D window visible, no “reduced motion”)
+//   run(on) — show or not (app.ts decides: view step, model not yet rotated, 3D window visible, no “reduced motion”)
 import type {SceneView} from '../core/scene.ts';
 
 const A = 0.45;

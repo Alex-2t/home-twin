@@ -1,5 +1,5 @@
 // The catalog car (D-062): a fastback electric sedan and a large luxury SUV.
-// Glazing, panel lines, recessed lights and machined wheels stay readable from the home overview; furniture3d.js batches details by material.
+// Glazing, panel lines, recessed lights and machined wheels stay readable from the home overview; furniture3d.ts batches details by material.
 // The body is one smooth lofted surface, not boxes: sections along the length, each a superellipse sized by the side profile
 // (the top: nose, hood, beltline, deck; the bottom: sills, bumpers) and the plan (rounded nose and tail); the wheel arches are cut
 // out of it. The glass house is a second loft set in from the shoulders, narrowing upwards. Lights, the grille, seams and handles

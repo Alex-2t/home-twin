@@ -1,5 +1,5 @@
 // Rules of the “Whole home” dashboard — carried over from 3d_floor/apartment/smart-home/web/src/overview.js and ac-state.js (D-049):
-// the day line, the “Now” chips, light and climate tiles, the second room line. No DOM; look.js lays out the markup.
+// the day line, the “Now” chips, light and climate tiles, the second room line. No DOM; look.ts lays out the markup.
 // Differences from 3d_floor: translations go through the editor's t() (placeholders {0}, {1}); any home (not only the owner's apartment);
 // TV, vacuum, water and alarm chips — once those devices appear in the HA layer. An open window or door is a “warn” chip.
 import {t, N, getLang, num} from '../i18n/i18n.ts';
@@ -211,7 +211,7 @@ export function activeChips({
       tone,
     });
   };
-  // a triggered leak sensor and shut-off water come first of all (look/security.js: securityAlerts)
+  // a triggered leak sensor and shut-off water come first of all (look/security.ts: securityAlerts)
   for (const a of alerts)
     push('alert:' + a.entity, 'alert', a.icon, a.label, [{id: a.entity, room: a.room || null}]);
   if (water?.closed) push('water', 'alert', 'droplet', t('Water shut off'), [{id: 'water', room: null}]);

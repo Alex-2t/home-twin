@@ -47,5 +47,5 @@ export async function idbBatch(ops: StoreOp[]): Promise<void> {
     d.close();
   }
 }
-// the same through the common storage interface (history.js, versions.js; tests use their own in-memory one)
+// the same through the common storage interface (history.ts, versions.ts; tests use their own in-memory one)
 export const idbStore: KeyValueStore = {get: k => idb('get', k), batch: idbBatch};

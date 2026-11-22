@@ -6,7 +6,7 @@
 // Stored per project in storage (ver:<project>), up to 100 versions. Over that an autosave goes, never a step's or a “before”
 // one: the one closest in time to the version after it, so the recent hour stays dense and older work thins out but stays.
 // “Same version” ignores wizard marks (onboarding): starting a step is not a new plan version.
-// No DOM here: the window is versions-panel.js.
+// No DOM here: the window is versions-panel.ts.
 import type {Plan} from '../core/types.ts';
 import type {KeyValueStore} from './idb.ts';
 import type {UnderlaySnapshot} from './underlay.ts';

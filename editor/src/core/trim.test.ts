@@ -1,4 +1,4 @@
-// Skirting boards and door and window trim (trim.js, D-080).
+// Skirting boards and door and window trim (trim.ts, D-080).
 import {test} from 'node:test';
 import assert from 'node:assert/strict';
 import {trimBoxes, TRIM} from './trim.ts';

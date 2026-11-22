@@ -1,20 +1,20 @@
 // Preview (D-047, D-049): the home as it will be seen on the HA card (D-015). The panel is the home card from 3d_floor,
 // one to one (the owner asked to take the panel logic entirely from the neighboring project: the same colors and animations):
-// its styles (look/card.css), icons (look/icons.js), rules (look/overview.js, ac-control.js, history.js) and markup —
+// its styles (look/card.css), icons (look/icons.ts), rules (look/overview.ts, ac-control.ts, history.ts) and markup —
 // in Shadow DOM over our 3D, like the card itself: a glass panel on the right, a room strip at the bottom, view buttons on the left.
 // The dark theme is Minimalist dark, as on the home card; the light one uses the card's own default colors.
 // Navigation is as in 3d_floor: home overview → click a room — the room screen in the panel (sensors with charts, the air conditioner
 // remote, curtains, lights, “More in the room”), the camera flies to it, an outline on the floor; “Back” — the previous shot.
-// Hovering a room in the overview — a glow from the floor (room-glow.js); a chip covering several rooms — a flash.
-// Data — core/overview.js and the HA layer. Lights work like everything else: a lamp's state is its HA entity (light.* or a switch.* relay),
+// Hovering a room in the overview — a glow from the floor (room-glow.ts); a chip covering several rooms — a flash.
+// Data — core/overview.ts and the HA layer. Lights work like everything else: a lamp's state is its HA entity (light.* or a switch.* relay),
 // commands go through ed.ha.call, 3D repeats what HA says (syncLights). A lamp without an HA entity — the old way, the plan's L.on.
-// Weather — from the HA layer (look/weather.js); the “Home / Away / Night” scenes and “Customize” — look/scenes.js, settings in the plan.
-// “Security” — the camera, water valve and leak sensors from HA (look/security.js, look/camera.js); none at all — no section.
-// “Cleaning” — robot vacuums from HA (look/vacuum.js): a row and the main button in the overview, a device screen with “Return to dock”.
-// “Statistics” — climate, energy and connectivity from what HA keeps on its own (look/stats.js, stats-view.js): tiles in the overview, a section
+// Weather — from the HA layer (look/weather.ts); the “Home / Away / Night” scenes and “Customize” — look/scenes.ts, settings in the plan.
+// “Security” — the camera, water valve and leak sensors from HA (look/security.ts, look/camera.ts); none at all — no section.
+// “Cleaning” — robot vacuums from HA (look/vacuum.ts): a row and the main button in the overview, a device screen with “Return to dock”.
+// “Statistics” — climate, energy and connectivity from what HA keeps on its own (look/stats.ts, stats-view.ts): tiles in the overview, a section
 // screen with a period, numbers above rooms on the model. No lights or appliances: HA keeps no statistics for on / off.
 // “Customize panel” — like the Android quick settings shade: “Add to panel” slides out next to the panel, cards and HA entities
-// are dragged there and back; “Favorites” — tiles of any entities (look/layout.js, look/favorites.js); the layout is in the plan.
+// are dragged there and back; “Favorites” — tiles of any entities (look/layout.ts, look/favorites.ts); the layout is in the plan.
 // The gear is by the overview title and in the room row (instead of “⌂”): each room has its own part order and its own “Favorites”.
 // Not yet: TV.
 //   open() / close(); esc() — one step back; insets() — {right, bottom}: what covers the 3D; room(id) — a room's screen
@@ -214,7 +214,7 @@ const HTML_ESCAPES: Record<string, string> = {
   "'": '&#39;',
 };
 const escape = (s: unknown): string => String(s ?? '').replace(/[&<>"']/g, c => HTML_ESCAPES[c]);
-// card icons: rooms by kind (core/overview.js: roomKind), lamps by shape, other sensors by class
+// card icons: rooms by kind (core/overview.ts: roomKind), lamps by shape, other sensors by class
 const ROOM_IC: Record<RoomKind, string> = {
   bed: 'bed',
   kids: 'sofa',
@@ -1363,7 +1363,7 @@ export function createLook(ed: LookEditor, host0: HTMLElement): LookPanel {
     tip.style.top = Math.max(4, y - tip.offsetHeight - 8).toFixed(1) + 'px';
   }
 
-  // ---------- “Customize panel” and “Favorites” (look/layout.js, look/favorites.js) ----------
+  // ---------- “Customize panel” and “Favorites” (look/layout.ts, look/favorites.ts) ----------
   // the overview layout (plan.panel) or the room screen layout (room.panel)
   const planRoom = (id: string): Room | undefined => ed.plan.rooms.find(x => x.id === id);
   const layout = (room: string | null = null): PanelCard[] =>

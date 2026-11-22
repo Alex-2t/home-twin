@@ -2,7 +2,7 @@
 // attached to, how to place it automatically, what to show in 3D and in the panel.
 // plan.devices: [{id, entity, furn?, opening?, made?}]: furn is a furniture item (air conditioner, curtains, roller blind), opening is
 // an opening (contact sensor); made means the item was placed together with the device: remove the device and it goes too.
-// Devices and their states come from the HA layer (editor/ha.js): devices() → [{entity, name, area, domain, cls}], entity(e) → {state, attributes}.
+// Devices and their states come from the HA layer (editor/ha.ts): devices() → [{entity, name, area, domain, cls}], entity(e) → {state, attributes}.
 import {t} from '../i18n/i18n.ts';
 import {WALL, area, pointIn, openingCoords} from './geometry.ts';
 import {byId, zOf} from './catalog.ts';

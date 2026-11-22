@@ -1,6 +1,6 @@
 // Kit for the standalone editor's demo apartments (start screen → “Demo home”; the HA panel has no demo).
 // An apartment is a module demo/<name>.ts: export default async () => ({HA, DEMO, DEMO_UNDERLAY}). HA is the HA layer data “as from HA”
-// (read by mockHA, editor/ha.js), DEMO is the plan, DEMO_UNDERLAY is the plan photo or null.
+// (read by mockHA, editor/ha.ts), DEMO is the plan, DEMO_UNDERLAY is the plan photo or null.
 // The repository has typical.ts (a typical three-room apartment, D-030). own.ts is the owner's apartment: local only (.gitignore),
 // the build uses it if the file exists.
 import type {
@@ -352,7 +352,7 @@ export const NO_AREA_LAMP: HaLamp = {
 // Without finishes every wall was the same warm white, bright and flat under the lamps; light tints wash out to white there too, so the walls
 // are mid tones (they read a step lighter in 3D). A style gives the rooms quieter walls and floors
 // and puts the accents where a designer would, found from the furniture: the wall behind a bed's headboard, the media wall behind the TV
-// (else behind the sofa), a tiled backsplash behind the kitchen cabinets, tiled bathrooms. Kinds are the editor's (core/surfaces.js:
+// (else behind the sofa), a tiled backsplash behind the kitchen cabinets, tiled bathrooms. Kinds are the editor's (core/surfaces.ts:
 // WALL_KINDS, FLOOR_KINDS); room.wall and room.floor are the room's finish, room.wf[i] the finish of its edge i.
 // A wall entry: '#rrggbb' — warm white paint in that color; 'kind' — a finish as it is; {k, tint} — a finish in a color.
 export type StyleWall = string | EdgeFinish;

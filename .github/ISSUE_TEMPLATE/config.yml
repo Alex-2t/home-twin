@@ -1,8 +1,8 @@
 blank_issues_enabled: false
 contact_links:
   - name: Payments and your AI build account
-    url: mailto:support@sync.md
-    about: A purchase, a balance, a sign-in or anything else with your account — write to support@sync.md, not in a public issue.
+    url: https://twin.sync.md/terms
+    about: A purchase, a balance, a sign-in or anything else with your account — write to support@sync.md (the address is in the terms), not in a public issue.
   - name: Security
     url: https://github.com/Alex-2t/home-twin/security/policy
     about: Found a vulnerability? Report it privately, as described in the security policy.

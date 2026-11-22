@@ -423,7 +423,7 @@ export function roomsMode(ed: Editor): RoomsMode {
   const v = (): PlanView2d => ed.v;
   const plan = (): Plan => ed.plan;
   const sel = (): Selection => ed.sel;
-  // internal: called only by ed.setTool (the single tool state machine in app.js)
+  // internal: called only by ed.setTool (the single tool state machine in app.ts)
   // The “rectangle → split” wizard follows the plan, not the clicks: ⌘Z or deleting the only room
   // go back to “Draw a rectangle”, the room is back — “Split” again. Finished — via “Done”.
   // the outline step's card; over a photo with the tip on turning it, as flows.ts shows it after the area dialog
@@ -576,7 +576,7 @@ export function roomsMode(ed: Editor): RoomsMode {
     if (linkedTo) return ed.areaName(linkedTo) || c.r.name || '';
     return c.z ? t('Part of room') : c.r.name || '';
   };
-  // next — the “Furniture” step (modes/furniture.js), after it “Lights” (modes/lights.js): lighting is often on furniture
+  // next — the “Furniture” step (modes/furniture.ts), after it “Lights” (modes/lights.ts): lighting is often on furniture
   function toFurniture(): void {
     wiz = null;
     ed.step(null);
@@ -2670,7 +2670,7 @@ export function roomsMode(ed: Editor): RoomsMode {
     r.wf[i] = v;
     if (r.wf.every(x => !x)) delete r.wf;
   };
-  // A pick by hand covers the whole floor or wall: the pieces of finish the AI build put there (pieces.js, D-084) go; ai — there are some.
+  // A pick by hand covers the whole floor or wall: the pieces of finish the AI build put there (pieces.ts, D-084) go; ai — there are some.
   const floorState = (r: Room): FinishState => {
     const done = () => {
       clearFloorPieces(r);
@@ -2818,7 +2818,7 @@ export function roomsMode(ed: Editor): RoomsMode {
     row.append(more);
     return side ? [el(`<div class="line sub"><small>${esc(st.title)}</small></div>`), row] : [row];
   } // for a wall side — a label on the line above
-  // one line under a panel's finishes when a pick there would replace pieces the AI build put (pieces.js, D-084)
+  // one line under a panel's finishes when a pick there would replace pieces the AI build put (pieces.ts, D-084)
   const aiPiecesLine = (states: FinishState[]): HTMLElement[] =>
     states.some(st => st.ai)
       ? [

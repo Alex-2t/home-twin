@@ -7,7 +7,7 @@
 //                  history for 10 days (purge_keep_days by default), so the window is no longer — and the caption says so plainly.
 // Not carried over: lights, appliances, “who is home” and doors: HA keeps no long-term statistics for on / off, 3d_floor counts
 // them with counters set up by hand in the owner's home. The integration will add them (D-015) once it sets up counters itself.
-// No DOM: markup is in stats-view.js. HA layer (editor/ha.js): statistics(), stateHistory(), energy(); the demo answers the same way.
+// No DOM: markup is in stats-view.ts. HA layer (editor/ha.ts): statistics(), stateHistory(), energy(); the demo answers the same way.
 import {t, N, num, dateTime} from '../i18n/i18n.ts';
 import type {
   HaEnergyPrefs,

@@ -1,11 +1,11 @@
-// Editor startup — shared by the standalone app (main.js: demo data, plan in the browser) and the Home Assistant panel
-// (ha-app.js: real HA, plan in HA). The language is already set (i18n/boot.js), the shell markup is in the document.
-//   ha     — the HA layer (editor/ha.js: mockHA or ha-live.js)
+// Editor startup — shared by the standalone app (main.ts: demo data, plan in the browser) and the Home Assistant panel
+// (ha-app.ts: real HA, plan in HA). The language is already set (i18n/boot.ts), the shell markup is in the document.
+//   ha     — the HA layer (editor/ha.ts: mockHA or ha-live.ts)
 //   examples — the start screen's examples [{id, plan, underlay}] and example — the one whose HA data are loaded (D-062); absent (in HA) — none
-//   router — the address: the page that is open (editor/route.js, D-066); absent — not used
+//   router — the address: the page that is open (editor/route.ts, D-066); absent — not used
 //   gallery — the address of the list of homes the server publishes for the gallery (D-113); absent — the examples alone
 //   plans  — where else the plan is stored: {load(local) → Promise<{plan, rev}>, save(plan)}; absent — browser only
-//   photos — where the plan photo is kept (underlay.js: browserPhotos — the default, ha-live.js: hassPhotos)
+//   photos — where the plan photo is kept (underlay.ts: browserPhotos — the default, ha-live.ts: hassPhotos)
 //   onApp(ed) — right after the editor is created, before the first plan
 //   onNewerPlan — the plan opened is of a newer format than this editor writes (D-121): it is not saved; absent — a notice offers to reload
 //   dev    — the test panel (standalone app on localhost only)

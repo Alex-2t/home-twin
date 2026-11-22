@@ -6,7 +6,7 @@
 // return_to_base. Not carried over from 3d_floor: the cleaning percentage (HA gives no progress), “Hallway closet” (a single
 // apartment) — replaced by the dock room from the robot's area. The robot on the model drives a route of its own while it cleans
 // (D-125: core/vacuum-route.ts, scene.ts), as HA gives no coordinates.
-// No DOM: look.js lays out the markup.
+// No DOM: look.ts lays out the markup.
 import {t, N} from '../i18n/i18n.ts';
 import type {HaLayer} from '../core/types.ts';
 

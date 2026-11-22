@@ -21,7 +21,7 @@ export function lab(n: number): Lab {
   const z = f((R * 0.0193 + G * 0.1192 + B * 0.9505) / 1.08883);
   return [116 * y - 16, 500 * (x - y), 200 * (y - z)];
 }
-// darker (k < 1) or lighter in linear light, as the 3D shades a color (furniture3d.js shade)
+// darker (k < 1) or lighter in linear light, as the 3D shades a color (furniture3d.ts shade)
 const enc = (c: number): number =>
   Math.round(255 * Math.min(1, c <= 0.0031308 ? c * 12.92 : 1.055 * c ** (1 / 2.4) - 0.055));
 export const shadeHex = (n: number, k: number): number =>

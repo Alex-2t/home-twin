@@ -1,14 +1,14 @@
-// Furniture catalog: data only. Generators and models live in furniture3d.js.
+// Furniture catalog: data only. Generators and models live in furniture3d.ts.
 // gen: generated in code, any size within min/max; kenney: a ready-made CC0 model with a fixed size.
 // lift: hangs on a wall with its bottom at this height above the floor (wall cabinets, TV, range hood); an item can change it (f.z); dashed on the plan.
 // vars: variants of one item ([key, label], the first is the default; the item stores f.v); mirror: comes in left and right versions (f.mx).
 // tags: other search words; \u00ad in a name marks where to hyphenate a long word on the card. Kitchen modules are 60 cm wide with the plinth and countertop of “Base cabinets”: placed in a row they read as one kitchen.
 // colors: which colors the item comes in (the first in the list need not be the default, that one is in color); none means wood and white/graphite.
-// Besides these swatches an item can have any custom #rrggbb (color.js). color2: the item takes a second color from the same swatches
+// Besides these swatches an item can have any custom #rrggbb (color.ts). color2: the item takes a second color from the same swatches
 // (a rug's border, f.color2); not set — a darker shade of the main one. pats: patterns of the two colours ([key, label], f.pat; none —
 // its own look, "Plain" in the panel).
 // foot: L-shaped on the plan (corner cabinet, corner sofa): an arm along the back of depth back and along the left side (mirrored: the right) of width side;
-// u: U-shaped (both side arms). run: along walls (built-in wardrobe, kitchen cabinets): stretches along the walls and around corners, its shape comes from the walls (runs.js);
+// u: U-shaped (both side arms). run: along walls (built-in wardrobe, kitchen cabinets): stretches along the walls and around corners, its shape comes from the walls (runs.ts);
 // also: which other catalog sections to show it in. round: a circle on the plan (true or a list of variants: ['round','oval']).
 // table: a table with space under it; under: slides under a table: true means entirely, up to its top (a mobile pedestal, a radiator
 // under the window), a number is up to which height
@@ -42,7 +42,7 @@ export const COLORS: Record<string, Swatch> = {
   chrome: [N('Chrome'), 0xc9cdd1],
 };
 // Kitchen worktops (item.top, an entry with tops: true): [name, color, roughness]; none set — gray stone. One worktop for the whole kitchen:
-// choosing it on one unit sets it on every unit with a worktop in the room (modes/furniture.js).
+// choosing it on one unit sets it on every unit with a worktop in the room (modes/furniture.ts).
 export const TOPS: Record<string, Worktop> = {
   stone: [N('Gray stone'), 0x7a7d82, 0.32],
   white: [N('White quartz'), 0xe9e6df, 0.24],
@@ -2230,7 +2230,7 @@ for (const id of LOOSE) {
   const c = CATALOG.find(x => x.id === id);
   if (c) c.loose = true;
 }
-// An item from parts (core/parts.js): the AI build describes what it could not match to the catalog; the shape is in the item (f.parts),
+// An item from parts (core/parts.ts): the AI build describes what it could not match to the catalog; the shape is in the item (f.parts),
 // the name in f.name. Never in the catalog picker; any size (it stretches to fit), no colors or variants: the parts carry their own materials.
 // (So it has no colour, which a catalog entry has: read as an entry all the same.)
 CATALOG.push({
@@ -2260,7 +2260,7 @@ export const CATEGORIES: string[] = [
   N('Garage & outdoor'),
 ];
 // Names, sections, search tags, variants, patterns and colors are in the UI language (D-036). The translation keys are the English strings above
-// (the scanner collects them from this whole file); the language is set before the module loads (i18n/boot.js).
+// (the scanner collects them from this whole file); the language is set before the module loads (i18n/boot.ts).
 for (const c of CATALOG) {
   c.name = t(c.name);
   c.cat = t(c.cat);

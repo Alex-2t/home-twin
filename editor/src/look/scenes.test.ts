@@ -5,7 +5,7 @@ import type {SceneRoom, SceneStep} from './scenes.ts';
 
 type SceneLamp = NonNullable<SceneRoom['lamps']>[number];
 
-// rooms — as look.js returns them: model().rooms
+// rooms — as look.ts returns them: model().rooms
 const lamp = (id: string, kind: string, on = false): SceneLamp => ({
   id,
   name: id,

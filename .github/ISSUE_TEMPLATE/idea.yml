@@ -1,7 +1,7 @@
 name: Idea
 description: Something Home Twin should do, or do differently
 title: "[Idea] "
-labels: ["idea"]
+labels: ["enhancement"]
 body:
   - type: markdown
     attributes:

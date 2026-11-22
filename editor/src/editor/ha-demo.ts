@@ -1,5 +1,5 @@
 // HA demo layer: long-term statistics and raw history — in the form Home Assistant returns them, deterministically
-// (the same date — the same bar). Preview reads them the same way as in HA (look/stats.js).
+// (the same date — the same bar). Preview reads them the same way as in HA (look/stats.ts).
 import type {DemoStats, HaSensor, HaStateChange, HaStatisticsQuery, HaStatisticsRow} from '../core/types.ts';
 
 /** What the demo statistics read of a sensor: its entity and class; an energy meter's daily kWh and the day's shape. */

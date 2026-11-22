@@ -1,5 +1,5 @@
 // The home overview for “Preview” and the future card (D-015, D-047): per room, an icon, climate and lights. Data only.
-// Weather, scenes, air conditioners, curtains and charts will be added once they appear in the HA layer (editor/ha.js).
+// Weather, scenes, air conditioners, curtains and charts will be added once they appear in the HA layer (editor/ha.ts).
 import {METRICS, pickAuto} from './sensors.ts';
 import {N} from '../i18n/i18n.ts';
 import {formFor} from './fixtures.ts';
@@ -41,7 +41,7 @@ const KINDS: Array<[RoomKind, RegExp]> = [
     'hall',
     /коридор|прихож|холл|hall|corridor|flur|diele|entrée|couloir|pasillo|recibidor|corridoio|ingresso|\bgang\b|\bhal\b|entrada|korytarz|przedpok|corredor|走廊|玄关/,
   ],
-  // a balcony and the like outdoors: a terrace, patio, garden, porch (the icon; devices.js: which door a contact is on)
+  // a balcony and the like outdoors: a terrace, patio, garden, porch (the icon; devices.ts: which door a contact is on)
   // (a British plan's "side return" is the strip of yard along a back extension, a courtyard a yard closed round: outdoors)
   [
     'balcony',

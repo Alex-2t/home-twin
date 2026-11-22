@@ -111,7 +111,7 @@ function planThumb(plan: Pick<Plan, 'rooms'>): string {
   return `<svg viewBox="-.4 -.4 ${(w + 0.8).toFixed(2)} ${(h + 0.8).toFixed(2)}" aria-hidden="true">${P.map(q => `<path d="${d(q)}"/>`).join('')}</svg>`;
 }
 
-// router — the address (route.js, D-066): hashRouter in the standalone editor, haRouter in the HA panel; absent — the address is not used
+// router — the address (route.ts, D-066): hashRouter in the standalone editor, haRouter in the HA panel; absent — the address is not used
 export function createFlows(
   ed: Editor,
   {examples: givenExamples = [], example = null, router = null, gallery = null}: FlowsOptions,
@@ -123,13 +123,13 @@ export function createFlows(
   const EX = 'home-twin-editor:example';
   const COVER = 'home-twin-editor:loading';
   // an example in the address opens right away (also after the reload for its HA data); until then the plan saved last time is not built
-  // in 3D (ed.hold, app.js) — it would only flash before the example
+  // in 3D (ed.hold, app.ts) — it would only flash before the example
   const r0 = router?.read() || null;
   ed.hold = !!(r0?.ex && r0.ex === example);
   // ---------- loading: the cover from shell.html is up until the editor has started and the plan is drawn ----------
   // Opening an example shows its card from the start screen — over a reload too: the card goes to sessionStorage, shell.html puts it up at the first paint
   // While it is up the 3D draws nothing (the GPU is left to the page: the bar does not stutter); before it goes, the new home's shaders
-  // compile in parallel (scene.js: warm), so its first frame does not freeze the page either.
+  // compile in parallel (scene.ts: warm), so its first frame does not freeze the page either.
   const cover = $('loading');
   const frame = (): Promise<unknown> => new Promise(r => requestAnimationFrame(r));
   if (!cover.hidden) ed.view.pause?.();
@@ -239,7 +239,7 @@ export function createFlows(
     f.syncRoute();
   };
   f.hideStart = hideStart;
-  // The AI build (D-073, D-074, ai-build.js): offered only where its service answers (main.js); the card is the AI build's own
+  // The AI build (D-073, D-074, ai-build.ts): offered only where its service answers (main.ts); the card is the AI build's own
   // (aiStartCard: a build on its way shows there)
   f.offerAi = setup => {
     const b = find($('start'), '[data-a=ai]');
@@ -247,7 +247,7 @@ export function createFlows(
     setup(b);
   };
 
-  // ---------- the address (route.js, D-066) ----------
+  // ---------- the address (route.ts, D-066) ----------
   // Pages: the start screen (null), a mode or Preview of your plan, of an example. Another page — a new step in the history (Back returns
   // to it); the same page whose plan stopped being an example (its rooms were edited) — the step is corrected. While the address is being
   // applied (the start, Back / Forward) nothing is written: quiet.
@@ -328,7 +328,7 @@ export function createFlows(
       ed.setMode(MODE[p]);
     }
   };
-  // another example than the one whose HA data are loaded: the page reloads with it (main.js reads the address)
+  // another example than the one whose HA data are loaded: the page reloads with it (main.ts reads the address)
   // (the address already names it; under its card from the start screen)
   const reloadWith = (x: FlowsExample, card: string): void => {
     leaving = true;
@@ -490,7 +490,7 @@ export function createFlows(
   // ---------- examples (D-062): a click opens the home with its demo HA data ----------
   // The start screen shows one even row of them (D-111) with their 3D renders (D-113), the main choices above stay first;
   // “All examples” opens the gallery, a page of its own.
-  // Each example has its own lights, sensors and devices: another one than the loaded one — the page reloads with it (main.js) and opens it
+  // Each example has its own lights, sensors and devices: another one than the loaded one — the page reloads with it (main.ts) and opens it
   const exampleInfo = (x: FlowsExample): ExampleInfo => EXAMPLE[x.id] || {name: x.id, kind: 'flat'};
   // an example as a card of the start screen and the gallery: its name, render, area and rooms
   function exampleHome(x: RoomedExample): GalleryHome {
@@ -786,7 +786,7 @@ export function createFlows(
     syncPrev();
     return ok;
   }
-  f.keepPrev = keepPrev; // a new home from the AI build replaces the plan open now (ai-build.js)
+  f.keepPrev = keepPrev; // a new home from the AI build replaces the plan open now (ai-build.ts)
   function syncPrev(): void {
     const on = !!readPrev()?.plan;
     document.querySelectorAll<HTMLElement>('[data-a=prev]').forEach(b => (b.hidden = !on));

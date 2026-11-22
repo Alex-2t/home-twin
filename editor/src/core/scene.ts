@@ -297,7 +297,7 @@ const isPointLight = (light: PoolLight): light is THREE.PointLight =>
 const isSpotLight = (light: PoolLight): light is THREE.SpotLight =>
   (light as THREE.SpotLight).isSpotLight === true;
 
-// Shading near walls and in corners: one map per scene (surfaces.js); walls and floor read it in the shader.
+// Shading near walls and in corners: one map per scene (surfaces.ts); walls and floor read it in the shader.
 const AOU = aoUniforms();
 // The 3D frame is this much larger than what it fits: a margin round the model.
 const FRAME_MARGIN = 1.08;
@@ -633,7 +633,7 @@ export function createView(host: HTMLElement): SceneView {
     const now = [AOU.htFin.value, AOU.htFinTab.value, AOU.htFinStk.value];
     for (const t of old) if (!now.includes(t) && t.image?.width > 1) t.dispose();
   }
-  // Pieces of the floor (pieces.js, D-084): a tiled kitchen area in a parquet room — over the room's floor, 1 mm up,
+  // Pieces of the floor (pieces.ts, D-084): a tiled kitchen area in a parquet room — over the room's floor, 1 mm up,
   // the pattern laid along the same walls as the room's.
   function addFloorPieces(room: Room, floorMesh: THREE.Mesh, selected: boolean): void {
     // FLOOR_KINDS: a floor finish key → the finish; any other key is none
@@ -989,7 +989,7 @@ export function createView(host: HTMLElement): SceneView {
   const baseOBR = scene.onBeforeRender;
   const centroid = (p: Outline): Point =>
     p.reduce<Point>((s, v) => [s[0] + v[0] / p.length, s[1] + v[1] / p.length], [0, 0]);
-  // Lamp body by shape (fixtures.js): only the diffuser glows (glass, shade); cord, stand and mounts have no emissive.
+  // Lamp body by shape (fixtures.ts): only the diffuser glows (glass, shade); cord, stand and mounts have no emissive.
   // A lamp that is part of another fixture (L.with) shines from that fixture's position and draws no body: the host owns it.
   const sharedDark = new THREE.MeshStandardMaterial({color: 0x3b3b3f, roughness: 0.5, metalness: 0.35});
   const sharedBase = new THREE.MeshStandardMaterial({color: 0xe9e2d4, roughness: 0.45});
@@ -1114,7 +1114,7 @@ export function createView(host: HTMLElement): SceneView {
           at(cyl(0.045, 0.045, 0.012, 16), p, L.h);
           at(cyl(0.052, 0.052, 0.006, 20), p, L.h + 0.009, darkMat);
         }
-        // pendant (fixtures.js: shadeOf): an opal glass dome; a black metal dome with a glowing diffuser under it; an opal glass globe;
+        // pendant (fixtures.ts: shadeOf): an opal glass dome; a black metal dome with a glowing diffuser under it; an opal glass globe;
         // a rattan bell with the bulb seen through its open bottom. All: a dark cap, a cord to the ceiling and a canopy on the ceiling.
         else if (form === 'pendant') {
           const sh = shadeOf(L);
@@ -2166,7 +2166,7 @@ export function createView(host: HTMLElement): SceneView {
     };
   }
   // A room in Preview (as in 3d_floor/viewer.js): the selected one is outlined on the floor; the one hovered from the panel glows
-  // (room-glow.js): the light rises from the floor over 1/6 s; a flash on chip click is three waves over 1.5 s.
+  // (room-glow.ts): the light rises from the floor over 1/6 s; a flash on chip click is three waves over 1.5 s.
   let roomsNow: Room[] = [];
   let outline: THREE.LineLoop<THREE.BufferGeometry, THREE.LineBasicMaterial> | null = null;
   let outlineId: string | null = null;
@@ -2368,7 +2368,7 @@ export function createView(host: HTMLElement): SceneView {
   controls.addEventListener('start', () => {
     tween = null;
   });
-  // “How to rotate” demo (view-demo.js): rotate the camera around the target by angle a; it does not count as rotated by hand.
+  // “How to rotate” demo (view-demo.ts): rotate the camera around the target by angle a; it does not count as rotated by hand.
   // While a smooth transition to the home view is running, no (false): the demo will not disrupt it.
   function spin(a: number): boolean {
     if (tween) return false;
@@ -2931,7 +2931,7 @@ export function createView(host: HTMLElement): SceneView {
     raf = requestAnimationFrame(loop);
   }
   loop();
-  // The spot under the pointer (the AI build's pins, ai-review.js): where on the plan and how high, the furniture item hit, and a
+  // The spot under the pointer (the AI build's pins, ai-review.ts): where on the plan and how high, the furniture item hit, and a
   // point a little back towards the camera — inside the room even when the hit is on its wall. Hidden facades are seen through.
   // → {p: [x, y], z, inside: [x, y], item: id | null} or null (nothing there)
   const pickRay = new THREE.Raycaster();
@@ -2962,7 +2962,7 @@ export function createView(host: HTMLElement): SceneView {
     };
   }
   // The view as it is now, drawn once more and handed over at once: a WebGL canvas keeps its picture only until the frame
-  // ends, so the caller copies it straight away (the AI build's pins keep what the owner was looking at, ai-review.js).
+  // ends, so the caller copies it straight away (the AI build's pins keep what the owner was looking at, ai-review.ts).
   function snapshot(): HTMLCanvasElement {
     if (renderer.getPixelRatio() !== fullPixelRatio) renderer.setPixelRatio(fullPixelRatio);
     renderer.shadowMap.needsUpdate = shadows.takeUpdate();
