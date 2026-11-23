@@ -397,10 +397,14 @@ export function stackOf(plan: Plan, f: FurnitureItem): FurnitureItem[] {
     ),
   ].sort((a, b) => zOf(a) - zOf(b));
 }
-// One of the two belongs inside the other (catalog `within`: a shower set in its shower or over a bath): not a conflict. The AI
-// build's benchmark, 2026-11-22: 7 of 8 shower sets stood beside their stall to keep clear of it, the 8th was drawn red in it.
+// One of the two belongs inside the other (catalog `within`: a shower set in its shower or over a bath; or the item says which
+// one it stands in, `in`, as the AI build writes for things drawn from parts): not a conflict. The AI build's benchmark,
+// 2026-11-22: 7 of 8 shower sets stood beside their stall to keep clear of it, the 8th was drawn red in it.
 export const inside = (f: FurnitureItem, g: FurnitureItem): boolean =>
-  !!entryOf(f)?.within?.includes(g.model || '') || !!entryOf(g)?.within?.includes(f.model || '');
+  (!!f.in && f.in === g.id) ||
+  (!!g.in && g.in === f.id) ||
+  !!entryOf(f)?.within?.includes(g.model || '') ||
+  !!entryOf(g)?.within?.includes(f.model || '');
 export function furnitureConflicts(plan: Plan): Map<string, string> {
   // a built-in wardrobe: rectangles along each wall (by the main face; at a column the rectangle goes into it, which is not an error)
   const out = new Map<string, string>();

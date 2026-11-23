@@ -83,7 +83,7 @@ test('a file of a newer format is refused with its own error, so the user is tol
 const TYPES = path.resolve(import.meta.dirname, 'types.ts');
 const FROM = '// ---------- the plan file: rooms and openings ----------';
 const TO = "// ---------- what the plan's geometry gives back ----------";
-const FORMAT_FINGERPRINT = 'db58d14ce4c9';
+const FORMAT_FINGERPRINT = '9cbaf2bf8dad';
 
 function formatFingerprint(): string {
   const source = fs.readFileSync(TYPES, 'utf8');

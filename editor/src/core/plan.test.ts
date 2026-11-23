@@ -163,6 +163,12 @@ test('a shower set in its shower or over a bath is no conflict; in a wardrobe it
     /overlaps/,
     'in a wardrobe',
   );
+  // Drawn from parts, as the AI build draws both: the set says which item it stands in.
+  shower.model = 'parts';
+  set.model = 'parts';
+  assert.ok(furnitureConflicts(p).size > 0, 'parts in parts, nothing said: overlapping');
+  set.in = 's';
+  assert.equal(furnitureConflicts(p).size, 0, 'the set stands in the stall it names');
 });
 // A chair drawn from parts as the AI build draws one: a seat 0.48 m high and a backrest along its back (its back 15 %).
 const chairParts = (w: number, d: number, h: number): PartsItem => ({

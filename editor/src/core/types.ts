@@ -334,6 +334,8 @@ export interface FurnitureItem {
   patSpec?: RugSpec;
   /** Mirrored (models with mirror in the catalog: a corner sofa, a shower…). */
   mx?: boolean;
+  /** The id of the item it stands in (a shower set in its shower, as the AI build places one): standing in it is no conflict. */
+  in?: string;
   /** Its own name (a custom item, an item from parts). */
   name?: string;
   parts?: PartsItem;
