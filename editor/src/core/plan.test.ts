@@ -139,6 +139,31 @@ test('furniture snaps back-first to a wall and detects overlap', () => {
   p.furniture.push(f, {...f, id: 'w2', x: f.x + 0.5});
   assert.match(furnitureConflicts(p).get('w2')!, /overlaps/);
 });
+test('a shower set in its shower or over a bath is no conflict; in a wardrobe it is', () => {
+  const p = two();
+  const shower: FurnitureItem = {id: 's', model: 'shower', w: 0.9, d: 0.9, h: 2, rot: 0, x: 1, y: 1};
+  const set: FurnitureItem = {
+    id: 'c',
+    model: 'showerColumn',
+    w: 0.3,
+    d: 0.15,
+    h: 1.2,
+    z: 0.85,
+    rot: 0,
+    x: 1,
+    y: 0.65,
+  };
+  p.furniture.push(shower, set);
+  assert.equal(furnitureConflicts(p).size, 0, 'in its shower');
+  shower.model = 'bath';
+  assert.equal(furnitureConflicts(p).size, 0, 'over the bath');
+  shower.model = 'wardrobe';
+  assert.match(
+    furnitureConflicts(p).get('c') || furnitureConflicts(p).get('s')!,
+    /overlaps/,
+    'in a wardrobe',
+  );
+});
 // A chair drawn from parts as the AI build draws one: a seat 0.48 m high and a backrest along its back (its back 15 %).
 const chairParts = (w: number, d: number, h: number): PartsItem => ({
   w,

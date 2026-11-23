@@ -389,6 +389,8 @@ export interface CatalogEntry {
   table?: true | number;
   /** It slides under a table: all of it (true) or up to this height in metres (a chair's seat). */
   under?: true | number;
+  /** It belongs inside one of these models (a shower set in a shower or over a bath): standing in one is no conflict. */
+  within?: string[];
   /** It can be mirrored (a corner sofa, a shower). */
   mirror?: boolean;
   /** Round on the plan: always, or in these variants. */

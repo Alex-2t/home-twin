@@ -363,6 +363,7 @@ export const CATALOG: CatalogEntry[] = [
     d: 0.35,
     h: 1.2,
     lift: 0.85,
+    within: ['shower', 'walkIn', 'bath', 'bathTall'],
     color: 'chrome',
     colors: ['chrome', 'black'],
     tags: N('shower set column rain shower mixer faucet head'),

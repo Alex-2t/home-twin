@@ -397,6 +397,10 @@ export function stackOf(plan: Plan, f: FurnitureItem): FurnitureItem[] {
     ),
   ].sort((a, b) => zOf(a) - zOf(b));
 }
+// One of the two belongs inside the other (catalog `within`: a shower set in its shower or over a bath): not a conflict. The AI
+// build's benchmark, 2026-11-22: 7 of 8 shower sets stood beside their stall to keep clear of it, the 8th was drawn red in it.
+export const inside = (f: FurnitureItem, g: FurnitureItem): boolean =>
+  !!entryOf(f)?.within?.includes(g.model || '') || !!entryOf(g)?.within?.includes(f.model || '');
 export function furnitureConflicts(plan: Plan): Map<string, string> {
   // a built-in wardrobe: rectangles along each wall (by the main face; at a column the rectangle goes into it, which is not an error)
   const out = new Map<string, string>();
@@ -442,7 +446,9 @@ export function furnitureConflicts(plan: Plan): Map<string, string> {
       return; // curtains hang in front of furniture and in front of a balcony door
     else if (doors.some(d => zOf(f) < d.top - 0.02 && ov(C[i], [d.poly]))) out.set(f.id, t('blocks a door'));
     else {
-      const j = F.findIndex((g, k) => k !== i && !soft(g) && !above(f, g) && !tuck(f, g) && ov(C[i], C[k]));
+      const j = F.findIndex(
+        (g, k) => k !== i && !soft(g) && !above(f, g) && !tuck(f, g) && !inside(f, g) && ov(C[i], C[k]),
+      );
       if (j >= 0) out.set(f.id, t('overlaps “{0}”', nameOf(F[j])));
     }
   });
