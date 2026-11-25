@@ -92,6 +92,20 @@ test('only pins with words go, numbered in order; the count adds the note for th
   assert.equal(changeCount({pins, text: 'oak floors'}), 3);
 });
 
+test("a pin that came back goes with the owner's yes to its offer alone: the yes counts as a change", () => {
+  const came = {
+    ...newPin(plan, {p: [1, 1]}),
+    text: '',
+    said: 'this is the kitchen, not a bedroom',
+    retry: {round: 1, n: 1, made: 'no' as const, codes: ['offer'], offer: {level: 'rooms', percent: 40}},
+  };
+  assert.equal(changeCount({pins: [came], text: ''}), 0, 'no words and no yes: "All right" leaves it');
+  const yes = {...came, accept: 'rooms'};
+  assert.equal(changeCount({pins: [yes], text: ''}), 1);
+  assert.equal(pinsToSend([yes])[0].accept, 'rooms');
+  assert.equal(changeCount({pins: [{...came, accept: 'plan'}], text: ''}), 0, 'a yes to a step not offered');
+});
+
 test("a pin's pictures go with it: what the owner saw and their photos, at most four", () => {
   const pin = {
     ...newPin(plan, {p: [2, 1]}),

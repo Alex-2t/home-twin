@@ -43,7 +43,7 @@ import {openReview} from './ai-review.ts';
 import type {HandMovedThing, UnplacedThing} from './ai-review.ts';
 import {changeCount, pinsToSend, pinsToRetry, refreshRetries, withoutFixed} from './ai-pins.ts';
 import {editorPrints, markSource, seeFix} from './ai-fix.ts';
-import {furnitureEdits, takeFurnitureRound} from '../core/ai-fix.ts';
+import {furnitureEdits, takeFinishesRound, takeFurnitureRound} from '../core/ai-fix.ts';
 import type {FurnitureRoundTaken} from '../core/ai-fix.ts';
 import {syncFurnStrips} from '../core/fixtures.ts';
 import {accountReports} from './ai-reports.ts';
@@ -3089,15 +3089,23 @@ export function openAiBuild(ed: Editor, options: AiBuildOptions = {}): AiBuildSc
   }
 
   /**
-   * The round's furniture into the home in the editor, as one step of its history: only the things the round moved, added or
-   * removed, and of those only the ones the user left as they were (takeFurnitureRound). The rest of the home is untouched.
+   * The round's furniture and rooms' finishes into the home in the editor, as one step of its history: only the things the
+   * round moved, added or removed and the rooms whose floor or walls it changed, and of those only the ones the user left as
+   * they were (takeFurnitureRound, takeFinishesRound). The rest of the home is untouched. A room's finish counts as a thing.
    */
   async function takeAfterRound(): Promise<void> {
     const round = lastRoundOf(shown());
     let taken: FurnitureRoundTaken<Plan>;
     try {
       const [before, fixed] = await Promise.all([homeAfter(afterFrom), homeAfter(round)]);
-      taken = takeFurnitureRound(ed.plan, before, fixed);
+      const furniture = takeFurnitureRound(ed.plan, before, fixed);
+      const finishes = takeFinishesRound(furniture.plan, before, fixed);
+      taken = {
+        ...furniture,
+        plan: finishes.plan,
+        changed: furniture.changed + finishes.changed,
+        kept: furniture.kept + finishes.kept,
+      };
     } catch {
       afterTaken = t('Could not load the changes: check the connection and try again');
       afterFrom = round;

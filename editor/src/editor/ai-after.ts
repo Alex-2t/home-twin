@@ -1,7 +1,8 @@
 // "Fix with AI": pins on a home already taken from the AI build, after its review. The home stays the user's, with everything
 // they did since (rooms linked, lights, devices, sensors, their own moves); the review opens over it, and a round's furniture
-// comes into it thing by thing (ai-build.ts, options.after; core/ai-fix.ts takeFurnitureRound). The button is on the top bar
-// in Plan and Furniture (styles.css), only for a home whose build is finished and this account's.
+// and rooms' finishes come into it thing by thing and room by room (ai-build.ts, options.after; core/ai-fix.ts
+// takeFurnitureRound, takeFinishesRound). The button is on the top bar in Plan and Furniture (styles.css), only for a home
+// whose build is finished and this account's.
 import {t} from '../i18n/i18n.ts';
 import {el, esc} from './ui.ts';
 import {icon} from './icons.ts';

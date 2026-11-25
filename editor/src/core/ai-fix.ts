@@ -217,13 +217,13 @@ function withFreeIds(items: FurnitureItem[], kept: FurnitureItem[]): FurnitureIt
   });
 }
 
-// ---------- a round of pins on a home already taken: the furniture only ----------
+// ---------- a round of pins on a home already taken: the furniture and the rooms' finishes ----------
 //
 // After "All right" the user goes on with the home (rooms linked, lights, devices, sensors, their own moves) and may still pin
 // what is wrong. The service makes the round on its own copy of the home, which knows none of that, so the round is taken
-// thing by thing, and only the furniture: each thing the round moved, added or removed reaches the home in the editor, unless
-// the user changed or removed that thing too, when theirs stays. Walls, openings, rooms, finishes, lights, devices and
-// sensors are never touched. Three versions again:
+// thing by thing: each thing the round moved, added or removed reaches the home in the editor, unless the user changed or
+// removed that thing too, when theirs stays; so does each room's floor and walls the round changed, unless the user changed
+// that room's too. Walls, openings, rooms' outlines, lights, devices and sensors are never touched. Three versions again:
 //   base  — the service's home just before the round,
 //   fixed — the service's home after it,
 //   local — the home in the editor now.
@@ -311,4 +311,64 @@ export function takeFurnitureRound<P extends Pick<Plan, 'furniture'>>(
   const newThings = fixed.furniture.filter(item => !baseById.has(item.id));
   const added = withFreeIds(newThings, furniture);
   return {plan: {...local, furniture: [...furniture, ...added]}, changed, added: added.length, removed, kept};
+}
+
+/** A room's finish as a round may change it: its floor and walls, their colours and patterns, the pieces of floor and wall. */
+const FINISH_FIELDS = [
+  'floor',
+  'floorTint',
+  'floorPattern',
+  'wall',
+  'wallTint',
+  'wallPattern',
+  'wf',
+  'wp',
+  'fp',
+] as const;
+
+/** A room's finish fields as a text that does not depend on their order: two rooms are finished alike when their texts are. */
+function finishText(room: Room): string {
+  return JSON.stringify(FINISH_FIELDS.map(field => [field, room[field] ?? null]));
+}
+
+/** What a round's finishes did to the home in the editor. */
+export interface FinishesRoundTaken<P> {
+  /** The home with the round's finishes taken. */
+  plan: P;
+  /** Rooms whose floor or walls the round changed, taken. */
+  changed: number;
+  /** Rooms the round changed whose floor or walls the user had changed too: theirs kept. */
+  kept: number;
+}
+
+/**
+ * The home in the editor with the round's finishes: a room whose floor or walls the round changed takes them when the
+ * user's are still the ones before the round. Everything else of the room, and every other room, stays as the user has it.
+ */
+export function takeFinishesRound<P extends Pick<Plan, 'rooms'>>(
+  local: P,
+  base: Pick<Plan, 'rooms'>,
+  fixed: Pick<Plan, 'rooms'>,
+): FinishesRoundTaken<P> {
+  const baseById = new Map(base.rooms.map(room => [room.id, room]));
+  const fixedById = new Map(fixed.rooms.map(room => [room.id, room]));
+  let changed = 0;
+  let kept = 0;
+  const rooms = local.rooms.map(mine => {
+    const before = baseById.get(mine.id);
+    const after = fixedById.get(mine.id);
+    if (!before || !after || finishText(before) === finishText(after)) return mine;
+    if (finishText(mine) !== finishText(before)) {
+      kept++;
+      return mine;
+    }
+    changed++;
+    const taken: Room = {...mine};
+    for (const field of FINISH_FIELDS) {
+      if (after[field] === undefined) delete taken[field];
+      else Object.assign(taken, {[field]: structuredClone(after[field])});
+    }
+    return taken;
+  });
+  return {plan: {...local, rooms}, changed, kept};
 }

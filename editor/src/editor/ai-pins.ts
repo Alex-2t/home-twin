@@ -449,6 +449,13 @@ export function withoutFixed(pins: Pin[], reports: ReportView[]): Pin[] {
   return pins.filter(pin => reportOf(pin, reports)?.status !== 'fixed');
 }
 
-/** How many changes the owner asks for: each pin with words, and the note for the whole home. */
+/**
+ * Whether a pin asks for something this round: new words, or the owner's yes to the bigger step offered for it (a pin that
+ * came back, its offer taken, goes even with no new words).
+ */
+export const pinAsks = (pin: Pick<Pin, 'text' | 'accept' | 'retry'>): boolean =>
+  !!pin.text.trim() || (!!pin.accept && pin.retry?.offer?.level === pin.accept);
+
+/** How many changes the owner asks for: each pin that asks something (pinAsks), and the note for the whole home. */
 export const changeCount = (notes: PinNotes): number =>
-  notes.pins.filter(pin => pin.text.trim()).length + (notes.text.trim() ? 1 : 0);
+  notes.pins.filter(pinAsks).length + (notes.text.trim() ? 1 : 0);

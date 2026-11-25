@@ -8,7 +8,7 @@
 import {t} from '../i18n/i18n.ts';
 import {esc} from './ui.ts';
 import {icon} from './icons.ts';
-import type {PinNotes} from './ai-pins.ts';
+import {pinAsks, type PinNotes} from './ai-pins.ts';
 
 /** What an action will about take: percent of one package, and whether that is more than what is left. */
 export interface Estimate {
@@ -68,9 +68,9 @@ export function roundEstimate(buildUrl: string, size: RoundSize): Promise<Estima
   return estimateAt(`${buildUrl}/estimate?${query}`);
 }
 
-/** What a round of these notes is counted by: the rooms of the pins that say something, and words for the whole home. */
+/** What a round of these notes is counted by: the rooms of the pins that ask something, and words for the whole home. */
 export function roundSize(notes: PinNotes): RoundSize {
-  const saying = notes.pins.filter(pin => pin.text.trim());
+  const saying = notes.pins.filter(pinAsks);
   const rooms = new Set(saying.map(pin => pin.room || ''));
   return {rooms: rooms.size, wholeHome: !!notes.text.trim()};
 }

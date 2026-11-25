@@ -7,6 +7,7 @@ import {
   contentPrints,
   fixOffer,
   furnitureEdits,
+  takeFinishesRound,
   takeFurnitureRound,
   untouchedChoice,
 } from './ai-fix.ts';
@@ -215,4 +216,31 @@ test('the things moved by hand in the review are counted, and only they: the hom
   local.furniture.pop();
   local.furniture.push(item('plant', 'plant', 1, 1));
   assert.equal(furnitureEdits(local, base), 3, 'one moved, one removed, one added');
+});
+
+test("a round's floor and walls come into a room the user left as it came; a room the user finished stays theirs", () => {
+  const base = baseHome();
+  base.rooms[0].floor = 'wood';
+  base.rooms[1].floor = 'carpet';
+  const fixed = structuredClone(base);
+  fixed.rooms[0].floor = 'tile';
+  fixed.rooms[0].wall = 'paintNavy';
+  fixed.rooms[0].wallTint = '#1c2c58';
+  fixed.rooms[1].floor = 'woodLight';
+  fixed.rooms[0].name = 'Lounge';
+  const local = structuredClone(base);
+  local.rooms[1].floor = 'marble';
+  local.rooms[0].area = 'living_room';
+  const taken = takeFinishesRound(local, base, fixed);
+  assert.deepEqual(
+    taken.plan.rooms.map(each => [each.id, each.floor, each.wall ?? null, each.wallTint ?? null]),
+    [
+      ['r1', 'tile', 'paintNavy', '#1c2c58'],
+      ['r2', 'marble', null, null],
+    ],
+  );
+  assert.deepEqual([taken.changed, taken.kept], [1, 1]);
+  // Only the finish comes: the room's name and link stay the user's.
+  assert.equal(taken.plan.rooms[0].name, 'Living room');
+  assert.equal(taken.plan.rooms[0].area, 'living_room');
 });
