@@ -160,6 +160,11 @@ interface BuildStatus {
   id?: string;
   steps: BuildStep[];
   rooms: VideoRoom[];
+  /**
+   * How many of the video's frames the service can show while the build looks for its rooms (…/video-frame/:n); none from
+   * a service from before, or once the rooms are found.
+   */
+  videoFrames?: number;
   /** What the service has to show: the plan as read, the plan photo, the home in 3D. */
   has: {plan?: boolean; photo?: boolean; shot?: boolean};
   /** The checkpoint the build waits at ('final': the owner's review). */
@@ -530,6 +535,7 @@ const MEDIA_DELETED_LINE = N(
 const PHOTO_WORDS: Record<string, string> = {
   'Rooms from the video': N('Rooms from the photos'),
   'Rooms from your video': N('Rooms from your photos'),
+  'Watching your video': N('Looking at your photos'),
   'The video meets the drawing': N('The photos meet the drawing'),
   'Placing things as the video shows': N('Placing things as the photos show'),
   'Comparing the drawing with the video': N('Comparing the drawing with the photos'),
@@ -2405,6 +2411,9 @@ export function openAiBuild(ed: Editor, options: AiBuildOptions = {}): AiBuildSc
             <div class="aib-cta"></div>
             <div class="aib-making" hidden><h3>${esc(t('Furniture'))}<span></span></h3><div class="aib-chips"></div></div>
             <div class="aib-reading" hidden></div>
+            <div class="aib-watching" hidden><h3>${esc(t('Watching your video'))}</h3>
+              <p class="aib-watching-line"><i class="spin"></i><span>${esc(t('Finding which room is where'))}</span></p>
+              <div class="aib-watch-frames"></div></div>
             <div class="aib-found" hidden><h3>${esc(t('Rooms from your video'))}</h3><div class="aib-rooms"></div></div>
           </section>
         </main>
@@ -2835,6 +2844,27 @@ export function openAiBuild(ed: Editor, options: AiBuildOptions = {}): AiBuildSc
       if (line.textContent !== text) line.textContent = text;
     }
     find(root, '.aib-found').hidden = !rooms.length;
+    renderWatching(rooms.length ? 0 : status.videoFrames || 0, !!status.error);
+  }
+
+  // The video's frames while its rooms are looked for: the half minute to two minutes before the rooms come, the page had
+  // nothing to show under the plan (the owner, 2026-11-26). Gone once the rooms are found, or when the build stopped.
+  function renderWatching(frames: number, stopped: boolean): void {
+    const block = find(root, '.aib-watching');
+    block.hidden = frames === 0 || stopped;
+    const grid = find(block, '.aib-watch-frames');
+    for (let index = 0; index < frames; index++) {
+      if (grid.querySelector(`[data-frame="${index}"]`)) continue;
+      const figure = el(
+        `<figure class="aib-room" data-frame="${index}"><span class="aib-frame"><img alt="" hidden></span></figure>`,
+      );
+      const img = find<HTMLImageElement>(figure, 'img');
+      img.onload = () => {
+        img.hidden = false;
+      };
+      img.src = `${base()}/video-frame/${index}`;
+      grid.append(figure);
+    }
   }
 
   // The progress page's title: what the build is at, in a few words.
@@ -2873,6 +2903,7 @@ export function openAiBuild(ed: Editor, options: AiBuildOptions = {}): AiBuildSc
       if (label) label.textContent = t(words(stage.label));
     }
     find(root, '.aib-found h3').textContent = t(words('Rooms from your video'));
+    find(root, '.aib-watching h3').textContent = t(words('Watching your video'));
     renderSteps();
     const cta = ctaCard();
     const box = find(root, '.aib-cta');
